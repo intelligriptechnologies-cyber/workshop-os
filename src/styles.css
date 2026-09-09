@@ -59,16 +59,19 @@ button.danger-action {
 .login-screen {
   background:
     linear-gradient(90deg, #15616d 0 14px, transparent 14px),
+    radial-gradient(circle at 28% 22%, rgba(166, 230, 209, 0.72), transparent 34%),
+    radial-gradient(circle at 78% 18%, rgba(184, 211, 238, 0.58), transparent 30%),
     linear-gradient(135deg, #eef3f6, #f8fafc 58%, #e8eef2);
 }
 
 .login-panel {
+  position: relative;
   width: min(540px, 100%);
   border: 1px solid #d8e0e8;
   border-radius: 8px;
   padding: 32px;
   background: #fff;
-  box-shadow: 0 24px 70px rgba(24, 34, 45, 0.14);
+  box-shadow: 0 26px 70px rgba(24, 34, 45, 0.16);
 }
 
 .login-mark,

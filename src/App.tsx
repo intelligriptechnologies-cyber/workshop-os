@@ -21,7 +21,7 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Database } from "sql.js";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import {
   addFollowup,
   addPayment,
@@ -163,7 +163,9 @@ function App() {
   const [activeMenuItem, setActiveMenuItem] = useState("");
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [railToggleTop, setRailToggleTop] = useState(118);
-  const [railToggleDragged, setRailToggleDragged] = useState(false);
+  const railToggleDragging = useRef(false);
+  const railToggleMoved = useRef(false);
+  const railToggleStartY = useRef(0);
   const [query, setQuery] = useState("");
   const [loginError, setLoginError] = useState("");
 
@@ -174,6 +176,42 @@ function App() {
       setState(next);
       setSelectedJobId(next.jobs[0]?.job.id);
     });
+  }, []);
+
+  useEffect(() => {
+    const moveRailToggle = (clientY: number) => {
+      if (Math.abs(clientY - railToggleStartY.current) > 4) railToggleMoved.current = true;
+      const nextTop = Math.min(Math.max(clientY - 22, 82), window.innerHeight - 92);
+      setRailToggleTop(nextTop);
+    };
+    const handlePointerMove = (event: PointerEvent) => {
+      if (!railToggleDragging.current) return;
+      moveRailToggle(event.clientY);
+    };
+    const handlePointerUp = () => {
+      if (!railToggleDragging.current) return;
+      railToggleDragging.current = false;
+      if (!railToggleMoved.current) setSidebarCollapsed((value) => !value);
+    };
+    const handleMouseMove = (event: MouseEvent) => {
+      if (!railToggleDragging.current) return;
+      moveRailToggle(event.clientY);
+    };
+    const handleMouseUp = () => {
+      if (!railToggleDragging.current) return;
+      railToggleDragging.current = false;
+      if (!railToggleMoved.current) setSidebarCollapsed((value) => !value);
+    };
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp);
+    window.addEventListener("mousemove", handleMouseMove);
+    window.addEventListener("mouseup", handleMouseUp);
+    return () => {
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+      window.removeEventListener("mousemove", handleMouseMove);
+      window.removeEventListener("mouseup", handleMouseUp);
+    };
   }, []);
 
   const jobs = useMemo(() => (state ? searchJobs(state, query) : []), [state, query]);
@@ -211,23 +249,29 @@ function App() {
   };
 
   const handleRailTogglePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    setRailToggleDragged(false);
+    railToggleDragging.current = true;
+    railToggleMoved.current = false;
+    railToggleStartY.current = event.clientY;
     event.currentTarget.setPointerCapture(event.pointerId);
   };
 
   const handleRailTogglePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if ((event.buttons & 1) !== 1) return;
-    setRailToggleDragged(true);
+    if (!railToggleDragging.current) return;
+    if (Math.abs(event.clientY - railToggleStartY.current) > 4) railToggleMoved.current = true;
     const nextTop = Math.min(Math.max(event.clientY - 22, 82), window.innerHeight - 92);
     setRailToggleTop(nextTop);
   };
 
   const handleRailTogglePointerUp = () => {
-    if (railToggleDragged) {
-      setRailToggleDragged(false);
-      return;
-    }
-    setSidebarCollapsed((value) => !value);
+    if (!railToggleDragging.current) return;
+    railToggleDragging.current = false;
+    if (!railToggleMoved.current) setSidebarCollapsed((value) => !value);
+  };
+
+  const handleRailToggleMouseDown = (event: React.MouseEvent<HTMLButtonElement>) => {
+    railToggleDragging.current = true;
+    railToggleMoved.current = false;
+    railToggleStartY.current = event.clientY;
   };
 
   if (!state) return <div className="loading">Loading local SQLite workspace...</div>;
@@ -248,6 +292,7 @@ function App() {
           onPointerDown={handleRailTogglePointerDown}
           onPointerMove={handleRailTogglePointerMove}
           onPointerUp={handleRailTogglePointerUp}
+          onMouseDown={handleRailToggleMouseDown}
           aria-label={sidebarCollapsed ? "Show left menu" : "Hide left menu"}
           title={sidebarCollapsed ? "Show left menu" : "Hide left menu"}
           style={{ top: railToggleTop }}
