@@ -45,7 +45,7 @@ button.danger-action {
   background: #fff5f5;
   color: #9b2c2c;
   padding: 0 12px;
-  font-weight: 900;
+  font-weight: 400;
 }
 
 .loading,
@@ -88,8 +88,20 @@ button.danger-action {
 .login-mark {
   gap: 10px;
   color: #15616d;
-  font-weight: 900;
+  font-weight: 600;
   margin-bottom: 16px;
+}
+
+.login-mark span,
+.login-mark small {
+  display: block;
+}
+
+.login-mark small {
+  margin-top: 2px;
+  color: #6b7783;
+  font-size: 0.82rem;
+  font-weight: 400;
 }
 
 h1,
@@ -102,12 +114,14 @@ p {
 h1 {
   font-size: 1.8rem;
   letter-spacing: 0;
+  font-weight: 600;
 }
 
 h2 {
   font-size: 1.1rem;
   margin-bottom: 3px;
   letter-spacing: 0;
+  font-weight: 600;
 }
 
 p {
@@ -119,7 +133,7 @@ label {
   gap: 6px;
   color: #4d5a66;
   font-size: 0.84rem;
-  font-weight: 800;
+  font-weight: 400;
 }
 
 input,
@@ -184,20 +198,28 @@ form {
   min-height: 100vh;
   display: grid;
   grid-template-columns: 250px 1fr;
+  transition: grid-template-columns 180ms ease;
+}
+
+.app-shell.rail-collapsed {
+  grid-template-columns: 78px 1fr;
 }
 
 .rail {
   min-height: 100vh;
   padding: 18px;
-  background: #17212b;
-  color: #fff;
+  background: #e1f1eb;
+  color: #21302e;
+  border-right: 1px solid #c6ded4;
   position: sticky;
   top: 0;
+  overflow: visible;
 }
 
 .brand {
   gap: 12px;
   min-height: 60px;
+  color: #15616d;
 }
 
 .brand strong,
@@ -205,19 +227,48 @@ form {
   display: block;
 }
 
+.brand strong {
+  font-weight: 600;
+}
+
 .brand span {
-  color: #b9c6d3;
+  color: #6b7783;
   font-size: 0.84rem;
+  font-weight: 400;
+}
+
+.rail-toggle {
+  width: 38px;
+  min-height: 46px;
+  border: 1px solid #b6d5c9;
+  border-radius: 999px;
+  background: #fff;
+  color: #15616d;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  position: fixed;
+  left: 231px;
+  z-index: 30;
+  box-shadow: 0 10px 28px rgba(24, 34, 45, 0.14);
+  touch-action: none;
+  transition: left 180ms ease, background 160ms ease, border-color 160ms ease;
+}
+
+.rail-toggle:hover {
+  background: #f6fffb;
+  border-color: #86cdb5;
 }
 
 .rail-role {
-  border: 1px solid #334454;
+  border: 1px solid #c5d8d0;
   border-radius: 8px;
-  background: #101820;
-  color: #f4b942;
+  background: #fff;
+  color: #596771;
   padding: 10px 12px;
   font-size: 0.82rem;
-  font-weight: 900;
+  font-weight: 400;
 }
 
 .role-nav {
@@ -234,16 +285,16 @@ form {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: #dce6ef;
+  color: #3f4e58;
   padding: 0 12px;
   text-align: left;
   font-weight: 400;
 }
 
 .role-nav button.active {
-  background: #f4b942;
-  border-color: #f4b942;
-  color: #17212b;
+  background: #dff7ed;
+  border-color: #9edfc7;
+  color: #145b50;
 }
 
 .logout {
@@ -252,6 +303,37 @@ form {
   bottom: 18px;
   gap: 8px;
   justify-content: center;
+}
+
+.rail-collapsed .rail {
+  padding: 18px 12px;
+}
+
+.rail-collapsed .brand {
+  justify-content: center;
+}
+
+.rail-collapsed .brand div,
+.rail-collapsed .rail-role,
+.rail-collapsed .role-nav span,
+.rail-collapsed .logout span {
+  display: none;
+}
+
+.rail-collapsed .rail-toggle,
+.rail-collapsed .role-nav button,
+.rail-collapsed .logout {
+  width: 54px;
+  padding: 0;
+  justify-content: center;
+}
+
+.rail-collapsed .rail-toggle {
+  left: 59px;
+}
+
+.rail-collapsed .logout {
+  left: 12px;
 }
 
 .mobile-logout {
@@ -280,7 +362,7 @@ main {
 .topbar p {
   margin: 0 0 5px;
   color: #62717e;
-  font-weight: 900;
+  font-weight: 500;
 }
 
 .user-pill {
@@ -291,7 +373,7 @@ main {
   background: #fff;
   padding: 0 12px;
   color: #4d5a66;
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .primary-action {
@@ -333,11 +415,12 @@ main {
 .stock-item span {
   color: #657482;
   font-size: 0.84rem;
-  font-weight: 700;
+  font-weight: 400;
 }
 
 .kpi strong {
   font-size: 1.35rem;
+  font-weight: 600;
 }
 
 .portal,
@@ -520,6 +603,7 @@ main {
 .info-row strong {
   text-align: right;
   overflow-wrap: anywhere;
+  font-weight: 500;
 }
 
 .status {
@@ -533,7 +617,7 @@ main {
   background: #edf2f7;
   color: #2d3748;
   font-size: 0.75rem;
-  font-weight: 900;
+  font-weight: 500;
   overflow-wrap: anywhere;
 }
 
@@ -609,6 +693,11 @@ button.request-line:focus {
   display: block;
 }
 
+.request-line strong,
+.stock-item strong {
+  font-weight: 500;
+}
+
 .stock-item.low {
   border-color: #f2b8af;
   background: #fff5f5;
@@ -642,7 +731,7 @@ button.request-line:focus {
   border-radius: 8px;
   padding: 10px 12px;
   margin: 0 0 8px;
-  font-weight: 800;
+  font-weight: 400;
 }
 
 .data-flow {
@@ -656,7 +745,7 @@ button.request-line:focus {
   border-radius: 8px;
   gap: 8px;
   padding: 0 10px;
-  font-weight: 900;
+  font-weight: 400;
 }
 
 .flow-step.ok {
@@ -720,7 +809,8 @@ button.request-line:focus {
   }
 
   .brand,
-  .logout {
+  .logout,
+  .rail-toggle {
     display: none;
   }
 
@@ -744,6 +834,14 @@ button.request-line:focus {
     font-size: 0.68rem;
     flex-direction: column;
     gap: 3px;
+  }
+
+  .rail-collapsed .role-nav button {
+    width: auto;
+  }
+
+  .rail-collapsed .role-nav span {
+    display: inline;
   }
 
   .mobile-logout {

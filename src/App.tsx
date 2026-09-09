@@ -12,6 +12,8 @@ import {
   LogOut,
   Package,
   PackageCheck,
+  PanelLeftClose,
+  PanelLeftOpen,
   ReceiptText,
   Search,
   ShieldCheck,
@@ -93,6 +95,8 @@ const roleLabels: Record<Role, string> = {
   tech: "Technician",
 };
 
+const appTagline = "Workshop Management. Simplified.";
+
 type MenuItem = {
   label: string;
   icon: React.ReactNode;
@@ -157,6 +161,9 @@ function App() {
   const [user, setUser] = useState<User>();
   const [selectedJobId, setSelectedJobId] = useState<number>();
   const [activeMenuItem, setActiveMenuItem] = useState("");
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+  const [railToggleTop, setRailToggleTop] = useState(118);
+  const [railToggleDragged, setRailToggleDragged] = useState(false);
   const [query, setQuery] = useState("");
   const [loginError, setLoginError] = useState("");
 
@@ -203,23 +210,54 @@ function App() {
     setActiveMenuItem("");
   };
 
+  const handleRailTogglePointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
+    setRailToggleDragged(false);
+    event.currentTarget.setPointerCapture(event.pointerId);
+  };
+
+  const handleRailTogglePointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
+    if ((event.buttons & 1) !== 1) return;
+    setRailToggleDragged(true);
+    const nextTop = Math.min(Math.max(event.clientY - 22, 82), window.innerHeight - 92);
+    setRailToggleTop(nextTop);
+  };
+
+  const handleRailTogglePointerUp = () => {
+    if (railToggleDragged) {
+      setRailToggleDragged(false);
+      return;
+    }
+    setSidebarCollapsed((value) => !value);
+  };
+
   if (!state) return <div className="loading">Loading local SQLite workspace...</div>;
   if (!user) return <LoginScreen onLogin={handleLogin} error={loginError} />;
 
   return (
-    <div className={`app-shell role-${user.role}`}>
+    <div className={`app-shell role-${user.role}${sidebarCollapsed ? " rail-collapsed" : ""}`}>
       <aside className="rail">
         <div className="brand">
           <Car size={30} />
           <div>
             <strong>WorkshopOS</strong>
-            <span>SQLite PWA demo</span>
+            <span>{appTagline}</span>
           </div>
         </div>
+        <button
+          className="rail-toggle"
+          onPointerDown={handleRailTogglePointerDown}
+          onPointerMove={handleRailTogglePointerMove}
+          onPointerUp={handleRailTogglePointerUp}
+          aria-label={sidebarCollapsed ? "Show left menu" : "Hide left menu"}
+          title={sidebarCollapsed ? "Show left menu" : "Hide left menu"}
+          style={{ top: railToggleTop }}
+        >
+          {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
+        </button>
         <div className="rail-role">{roleLabels[user.role]}</div>
         <nav className="role-nav" aria-label={`${roleLabels[user.role]} menu`}>
           {roleMenus[user.role].map((item) => (
-            <button key={item.label} className={activeMenuItem === item.label ? "active" : ""} onClick={() => setActiveMenuItem(item.label)}>
+            <button key={item.label} className={activeMenuItem === item.label ? "active" : ""} onClick={() => setActiveMenuItem(item.label)} title={item.label}>
               {item.icon}
               <span>{item.label}</span>
             </button>
@@ -227,7 +265,7 @@ function App() {
         </nav>
         <button className="logout" onClick={handleLogout}>
           <LogOut size={18} />
-          Logout
+          <span>Logout</span>
         </button>
       </aside>
 
@@ -272,7 +310,10 @@ function LoginScreen({ onLogin, error }: { onLogin: (email: string, password: st
       <section className="login-panel">
         <div className="login-mark">
           <ShieldCheck size={36} />
-          <span>WorkshopOS</span>
+          <div>
+            <span>WorkshopOS</span>
+            <small>{appTagline}</small>
+          </div>
         </div>
         <h1>Sign in to your workshop desk</h1>
         <form
