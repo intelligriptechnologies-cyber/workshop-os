@@ -1,0 +1,64 @@
+
+
+
+SiteOps
+WorkSite360
+BuilderDesk
+
+
+
+---------------
+
+
+Plan the UI, make it very User friendly as ...None of them would be Tech Savvy,, so we will
+have to plan a Smooth and Simple UI...
+
+We need make if a Mobile version of it as well....For now 
+we can use Web version for now...use PWA ...for Android, IOS
+
+
+   also i want
+  you to make checklists of all the tasks and use context
+  management flow to work on these now, whenever context
+  reachs 30%,,or a particular task item is finished please
+  handover it to a fresh thread, and update the checklist please plan the GOAL and set it accordingly
+  this way we will save context now.
+ 
+ ====
+   ok then lets get started and make the implementation,,
+  please auto handover the tasks to next thread and donot
+  wait for my confirmation,,, i need to finish all the
+  implementation checklist untill then please work,, assign
+  task goals,, and work untill goal is acheived, please
+  recall the context saving strategy follow it and set goals
+  to finish it using multiple threads
+
+
+===================================================NEXT====================
+
+current i reviewed this App....but not very impreseed, it looks like stale data...all
+  screens looks same...please rethink and plan deeply considering each tab....we need to
+  have multiple set of logins here...please use sql litle other wise.....use demo login
+  creds...like admin@example.com  (owner)....service@example.com (service
+  adisor)...reception@example.com (reception guy)...accounts@example.com.....for now use
+  pwd: admin123 for all users....Also plan each login visuals accordingly...The data should
+  be linked we can show a data flow ...like reception can enter or rcv a vehicle so
+  initially... they should have relevant screens to add/update a record....(pre existing
+  records can be planned and already added....) like wise the service guy logs in...he sees
+  the queue of vehicles...we can visit each of them, and can update details, make
+  entries ..., generate invoice once job card status moves from NEW --> Inprogress -->
+  Completed ---> Closed......so sub status can be help for each Steps here for JoB Card life
+  cycle.........Gather Rquirements, Create estimate, Get confirmation....move to In
+  progress...any communication / followup needed, share pictures etc....Washing needed
+  etc...---> then move to Completed...once customer checks, verifies, confirms ---invoice is
+  generated...payment is received...then Job card  can be closed,, on closure we can prepare
+  gate pass, and payment recipts....on in progress...we can be estiamtes...on compelted we
+  can geenrate invoice.....add/edit is possible untill closed.........Apart from that every
+  user will have  an access to common search portal where they can search vehicle
+  number...or customer number....on of visits will be redcorded...last job card details,
+  invoice...dates work list...service advisor worked etc......Customer list can be
+  separate..just to check what all vehicles he has already got...name, mobile number can be
+  unique search where to filter list from dropdown....here....
+  
+  
+  
