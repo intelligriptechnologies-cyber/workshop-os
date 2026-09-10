@@ -2,32 +2,34 @@
 
 Updated: 2026-09-11
 Current branch: `prem-dev`
-Completed slice: S05<br>
-Next slice: S06 — Appointment and capacity management
+Completed slice: S06<br>
+Next slice: S07 — Reception check-in, custody evidence, incidents, and offline drafts
 
 ## Durable state
 
 - The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain frozen and traceability is CLEAN.
 - S00-S28 specifications live in `harness/05-issues/`. `BRD.md` remains a pointer and the React/sql.js demo remains a behavioral reference only.
-- S01-S04 established the tenant-aware vertical, identity/access controls, versioned configuration, and lifecycle command engine. S05 adds customer and vehicle identity plus history without weakening those boundaries.
+- S01-S05 established the tenant-aware vertical, access/control boundaries, versioned configuration, lifecycle command engine, and customer/vehicle history. S06 adds appointment and capacity planning without weakening those seams.
 
-## S05 evidence
+## S06 evidence
 
-- `production/src/customer-vehicle-history.ts` owns tenant/branch-scoped customer contacts, communication consent/preference and payer relations; vehicle registration/VIN/attributes, odometer and service history; and configurable exact/probable duplicate signals across create/update/search.
-- Effective-dated ownership changes reject overlap and snapshot the historical owner and payer onto service/job history, so later transfers and merges never rewrite prior work.
-- Controlled customer/vehicle merges require explicit permission, optimistic source versions, idempotency, reason, and evidence; preserve aliases/history; reject contradictory canonical vehicle identities; and recover only through a separately permissioned, recently authenticated, audited compensating command.
-- `production/db/migrations/005_customer_vehicle_history.sql` provides tenant keys, exact identity indexes, forced branch-aware RLS, immutable historical owner/payer snapshots, tenant idempotency, and append-only ownership/odometer/service/alias/merge-member/compensation/audit records.
-- Production tests passed 31/31; production typecheck, harness (119 requirements/29 slices/6 contiguous complete/no orphans), demo build, Playwright 7/7, and diff check passed. No external call, deployment, push, or production action occurred.
+- `production/src/appointment-capacity.ts` owns tenant/branch-scoped create, reschedule, cancel, no-show, arrive, and convert commands with optimistic concurrency, tenant idempotency, safe replay, and actor-attributed reasoned history/audit.
+- Availability accounts for branch closures, duration, before/after buffers, active overlapping reservations, and qualified bay/staff skill sets. Accepted schedules snapshot the capacity configuration version and deterministically reserve one matching bay/staff pair.
+- Ordinary contention yields one winner. Overbooking requires the separate `appointment.overbook` permission, reason, and evidence; closures or missing qualified resources cannot be overridden. Reschedules use the same capacity and authorization rules.
+- Conversion commits exactly one durable `RECEPTION_CHECK_IN_REQUESTED` event containing appointment/customer/vehicle/resource references. S07 consumes that event to atomically create the Visit and linked draft Job Card; S06 deliberately does not create either record.
+- `production/db/migrations/006_appointment_capacity.sql` supplies tenant keys, forced branch-aware RLS, exact schedule constraints, immutable per-version reservation/history/reception-event/audit records, tenant idempotency, and advisory-lock serialized overlap enforcement with explicit overbooking evidence.
+- Production tests passed 37/37; production typecheck, harness (119 requirements/29 slices/7 contiguous complete/no orphans), demo build, Playwright 7/7, and diff check passed. No external call, deployment, push, or production action occurred.
 
-## S06 first action
+## S07 first action
 
-Read S06 and R-026 through R-027. Start with a failing public `/api/v1` test for idempotent appointment creation and reasoned reschedule/cancel/no-show/arrive/convert history, then add branch closures, bay/staff/skill duration and buffer capacity, concurrency, and permissioned overbooking.
+Read S07 and R-028 through R-029 plus the R-071 custody-incident intake boundary. Start with a failing public `/api/v1` test proving an appointment reception event atomically creates one Visit and linked draft Job Card under safe replay; then add configurable KM/fuel/key/accessory/condition evidence, acknowledgement/advisor handoff, custody-incident intake, and conflict-aware offline drafts while keeping authoritative actions unavailable offline.
 
 ## Guardrails
 
 - Preserve unrelated user changes and demo behavior.
 - Never trust client tenant/branch input; derive authority from verified membership and maintain PostgreSQL RLS.
-- Reuse S01 authorization/idempotency and S04 optimistic command patterns; do not create a bypassing CRUD surface.
-- Appointment conversion must feed reception's eventual atomic Visit/draft Job flow without implementing S07 early.
+- Consume S06's durable reception event idempotently; do not reopen or mutate the converted appointment history.
+- Reception check-in must be one transaction for the Visit and linked draft Job Card and must retain customer/vehicle/advisor/custody/request/promised-handoff snapshots.
+- Offline storage is draft-only: it must expose conflicts and must never post lifecycle, custody-incident resolution, inventory, approval, financial, QC override, closure, or gate ledger actions.
 - Keep AWS/Cognito/provider activity local until explicitly authorized.
-- After S06 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S06 and do not push.
+- After S07 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S07 and do not push.

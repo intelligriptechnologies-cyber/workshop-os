@@ -1,6 +1,6 @@
 # WorkshopOS decision ledger
 
-Status: FROZEN through S05. S01 through S05 introduced no decision amendments. Amendments require requirement, slice, acceptance, traceability, checklist, and handoff updates.
+Status: FROZEN through S06. S01 through S06 introduced no decision amendments. Amendments require requirement, slice, acceptance, traceability, checklist, and handoff updates.
 
 D-001 | Build an India-first multi-tenant workshop SaaS spanning appointment through delivery | Single-workshop custom app; inventory-only tool | The operational failure is broken end-to-end reconciliation.
 
