@@ -9,7 +9,9 @@
     "preview": "vite preview --host 0.0.0.0",
     "start": "node scripts/serve.mjs",
     "test:harness": "node scripts/verify-harness.mjs",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:production": "tsx --test production/tests/**/*.test.ts",
+    "test:production:typecheck": "tsc -p production/tsconfig.json"
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.1",
@@ -24,7 +26,9 @@
     "@playwright/test": "^1.63.0",
     "@types/react": "^19.2.18",
     "@types/react-dom": "^19.2.7",
+    "@types/node": "^24.3.0",
     "@types/sql.js": "^1.4.11",
-    "playwright": "^1.63.0"
+    "playwright": "^1.63.0",
+    "tsx": "^4.20.5"
   }
 }

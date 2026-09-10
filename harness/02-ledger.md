@@ -1,6 +1,6 @@
 # WorkshopOS decision ledger
 
-Status: FROZEN for S00. Amendments require requirement, slice, acceptance, traceability, checklist, and handoff updates.
+Status: FROZEN through S01. S01 introduced no decision amendments. Amendments require requirement, slice, acceptance, traceability, checklist, and handoff updates.
 
 D-001 | Build an India-first multi-tenant workshop SaaS spanning appointment through delivery | Single-workshop custom app; inventory-only tool | The operational failure is broken end-to-end reconciliation.
 
@@ -71,4 +71,3 @@ D-033 | Finance/tax production certification requires qualified India finance re
 D-034 | Any BRD change updates the ledger, requirements, slices, acceptance criteria, traceability, checklist, and handoff before implementation continues | Informal scope drift | The plan remains auditable across contexts.
 
 D-035 | S00 mechanically verifies 119 requirements, 29 slices, bidirectional mapping, required artifacts, checklist baseline, and next handoff | Manual document inspection only | Executable continuity prevents context drift.
-

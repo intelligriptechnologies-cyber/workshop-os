@@ -58,7 +58,9 @@ async function main() {
   const checklist = await readFile(path.join(root, "IMPLEMENTATION_CHECKLIST.md"), "utf8");
   assert(/S00[^\n]*Complete/.test(checklist), "S00 is not complete in the implementation checklist");
   assert(/Demo baseline \(completed before production programme\)/.test(checklist), "demo baseline appendix is missing");
-  assert(/^Next slice:\s*S01\b/m.test(artifacts["HANDOFF.md"]), "handoff does not identify S01 as next");
+  assert(/S01[^\n]*Complete locally/.test(checklist), "S01 is not complete in the implementation checklist");
+  assert(/^Status: Complete\s*$/m.test(await readFile(path.join(issueDirectory, "S01-tenant-aware-aws-vertical.md"), "utf8")), "S01 issue is not complete");
+  assert(/^Next slice:\s*S02\b/m.test(artifacts["HANDOFF.md"]), "handoff does not identify S02 as next");
 
   console.log(`Harness verified: ${prdRequirements.size} requirements, ${issueFiles.length} slices, no orphans.`);
 }

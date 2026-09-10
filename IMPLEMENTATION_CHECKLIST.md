@@ -8,7 +8,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 ## Foundation
 
 - [x] S00 — Complete — Persist BRD, decisions, slice files, traceability, checklist, executable harness gate, and handoff.
-- [ ] S01 — Not started — Deploy the tenant-aware AWS vertical.
+- [x] S01 — Complete locally — Tenant-aware PWA/API/PostgreSQL-RLS/private-object/outbox vertical and deployable AWS boundary contract; authorized AWS deployment remains external.
 - [ ] S02 — Not started — Tenant provisioning, Cognito, branches, permissions, kiosk access, and audit.
 - [ ] S03 — Not started — Versioned tenant configuration and master CRUD.
 - [ ] S04 — Not started — Atomic lifecycle, approvals, concurrency, and override engine.
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [ ] Acceptance tests and applicable regression suite pass.
-- [ ] Requirement mappings and traceability remain clean.
-- [ ] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated.
-- [ ] External prerequisites/blockers and evidence are recorded.
+- [x] Acceptance tests and applicable regression suite pass through S01.
+- [x] Requirement mappings and traceability remain clean through S01.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S01.
+- [x] External prerequisites/blockers and evidence are recorded through S01.
 - [ ] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)

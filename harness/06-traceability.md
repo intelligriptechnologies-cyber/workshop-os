@@ -6,6 +6,8 @@ Checked: 2026-09-10
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
+Implementation coverage: S00 and S01 complete. S01 acceptance evidence is recorded in `05-issues/S01-tenant-aware-aws-vertical.md`; mappings for R-001, R-015, R-016, R-105, R-106, R-108, and R-112 remain unchanged and verified.
+
 ## Matrix
 
 S00 references R-001 through R-119 only to make contract coverage mechanically testable; it does not claim product delivery. Product mappings are:
@@ -78,4 +80,3 @@ S00 references R-001 through R-119 only to make contract coverage mechanically t
 None. Re-run `npm run test:harness` after every BRD or slice edit.
 
 TRACEABILITY: CLEAN
-

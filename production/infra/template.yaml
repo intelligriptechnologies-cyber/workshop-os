@@ -1,0 +1,99 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: WorkshopOS tenant-aware vertical (Mumbai-ready; deployment requires explicit authority)
+
+Parameters:
+  DatabaseSecretArn:
+    Type: String
+    NoEcho: true
+  PrivateSubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+  ApiSecurityGroupIds:
+    Type: List<AWS::EC2::SecurityGroup::Id>
+
+Resources:
+  Api:
+    Type: AWS::Serverless::HttpApi
+    Properties:
+      StageName: v1
+
+  TenantObjects:
+    Type: AWS::S3::Bucket
+    Properties:
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+
+  TenantWorkQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      VisibilityTimeout: 180
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt TenantWorkDeadLetterQueue.Arn
+        maxReceiveCount: 5
+
+  TenantWorkDeadLetterQueue:
+    Type: AWS::SQS::Queue
+
+  ApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs22.x
+      Handler: dist/api.handler
+      Timeout: 30
+      VpcConfig:
+        SubnetIds: !Ref PrivateSubnetIds
+        SecurityGroupIds: !Ref ApiSecurityGroupIds
+      Environment:
+        Variables:
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          OBJECT_BUCKET: !Ref TenantObjects
+          WORK_QUEUE_URL: !Ref TenantWorkQueue
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref TenantObjects
+        - SQSSendMessagePolicy:
+            QueueName: !GetAtt TenantWorkQueue.QueueName
+      Events:
+        VersionedApi:
+          Type: HttpApi
+          Properties:
+            ApiId: !Ref Api
+            Path: /api/v1/{proxy+}
+            Method: ANY
+
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      Runtime: nodejs22.x
+      Handler: dist/worker.handler
+      Timeout: 60
+      Environment:
+        Variables:
+          DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
+          OBJECT_BUCKET: !Ref TenantObjects
+      Policies:
+        - S3CrudPolicy:
+            BucketName: !Ref TenantObjects
+        - SQSPollerPolicy:
+            QueueName: !GetAtt TenantWorkQueue.QueueName
+      Events:
+        TenantWork:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt TenantWorkQueue.Arn
+            BatchSize: 10
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+
+Outputs:
+  ApiEndpoint:
+    Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1
