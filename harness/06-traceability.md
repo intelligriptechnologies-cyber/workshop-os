@@ -6,7 +6,7 @@ Checked: 2026-09-10
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S03 complete. S01 through S03 acceptance evidence is recorded in their owning issue files; S03 verifies R-011 through R-014 and R-019 through R-020 without changing their approved mappings.
+Implementation coverage: S00 through S04 complete. Acceptance evidence is recorded in each owning issue; S04 verifies R-007, R-008, R-011, R-017, and R-018 without changing approved mappings.
 
 ## Matrix
 

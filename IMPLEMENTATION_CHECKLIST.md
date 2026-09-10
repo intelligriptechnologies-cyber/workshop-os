@@ -11,7 +11,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] S01 — Complete locally — Tenant-aware PWA/API/PostgreSQL-RLS/private-object/outbox vertical and deployable AWS boundary contract; authorized AWS deployment remains external.
 - [x] S02 — Complete locally — Idempotent tenant provisioning, Cognito-compatible identity port, individual/combined permissions, branch scope, kiosk switching, MFA/re-auth, maker-checker, support access, and audit.
 - [x] S03 — Complete locally — Versioned master CRUD/publication, immutable effective scope snapshots, exact minor-unit/UOM contracts, and atomic fiscal sequences.
-- [ ] S04 — Not started — Atomic lifecycle, approvals, concurrency, and override engine.
+- [x] S04 — Complete locally — Atomic lifecycle state table/blockers, optimistic/idempotent commands, maker-checker, reasoned cancellation/reopening/overrides, and append-only forced-RLS ledgers.
 
 ## Customer and workshop operations
 

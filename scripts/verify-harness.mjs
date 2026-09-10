@@ -34,8 +34,10 @@ async function main() {
   assert(new Set(issueFiles.map((name) => name.slice(0, 3))).size === 29, "slice IDs must be unique");
 
   const mappedRequirements = new Set();
+  const completedSlices = [];
   for (const file of issueFiles) {
     const text = await readFile(path.join(issueDirectory, file), "utf8");
+    if (/^Status: Complete\s*$/m.test(text)) completedSlices.push(Number(file.slice(1, 3)));
     const implementsLine = text.match(/^Implements:\s*(.+)$/m);
     assert(implementsLine, `${file} is missing Implements:`);
     const mappings = ids(implementsLine[1], /(R-\d{3})/g);
@@ -56,17 +58,20 @@ async function main() {
   const rootBrd = await readFile(path.join(root, "BRD.md"), "utf8");
   assert(/harness\/03-prd\.md/.test(rootBrd), "BRD.md does not point to the canonical PRD");
   const checklist = await readFile(path.join(root, "IMPLEMENTATION_CHECKLIST.md"), "utf8");
-  assert(/S00[^\n]*Complete/.test(checklist), "S00 is not complete in the implementation checklist");
   assert(/Demo baseline \(completed before production programme\)/.test(checklist), "demo baseline appendix is missing");
-  assert(/S01[^\n]*Complete locally/.test(checklist), "S01 is not complete in the implementation checklist");
-  assert(/S02[^\n]*Complete locally/.test(checklist), "S02 is not complete in the implementation checklist");
-  assert(/^Status: Complete\s*$/m.test(await readFile(path.join(issueDirectory, "S01-tenant-aware-aws-vertical.md"), "utf8")), "S01 issue is not complete");
-  assert(/^Status: Complete\s*$/m.test(await readFile(path.join(issueDirectory, "S02-provisioning-identity-permissions.md"), "utf8")), "S02 issue is not complete");
-  assert(/S03[^\n]*Complete locally/.test(checklist), "S03 is not complete in the implementation checklist");
-  assert(/^Status: Complete\s*$/m.test(await readFile(path.join(issueDirectory, "S03-versioned-configuration.md"), "utf8")), "S03 issue is not complete");
-  assert(/^Next slice:\s*S04\b/m.test(artifacts["HANDOFF.md"]), "handoff does not identify S04 as next");
+  assert(completedSlices[0] === 0, "S00 issue is not complete");
+  completedSlices.forEach((slice, index) => assert(slice === index, `completed slices are not contiguous at S${String(index).padStart(2, "0")}`));
+  for (const slice of completedSlices) {
+    const id = `S${String(slice).padStart(2, "0")}`;
+    assert(new RegExp(`^- \\[x\\] ${id}[^\\n]*Complete`, "m").test(checklist), `${id} is not complete in the implementation checklist`);
+  }
+  const nextSlice = completedSlices.length;
+  if (nextSlice <= 28) {
+    const id = `S${String(nextSlice).padStart(2, "0")}`;
+    assert(new RegExp(`^Next slice:\\s*${id}\\b`, "m").test(artifacts["HANDOFF.md"]), `handoff does not identify ${id} as next`);
+  }
 
-  console.log(`Harness verified: ${prdRequirements.size} requirements, ${issueFiles.length} slices, no orphans.`);
+  console.log(`Harness verified: ${prdRequirements.size} requirements, ${issueFiles.length} slices, ${completedSlices.length} contiguous complete, no orphans.`);
 }
 
 main().catch((error) => {
