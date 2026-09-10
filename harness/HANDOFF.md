@@ -2,32 +2,33 @@
 
 Updated: 2026-09-10  
 Current branch: `prem-dev`  
-Completed slice: S02
-Next slice: S03 — Versioned tenant configuration and master CRUD
+Completed slice: S03
+Next slice: S04 — Atomic lifecycle, approvals, concurrency, and override engine
 
 ## Durable state
 
 - The approved product contract remains canonical in `harness/03-prd.md` (R-001 through R-119); decisions D-001 through D-035 remain frozen and traceability is CLEAN.
 - S00-S28 specifications live in `harness/05-issues/`. `BRD.md` remains a pointer and the React/sql.js demo remains a behavioral reference only.
-- S01 established the tenant-aware PWA/API/RLS/private-object/outbox production seams without deployment.
+- S01 established the tenant-aware PWA/API/RLS/private-object/outbox production seams without deployment; S02 established provisioning, identity, permissions, kiosk, control, and audit seams.
 
-## S02 evidence
+## S03 evidence
 
-- `production/src/identity-access.ts` provides a Cognito-compatible identity-provider port and deterministic local adapter; no external identity or AWS service was contacted.
-- Idempotent MFA-protected provisioning creates nine role templates, owner membership, branch, configuration template, plan, entitlements, quotas, currency/timezone, and audit evidence.
-- Individual memberships combine role and granular permissions under authenticated tenant/branch scope. Registered shared devices use digest-only PINs, lock after three failures for fifteen minutes, and issue attributable employee sessions.
-- Tenant staff MFA, configurable 1–120 minute recent-auth windows, controlled maker-checker thresholds, independent checker enforcement, expiring tenant-approved support access, and tenant-visible audit evidence are enforced server-side.
-- `002_identity_access.sql` persists the identity/control model with mandatory tenant keys, FORCE RLS, support-grant guards, and expanded audit context.
-- Production tests pass 14/14; production typecheck, harness verification, demo build, and Playwright regression pass.
+- `production/src/versioned-configuration.ts` exposes an authenticated local `/api/v1` surface for all approved master classes, mutable drafts with version tokens, ordered effective publication, and tenant/branch isolation. Configured workflows cannot redefine the platform lifecycle.
+- Approved/active scope activation atomically snapshots price, tax, workflow, recipe, checklist, and policy. Published versions and snapshots are immutable, so later effective publications do not rewrite active work.
+- Money uses validated integer minor-unit strings. UOM conversions use validated integer ratios and BigInt fixed-decimal arithmetic, including exact values beyond JavaScript's safe-number range and exact fractional expansion.
+- Document numbers are allocated idempotently and monotonically per tenant, branch, type, and financial year. The local concurrency test allocates 64 unique numbers; PostgreSQL uses an atomic `INSERT ... ON CONFLICT DO UPDATE ... RETURNING` contract and does not recycle committed allocations.
+- `003_versioned_configuration.sql` adds forced-RLS persistence plus database immutability guards. Production tests pass 20/20; production typecheck, harness verification, demo build, and Playwright regression pass.
+- No AWS/provider service was contacted, no deployment occurred, and no GitHub push was performed.
 
-## S03 first action
+## S04 first action
 
-Read S03, R-011 through R-014 and R-019 through R-020, D-007/D-022/D-024, and the S01/S02 seams. Start with one failing public-interface test proving an effective-dated master version becomes immutable after use and that publishing a replacement does not alter the snapshot used by active work.
+Read S04, R-011 and R-017 through R-018, the stable lifecycle exposed by S03, and the S01-S03 command/authentication seams. Start with one failing public-interface test proving a valid lifecycle transition commits atomically once, while stale, invalid, or blocked transitions make no state change and return actionable blocker details.
 
 ## Guardrails
 
 - Preserve unrelated user changes and demo behavior.
 - Never trust client tenant/branch input; derive authority from verified membership and maintain PostgreSQL RLS.
-- Do not weaken individual identity, kiosk attribution, MFA/re-auth, maker-checker, support-access, or audit controls while adding configuration administration.
-- Keep authoritative commands idempotent/version checked, and keep AWS/Cognito/provider activity local until explicitly authorized.
-- After S03 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S03 and do not push.
+- Build lifecycle commands on the stable S03 stages; tenant workflow configuration may add steps and checklists but cannot redefine core stage semantics.
+- Keep authoritative commands idempotent/version checked and preserve S03 snapshots and fiscal allocations without destructive mutation.
+- Keep AWS/Cognito/provider activity local until explicitly authorized.
+- After S04 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S04 and do not push.

@@ -10,7 +10,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] S00 — Complete — Persist BRD, decisions, slice files, traceability, checklist, executable harness gate, and handoff.
 - [x] S01 — Complete locally — Tenant-aware PWA/API/PostgreSQL-RLS/private-object/outbox vertical and deployable AWS boundary contract; authorized AWS deployment remains external.
 - [x] S02 — Complete locally — Idempotent tenant provisioning, Cognito-compatible identity port, individual/combined permissions, branch scope, kiosk switching, MFA/re-auth, maker-checker, support access, and audit.
-- [ ] S03 — Not started — Versioned tenant configuration and master CRUD.
+- [x] S03 — Complete locally — Versioned master CRUD/publication, immutable effective scope snapshots, exact minor-unit/UOM contracts, and atomic fiscal sequences.
 - [ ] S04 — Not started — Atomic lifecycle, approvals, concurrency, and override engine.
 
 ## Customer and workshop operations
@@ -51,11 +51,11 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S02.
-- [x] Requirement mappings and traceability remain clean through S02.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S02.
-- [x] External prerequisites/blockers and evidence are recorded through S02.
-- [ ] Slice is committed locally with its ID; no GitHub push is performed.
+- [x] Acceptance tests and applicable regression suite pass through S03.
+- [x] Requirement mappings and traceability remain clean through S03.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S03.
+- [x] External prerequisites/blockers and evidence are recorded through S03.
+- [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
 
