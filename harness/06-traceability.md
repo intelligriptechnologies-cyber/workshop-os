@@ -6,7 +6,7 @@ Checked: 2026-09-10
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 and S01 complete. S01 acceptance evidence is recorded in `05-issues/S01-tenant-aware-aws-vertical.md`; mappings for R-001, R-015, R-016, R-105, R-106, R-108, and R-112 remain unchanged and verified.
+Implementation coverage: S00 through S02 complete. S01 and S02 acceptance evidence is recorded in their owning issue files; mappings for R-001 through R-010, R-015, R-016, R-100, R-105, R-106, R-108, and R-112 remain unchanged and verified.
 
 ## Matrix
 

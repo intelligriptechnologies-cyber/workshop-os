@@ -59,8 +59,10 @@ async function main() {
   assert(/S00[^\n]*Complete/.test(checklist), "S00 is not complete in the implementation checklist");
   assert(/Demo baseline \(completed before production programme\)/.test(checklist), "demo baseline appendix is missing");
   assert(/S01[^\n]*Complete locally/.test(checklist), "S01 is not complete in the implementation checklist");
+  assert(/S02[^\n]*Complete locally/.test(checklist), "S02 is not complete in the implementation checklist");
   assert(/^Status: Complete\s*$/m.test(await readFile(path.join(issueDirectory, "S01-tenant-aware-aws-vertical.md"), "utf8")), "S01 issue is not complete");
-  assert(/^Next slice:\s*S02\b/m.test(artifacts["HANDOFF.md"]), "handoff does not identify S02 as next");
+  assert(/^Status: Complete\s*$/m.test(await readFile(path.join(issueDirectory, "S02-provisioning-identity-permissions.md"), "utf8")), "S02 issue is not complete");
+  assert(/^Next slice:\s*S03\b/m.test(artifacts["HANDOFF.md"]), "handoff does not identify S03 as next");
 
   console.log(`Harness verified: ${prdRequirements.size} requirements, ${issueFiles.length} slices, no orphans.`);
 }
