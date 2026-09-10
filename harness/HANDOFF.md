@@ -2,33 +2,33 @@
 
 Updated: 2026-09-11
 Current branch: `prem-dev`
-Completed slice: S07<br>
-Next slice: S08 — Advisor inspection and ownership
+Completed slice: S08<br>
+Next slice: S09 — Versioned estimates and customer approval
 
 ## Durable state
 
 - The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain frozen and traceability is CLEAN.
 - S00-S28 specifications live in `harness/05-issues/`. `BRD.md` remains a pointer and the React/sql.js demo remains a behavioral reference only.
-- S01-S06 established the tenant-aware vertical, access/control boundaries, versioned configuration, lifecycle command engine, customer/vehicle history, and capacity-aware appointments. S07 adds reception custody without weakening those seams.
+- S01-S07 established the tenant-aware production vertical through reception custody. S08 consumes the S07 draft Job boundary and adds accountable advisor ownership and inspection without implementing S09 estimates.
 
-## S07 evidence
+## S08 evidence
 
-- `production/src/reception-custody-offline.ts` consumes an S06 `RECEPTION_CHECK_IN_REQUESTED` event or accepts an explicit walk-in. One authorized, idempotent online command validates the active reception configuration before atomically committing exactly one Visit and linked `DRAFT` Job with customer, vehicle, advisor, KM, fuel, keys, accessories, request, promised handoff, evidence, and acknowledgement snapshots.
-- An appointment event has exactly one consumer even under a different idempotency key. Tenant input is never authority; appointment-event lookup, reads, and commands are constrained by authenticated tenant and branch membership.
-- Custody incidents are separate case records, not Job notes. Intake validates Visit/Job/vehicle linkage, severity, category, private checksummed evidence, accountable owner/actions, and commits an idempotent notification-outbox reference. Resolution and legal hold remain owned by S17.
-- The local PWA draft adapter is tenant/branch/device-namespaced and survives storage restart. It visibly labels drafts uncommitted, detects base/server version conflicts, supports explicit rebase or discard, and never queues authoritative postings. Lifecycle, custody, approval, inventory, finance, QC override, closure, and gate actions all require online service authority.
-- `production/db/migrations/007_reception_custody_offline.sql` adds forced branch-aware RLS to every S07 table, one atomic Visit/Job/source-consumption/audit/idempotency function, private media/checksum/scan metadata, one-event/one-Visit constraints, custody actions/outbox, and append-only evidence/acknowledgement/consumption/audit ledgers.
-- S07 production tests passed 45/45; production typecheck, harness (119 requirements/29 slices/8 contiguous complete/no orphans), demo build, Playwright 7/7, and diff check passed. No upload, provider call, customer message, deployment, push, or production action occurred.
+- `production/src/advisor-inspection.ts` requires exactly one eligible accountable advisor for every inbound S07 Job and exposes owner-filtered advisor/action queues. Authorized reassignment is reasoned, resource-version checked, idempotent, audited, and atomically moves current Job/action ownership while retaining old/new history.
+- Inspection submission validates the exact tenant/branch configuration version, typed/required structured fields, required free text, checksum-valid `CLEAN` private evidence, and scope recommendations linked to findings. Customer and internal notes have separate write controls; internal notes and evidence metadata are filtered unless explicitly readable.
+- Each inspection appends one `ADVISOR_SCOPE_RECOMMENDED` event as the S09 handoff port. S08 contains no estimate pricing, versioning, sending, public tokens, or approval behavior.
+- Owned follow-ups surface overdue/today/upcoming/completed states and require a versioned outcome to complete. Reasoned promised-delivery changes compare projected readiness and expose on-track/at-risk/overdue signals while retaining history.
+- `production/db/migrations/008_advisor_inspection.sql` backfills existing S07 Jobs, initializes all future Jobs by trigger, forces tenant/branch RLS on 13 tables, version-guards atomic reassignment, and protects ownership, inspection/evidence/scope/outbox/follow-up/promised-delivery/audit ledgers from update/delete.
+- S08 acceptance passed 7/7; the production regression passed 52/52. Production typecheck, harness (119 requirements/29 slices/9 contiguous complete/no orphans), demo build, Playwright 7/7, and diff check passed. No upload, provider call, customer message, deployment, push, or production action occurred.
 
-## S08 first action
+## S09 first action
 
-Read S08 plus R-030 and R-031. Start with a failing public `/api/v1` test proving every S07 draft Job has exactly one accountable advisor and that an authorized, version-checked reassignment atomically updates audited advisor queues; then add structured/free-text inspection findings, versioned required evidence, recommended scope, due follow-ups, and promised-delivery validation.
+Read S09 plus R-032 through R-038 and decisions D-005, D-008, D-019, D-021, and D-024. Start with a failing public `/api/v1` test that consumes one S08 `ADVISOR_SCOPE_RECOMMENDED` event into an immutable numbered estimate draft/version, validates configured service/package/material/labour lines and payer totals in exact minor units, and prevents one handoff from producing duplicate estimate effects under retry.
 
 ## Guardrails
 
 - Preserve unrelated user changes and demo behavior.
-- Never trust client tenant/branch input; derive authority from verified membership and maintain PostgreSQL RLS.
-- Keep S07 Visit/custody snapshots and append-only evidence immutable. Advisor reassignment belongs in a separate audited history, never destructive rewriting of reception custody evidence.
-- Continue to use only tenant-scoped private media metadata locally; do not upload or invoke providers without explicit authority.
-- Keep AWS/Cognito/provider activity local until explicitly authorized.
-- After S08 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S08 and do not push.
+- Never trust client tenant/branch input; derive authority from verified membership and retain PostgreSQL RLS.
+- Do not mutate S08 inspection, scope recommendation, evidence, ownership, follow-up, promise, or audit history. S09 may reference the handoff but must not rewrite it.
+- Approved/sent estimate versions must become immutable; supplementary scope stays separate and only approved scope can activate work with configuration snapshots.
+- Public customer actions need opaque expiring single-purpose replay-protected tokens; keep providers/local substitutes inert until explicitly authorized.
+- After S09 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S09 and do not push.
