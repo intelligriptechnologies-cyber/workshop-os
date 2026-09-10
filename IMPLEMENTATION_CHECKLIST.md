@@ -1,53 +1,75 @@
-# WorkshopOS Rebuild Checklist
+# WorkshopOS production implementation checklist
 
-## 1. Goal, checklist, and handoff workflow
-- Status: Done
-- Verification: Checklist recreated and maintained as the implementation tracker. Handoff docs written to the OS temp directory.
+Canonical scope: [`harness/03-prd.md`](harness/03-prd.md)<br>
+Current handoff: [`harness/HANDOFF.md`](harness/HANDOFF.md)
 
-## 2. SQLite persistence foundation
-- Status: Done
-- Verification: Added `sql.js`, bundled wasm via Vite, created `src/db.ts`, created all required tables, seeded demo data, and persisted the exported SQLite database to `localStorage`.
+Update this file, the owning slice, requirement coverage, decisions (when changed), and handoff after every completed slice.
 
-## 3. Demo login and auth shell
-- Status: Done
-- Verification: Playwright validated all demo logins: `admin@example.com`, `service@example.com`, `reception@example.com`, `accounts@example.com`, `store@example.com`, `tech@example.com`; password is `admin123`.
+## Foundation
 
-## 4. Common search portal
-- Status: Done
-- Verification: Global search filters by linked job/customer/vehicle/invoice data and shows customer, vehicle, visit/job card, invoice, advisor, work list, payment status, and photo count.
+- [x] S00 — Complete — Persist BRD, decisions, slice files, traceability, checklist, executable harness gate, and handoff.
+- [ ] S01 — Not started — Deploy the tenant-aware AWS vertical.
+- [ ] S02 — Not started — Tenant provisioning, Cognito, branches, permissions, kiosk access, and audit.
+- [ ] S03 — Not started — Versioned tenant configuration and master CRUD.
+- [ ] S04 — Not started — Atomic lifecycle, approvals, concurrency, and override engine.
 
-## 5. Reception workspace
-- Status: Done
-- Verification: Reception can create/update customer and vehicle records, create a visit with KM/fuel/keys/accessories/requested work/photo placeholder/advisor assignment, and automatically create a linked `NEW` job card.
+## Customer and workshop operations
 
-## 6. Service advisor workspace
-- Status: Done
-- Verification: Advisor can create estimates, record customer confirmation, move jobs to `IN_PROGRESS`, add follow-ups, and add photo placeholders while data remains linked to the same job.
+- [ ] S05 — Not started — Customer/vehicle search, duplicate merge, and ownership history.
+- [ ] S06 — Not started — Appointment and capacity management.
+- [ ] S07 — Not started — Reception check-in, evidence, custody incidents, and offline drafts.
+- [ ] S08 — Not started — Advisor inspection, ownership, follow-ups, and promised delivery.
+- [ ] S09 — Not started — Versioned estimates, supplementary work, and customer approval.
+- [ ] S10 — Not started — Action inbox, push, and WhatsApp/SMS delivery.
+- [ ] S11 — Not started — Job planning, technician assignment, checklists, and shared timeline.
+- [ ] S12 — Not started — Technician Android workflow, evidence, scanning, and draft synchronization.
 
-## 7. Store workspace
-- Status: Done
-- Verification: Store view shows material requests, issues material only against job cards, updates inventory, and displays the `Issued = Used + Returned + Wasted` reconciliation rule plus low-stock PPF/Paint items.
+## Procurement, inventory, and quality
 
-## 8. Technician workspace
-- Status: Done
-- Verification: Technician can start/pause/complete tasks, mark washing needed, add photo placeholders, and move work to QC/completion.
+- [ ] S13 — Not started — Warehouse, item, lot/roll, UOM, remnant, transfer, and stock-count ledger.
+- [ ] S14 — Not started — Supplier, requisition, PO, GRN, and purchase-return workflow.
+- [ ] S15 — Not started — Material request, issue, consumption, return, waste, and reconciliation.
+- [ ] S16 — Not started — Manager QC and rework loop.
+- [ ] S17 — Not started — Warranty/comeback Jobs and incident resolution.
 
-## 9. Accounts workspace
-- Status: Done
-- Verification: Accounts can generate invoices only after `COMPLETED`, capture manual Tally invoice number, record payments, generate receipt/gate pass, and close jobs when blockers clear.
+## Finance and delivery
 
-## 10. Owner/Admin workspace
-- Status: Done
-- Verification: Admin dashboard shows KPIs, lifecycle funnel, blockers, revenue/payment snapshots, inventory alerts, jobs, and a data-flow view from Visit through Gate Pass.
+- [ ] S18 — Not started — Native tax invoice, payer allocation, immutable documents, and adjustments.
+- [ ] S19 — Not started — Tally connector and file fallback for current plus two prior TallyPrime releases.
+- [ ] S20 — Not started — Cashfree/manual payments, advances, credit, refunds, and settlement reconciliation.
+- [ ] S21 — Not started — Closure controls, delivery evidence, and independent gate verification.
 
-## 11. Visual redesign
-- Status: Done
-- Verification: Role-specific layouts implemented for intake desk, advisor command queue, store issue counter, technician board, accounts closure desk, and owner control room. Desktop and mobile screenshots captured.
+## Management and SaaS operations
 
-## 12. PWA and offline shell
-- Status: Done
-- Verification: Manifest, icon, and service worker kept. Service worker now runtime-caches fetched GET assets including the bundled SQLite wasm; SQLite/localStorage data survives refresh.
+- [ ] S22 — Not started — Guided boards, curated reports, drill-through, and protected exports.
+- [ ] S23 — Not started — Tenant suspension, support access, export, retention, and purge.
+- [ ] S24 — Not started — Idempotent onboarding import and reconciliation.
+- [ ] S25 — Not started — Security, tenant-isolation, authorization, concurrency, and invariant release gates.
+- [ ] S26 — Not started — Scale, latency, integration recovery, observability, backup, and disaster recovery.
+- [ ] S27 — Not started — Accessibility, device, document, scanning, training, and staff-usability gates.
+- [ ] S28 — Not started — Parallel pilot, cutover, rollback, hypercare, and repeatable second-tenant onboarding.
 
-## 13. Verification
-- Status: Done
-- Verification: `npm run build` passes. Playwright validated all demo logins, a new reception record, persistence after refresh, and a full linked workflow in the earlier end-to-end pass. Screenshots captured for login, reception, advisor, store, technician, accounts, and admin on desktop and mobile.
+## Per-slice completion gate
+
+- [ ] Acceptance tests and applicable regression suite pass.
+- [ ] Requirement mappings and traceability remain clean.
+- [ ] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated.
+- [ ] External prerequisites/blockers and evidence are recorded.
+- [ ] Slice is committed locally with its ID; no GitHub push is performed.
+
+## Demo baseline (completed before production programme)
+
+This appendix is historical evidence only. It does not satisfy a production slice.
+
+- [x] Browser-local sql.js persistence and seeded demo data.
+- [x] Demo logins for admin, service advisor, reception, accounts, Store, and technician.
+- [x] Common linked search by job/customer/vehicle/invoice.
+- [x] Reception intake creating a linked `NEW` Job Card.
+- [x] Advisor estimate/confirmation/follow-up/photo-placeholder flow.
+- [x] Store material request/issue view and simplified reconciliation display.
+- [x] Technician start/pause/complete, wash/photo placeholder, and simplified QC progression.
+- [x] Accounts invoice/payment/receipt/gate-pass/closure demonstration.
+- [x] Owner KPIs, funnel, blockers, revenue, inventory alerts, and data-flow view.
+- [x] Role-specific desktop/mobile visual redesign.
+- [x] PWA manifest/service worker/offline shell and local persistence.
+- [x] Demo build, login, reception persistence, linked-workflow, and screenshot verification.
