@@ -15,7 +15,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Customer and workshop operations
 
-- [ ] S05 — Not started — Customer/vehicle search, duplicate merge, and ownership history.
+- [x] S05 — Complete locally — Tenant/branch-scoped customer contacts/payers and vehicle identity/history, duplicate detection, effective ownership, controlled canonical merge, and audited compensating recovery.
 - [ ] S06 — Not started — Appointment and capacity management.
 - [ ] S07 — Not started — Reception check-in, evidence, custody incidents, and offline drafts.
 - [ ] S08 — Not started — Advisor inspection, ownership, follow-ups, and promised delivery.
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S03.
-- [x] Requirement mappings and traceability remain clean through S03.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S03.
-- [x] External prerequisites/blockers and evidence are recorded through S03.
+- [x] Acceptance tests and applicable regression suite pass through S05.
+- [x] Requirement mappings and traceability remain clean through S05.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S05.
+- [x] External prerequisites/blockers and evidence are recorded through S05.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
