@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S06 complete. Acceptance evidence is recorded in each owning issue; S06 verifies R-026 through R-027 without changing approved mappings.
+Implementation coverage: S00 through S07 complete. Acceptance evidence is recorded in each owning issue; S07 verifies R-028, R-029, and its R-071 custody-incident intake boundary without changing approved mappings. S17 retains incident resolution and legal-hold ownership.
 
 ## Matrix
 
