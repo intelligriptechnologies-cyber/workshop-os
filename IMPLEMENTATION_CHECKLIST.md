@@ -21,7 +21,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] S08 — Complete locally — Accountable advisor queues/reassignment, configured evidenced inspection, scoped notes, recommended-scope handoff, owned follow-ups, and reasoned promised-delivery risk.
 - [x] S09 — Complete locally — Exact payer-aware estimate versions, secure evidenced public/manual decisions, supplementary approval, immutable snapshots, and exactly-once work/material activation.
 - [x] S10 — Complete locally — Membership/role-scoped prioritized actions and durable consent-aware in-app/push/WhatsApp/SMS-fallback delivery with retry, status, dead-letter, and replay controls.
-- [ ] S11 — Not started — Job planning, technician assignment, checklists, and shared timeline.
+- [x] S11 — Complete locally — Exact-snapshot DAG work planning, skill/bay/capacity risk, concurrency-safe multi-technician responsibility, audited reassignment, permission-filtered shared timeline, and S12-only outbox.
 - [ ] S12 — Not started — Technician Android workflow, evidence, scanning, and draft synchronization.
 
 ## Procurement, inventory, and quality
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S10.
-- [x] Requirement mappings and traceability remain clean through S10.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S10.
-- [x] External prerequisites/blockers and evidence are recorded through S10.
+- [x] Acceptance tests and applicable regression suite pass through S11.
+- [x] Requirement mappings and traceability remain clean through S11.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S11.
+- [x] External prerequisites/blockers and evidence are recorded through S11.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)

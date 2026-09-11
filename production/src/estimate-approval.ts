@@ -132,7 +132,7 @@ type ScopeActivation = {
   activatedAt: string;
   outcomeId: string;
 };
-type PlanningHandoff = { id: string; activationId: string; eventType: "APPROVED_SCOPE_WORK_PLANNING"; lines: EstimateLine[]; occurredAt: string };
+type PlanningHandoff = { id: string; activationId: string; eventType: "APPROVED_SCOPE_WORK_PLANNING"; tenantId: string; branchId: string; jobId: string; snapshot: Record<SnapshotType, SnapshotReference>; lines: EstimateLine[]; occurredAt: string };
 type MaterialHandoff = { id: string; activationId: string; eventType: "APPROVED_SCOPE_MATERIAL_CONTROL"; lines: EstimateLine[]; occurredAt: string };
 
 type ApiBody = {
@@ -319,7 +319,9 @@ export function createLocalEstimateApprovalApi(input: {
       const approvedLines = estimate.lines.filter((line) => selectedLineIds.includes(line.id));
       activations.set(`${estimate.tenantId}:${estimate.id}`, activation);
       workPlanningHandoffs.push({ id: `work-handoff-${workPlanningHandoffs.length + 1}`, activationId: activation.id,
-        eventType: "APPROVED_SCOPE_WORK_PLANNING", lines: clone(approvedLines.filter((line) => line.kind !== "MATERIAL")), occurredAt: now });
+        eventType: "APPROVED_SCOPE_WORK_PLANNING", tenantId: estimate.tenantId, branchId: estimate.branchId,
+        jobId: estimate.jobId, snapshot: clone(configuration.snapshot),
+        lines: clone(approvedLines.filter((line) => line.kind !== "MATERIAL")), occurredAt: now });
       materialControlHandoffs.push({ id: `material-handoff-${materialControlHandoffs.length + 1}`, activationId: activation.id,
         eventType: "APPROVED_SCOPE_MATERIAL_CONTROL", lines: clone(approvedLines.filter((line) => line.kind === "MATERIAL")), occurredAt: now });
     }

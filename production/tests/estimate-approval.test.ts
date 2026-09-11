@@ -180,6 +180,12 @@ test("an opaque public token exposes a minimal tenant-safe view and an allowed p
   assert.deepEqual(Object.keys(detail.body.activation!.snapshot).sort(), ["CHECKLIST", "POLICY", "PRICE", "RECIPE", "TAX", "WORKFLOW"]);
   assert.deepEqual(detail.body.activation?.approvedLineIds, [lineId]);
   assert.equal(detail.body.workPlanningHandoffs?.length, 1);
+  assert.deepEqual({
+    tenantId: detail.body.workPlanningHandoffs?.[0].tenantId,
+    branchId: detail.body.workPlanningHandoffs?.[0].branchId,
+    jobId: detail.body.workPlanningHandoffs?.[0].jobId,
+    snapshot: detail.body.workPlanningHandoffs?.[0].snapshot,
+  }, { tenantId: "tenant-north", branchId: "branch-delhi", jobId: "job-42", snapshot: detail.body.activation!.snapshot });
   assert.equal(detail.body.materialControlHandoffs?.length, 1);
   assert.deepEqual(detail.body.workPlanningHandoffs?.[0].lines.map((line: { id: string }) => line.id), [lineId]);
   assert.deepEqual(detail.body.materialControlHandoffs?.[0].lines, []);

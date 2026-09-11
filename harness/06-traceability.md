@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S10 complete. Acceptance evidence is recorded in each owning issue; S10 verifies R-039 through R-040 with membership-scoped prioritized actions and exactly-once, consent-aware, versioned, retryable in-app/push/WhatsApp/SMS-fallback delivery. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
+Implementation coverage: S00 through S11 complete. Acceptance evidence is recorded in each owning issue; S11 verifies R-041, R-042, and R-045 with exact-snapshot DAG planning, concurrency-safe multi-technician responsibility, visible capacity policy, audited reassignment, and a permission-filtered stable Job chronology. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
 
 ## Matrix
 
