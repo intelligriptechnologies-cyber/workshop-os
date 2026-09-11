@@ -30,7 +30,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] S14 — Complete locally — Controlled supplier masters, versioned requisition/PO approvals and partials, exact evidenced GRNs through S13, and authorized compensating purchase returns.
 - [x] S15 — Complete locally — Approved task demand, partial Store issue, independently approved substitution/non-Job reason, technician consumption/waste, Store-verified exact-lot return, threshold variance, and exact reconciliation.
 - [x] S16 — Complete locally — Independent snapshotted QC, clean item evidence, blocking rework execution/reinspection, and controlled emergency override with explicit release visibility.
-- [ ] S17 — Not started — Warranty/comeback Jobs and incident resolution.
+- [x] S17 — Complete locally — Immutable delivered warranty terms, separately linked classified comeback Visit/Job records, evidenced incident escalation/resolution, and independently releasable record/media legal holds.
 
 ## Finance and delivery
 
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S16.
-- [x] Requirement mappings and traceability remain clean through S16.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S16.
-- [x] External prerequisites/blockers and evidence are recorded through S16.
+- [x] Acceptance tests and applicable regression suite pass through S17.
+- [x] Requirement mappings and traceability remain clean through S17.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S17.
+- [x] External prerequisites/blockers and evidence are recorded through S17.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
