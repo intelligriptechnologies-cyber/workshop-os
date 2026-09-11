@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S19 complete. Acceptance evidence is recorded in each owning issue; S19 verifies R-079 through R-081 with explicit Tally authority, duplicate-safe direct and controlled-file exchange across three representative release generations, retained Tally evidence, visible reconciliation, and durable recovery without creating native invoices. Representative Tally installations/credentials, exact vendor-release mapping/certification, and qualified India finance review remain production prerequisites under D-032/D-033. S27 retains cross-device accessibility and usability release-gate ownership.
+Implementation coverage: S00 through S20 complete. Acceptance evidence is recorded in each owning issue; S20 verifies R-082 through R-088 with exact immutable advances/payments, duplicate and over-allocation controls, inert scoped Cashfree links, raw signed idempotent webhook authority, formal credit delivery eligibility, approved append-only corrections, and visible settlement reconciliation. Cashfree credentials/enrollment/webhook registration, representative bank settlement data, qualified India finance review, and authorized deployment remain production prerequisites. S27 retains cross-device accessibility and usability release-gate ownership.
 
 ## Matrix
 

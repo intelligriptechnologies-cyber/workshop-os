@@ -36,7 +36,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 - [x] S18 — Complete locally — Readiness-gated native India GST, exact payer allocation, immutable fiscal documents/numbers, private render boundary, and approved compensating credit/debit/cancel-reissue records.
 - [x] S19 — Complete locally — Explicit Tally authority, duplicate-safe direct and controlled-file exchange across three representative release generations, visible reconciliation, and durable retry/dead-letter/replay evidence.
-- [ ] S20 — Not started — Cashfree/manual payments, advances, credit, refunds, and settlement reconciliation.
+- [x] S20 — Complete locally — Exact advances and split/manual payments, inert scoped Cashfree links, authoritative signed webhooks, formal credit eligibility, maker-checker corrections, and visible settlement reconciliation.
 - [ ] S21 — Not started — Closure controls, delivery evidence, and independent gate verification.
 
 ## Management and SaaS operations
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S19.
-- [x] Requirement mappings and traceability remain clean through S19.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S19.
-- [x] External prerequisites/blockers and evidence are recorded through S19.
+- [x] Acceptance tests and applicable regression suite pass through S20.
+- [x] Requirement mappings and traceability remain clean through S20.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S20.
+- [x] External prerequisites/blockers and evidence are recorded through S20.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
