@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S20 complete. Acceptance evidence is recorded in each owning issue; S20 verifies R-082 through R-088 with exact immutable advances/payments, duplicate and over-allocation controls, inert scoped Cashfree links, raw signed idempotent webhook authority, formal credit delivery eligibility, approved append-only corrections, and visible settlement reconciliation. Cashfree credentials/enrollment/webhook registration, representative bank settlement data, qualified India finance review, and authorized deployment remain production prerequisites. S27 retains cross-device accessibility and usability release-gate ownership.
+Implementation coverage: S00 through S21 complete. Acceptance evidence is recorded in each owning issue; S21 verifies R-089 through R-096 with plain-language cross-domain readiness, controlled closure override, versioned private documents and minimum-data QR verification, complete delivery evidence, scoped fiscal gate passes, independent live vehicle/pass verification, and atomic immutable delivered closure. Representative renderers, A4/thermal hardware, scanner/camera devices, qualified India finance/document review, operational release rehearsal, and authorized deployment remain production prerequisites. S25 retains QR authorization hardening and S27 retains cross-device accessibility, document, scanning, and usability release-gate ownership.
 
 ## Matrix
 
