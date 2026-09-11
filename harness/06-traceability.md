@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S17 complete. Acceptance evidence is recorded in each owning issue; S17 verifies R-069 through R-072 with immutable delivered-Job warranty terms, a classified linked comeback Visit/Job that leaves original finance closed, independent custody escalation/resolution evidence and acknowledgement, plus record/media legal holds that require a separately authorized evidenced release. S07 continues to verify R-028, R-029, and the R-071 incident-intake boundary; S17 now completes the resolution boundary. S27 retains cross-device accessibility and usability release-gate ownership.
+Implementation coverage: S00 through S18 complete. Acceptance evidence is recorded in each owning issue; S18 verifies R-073 through R-078 with readiness blockers, explicit native authority, snapshotted exact India GST and payer allocation, immutable final documents, compensating corrections, and collision-free India financial-year numbering. Qualified India finance/tax review remains the production-certification prerequisite required by D-033. S27 retains cross-device accessibility and usability release-gate ownership.
 
 ## Matrix
 

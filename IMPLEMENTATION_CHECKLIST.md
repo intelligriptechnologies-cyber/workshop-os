@@ -34,7 +34,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Finance and delivery
 
-- [ ] S18 — Not started — Native tax invoice, payer allocation, immutable documents, and adjustments.
+- [x] S18 — Complete locally — Readiness-gated native India GST, exact payer allocation, immutable fiscal documents/numbers, private render boundary, and approved compensating credit/debit/cancel-reissue records.
 - [ ] S19 — Not started — Tally connector and file fallback for current plus two prior TallyPrime releases.
 - [ ] S20 — Not started — Cashfree/manual payments, advances, credit, refunds, and settlement reconciliation.
 - [ ] S21 — Not started — Closure controls, delivery evidence, and independent gate verification.
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S17.
-- [x] Requirement mappings and traceability remain clean through S17.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S17.
-- [x] External prerequisites/blockers and evidence are recorded through S17.
+- [x] Acceptance tests and applicable regression suite pass through S18.
+- [x] Requirement mappings and traceability remain clean through S18.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S18.
+- [x] External prerequisites/blockers and evidence are recorded through S18.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
