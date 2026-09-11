@@ -6,7 +6,7 @@ Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S22 complete. Acceptance evidence is recorded in each owning issue; S22 verifies R-097 through R-099 with permission-guided tenant/branch role boards, eight defined exact report domains and protected as-of drill-through, plus private watermarked manifest/checksum-backed asynchronous exports with expiry, revocation, and audit. Production metric sign-off, reporting scale/load validation, object-storage delivery, export file review, and representative role usability remain release prerequisites. S25 retains export/authorization hardening, S26 owns reporting scale, and S27 retains accessibility/usability gates.
+Implementation coverage: S00 through S23 complete. Acceptance evidence is recorded in each owning issue; S23 verifies R-009 and R-100 through R-104 with separately authorized idempotent provisioning/lifecycle commands, current server-enforced versioned entitlements, scoped expiring maker-checker support, suspension-safe complete checksum-manifested export, explicit retention/hold evidence, and dry-run-bound tenant-scoped purge simulation across all eight named surfaces. Production platform credentials, privacy/legal and India finance retention review, authoritative storage inventory, export security, restore/recovery validation, and controlled deployment/purge authorization remain release prerequisites. S25 retains cross-layer authorization/isolation hardening and S26 owns production recovery validation.
 
 ## Matrix
 

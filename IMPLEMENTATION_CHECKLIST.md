@@ -42,7 +42,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 ## Management and SaaS operations
 
 - [x] S22 — Complete locally — Permission-guided role boards, defined exact curated metrics, protected as-of drill-through, and private manifest-backed asynchronous exports.
-- [ ] S23 — Not started — Tenant suspension, support access, export, retention, and purge.
+- [x] S23 — Complete locally — Separately authorized tenant lifecycle, versioned entitlements, scoped support, complete protected export, hold-aware retention, and maker-checker purge simulation.
 - [ ] S24 — Not started — Idempotent onboarding import and reconciliation.
 - [ ] S25 — Not started — Security, tenant-isolation, authorization, concurrency, and invariant release gates.
 - [ ] S26 — Not started — Scale, latency, integration recovery, observability, backup, and disaster recovery.
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S22.
-- [x] Requirement mappings and traceability remain clean through S22.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S22.
-- [x] External prerequisites/blockers and evidence are recorded through S22.
+- [x] Acceptance tests and applicable regression suite pass through S23.
+- [x] Requirement mappings and traceability remain clean through S23.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S23.
+- [x] External prerequisites/blockers and evidence are recorded through S23.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
