@@ -19,7 +19,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] S06 — Complete locally — Versioned/idempotent appointment lifecycle, reasoned history, closure/bay/staff/skill/buffer capacity, serialized reservations, permissioned overbooking, and durable reception handoff event.
 - [x] S07 — Complete locally — Atomic appointment/walk-in Visit plus draft Job, configured private custody evidence and acknowledgement, independent incident notification/case intake, and visible conflict-aware offline drafts with authoritative postings blocked.
 - [x] S08 — Complete locally — Accountable advisor queues/reassignment, configured evidenced inspection, scoped notes, recommended-scope handoff, owned follow-ups, and reasoned promised-delivery risk.
-- [ ] S09 — Not started — Versioned estimates, supplementary work, and customer approval.
+- [x] S09 — Complete locally — Exact payer-aware estimate versions, secure evidenced public/manual decisions, supplementary approval, immutable snapshots, and exactly-once work/material activation.
 - [ ] S10 — Not started — Action inbox, push, and WhatsApp/SMS delivery.
 - [ ] S11 — Not started — Job planning, technician assignment, checklists, and shared timeline.
 - [ ] S12 — Not started — Technician Android workflow, evidence, scanning, and draft synchronization.

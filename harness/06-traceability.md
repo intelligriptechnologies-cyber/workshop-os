@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S08 complete. Acceptance evidence is recorded in each owning issue; S08 verifies R-030 and R-031 through accountable advisor queues, controlled reassignment, configured inspection/evidence, scoped notes, follow-ups, and promised-delivery risk. S07 continues to verify R-028, R-029, and its R-071 custody-incident intake boundary; S17 retains incident resolution and legal-hold ownership.
+Implementation coverage: S00 through S09 complete. Acceptance evidence is recorded in each owning issue; S09 verifies R-032 through R-038 with exact payer-aware versions, secure public/manual outcomes, supplementary scope, immutable snapshots, and exactly-once work/material activation. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
 
 ## Matrix
 
