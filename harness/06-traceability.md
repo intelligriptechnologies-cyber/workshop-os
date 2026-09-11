@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S18 complete. Acceptance evidence is recorded in each owning issue; S18 verifies R-073 through R-078 with readiness blockers, explicit native authority, snapshotted exact India GST and payer allocation, immutable final documents, compensating corrections, and collision-free India financial-year numbering. Qualified India finance/tax review remains the production-certification prerequisite required by D-033. S27 retains cross-device accessibility and usability release-gate ownership.
+Implementation coverage: S00 through S19 complete. Acceptance evidence is recorded in each owning issue; S19 verifies R-079 through R-081 with explicit Tally authority, duplicate-safe direct and controlled-file exchange across three representative release generations, retained Tally evidence, visible reconciliation, and durable recovery without creating native invoices. Representative Tally installations/credentials, exact vendor-release mapping/certification, and qualified India finance review remain production prerequisites under D-032/D-033. S27 retains cross-device accessibility and usability release-gate ownership.
 
 ## Matrix
 

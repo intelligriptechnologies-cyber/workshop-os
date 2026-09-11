@@ -20,6 +20,7 @@ This directory is the production architecture seam. It does not replace or impor
 - `src/qc-rework.ts` requires separate task-completion and material-reconciliation readiness, records independent snapshotted item QC with clean evidence, controls blocking rework assignment/execution/reinspection, and emits unique passed or audited emergency-override release signals.
 - `src/warranty-incidents.ts` exposes immutable delivered-Job warranty terms, creates classified linked comeback Visit/Job records without reopening finance, resolves evidenced custody incidents, and blocks record/media retention while an independently releasable legal hold is active.
 - `src/native-invoicing.ts` gates native billing on explicit tenant authority and upstream scope/work/material/QC readiness, calculates exact snapshotted India GST per payer, atomically finalizes immutable fiscal documents, and records maker-checker credit/debit/cancel-reissue compensations plus private document/downstream events.
+- `src/tally-connector.ts` is the inert Tally-authoritative `/api/v1` adapter: it creates one payer/Job exchange without a native invoice, validates duplicate-safe direct or controlled-file acknowledgements, exposes retained status/errors and amount/tax/payer/posting mismatches, and models bounded retry/dead-letter/replay without contacting Tally or writing exchange files externally.
 - `db/migrations/001_tenant_vertical.sql` is the PostgreSQL contract. A request transaction must set `app.tenant_id` and `app.branch_ids` from verified membership before querying; client tenant fields are never used for session context.
 - `db/migrations/002_identity_access.sql` adds the tenant-keyed identity and control model, forces RLS, stores only kiosk PIN digests, and expands critical-action audit context.
 - `db/migrations/003_versioned_configuration.sql` persists immutable effective master versions and scope snapshots, exact conversion ratios, and atomic tenant/branch/type/financial-year sequences under forced RLS.
@@ -38,6 +39,17 @@ This directory is the production architecture seam. It does not replace or impor
 - `db/migrations/016_qc_rework.sql` persists dual readiness signals, item-level inspection/evidence, blocking rework history, maker-checker emergency overrides, serialized unique effects, and fingerprinted command receipts under forced tenant/branch RLS.
 - `db/migrations/017_warranty_incidents.sql` persists immutable delivered warranty terms and linked comeback work, custody escalation/resolution/acknowledgement evidence, durable release events, independently released legal holds, hold-aware retention guards, and idempotent commands under forced tenant/branch RLS.
 - `db/migrations/018_native_invoicing.sql` persists billing-readiness projections, exact payer invoices/lines, active payer registration, immutable private documents, maker-checker corrections, serialized fiscal allocation, unique outbox effects, and fingerprinted commands under forced tenant/branch RLS.
+- `db/migrations/019_tally_connector.sql` persists exact Tally-authoritative exchanges, unique voucher acknowledgements, immutable file/reconciliation/replay evidence, stable durable delivery effects, serialized acknowledgement import, and fingerprinted commands under forced tenant/branch RLS.
 - `infra/template.yaml` declares the private object bucket, durable queue/dead-letter queue, API, and worker boundaries. It is an un-deployed deployment artifact; credentials and an explicitly authorized AWS deployment remain external prerequisites.
+
+## Representative Tally support matrix
+
+| Contract generation | Local adapter ID | Certification state |
+| --- | --- | --- |
+| Current | `TALLYPRIME_CURRENT_REPRESENTATIVE` | Deterministic contract green; exact release mapping and representative installation certification pending |
+| One prior | `TALLYPRIME_PRIOR_1_REPRESENTATIVE` | Deterministic contract green; exact release mapping and representative installation certification pending |
+| Two prior | `TALLYPRIME_PRIOR_2_REPRESENTATIVE` | Deterministic contract green; exact release mapping and representative installation certification pending |
+
+The matrix deliberately names generations rather than making an unsupported vendor-version claim. Exact TallyPrime releases must be frozen at certification time and exercised with authorized representative installations, credentials, ledgers, tax mappings, direct transport, and controlled export/import files before production enablement.
 
 Run `npm run test:production` and `npm run test:production:typecheck` from the repository root.
