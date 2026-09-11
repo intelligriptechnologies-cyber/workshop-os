@@ -229,6 +229,33 @@ export function createLocalInventoryApi(input: { memberships: Record<string, Inv
           return { status: 201, body: { quantityBase: formatQuantity(-quantity), valueMinor: (-value).toString(), resourceVersion: 1 } };
         });
       }
+      if (path === "/api/v1/inventory/job-returns") {
+        const authorization = auth(this.token, body.branchId, "inventory.receive", [body.warehouseId]);
+        if (authorization.error) return authorization.error;
+        const membership = authorization.membership!;
+        return command(membership, options, body, (audit, now) => {
+          const item = itemVisible(membership, body.branchId, body.itemId);
+          if (!item || !item.active) return response(422, !item ? "ITEM_NOT_FOUND" : "ITEM_INACTIVE");
+          const locationError = validateLocation(warehouses.get(body.warehouseId)!, body.binId);
+          if (locationError) return locationError;
+          const quantity = convertToBase(item, body.quantity, body.uom);
+          if (quantity === undefined || quantity <= 0n) return response(422, "INVALID_UOM_CONVERSION");
+          if (body.sourceType !== "JOB_MATERIAL_RETURN" || !validId(body.sourceId) || !validId(body.reason)) return response(422, "SOURCE_AND_REASON_REQUIRED");
+          const lot = item.tracking === "NONE" ? undefined : lots.get(`${membership.tenantId}:${body.branchId}:${body.lotId}`);
+          if (item.tracking !== "NONE" && (!lot || lot.itemId !== item.id)) return response(422, "LOT_NOT_FOUND");
+          if (lot?.status !== undefined && lot.status !== "AVAILABLE") return response(422, "LOT_STATUS_BLOCKED");
+          if (isCountScopeFrozen(membership.tenantId, body.branchId, body.warehouseId, body.binId ?? null, item.id, lot?.id ?? null, body.remnantId ?? null)) return response(409, "COUNT_SCOPE_FROZEN");
+          const balance = getBalance(membership.tenantId, body.branchId, body.warehouseId, body.binId ?? null, item.id, lot?.id ?? null, body.remnantId ?? null);
+          const unitValue = parseMinor(body.valueMinor);
+          if (unitValue === undefined || unitValue < 0n) return response(422, "INVALID_VALUE_MINOR");
+          balance.quantityBase += quantity;
+          balance.valueMinor += unitValue;
+          postPair({ membership, branchId: body.branchId, warehouseId: body.warehouseId, binId: body.binId ?? null, itemId: item.id,
+            lotId: lot?.id ?? null, remnantId: body.remnantId ?? null, quantity, value: unitValue, sourceType: body.sourceType,
+            sourceId: body.sourceId, reason: body.reason, audit, now });
+          return { status: 201, body: { quantityBase: formatQuantity(quantity), valueMinor: unitValue.toString(), resourceVersion: 1 } };
+        });
+      }
       if (path === "/api/v1/inventory/transfers") {
         const authorization = auth(this.token, body.branchId, "inventory.move", [body.sourceWarehouseId, body.destinationWarehouseId]);
         if (authorization.error) return authorization.error;

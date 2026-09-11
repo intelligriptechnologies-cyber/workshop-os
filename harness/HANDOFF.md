@@ -2,41 +2,40 @@
 
 Updated: 2026-09-11
 Current branch: `prem-dev`
-Completed slice: S14<br>
-Next slice: S15 — Material request, issue, consumption, return, waste, and reconciliation
+Completed slice: S15<br>
+Next slice: S16 — Independent QC and rework
 
 ## Durable state
 
-- The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain frozen through S14 and traceability is CLEAN.
+- The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain frozen through S15 and traceability is CLEAN.
 - S00-S28 specifications live in `harness/05-issues/`. `BRD.md` remains a pointer and the React/sql.js demo remains a behavioral reference only.
-- S01-S12 establish the tenant-aware journey through technician task completion. S13 owns generic physical inventory and S14 now owns supplier/procurement commercial documents plus their exact S13 receipt/return boundary. S15 owns all Job/task-specific material control.
+- S01-S12 establish the tenant-aware journey through technician task completion. S13 owns generic physical inventory, S14 owns procurement commercial documents, and S15 now owns Job/task material demand and exact reconciliation while delegating physical postings to S13.
 
-## S14 evidence
+## S15 evidence
 
-- `production/src/procurement-workflow.ts` derives tenant, branch, supplier, PO and warehouse authority from verified membership. Suppliers retain multiple contacts, tax identity/treatment, payment terms, registered/operational addresses, item relationships and controlled status. GSTIN/PAN/normalized-name duplicates are tenant-controlled; mutable supplier and draft document writes use versions.
-- Requisition and PO draft lines are versioned and become immutable after submission. Exact six-decimal quantities and minor-unit line price, discount, GST, landed-cost, payable and inventory value remain distinct. Configurable thresholds, distinct maker-checker approval evidence, reasoned cancellation and partial fulfilment history are retained.
-- GRN posting validates an approved remaining PO quantity, supplier document, received/rejected/accepted split, configured inspection, lot/roll, clean tenant-private documents and authorized location. It calls the S13 authoritative receipt exactly once per accepted line, retains rejected discrepancies separately, and uses PO-line reservations plus fingerprinted in-flight receipts to reject concurrent over-receipt and duplicate/reordered effects.
-- Purchase returns reference eligible posted GRN stock including item/UOM/location/lot/remnant, reserve no more than the received remainder, require clean shipment evidence and independent approval, then create a compensating S13 stock movement plus expected-credit financial event. Posted history is never deleted.
-- `014_procurement_workflow.sql` adds forced tenant/branch/warehouse RLS across 20 procurement tables, exact numeric and minor-unit constraints, composite scope FKs, tenant-unique supplier/document/idempotency controls, serialized PO-line locking, transactional S13 delegation, and append-only posting/evidence triggers.
-- Focused S14 tests passed 7/7; the full production suite passed 96/96 and production typecheck passed. Final harness, demo build, Playwright, and diff results are recorded below. No deployment, provider enrollment, purchase order transmission, supplier/customer message, payment, or other external/production action occurred.
+- `production/src/job-material-control.ts` consumes immutable S09/S11/S12 scope and assignment boundaries. It accepts only approved task demand, controls excess and substitutions independently, validates private evidence and scans, serializes partial Store issues, and calls S13 with tenant-derived identity and idempotency.
+- Technicians record exact consumption, wastage, or proposed return. Store independently verifies and restores a return to its original location/lot/value through `production/src/inventory-ledger.ts`; Manager approval requires distinct identity and recent authentication above snapshotted excess, waste, and variance thresholds.
+- Reconciliation emits one versioned S16/S18 event only when `Issued = Consumed + Verified Return + Wastage + Approved Variance`. Separately approved evidenced non-Job reasons are the only other S15 path for stock to leave Store.
+- `015_job_material_control.sql` persists exact fixed-decimal demand and outcomes, forced scoped RLS, maker-checker evidence, the conservation check, append-only postings/evidence/events/receipts, unique effects, and S13 stock delegation with row locking.
+- Focused S15 tests passed 9/9; the full production suite passed 105/105 and production typecheck passed. No deployment, provider enrollment, inventory movement, supplier/customer message, payment, or other external/production action occurred.
 
 ## Verification
 
-- `npm run test:production`: 96/96 passed.
+- `npm run test:production`: 105/105 passed.
 - `npm run test:production:typecheck`: passed.
-- `npm run test:harness`: passed — 119 requirements, 29 slices, 15 contiguous complete, no orphans.
+- `npm run test:harness`: passed — 119 requirements, 29 slices, 16 contiguous complete, no orphans.
 - `npm run build`: passed (TypeScript plus Vite production build).
 - `npm run test:e2e`: 7/7 passed.
-- `git diff --check`: passed after final document normalization.
+- `git diff --check`: passed.
 
-## S15 first action
+## S16 first action
 
-Read S15, R-061 through R-063, D-005/D-009/D-010/D-012/D-018/D-021, and the S09/S11/S12/S13 contracts. Begin with a failing end-to-end material-reconciliation test proving that approved Job/task demand authorizes one exact Store issue and that the Job cannot reconcile until `Issued = Consumed + Verified Return + Wastage + Approved Variance`. Then add request/partial issue/substitution, technician consumption/waste, Store-verified physical return, manager threshold approval, scanning/evidence, concurrency and retry recovery.
+Read S16, R-064 through R-068, D-005/D-011/D-012/D-024/D-025, and the S09/S11/S12/S15 immutable snapshot and reconciliation events. Begin with one failing end-to-end test proving that technician completion and material reconciliation create a pending-QC action but cannot produce a QC pass, then require an independently authorized QC actor to submit every snapshotted checklist item with readings, notes, clean evidence, actor, time, and an explicit result.
 
 ## Guardrails
 
-- Preserve unrelated user changes and demo behavior; do not evolve browser-local SQLite into the production material source.
-- Derive tenant/branch/Job/task/location authority from verified membership and force PostgreSQL RLS. Client identifiers never establish authority.
-- S15 must call S13 postings idempotently and retain S14 procurement origins. It must not bypass exact UOM, lot/roll/remnant, FEFO, frozen-count, availability, audit, or append-only rules.
-- Technician records consumption/waste, Store verifies returns, and Manager independently approves excess/variance above configured thresholds. Posted corrections use compensation, never mutation or deletion.
-- After S15 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S15 and do not push.
+- Preserve unrelated user changes and demo behavior; do not evolve browser-local SQLite into the production source.
+- Derive tenant/branch/Job/task authority from verified membership and force PostgreSQL RLS. Client identifiers never establish authority.
+- QC is independent of technician completion. A failed item must create blocking linked rework; re-execution and reinspection append history and never erase the failed result.
+- Emergency QC override needs recent authentication, configured distinct approval, reason and clean evidence, explicit customer/release visibility, and immutable audit history.
+- After S16 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S16 and do not push.
