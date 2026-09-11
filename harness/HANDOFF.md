@@ -2,40 +2,40 @@
 
 Updated: 2026-09-11
 Current branch: `prem-dev`
-Completed slice: S15<br>
-Next slice: S16 — Independent QC and rework
+Completed slice: S16<br>
+Next slice: S17 — Warranty, comeback, and incident resolution
 
 ## Durable state
 
-- The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain frozen through S15 and traceability is CLEAN.
+- The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain frozen through S16 and traceability is CLEAN.
 - S00-S28 specifications live in `harness/05-issues/`. `BRD.md` remains a pointer and the React/sql.js demo remains a behavioral reference only.
-- S01-S12 establish the tenant-aware journey through technician task completion. S13 owns generic physical inventory, S14 owns procurement commercial documents, and S15 now owns Job/task material demand and exact reconciliation while delegating physical postings to S13.
+- S01-S12 establish the tenant-aware journey through technician task completion. S13 owns physical inventory, S14 procurement, S15 exact Job material reconciliation, and S16 now owns independent quality acceptance, rework, reinspection, and emergency QC override.
 
-## S15 evidence
+## S16 evidence
 
-- `production/src/job-material-control.ts` consumes immutable S09/S11/S12 scope and assignment boundaries. It accepts only approved task demand, controls excess and substitutions independently, validates private evidence and scans, serializes partial Store issues, and calls S13 with tenant-derived identity and idempotency.
-- Technicians record exact consumption, wastage, or proposed return. Store independently verifies and restores a return to its original location/lot/value through `production/src/inventory-ledger.ts`; Manager approval requires distinct identity and recent authentication above snapshotted excess, waste, and variance thresholds.
-- Reconciliation emits one versioned S16/S18 event only when `Issued = Consumed + Verified Return + Wastage + Approved Variance`. Separately approved evidenced non-Job reasons are the only other S15 path for stock to leave Store.
-- `015_job_material_control.sql` persists exact fixed-decimal demand and outcomes, forced scoped RLS, maker-checker evidence, the conservation check, append-only postings/evidence/events/receipts, unique effects, and S13 stock delegation with row locking.
-- Focused S15 tests passed 9/9; the full production suite passed 105/105 and production typecheck passed. No deployment, provider enrollment, inventory movement, supplier/customer message, payment, or other external/production action occurred.
+- `production/src/qc-rework.ts` creates pending QC only after immutable S12 completion and S15 exact material reconciliation. A task technician cannot self-pass; an authorized independent QC actor must submit the complete snapshotted checklist with status, readings, notes, clean tenant-private evidence, actor, time, and explicit result.
+- A failed item creates blocking evidence-linked rework. Authorized assignment, evidenced technician completion, and independent reinspection preserve every prior inspection and append transition history. Optimistic concurrency and idempotency allow one release effect under retries and races.
+- Emergency override requires an evidenced request, customer communication note, snapshotted policy, distinct configured checker, recent authentication, reason, and an immutable customer/release-visible override event; it never erases the failed inspection.
+- `016_qc_rework.sql` persists dual readiness signals, item evidence, rework history, maker-checker approvals, unique outbox effects and command receipts with row locking, append-only controls, and forced tenant/branch RLS.
+- Six focused S16 tests passed; the full production suite passed 111/111 and production typecheck passed. No deployment, provider enrollment, customer/staff message, vehicle release, payment, or other external/production action occurred.
 
 ## Verification
 
-- `npm run test:production`: 105/105 passed.
+- `npm run test:production`: 111/111 passed.
 - `npm run test:production:typecheck`: passed.
-- `npm run test:harness`: passed — 119 requirements, 29 slices, 16 contiguous complete, no orphans.
+- `npm run test:harness`: passed — 119 requirements, 29 slices, 17 contiguous complete, no orphans.
 - `npm run build`: passed (TypeScript plus Vite production build).
 - `npm run test:e2e`: 7/7 passed.
 - `git diff --check`: passed.
 
-## S16 first action
+## S17 first action
 
-Read S16, R-064 through R-068, D-005/D-011/D-012/D-024/D-025, and the S09/S11/S12/S15 immutable snapshot and reconciliation events. Begin with one failing end-to-end test proving that technician completion and material reconciliation create a pending-QC action but cannot produce a QC pass, then require an independently authorized QC actor to submit every snapshotted checklist item with readings, notes, clean evidence, actor, time, and an explicit result.
+Read S17, R-069 through R-072, D-014/D-015/D-024/D-029, and the S07 custody-incident plus S09/S16/S21 closure boundaries. Start with one failing end-to-end test proving claim intake shows immutable warranty terms snapshotted on the delivered original Job, then creates a classified linked new Visit/Job without reopening or changing the original financial record.
 
 ## Guardrails
 
 - Preserve unrelated user changes and demo behavior; do not evolve browser-local SQLite into the production source.
-- Derive tenant/branch/Job/task authority from verified membership and force PostgreSQL RLS. Client identifiers never establish authority.
-- QC is independent of technician completion. A failed item must create blocking linked rework; re-execution and reinspection append history and never erase the failed result.
-- Emergency QC override needs recent authentication, configured distinct approval, reason and clean evidence, explicit customer/release visibility, and immutable audit history.
-- After S16 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S16 and do not push.
+- Derive tenant/branch authority from verified membership and force PostgreSQL RLS. Client identifiers never establish authority.
+- Warranty/comeback work always creates linked new operational records; original delivered Job and finalized finance remain immutable.
+- Custody incident resolution needs authorized evidence and acknowledgement. A legal hold prevents media/record expiry and purge until a separately authorized release is appended.
+- After S17 passes, update its evidence, checklist, traceability, decision ledger if affected, and this handoff; commit locally with S17 and do not push.

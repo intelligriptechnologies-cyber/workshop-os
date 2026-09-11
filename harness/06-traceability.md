@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S15 complete. Acceptance evidence is recorded in each owning issue; S15 verifies R-061 through R-063 with approved Job/task demand or an independently approved non-Job reason for every Store issue, exact S13 lot/UOM/value postings and verified returns, evidenced technician consumption/waste, maker-checker threshold controls, concurrency-safe partial issue, and the exact reconciliation equation. S27 retains cross-device accessibility and usability release-gate ownership. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
+Implementation coverage: S00 through S16 complete. Acceptance evidence is recorded in each owning issue; S16 verifies R-064 through R-068 with dual completion/reconciliation readiness, independently performed snapshotted item-level QC and private evidence, blocking linked rework and append-only reinspection history, plus recently authenticated maker-checker emergency override with customer/release visibility. S27 retains cross-device accessibility and usability release-gate ownership. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
 
 ## Matrix
 
