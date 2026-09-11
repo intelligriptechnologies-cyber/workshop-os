@@ -27,7 +27,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 ## Procurement, inventory, and quality
 
 - [x] S13 — Complete locally — Scoped warehouse/bin and item/UOM/lot/roll masters, exact balanced stock ledger, FEFO/remnants/scrap, in-transit discrepancy-controlled transfers, and blind maker-checker counts.
-- [ ] S14 — Not started — Supplier, requisition, PO, GRN, and purchase-return workflow.
+- [x] S14 — Complete locally — Controlled supplier masters, versioned requisition/PO approvals and partials, exact evidenced GRNs through S13, and authorized compensating purchase returns.
 - [ ] S15 — Not started — Material request, issue, consumption, return, waste, and reconciliation.
 - [ ] S16 — Not started — Manager QC and rework loop.
 - [ ] S17 — Not started — Warranty/comeback Jobs and incident resolution.
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S13.
-- [x] Requirement mappings and traceability remain clean through S13.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S13.
-- [x] External prerequisites/blockers and evidence are recorded through S13.
+- [x] Acceptance tests and applicable regression suite pass through S14.
+- [x] Requirement mappings and traceability remain clean through S14.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S14.
+- [x] External prerequisites/blockers and evidence are recorded through S14.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
