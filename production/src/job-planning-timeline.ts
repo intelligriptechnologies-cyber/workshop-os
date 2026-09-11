@@ -120,13 +120,27 @@ type AssignmentHistory = {
   warningsAcknowledged: boolean;
   auditReference: string;
 };
-type OutboxEvent = {
+export type JobPlanningOutboxEvent = {
   id: string;
   tenantId: string;
   branchId: string;
   aggregateId: string;
+  aggregateVersion: number;
   type: "S12_TASK_ASSIGNMENT_READY";
-  payload: Record<string, unknown>;
+  payload: {
+    jobId: string;
+    taskId: string;
+    taskVersion: number;
+    taskTitle: string;
+    priority: Priority;
+    estimatedMinutes: number;
+    technicianIds: string[];
+    responsibleTechnicianId: string;
+    checklist: WorkTask["checklist"];
+    materials: WorkTask["materials"];
+    dependencies: string[];
+    warnings: string[];
+  };
   occurredAt: string;
 };
 type TimelineAction = { label: string; href: string; requiredPermission: string };
@@ -183,7 +197,7 @@ export function createLocalJobPlanningApi(input: {
   const commands = new Map<string, { fingerprint: string; response: ApiResponse }>();
   const consumedActivations = new Set<string>();
   const assignmentHistory: AssignmentHistory[] = [];
-  const outbox: OutboxEvent[] = [];
+  const outbox: JobPlanningOutboxEvent[] = [];
   const timeline = new Map<string, { fingerprint: string; event: TimelineSourceEvent }>();
   const externalTimelineEvents: TimelineSourceEvent[] = [];
   let planSequence = 0;
@@ -402,10 +416,12 @@ export function createLocalJobPlanningApi(input: {
             internalDetails: { previousTechnicianIds, technicianIds: clone(technicianIds), responsibleTechnicianId: body.responsibleTechnicianId,
               warnings: clone(warnings), auditReference }, actions: [{ label: "Open task", href: `/tasks/${located.task.id}`, requiredPermission: "job.plan.read" }] });
           outbox.push({ id: `outbox-s12-${outbox.length + 1}`, tenantId: member.tenantId, branchId,
-            aggregateId: located.task.id, type: "S12_TASK_ASSIGNMENT_READY",
+            aggregateId: located.task.id, aggregateVersion: located.task.resourceVersion, type: "S12_TASK_ASSIGNMENT_READY",
             payload: { jobId: located.plan.jobId, taskId: located.task.id, taskVersion: located.task.resourceVersion,
+              taskTitle: located.task.title, priority: located.task.priority, estimatedMinutes: located.task.estimatedMinutes,
               technicianIds: clone(technicianIds), responsibleTechnicianId: body.responsibleTechnicianId,
-              checklist: clone(located.task.checklist), materials: clone(located.task.materials), dependencies: clone(located.task.dependsOnTaskIds) }, occurredAt: now });
+              checklist: clone(located.task.checklist), materials: clone(located.task.materials), dependencies: clone(located.task.dependsOnTaskIds),
+              warnings: clone(located.task.warnings) }, occurredAt: now });
           const response: ApiResponse = { status: 200, body: { task: clone(located.task), warnings: clone(warnings), resourceVersion: located.task.resourceVersion, auditReference } };
           commands.set(commandKey, { fingerprint, response: clone(response) });
           return response;

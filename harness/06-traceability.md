@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S11 complete. Acceptance evidence is recorded in each owning issue; S11 verifies R-041, R-042, and R-045 with exact-snapshot DAG planning, concurrency-safe multi-technician responsibility, visible capacity policy, audited reassignment, and a permission-filtered stable Job chronology. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
+Implementation coverage: S00 through S12 complete. Acceptance evidence is recorded in each owning issue; S12 verifies R-043, R-044, and R-046 through R-049 with controlled task progression and elapsed history, snapshotted evidence gates, an Android-oriented large-touch My Tasks contract, conflict-safe durable drafts, categorical offline posting blocks, and fully validated scanning/manual fallback. S27 retains cross-device accessibility and usability release-gate ownership. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
 
 ## Matrix
 
