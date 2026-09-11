@@ -6,7 +6,7 @@ Checked: 2026-09-11
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S12 complete. Acceptance evidence is recorded in each owning issue; S12 verifies R-043, R-044, and R-046 through R-049 with controlled task progression and elapsed history, snapshotted evidence gates, an Android-oriented large-touch My Tasks contract, conflict-safe durable drafts, categorical offline posting blocks, and fully validated scanning/manual fallback. S27 retains cross-device accessibility and usability release-gate ownership. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
+Implementation coverage: S00 through S13 complete. Acceptance evidence is recorded in each owning issue; S13 verifies R-050 through R-056 with warehouse/bin authority, exact item UOM and lot/serial/expiry state, reasoned FEFO, roll/remnant/scrap lineage, balanced append-only quantity/value postings, non-double-counted evidenced transfers, and frozen blind counts with recount, investigation, maker-checker compensation, and concurrency rejection. Job-specific material control remains owned by S15. S27 retains cross-device accessibility and usability release-gate ownership. S07 continues to verify R-028, R-029, and its R-071 incident-intake boundary; S17 retains incident resolution and legal-hold ownership.
 
 ## Matrix
 
