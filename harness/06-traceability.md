@@ -2,11 +2,11 @@
 
 Status: CLEAN
 
-Checked: 2026-09-11
+Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S21 complete. Acceptance evidence is recorded in each owning issue; S21 verifies R-089 through R-096 with plain-language cross-domain readiness, controlled closure override, versioned private documents and minimum-data QR verification, complete delivery evidence, scoped fiscal gate passes, independent live vehicle/pass verification, and atomic immutable delivered closure. Representative renderers, A4/thermal hardware, scanner/camera devices, qualified India finance/document review, operational release rehearsal, and authorized deployment remain production prerequisites. S25 retains QR authorization hardening and S27 retains cross-device accessibility, document, scanning, and usability release-gate ownership.
+Implementation coverage: S00 through S22 complete. Acceptance evidence is recorded in each owning issue; S22 verifies R-097 through R-099 with permission-guided tenant/branch role boards, eight defined exact report domains and protected as-of drill-through, plus private watermarked manifest/checksum-backed asynchronous exports with expiry, revocation, and audit. Production metric sign-off, reporting scale/load validation, object-storage delivery, export file review, and representative role usability remain release prerequisites. S25 retains export/authorization hardening, S26 owns reporting scale, and S27 retains accessibility/usability gates.
 
 ## Matrix
 
