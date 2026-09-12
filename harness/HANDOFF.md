@@ -3,13 +3,14 @@
 Updated: 2026-09-12
 Current branch: `prem-dev`
 Completed slice: S28
-Next action: obtain and record the authorized external evidence required for production certification and pilot acceptance.
+Next action: expand the real PostgreSQL `/api/v1` runtime from the S01 tracer bullet across S02-S28, then obtain authorized external evidence required for production certification and pilot acceptance.
 
 ## Durable state
 
 - The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain unchanged, traceability is CLEAN, and S00–S28 are complete locally.
 - Local implementation is 29/29 slices complete. This means the application, persistence, infrastructure, assurance, migration-rehearsal, and rollout-control contracts are present and verified; it does not mean the real production launch or pilot has been accepted.
 - The React/sql.js demo remains a behavioral reference and is never a production migration source. S24's representative import fixture and every S28 `fixture://`/simulated evidence reference are inert test data only.
+- The local Docker stack is running at `http://localhost:4173`: PostgreSQL 17 plus a built PWA and real S01 `/api/v1/work-items` tracer bullet. All 28 migrations execute and are checksum tracked. The rich PWA screens still use `sql.js`; they have not yet been converted to the production API.
 
 ## S28 evidence
 
@@ -28,6 +29,8 @@ Next action: obtain and record the authorized external evidence required for pro
 - `npm run build`: passed.
 - `npm run test:e2e`: 7/7 passed.
 - `git diff --check`: passed.
+- `npm run local:up`: passed from an empty PostgreSQL volume; both `db` and `app` healthy.
+- `npm run local:test`: passed against the real HTTP/PostgreSQL vertical (28 migrations, tenant spoof denial, idempotent replay, cross-tenant and cross-branch RLS).
 
 ## Production and pilot acceptance still pending
 

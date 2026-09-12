@@ -2,6 +2,8 @@
 
 This directory is the production architecture seam. It does not replace or import the browser-local demo.
 
+The seam is now executable against PostgreSQL through `production/local`: `migrate.ts` applies and checksums all 28 migrations, `database.ts` runs commands with transaction-local tenant/branch RLS context, and `server.ts` exposes the first real `/api/v1` work-item vertical while serving the built PWA. Run the complete stack with `npm run local:up` and verify it with `npm run local:test`.
+
 - `src/local-production-vertical.ts` is the deterministic local/test adapter for PWA → `/api/v1` → tenant store/outbox → worker/private object → safe logs.
 - `src/identity-access.ts` is the deterministic Cognito-compatible identity/provisioning adapter used to verify individual membership, branch/granular permission scope, kiosk sessions, MFA/re-authentication, maker-checker, support grants, and audit evidence without contacting Cognito.
 - `src/versioned-configuration.ts` exposes the deterministic local `/api/v1` contract for tenant/branch-scoped master drafts, effective publication, immutable active-scope snapshots, exact money/UOM values, and fiscal document allocation.

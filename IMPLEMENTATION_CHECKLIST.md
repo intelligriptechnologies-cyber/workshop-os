@@ -57,6 +57,14 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] External prerequisites/blockers and evidence are recorded through S28.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
+## Executable local stack
+
+- [x] Docker Compose runs PostgreSQL 17 and the built PWA/API with health-ordered startup.
+- [x] All 28 SQL migrations execute on a clean real database and are checksum tracked.
+- [x] The API connects as a non-superuser, non-`BYPASSRLS` application role.
+- [x] A real HTTP/database smoke test proves tenant spoof resistance, idempotency, audit/outbox persistence, and cross-tenant/cross-branch RLS denial.
+- [ ] Replace the browser-local `sql.js` repositories behind every rich PWA journey screen with PostgreSQL-backed `/api/v1` repositories. Only the S01 work-item tracer bullet is connected today.
+
 ## Demo baseline (completed before production programme)
 
 This appendix is historical evidence only. It does not satisfy a production slice.

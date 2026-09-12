@@ -71,3 +71,5 @@ D-033 | Finance/tax production certification requires qualified India finance re
 D-034 | Any BRD change updates the ledger, requirements, slices, acceptance criteria, traceability, checklist, and handoff before implementation continues | Informal scope drift | The plan remains auditable across contexts.
 
 D-035 | S00 mechanically verifies 119 requirements, 29 slices, bidirectional mapping, required artifacts, checklist baseline, and next handoff | Manual document inspection only | Executable continuity prevents context drift.
+
+D-036 | Run the local production foundation with Docker Compose, PostgreSQL 17, checksum-tracked ordered migrations, and a separate non-superuser `NOBYPASSRLS` application role | Continue relying only on in-memory adapters or run the API as the database owner | Real PostgreSQL execution exposes SQL/type defects and proves row-level tenant/branch isolation under the same transaction used by each command.
