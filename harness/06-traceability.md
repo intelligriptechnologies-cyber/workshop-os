@@ -6,7 +6,7 @@ Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S26 complete locally. Acceptance evidence is recorded in each owning issue; S26 makes R-108–R-112 executable through exactly-once async recovery, tenant-safe correlated telemetry, representative target-shape p95 measurement, checksum-verified restore timing, SLO/health alerts, and a fail-closed external-evidence decision. The evidence remains deterministic local/application/infrastructure-contract verification only. Authorized deployed target-load, production availability, real backup restoration, regional DR, infrastructure penetration, IAM/object-store, and provider exercises remain release prerequisites.
+Implementation coverage: S00 through S27 complete locally. Acceptance evidence is recorded in each owning issue; S27 makes R-046, R-049, R-091, R-092, and R-115–R-117 executable through deterministic critical-flow accessibility controls, supported-client and scan-path checks, versioned document/QR contracts, an exact usability threshold calculation, append-only scoped evidence, and a fail-closed release decision. Local automation does not prove WCAG conformance, current physical-device/browser support, rendered-printer output, or representative-staff results. Those authorized external exercises, plus the S25/S26 security and operational prerequisites, remain release blockers.
 
 ## Matrix
 

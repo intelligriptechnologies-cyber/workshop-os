@@ -2,40 +2,40 @@
 
 Updated: 2026-09-12
 Current branch: `prem-dev`
-Completed slice: S26<br>
-Next slice: S27 — Accessibility, devices, documents, scanning, and training
+Completed slice: S27<br>
+Next slice: S28 — Pilot, cutover, rollback, hypercare, and second tenant
 
 ## Durable state
 
-- The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain unchanged and traceability is CLEAN through S26.
-- S00–S26 are complete locally. S26 is deterministic application/infrastructure-contract evidence, not proof of deployed AWS scale, achieved production availability, real backup restoration, provider recovery, or regional DR.
+- The canonical BRD contains R-001 through R-119; decisions D-001 through D-035 remain unchanged and traceability is CLEAN through S27.
+- S00–S27 are complete locally. S27 is deterministic browser/application/persistence-contract evidence, not proof of WCAG 2.2 AA, current physical-device support, rendered-printer output, or representative-staff usability acceptance.
 - S24 remains an inert migration contract. S28 still owns authorized real-tenant rehearsal, parallel reconciliation, cutover/rollback, hypercare, and repeatable second-tenant acceptance.
 
-## S26 evidence
+## S27 evidence
 
-- `production/tests/scale-recovery-observability.test.ts` runs eight scenarios for all five async domains, transient/permanent recovery, dead-letter and authorized tenant replay, duplicate/reordered exactly-once effects, safe correlation, deterministic target-shape p95, checksum restore/RPO/RTO, SLO/health alerts, persistence/alarms, and external-evidence blocking.
-- `production/src/release-assurance.ts` reports fixture routine p95 `400 ms`, authoritative p95 `2000 ms`, RPO `12 minutes`, and RTO `35 minutes`; each result is explicitly classified as local deterministic evidence.
-- `production/db/migrations/026_release_assurance.sql` and `production/infra/template.yaml` define durable unique effects, safe append-only telemetry/rehearsals, forced scope, concurrent claims, and queue/dead-letter alarms.
-- Release evaluation remains `BLOCKED` without deployed target-load, production 99.9% availability-window, real backup restore, and authorized regional-DR evidence references.
-- No AWS deployment, provider call, live backup, regional action, customer communication, or live tenant data occurred.
+- `production/tests/experience-assurance.test.ts` runs seven scenarios covering four critical role flows, deterministic WCAG controls, supported clients and scan paths, versioned PDF/A4/thermal documents, single-purpose replay-protected expiring/revocable QR verification, usability thresholds, persistence controls, and external-evidence blocking.
+- Existing S12 tests validate camera and hardware scans plus reasoned audited manual fallback; existing S21 tests validate all six operational document types and private A4/thermal artifacts.
+- `production/src/experience-assurance.ts` marks local accessibility, client, and usability reports as deterministic evidence that cannot establish real-world conformance.
+- `production/db/migrations/027_experience_assurance.sql` separates `AUTOMATED` from `AUTHORIZED_EXTERNAL` evidence under forced tenant/branch RLS and append-only triggers.
+- Release evaluation remains `BLOCKED` without authorized manual assistive-tech review, real current-device/browser evidence, rendered-printer verification, and representative trained-staff results of at least 90% unaided success with zero critical-control errors.
 
 ## Verification
 
-- `npm run test:production`: 194/194 passed.
+- `npm run test:production`: 201/201 passed.
 - `npm run test:production:typecheck`: passed.
-- S26 focused suite: 8/8 passed.
-- `npm run test:harness`: passed — 119 requirements, 29 slices, 27 contiguous complete, no orphans.
+- S27 focused suite: 7/7 passed.
+- `npm run test:harness`: passed — 119 requirements, 29 slices, 28 contiguous complete, no orphans.
 - `npm run build`: passed.
 - `npm run test:e2e`: 7/7 passed.
 - `git diff --check`: passed.
 
-## S27 first action
+## S28 first action
 
-Read S27 and R-046, R-049, R-091, R-092, R-115–R-117. Start with one failing automated accessibility scenario against a critical role flow, then add document/QR and camera/hardware/manual-scanner checks on the supported browser/device matrix. Keep manual assistive-technology, representative-hardware, and trained-staff evidence external and fail closed rather than claiming unperformed testing.
+Read S28 and R-118–R-119. Build a deterministic pilot/cutover evidence coordinator that fail-closes on the required two-week parallel reconciliation, signed variance disposition, cutover readiness, tested rollback criteria, four-week hypercare, and repeatable second-tenant onboarding. Keep all live-tenant activity external and require explicit authority; do not represent local fixtures as pilot acceptance.
 
 ## Guardrails
 
-- S27 local automation must distinguish browser-contract evidence from manual WCAG review, real-device verification, and representative-staff usability acceptance.
+- S27 external evidence remains blocking: authorized manual WCAG/assistive-tech review, current physical device/browser checks, representative scanner/printer verification, and trained-staff usability acceptance.
 - S26 external exercises remain blocking: authorized deployed target load, ten-year dataset/query plan, production availability measurement, backup restoration, regional DR, and provider/queue recovery.
 - Infrastructure penetration/IAM/object review, malware/provider certification, AWS/provider/DNS/Tally credentials, finance review, and pilot inputs remain external prerequisites.
 - Do not deploy, contact providers, upload live data, message customers, push GitHub, or commit without the parent agent's review.

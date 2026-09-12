@@ -55,6 +55,8 @@ This directory is the production architecture seam. It does not replace or impor
 - `src/release-assurance.ts` is the S26 deterministic harness for five-domain async recovery, tenant-safe correlation, representative target-shape p95, checksum-verified restore timing, operational health/SLO alerts, and explicit external-evidence release blocking.
 - `db/migrations/026_release_assurance.sql` persists unique delivery effects, append-only attempts/replays/telemetry/rehearsal/SLO evidence, alerts, and concurrency-safe claims under forced tenant/branch RLS.
 - `infra/template.yaml` declares the private object bucket, durable queue/dead-letter queue, API and worker boundaries plus queue-age/dead-letter alarms. It is an un-deployed deployment artifact; credentials and authorized deployed load, restore, regional DR, and operational exercises remain external prerequisites.
+- `src/experience-assurance.ts` is the S27 deterministic boundary for critical-flow accessibility controls, supported clients and scan paths, versioned PDF/A4/thermal documents with single-purpose replay-protected narrow QR verification, the 90%/zero-critical-error usability calculation, and fail-closed external evidence evaluation.
+- `db/migrations/027_experience_assurance.sql` separates automated from authorized-external accessibility, device, printer, and usability evidence under forced tenant/branch RLS and append-only controls. Manual assistive-tech review, real current-device/browser tests, rendered-printer checks, and representative trained-staff evidence have not been performed locally.
 
 ## Representative Tally support matrix
 

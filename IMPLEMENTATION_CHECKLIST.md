@@ -46,15 +46,15 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 - [x] S24 — Complete locally — Tenant/branch-scoped source staging, explicit mapping, row-level manifests, fingerprinted idempotent commit, exact reconciliation, and acceptance blocking with an inert representative rehearsal.
 - [x] S25 — Complete locally — Cross-layer tenant/branch/role isolation, shared-device and public-token controls, offline/replay/concurrency negatives, trusted-scanner private media, and cross-domain invariant release gates.
 - [x] S26 — Complete locally — Exactly-once async recovery, tenant-safe correlated telemetry, deterministic target-shape p95 and restore rehearsals, SLO/health alerts, and fail-closed external evidence gates; deployed load, availability, backup restore, and regional DR exercises remain external.
-- [ ] S27 — Not started — Accessibility, device, document, scanning, training, and staff-usability gates.
+- [x] S27 — Complete locally — Deterministic accessibility/client/document/scan/usability contracts and append-only evidence storage; manual assistive-tech, real-device/browser, printer, and representative-staff proof remain external.
 - [ ] S28 — Not started — Parallel pilot, cutover, rollback, hypercare, and repeatable second-tenant onboarding.
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S26.
-- [x] Requirement mappings and traceability remain clean through S26.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S26.
-- [x] External prerequisites/blockers and evidence are recorded through S26.
+- [x] Acceptance tests and applicable regression suite pass through S27.
+- [x] Requirement mappings and traceability remain clean through S27.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S27.
+- [x] External prerequisites/blockers and evidence are recorded through S27.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
