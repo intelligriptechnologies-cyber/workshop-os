@@ -87,6 +87,20 @@ test("availability SLO and provider, queue, backup health produce actionable ten
   assert.equal(unhealthy.provesProductionAvailability, false);
 });
 
+test("every operational alert resolves to an owned actionable recovery runbook", async () => {
+  const harness = createLocalReleaseAssuranceHarness();
+  const unhealthy = harness.health.evaluate({ monthMinutes: 43_200, unavailableMinutes: 50,
+    queueOldestAgeSeconds: 901, deadLetterCount: 4, providerFailureRate: 0.21, backupAgeMinutes: 16 });
+  for (const alert of unhealthy.alerts) {
+    const runbook = await readFile(new URL(`../../${alert.runbook}`, import.meta.url), "utf8");
+    assert.match(runbook, /^# /m);
+    assert.match(runbook, new RegExp(`^Owner: ${alert.owner}$`, "m"));
+    for (const section of ["Immediate actions", "Recovery", "Verification", "Escalation"]) {
+      assert.match(runbook, new RegExp(`^## ${section}$`, "m"));
+    }
+  }
+});
+
 test("durable persistence and infrastructure contracts expose claim, replay, telemetry, and actionable alarms", async () => {
   const migration = await readFile(new URL("../db/migrations/026_release_assurance.sql", import.meta.url), "utf8");
   const infrastructure = await readFile(new URL("../infra/template.yaml", import.meta.url), "utf8");

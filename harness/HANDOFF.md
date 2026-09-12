@@ -21,7 +21,7 @@ Next action: obtain and record the authorized external evidence required for pro
 
 ## Final local verification
 
-- `npm run test:production`: 208/208 passed.
+- `npm run test:production`: 209/209 passed.
 - `npm run test:production:typecheck`: passed.
 - S28 focused suite: 7/7 passed.
 - `npm run test:harness`: passed — 119 requirements, 29 slices, 29 contiguous complete, no orphans.
