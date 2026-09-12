@@ -6,7 +6,7 @@ Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S24 complete. Acceptance evidence is recorded in each owning issue; S24 verifies R-113 and R-114 with authenticated tenant/branch source staging, explicit mappings for the complete named import graph, immutable checksum/fingerprint-bound row manifests, exact duplicate/stock/finance/document reconciliation, idempotent duplicate-free commit, and blocked acceptance until every configured difference is exact or separately approved. The included representative fixture is inert local contract evidence only. Authorized real-tenant extracts and mappings, target duplicate review, opening-stock evidence, qualified India finance sign-off, and the S28 migration/pilot rehearsal remain release prerequisites. S25 retains cross-layer authorization/isolation hardening and S26 owns production recovery validation.
+Implementation coverage: S00 through S25 complete. Acceptance evidence is recorded in each owning issue; S25 makes R-005–R-008, R-016–R-018, R-035, R-048, R-092, and R-105–R-107 release-blocking through executable tenant/branch/role and side-channel isolation, shared-device attribution, replay/concurrency/offline negatives, trusted-scanner private media, and the existing cross-domain invariant suites. The evidence is deterministic local/application-contract verification only. Authorized infrastructure penetration testing, IAM/object-store review, malware-provider integration, and S26 deployed recovery/observability exercises remain release prerequisites.
 
 ## Matrix
 

@@ -89,6 +89,9 @@ test("database and every side channel fail closed across tenants", async () => {
     queue: false,
     cache: false,
     export: false,
+    search: false,
+    report: false,
+    metric: false,
     log: false,
   });
   const allowed = vertical.isolation.probe("north-reception", {

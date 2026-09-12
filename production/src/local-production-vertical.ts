@@ -184,10 +184,16 @@ class TenantPrivateObjects {
 class TenantEffectIndexes {
   private readonly caches: PrivateObject[] = [];
   private readonly exports: PrivateObject[] = [];
+  private readonly searches: PrivateObject[] = [];
+  private readonly reports: PrivateObject[] = [];
+  private readonly metrics: PrivateObject[] = [];
 
   index(object: PrivateObject): void {
     this.caches.push({ ...object });
     this.exports.push({ ...object });
+    this.searches.push({ ...object });
+    this.reports.push({ ...object });
+    this.metrics.push({ ...object });
   }
 
   cache(context: Membership, workItemId: string): PrivateObject | undefined {
@@ -196,6 +202,18 @@ class TenantEffectIndexes {
 
   export(context: Membership, workItemId: string): PrivateObject | undefined {
     return this.find(this.exports, context, workItemId);
+  }
+
+  search(context: Membership, workItemId: string): PrivateObject | undefined {
+    return this.find(this.searches, context, workItemId);
+  }
+
+  report(context: Membership, workItemId: string): PrivateObject | undefined {
+    return this.find(this.reports, context, workItemId);
+  }
+
+  metric(context: Membership, workItemId: string): PrivateObject | undefined {
+    return this.find(this.metrics, context, workItemId);
   }
 
   private find(items: PrivateObject[], context: Membership, workItemId: string): PrivateObject | undefined {
@@ -363,6 +381,9 @@ export function createLocalProductionVertical() {
           queue: Boolean(store.findOutbox(context, target.auditReference)),
           cache: Boolean(indexes.cache(context, target.workItemId)),
           export: Boolean(indexes.export(context, target.workItemId)),
+          search: Boolean(indexes.search(context, target.workItemId)),
+          report: Boolean(indexes.report(context, target.workItemId)),
+          metric: Boolean(indexes.metric(context, target.workItemId)),
           log: observability.forContext(context, target.auditReference).length > 0,
         };
       },
