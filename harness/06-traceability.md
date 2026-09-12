@@ -6,7 +6,7 @@ Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S27 complete locally. Acceptance evidence is recorded in each owning issue; S27 makes R-046, R-049, R-091, R-092, and R-115–R-117 executable through deterministic critical-flow accessibility controls, supported-client and scan-path checks, versioned document/QR contracts, an exact usability threshold calculation, append-only scoped evidence, and a fail-closed release decision. Local automation does not prove WCAG conformance, current physical-device/browser support, rendered-printer output, or representative-staff results. Those authorized external exercises, plus the S25/S26 security and operational prerequisites, remain release blockers.
+Implementation coverage: S00 through S28 complete locally. Acceptance evidence is recorded in each owning issue; S28 makes R-118–R-119 executable through an immutable no-fork rollout playbook, exact 14-day reconciliation gate, prior-evidence and independent-authority go/no-go, evidenced cutover/rollback, 28-day hypercare thresholds, and identical playbook/application-release comparison for a second tenant. This is deterministic local contract evidence only: no real tenant pilot, cutover, hypercare window, or second-tenant acceptance occurred. All recorded S01/S18–S20/S25–S28 external prerequisites remain release-blocking.
 
 ## Matrix
 
