@@ -6,7 +6,7 @@ Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S25 complete. Acceptance evidence is recorded in each owning issue; S25 makes R-005–R-008, R-016–R-018, R-035, R-048, R-092, and R-105–R-107 release-blocking through executable tenant/branch/role and side-channel isolation, shared-device attribution, replay/concurrency/offline negatives, trusted-scanner private media, and the existing cross-domain invariant suites. The evidence is deterministic local/application-contract verification only. Authorized infrastructure penetration testing, IAM/object-store review, malware-provider integration, and S26 deployed recovery/observability exercises remain release prerequisites.
+Implementation coverage: S00 through S26 complete locally. Acceptance evidence is recorded in each owning issue; S26 makes R-108–R-112 executable through exactly-once async recovery, tenant-safe correlated telemetry, representative target-shape p95 measurement, checksum-verified restore timing, SLO/health alerts, and a fail-closed external-evidence decision. The evidence remains deterministic local/application/infrastructure-contract verification only. Authorized deployed target-load, production availability, real backup restoration, regional DR, infrastructure penetration, IAM/object-store, and provider exercises remain release prerequisites.
 
 ## Matrix
 

@@ -10,6 +10,9 @@ Parameters:
     Type: List<AWS::EC2::Subnet::Id>
   ApiSecurityGroupIds:
     Type: List<AWS::EC2::SecurityGroup::Id>
+  OperationalAlertTopicArn:
+    Type: String
+    Description: Pre-authorized operations notification topic; deployment remains externally controlled
 
 Resources:
   Api:
@@ -42,6 +45,42 @@ Resources:
 
   TenantWorkDeadLetterQueue:
     Type: AWS::SQS::Queue
+
+  QueueAgeAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Oldest tenant work message exceeds the actionable recovery threshold
+      Namespace: AWS/SQS
+      MetricName: ApproximateAgeOfOldestMessage
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TenantWorkQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 900
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref OperationalAlertTopicArn
+
+  DeadLetterAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmDescription: Tenant work dead letters require authorized diagnosis and replay
+      Namespace: AWS/SQS
+      MetricName: ApproximateNumberOfMessagesVisible
+      Dimensions:
+        - Name: QueueName
+          Value: !GetAtt TenantWorkDeadLetterQueue.QueueName
+      Statistic: Maximum
+      Period: 300
+      EvaluationPeriods: 1
+      Threshold: 0
+      ComparisonOperator: GreaterThanThreshold
+      TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref OperationalAlertTopicArn
 
   ApiFunction:
     Type: AWS::Serverless::Function
