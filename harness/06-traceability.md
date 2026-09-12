@@ -6,7 +6,7 @@ Checked: 2026-09-12
 Requirements: 119  
 Slices: 29 (S00 governance plus S01-S28 product delivery)
 
-Implementation coverage: S00 through S23 complete. Acceptance evidence is recorded in each owning issue; S23 verifies R-009 and R-100 through R-104 with separately authorized idempotent provisioning/lifecycle commands, current server-enforced versioned entitlements, scoped expiring maker-checker support, suspension-safe complete checksum-manifested export, explicit retention/hold evidence, and dry-run-bound tenant-scoped purge simulation across all eight named surfaces. Production platform credentials, privacy/legal and India finance retention review, authoritative storage inventory, export security, restore/recovery validation, and controlled deployment/purge authorization remain release prerequisites. S25 retains cross-layer authorization/isolation hardening and S26 owns production recovery validation.
+Implementation coverage: S00 through S24 complete. Acceptance evidence is recorded in each owning issue; S24 verifies R-113 and R-114 with authenticated tenant/branch source staging, explicit mappings for the complete named import graph, immutable checksum/fingerprint-bound row manifests, exact duplicate/stock/finance/document reconciliation, idempotent duplicate-free commit, and blocked acceptance until every configured difference is exact or separately approved. The included representative fixture is inert local contract evidence only. Authorized real-tenant extracts and mappings, target duplicate review, opening-stock evidence, qualified India finance sign-off, and the S28 migration/pilot rehearsal remain release prerequisites. S25 retains cross-layer authorization/isolation hardening and S26 owns production recovery validation.
 
 ## Matrix
 

@@ -43,7 +43,7 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 - [x] S22 — Complete locally — Permission-guided role boards, defined exact curated metrics, protected as-of drill-through, and private manifest-backed asynchronous exports.
 - [x] S23 — Complete locally — Separately authorized tenant lifecycle, versioned entitlements, scoped support, complete protected export, hold-aware retention, and maker-checker purge simulation.
-- [ ] S24 — Not started — Idempotent onboarding import and reconciliation.
+- [x] S24 — Complete locally — Tenant/branch-scoped source staging, explicit mapping, row-level manifests, fingerprinted idempotent commit, exact reconciliation, and acceptance blocking with an inert representative rehearsal.
 - [ ] S25 — Not started — Security, tenant-isolation, authorization, concurrency, and invariant release gates.
 - [ ] S26 — Not started — Scale, latency, integration recovery, observability, backup, and disaster recovery.
 - [ ] S27 — Not started — Accessibility, device, document, scanning, training, and staff-usability gates.
@@ -51,10 +51,10 @@ Update this file, the owning slice, requirement coverage, decisions (when change
 
 ## Per-slice completion gate
 
-- [x] Acceptance tests and applicable regression suite pass through S23.
-- [x] Requirement mappings and traceability remain clean through S23.
-- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S23.
-- [x] External prerequisites/blockers and evidence are recorded through S23.
+- [x] Acceptance tests and applicable regression suite pass through S24.
+- [x] Requirement mappings and traceability remain clean through S24.
+- [x] Checklist, decision ledger (if affected), owning issue evidence, and handoff are updated through S24.
+- [x] External prerequisites/blockers and evidence are recorded through S24.
 - [x] Slice is committed locally with its ID; no GitHub push is performed.
 
 ## Demo baseline (completed before production programme)
