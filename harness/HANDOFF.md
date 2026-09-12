@@ -13,7 +13,7 @@ Next slice: S27 — Accessibility, devices, documents, scanning, and training
 
 ## S26 evidence
 
-- `production/tests/scale-recovery-observability.test.ts` runs seven scenarios for all five async domains, transient/permanent recovery, dead-letter and authorized tenant replay, duplicate/reordered exactly-once effects, safe correlation, deterministic target-shape p95, checksum restore/RPO/RTO, SLO/health alerts, persistence/alarms, and external-evidence blocking.
+- `production/tests/scale-recovery-observability.test.ts` runs eight scenarios for all five async domains, transient/permanent recovery, dead-letter and authorized tenant replay, duplicate/reordered exactly-once effects, safe correlation, deterministic target-shape p95, checksum restore/RPO/RTO, SLO/health alerts, persistence/alarms, and external-evidence blocking.
 - `production/src/release-assurance.ts` reports fixture routine p95 `400 ms`, authoritative p95 `2000 ms`, RPO `12 minutes`, and RTO `35 minutes`; each result is explicitly classified as local deterministic evidence.
 - `production/db/migrations/026_release_assurance.sql` and `production/infra/template.yaml` define durable unique effects, safe append-only telemetry/rehearsals, forced scope, concurrent claims, and queue/dead-letter alarms.
 - Release evaluation remains `BLOCKED` without deployed target-load, production 99.9% availability-window, real backup restore, and authorized regional-DR evidence references.
@@ -21,9 +21,9 @@ Next slice: S27 — Accessibility, devices, documents, scanning, and training
 
 ## Verification
 
-- `npm run test:production`: 193/193 passed.
+- `npm run test:production`: 194/194 passed.
 - `npm run test:production:typecheck`: passed.
-- S26 focused suite: 7/7 passed.
+- S26 focused suite: 8/8 passed.
 - `npm run test:harness`: passed — 119 requirements, 29 slices, 27 contiguous complete, no orphans.
 - `npm run build`: passed.
 - `npm run test:e2e`: 7/7 passed.

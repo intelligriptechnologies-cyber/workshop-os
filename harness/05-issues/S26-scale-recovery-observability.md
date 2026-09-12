@@ -13,13 +13,13 @@ Prove async/provider recovery, tenant-safe observability, target latency/capacit
 
 ## Local evidence
 
-- `production/tests/scale-recovery-observability.test.ts` contains seven public-contract scenarios covering retry/dead-letter/replay and exactly-once effects, all five async domains, deterministic p95 measurement at the declared target shape, checksum-verified restore timing and tenant separation, availability/provider/queue/backup alerts, durable storage/infrastructure contracts, and a fail-closed release-evidence decision.
+- `production/tests/scale-recovery-observability.test.ts` contains eight public-contract scenarios covering retry/dead-letter/replay, duplicate/reordered exactly-once effects, all five async domains, deterministic p95 measurement at the declared target shape, checksum-verified restore timing and tenant separation, availability/provider/queue/backup alerts, durable storage/infrastructure contracts, and a fail-closed release-evidence decision.
 - `production/src/release-assurance.ts` is the inert local assurance harness. Telemetry exposes tenant, branch, correlation, event and resource identifiers but never payload fields. Effect-key reuse with changed input is rejected; identical ingress and duplicate delivery do not duplicate committed effects.
 - `production/db/migrations/026_release_assurance.sql` persists uniquely keyed delivery effects, append-only attempts/replays/telemetry/rehearsals/SLO evidence, actionable alerts, concurrency-safe claiming, and forced tenant/branch RLS.
 - `production/infra/template.yaml` now declares queue-age and dead-letter CloudWatch alarm contracts alongside the existing private bucket, queue/DLQ and partial-batch worker boundary.
 - The deterministic workload reported routine p95 `400 ms` and authoritative p95 `2000 ms`; the local restore rehearsal reported RPO `12 minutes` and RTO `35 minutes`. These are fixture results, not observations from deployed AWS or production history.
 
-Seven S26-focused tests and the full 193-test production regression suite pass with type checking.
+Eight S26-focused tests and the full 194-test production regression suite pass with type checking.
 
 ## External release exercises
 
