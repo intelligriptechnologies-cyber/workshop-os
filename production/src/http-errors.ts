@@ -8,6 +8,7 @@ const messages: Record<string, string> = {
   IDEMPOTENCY_KEY_REQUIRED: "The request could not be retried safely. Try again.",
   IDEMPOTENCY_KEY_REUSED: "This retry belongs to a different change. Try again.",
   SUMMARY_REQUIRED: "Enter a work item summary.",
+  REASON_REQUIRED: "Enter a reason for this command.",
   VERSION_REQUIRED: "Refresh the work item and try again.",
   VERSION_CONFLICT: "This work item changed since you opened it. Refresh and try again.",
   WORK_ITEM_NOT_FOUND: "The work item was not found or is no longer available.",

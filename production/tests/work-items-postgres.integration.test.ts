@@ -57,5 +57,35 @@ test("PostgreSQL work-item HTTP repository is replay-safe, versioned, and RLS is
       () => database.updateWorkItem(jaipur, created.body.workItem.id, { summary: "Branch hop", version: 2 }),
       (error: unknown) => error instanceof ApiError && error.code === "WORK_ITEM_NOT_FOUND",
     );
+
+    await assert.rejects(
+      () => database.archiveWorkItem(north, created.body.workItem.id, { reason: "", version: 2 }, "archive-empty"),
+      (error: unknown) => error instanceof ApiError && error.code === "REASON_REQUIRED",
+    );
+    const archived = await database.archiveWorkItem(
+      north,
+      created.body.workItem.id,
+      { reason: "Duplicate training item", version: 2 },
+      "archive-1",
+    );
+    const archiveReplay = await database.archiveWorkItem(
+      north,
+      created.body.workItem.id,
+      { reason: "Duplicate training item", version: 2 },
+      "archive-1",
+    );
+    assert.equal(archived.status, 200);
+    assert.equal(archiveReplay.body.workItem.id, archived.body.workItem.id);
+    assert.deepEqual(await database.listWorkItems(north), []);
+
+    const audit = new Client({ connectionString: adminUrl });
+    await audit.connect();
+    try {
+      const evidence = await audit.query<{ reason: string; subject_id: string }>(
+        "SELECT detail->>'reason' AS reason, subject_id FROM workshopos.audit_entry WHERE id=$1",
+        [archived.body.auditReference],
+      );
+      assert.deepEqual(evidence.rows[0], { reason: "Duplicate training item", subject_id: "north-user" });
+    } finally { await audit.end(); }
   } finally { await database.close(); }
 });

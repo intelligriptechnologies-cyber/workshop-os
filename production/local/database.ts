@@ -132,7 +132,7 @@ export class PostgresVertical implements AdminUserRepository {
     return this.inScope(membership, async (client) => {
       const result = await client.query<{
         id: string; tenant_id: string; branch_id: string; summary: string; version: string;
-      }>("SELECT id, tenant_id, branch_id, summary, version::text FROM workshopos.work_item ORDER BY created_at, id");
+      }>("SELECT id, tenant_id, branch_id, summary, version::text FROM workshopos.work_item WHERE archived_at IS NULL ORDER BY created_at, id");
       return result.rows.map((row) => ({
         id: row.id,
         tenantId: row.tenant_id,
@@ -163,6 +163,60 @@ export class PostgresVertical implements AdminUserRepository {
       if (!result.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
       const row = result.rows[0];
       return { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version) };
+    });
+  }
+
+  async archiveWorkItem(
+    membership: Membership,
+    id: string,
+    input: { reason: string; version: number },
+    idempotencyKey: string,
+  ) {
+    const reason = input.reason.trim();
+    if (!reason) throw new ApiError(400, "REASON_REQUIRED");
+    if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
+    if (!Number.isSafeInteger(input.version) || input.version < 1) throw new ApiError(400, "VERSION_REQUIRED");
+    return this.inScope(membership, async (client) => {
+      const requestHash = createHash("sha256").update(JSON.stringify({ action: "archive", id, reason, version: input.version })).digest("hex");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
+        `${membership.tenantId}:${idempotencyKey}`,
+      ]);
+      const target = await client.query<{ version: string; archived_at: Date | null; branch_id: string }>(
+        "SELECT version::text, archived_at, branch_id::text FROM workshopos.work_item WHERE id = $1 FOR UPDATE",
+        [id],
+      );
+      if (!target.rowCount) throw new ApiError(404, "WORK_ITEM_NOT_FOUND");
+      const replay = await client.query<{ request_hash: string | null; response: StoredResponse }>(
+        "SELECT request_hash, response FROM workshopos.idempotency_result WHERE tenant_id = $1 AND idempotency_key = $2 FOR UPDATE",
+        [membership.tenantId, idempotencyKey],
+      );
+      if (replay.rowCount) {
+        if (replay.rows[0].request_hash && replay.rows[0].request_hash !== requestHash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED");
+        return { status: 200, body: replay.rows[0].response } as const;
+      }
+      if (target.rows[0].archived_at) throw new ApiError(404, "WORK_ITEM_NOT_FOUND");
+      if (Number(target.rows[0].version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+      const auditReference = randomUUID();
+      const actor = membership.subject ?? membership.identitySubject ?? "";
+      const updated = await client.query<{
+        id: string; tenant_id: string; branch_id: string; summary: string; version: string;
+      }>(
+        "UPDATE workshopos.work_item SET archived_at=transaction_timestamp(), archived_reason=$1, archived_by=$2, version=version+1, updated_at=transaction_timestamp() WHERE id=$3 AND version=$4 RETURNING id, tenant_id, branch_id, summary, version::text",
+        [reason, actor, id, input.version],
+      );
+      if (!updated.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
+      const row = updated.rows[0];
+      const workItem: WorkItem = { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version) };
+      const response: StoredResponse = { workItem, resourceVersion: workItem.version, auditReference };
+      await client.query(
+        "INSERT INTO workshopos.audit_entry(id,tenant_id,branch_id,subject_id,action,detail) VALUES($1,$2,$3,$4,'work-item.archived',$5::jsonb)",
+        [auditReference, membership.tenantId, target.rows[0].branch_id, actor, JSON.stringify({ workItemId: id, reason })],
+      );
+      await client.query(
+        "INSERT INTO workshopos.idempotency_result(tenant_id,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4::jsonb)",
+        [membership.tenantId, idempotencyKey, requestHash, JSON.stringify(response)],
+      );
+      return { status: 200, body: response } as const;
     });
   }
 

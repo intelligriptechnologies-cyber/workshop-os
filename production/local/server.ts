@@ -171,6 +171,15 @@ const server = createServer(async (request, response) => {
         }) }, traceId);
         return;
       }
+      const archiveWorkItemRoute = url.pathname.match(/^\/api\/v1\/work-items\/([0-9a-f-]+)\/archive$/i);
+      if (archiveWorkItemRoute && request.method === "POST") {
+        const input = await body(request);
+        const result = await database.archiveWorkItem(membership, archiveWorkItemRoute[1], {
+          reason: String(input.reason ?? ""), version: Number(input.version),
+        }, String(request.headers["idempotency-key"] ?? ""));
+        json(response, result.status, result.body, traceId);
+        return;
+      }
       const missing = publicApiError(new ApiError(404, "NOT_FOUND"), traceId);
       json(response, missing.status, missing.body, traceId);
       return;

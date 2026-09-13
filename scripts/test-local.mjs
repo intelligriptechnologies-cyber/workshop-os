@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 30);
+assert.equal(health.migrations, 31);
 
 const createInput = JSON.stringify({ branchId: branch, tenantId: "spoofed-tenant", summary: "Docker PostgreSQL smoke inspection" });
 const createdResponse = await api("/api/v1/work-items", "north-reception", {
@@ -87,9 +87,33 @@ assert.deepEqual(concurrentCalls.map((response) => response.status).sort(), [200
 const concurrentBodies = await Promise.all(concurrentCalls.map((response) => response.json()));
 assert.equal(concurrentBodies[0].workItem.id, concurrentBodies[1].workItem.id);
 
+const missingReason = await api(`/api/v1/work-items/${created.workItem.id}/archive`, "north-reception", {
+  method: "POST", body: JSON.stringify({ reason: "", version: 2 }), headers: { "idempotency-key": `${key}-archive-empty` },
+});
+assert.equal(missingReason.status, 400);
+assert.equal((await missingReason.json()).code, "REASON_REQUIRED");
+const hiddenArchive = await api(`/api/v1/work-items/${created.workItem.id}/archive`, "north-jaipur-manager", {
+  method: "POST", body: JSON.stringify({ reason: "Out of scope", version: 2 }), headers: { "idempotency-key": `${key}-archive-hop` },
+});
+assert.equal(hiddenArchive.status, 404);
+const archiveInput = JSON.stringify({ reason: "Smoke-test cleanup", version: 2 });
+const archivedResponse = await api(`/api/v1/work-items/${created.workItem.id}/archive`, "north-reception", {
+  method: "POST", body: archiveInput, headers: { "idempotency-key": `${key}-archive` },
+});
+assert.equal(archivedResponse.status, 200);
+const archived = await archivedResponse.json();
+assert.equal(archived.workItem.version, 3);
+const archivedReplayResponse = await api(`/api/v1/work-items/${created.workItem.id}/archive`, "north-reception", {
+  method: "POST", body: archiveInput, headers: { "idempotency-key": `${key}-archive` },
+});
+assert.equal(archivedReplayResponse.status, 200);
+assert.equal((await archivedReplayResponse.json()).auditReference, archived.auditReference);
+const remainingItems = await api("/api/v1/work-items", "north-reception").then((response) => response.json());
+assert.ok(!remainingItems.workItems.some((item) => item.id === created.workItem.id));
+
 console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS"],
+  checks: ["database health", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "reason-required archive", "archive replay and audit"],
 }, null, 2));

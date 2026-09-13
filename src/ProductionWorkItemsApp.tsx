@@ -1,6 +1,7 @@
-import { FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { type FormEvent, useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { loadAuthConfig, loadWorkshopSession, type CognitoConfig, type WorkshopSession } from "./auth";
+import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { createWorkItemsApi, WorkItemsApiError, type WorkItem, type WorkItemAuth } from "./work-items-api";
 
 const localIdentities = {
@@ -19,11 +20,17 @@ function readableFailure(error: unknown): string {
 export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentity }) {
   const api = useMemo(() => createWorkItemsApi(identity.auth), [identity.auth]);
   const [items, setItems] = useState<WorkItem[]>([]);
+  const [createOpen, setCreateOpen] = useState(false);
   const [summary, setSummary] = useState("");
   const [branchId, setBranchId] = useState(identity.branches[0]?.id ?? "");
+  const [createErrors, setCreateErrors] = useState<string[]>([]);
   const [editing, setEditing] = useState<WorkItem>();
+  const [editErrors, setEditErrors] = useState<string[]>([]);
+  const [archiveTarget, setArchiveTarget] = useState<WorkItem>();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
+  const branchRef = useRef<HTMLSelectElement>(null);
+  const editSummaryRef = useRef<HTMLInputElement>(null);
   const retry = useRef<{ signature: string; key: string } | undefined>(undefined);
 
   const refresh = useCallback(async () => {
@@ -36,8 +43,18 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
 
   useEffect(() => { void refresh(); }, [refresh]);
 
-  async function create(event: FormEvent) {
+  function openCreate() {
+    setSummary("");
+    setBranchId(identity.branches[0]?.id ?? "");
+    setCreateErrors([]);
+    setCreateOpen(true);
+  }
+
+  async function create(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
+    const errors = [!branchId ? "Choose a branch." : "", !summary.trim() ? "Enter a summary." : ""].filter(Boolean);
+    setCreateErrors(errors);
+    if (errors.length) return;
     const signature = JSON.stringify({ branchId, summary: summary.trim() });
     if (!retry.current || retry.current.signature !== signature) retry.current = { signature, key: crypto.randomUUID() };
     setBusy(true);
@@ -45,20 +62,35 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
     try {
       await api.create({ branchId, summary }, retry.current.key);
       retry.current = undefined;
-      setSummary("");
+      setCreateOpen(false);
       setItems(await api.list());
     } catch (failure) { setError(readableFailure(failure)); }
     finally { setBusy(false); }
   }
 
-  async function save(event: FormEvent) {
+  async function save(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!editing) return;
+    const errors = editing.summary.trim() ? [] : ["Enter a summary."];
+    setEditErrors(errors);
+    if (errors.length) return;
     setBusy(true);
     setError("");
     try {
       await api.update(editing);
       setEditing(undefined);
+      setItems(await api.list());
+    } catch (failure) { setError(readableFailure(failure)); }
+    finally { setBusy(false); }
+  }
+
+  async function archive(reason: string) {
+    if (!archiveTarget) return;
+    setBusy(true);
+    setError("");
+    try {
+      await api.archive({ id: archiveTarget.id, version: archiveTarget.version, reason });
+      setArchiveTarget(undefined);
       setItems(await api.list());
     } catch (failure) { setError(readableFailure(failure)); }
     finally { setBusy(false); }
@@ -71,33 +103,62 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
       <p>This tracer reads and writes the authenticated PostgreSQL tenant and branch scope.</p>
     </header>
     {error && <p role="alert" style={{ color: "#9b1c1c" }}>{error}</p>}
-    <section aria-labelledby="create-work-item">
-      <h2 id="create-work-item">Create work item</h2>
-      <form onSubmit={create}>
-        <label>Branch <select value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
-          {identity.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
-        </select></label>{" "}
-        <label>Summary <input value={summary} onChange={(event) => setSummary(event.target.value)} required /></label>{" "}
-        <button disabled={busy}>Create</button>
-      </form>
-    </section>
     <section aria-labelledby="saved-work-items">
-      <h2 id="saved-work-items">Saved work items</h2>
-      <button type="button" onClick={() => void refresh()} disabled={busy}>Refresh</button>
+      <div className="ws-tracer-actions">
+        <h2 id="saved-work-items">Saved work items</h2>
+        <button type="button" onClick={openCreate}>Create work item</button>
+        <button type="button" onClick={() => void refresh()} disabled={busy}>Refresh</button>
+      </div>
       {!busy && items.length === 0 && <p>No work items in your permitted branches.</p>}
       <ul>{items.map((item) => <li key={item.id}>
         <strong>{item.summary}</strong> <small>version {item.version}</small>{" "}
-        <button type="button" onClick={() => setEditing({ ...item })}>Edit</button>
+        <button type="button" onClick={() => { setEditErrors([]); setEditing({ ...item }); }}>Edit {item.summary}</button>{" "}
+        <button type="button" onClick={() => setArchiveTarget(item)}>Archive {item.summary}</button>
       </li>)}</ul>
     </section>
-    {editing && <section aria-labelledby="edit-work-item">
-      <h2 id="edit-work-item">Edit work item</h2>
-      <form onSubmit={save}>
-        <label>Summary <input autoFocus value={editing.summary} onChange={(event) => setEditing({ ...editing, summary: event.target.value })} required /></label>{" "}
-        <button disabled={busy}>Save</button>{" "}
-        <button type="button" onClick={() => setEditing(undefined)} disabled={busy}>Cancel</button>
-      </form>
-    </section>}
+
+    <DirtyFormDialog
+      open={createOpen}
+      title="Create work item"
+      dirty={Boolean(summary.trim()) || branchId !== (identity.branches[0]?.id ?? "")}
+      errors={createErrors}
+      busy={busy}
+      initialFocusRef={branchRef}
+      submitLabel="Create"
+      onSubmit={create}
+      onClose={() => setCreateOpen(false)}
+    >
+      <label htmlFor="create-work-item-branch">Branch</label>
+      <select id="create-work-item-branch" ref={branchRef} value={branchId} onChange={(event) => setBranchId(event.target.value)} required>
+        {identity.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name}</option>)}
+      </select>
+      <label htmlFor="create-work-item-summary">Summary</label>
+      <input id="create-work-item-summary" value={summary} onChange={(event) => setSummary(event.target.value)} required />
+    </DirtyFormDialog>
+
+    <DirtyFormDialog
+      open={Boolean(editing)}
+      title="Edit work item"
+      dirty={Boolean(editing && items.find((item) => item.id === editing.id)?.summary !== editing.summary)}
+      errors={editErrors}
+      busy={busy}
+      initialFocusRef={editSummaryRef}
+      submitLabel="Save"
+      onSubmit={save}
+      onClose={() => setEditing(undefined)}
+    >
+      <label htmlFor="edit-work-item-summary">Summary</label>
+      <input id="edit-work-item-summary" ref={editSummaryRef} value={editing?.summary ?? ""} onChange={(event) => editing && setEditing({ ...editing, summary: event.target.value })} required />
+    </DirtyFormDialog>
+
+    <ReasonCommandDialog
+      open={Boolean(archiveTarget)}
+      title="Archive work item"
+      commandLabel="Archive"
+      busy={busy}
+      onConfirm={(reason) => void archive(reason)}
+      onClose={() => setArchiveTarget(undefined)}
+    />
   </main>;
 }
 

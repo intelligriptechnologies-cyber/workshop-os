@@ -20,6 +20,7 @@ const fallbackMessages: Record<string, string> = {
   IDEMPOTENCY_KEY_REQUIRED: "The request could not be retried safely. Try again.",
   IDEMPOTENCY_KEY_REUSED: "This retry belongs to a different change. Try again.",
   SUMMARY_REQUIRED: "Enter a work item summary.",
+  REASON_REQUIRED: "Enter a reason for this command.",
   VERSION_CONFLICT: "This work item changed since you opened it. Refresh and try again.",
   WORK_ITEM_NOT_FOUND: "The work item was not found or is no longer available.",
   NOT_FOUND: "The work item was not found or is no longer available.",
@@ -71,6 +72,13 @@ export function createWorkItemsApi(auth: WorkItemAuth, fetcher: Fetcher = fetch)
         method: "PATCH",
         headers: { "content-type": "application/json" },
         body: JSON.stringify({ summary: input.summary, version: input.version }),
+      })).workItem;
+    },
+    async archive(input: Pick<WorkItem, "id" | "version"> & { reason: string }, idempotencyKey: string = crypto.randomUUID()) {
+      return (await request<{ workItem: WorkItem }>(`/api/v1/work-items/${input.id}/archive`, {
+        method: "POST",
+        headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
+        body: JSON.stringify({ version: input.version, reason: input.reason }),
       })).workItem;
     },
   };
