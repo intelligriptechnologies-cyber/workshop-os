@@ -10,10 +10,11 @@ ReactDOM.createRoot(document.getElementById("root")!).render(
 );
 
 if ("serviceWorker" in navigator) {
+  const hadServiceWorkerController = navigator.serviceWorker.controller !== null;
   let reloadingForServiceWorkerUpdate = false;
 
   navigator.serviceWorker.addEventListener("controllerchange", () => {
-    if (reloadingForServiceWorkerUpdate) return;
+    if (!hadServiceWorkerController || reloadingForServiceWorkerUpdate) return;
     reloadingForServiceWorkerUpdate = true;
     window.location.reload();
   });
