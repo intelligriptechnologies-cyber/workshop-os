@@ -8,6 +8,8 @@ import { memberships, PostgresVertical } from "./database.js";
 import { CognitoGateway } from "./cognito.js";
 import { AdminUserService, ApiError, type AuthenticatedMembership } from "../src/admin-users.js";
 import { publicApiError } from "../src/http-errors.js";
+import { parseListQuery, type ServerListQuery } from "../src/server-list-contract.js";
+import { createWorkItemExportArtifact } from "../src/work-item-export.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -52,6 +54,32 @@ async function membershipFor(request: IncomingMessage) {
 
 function isGlobalMembership(value: unknown): value is AuthenticatedMembership {
   return Boolean(value && typeof value === "object" && "permissions" in value && "roles" in value);
+}
+
+function hasPermission(membership: { permissions?: string[] }, permission: string): boolean {
+  return Boolean(membership.permissions?.includes(permission) || membership.permissions?.includes("membership.manage"));
+}
+
+function requirePermission(membership: { permissions?: string[] }, permission: string): void {
+  if (!hasPermission(membership, permission)) throw new ApiError(403, "PERMISSION_DENIED");
+}
+
+function queryFromJson(value: unknown): ServerListQuery {
+  const input = value && typeof value === "object" ? value as Record<string, unknown> : {};
+  const params = new URLSearchParams();
+  for (const key of ["search", "branchId", "sort", "page", "pageSize"]) if (input[key] !== undefined) params.set(key, String(input[key]));
+  return parseListQuery(params);
+}
+
+function queueWorkItemExport(membership: Parameters<PostgresVertical["queryWorkItems"]>[0], id: string, format: "PDF" | "XLSX", query: ServerListQuery): void {
+  setImmediate(() => void (async () => {
+    try {
+      const rows = (await database.queryWorkItems(membership, query, true)).workItems;
+      await database.completeListExport(membership, id, createWorkItemExportArtifact(format, rows));
+    } catch {
+      await database.failListExport(membership, id);
+    }
+  })());
 }
 
 async function staticFile(urlPath: string, response: ServerResponse): Promise<void> {
@@ -150,10 +178,12 @@ const server = createServer(async (request, response) => {
         return;
       }
       if (url.pathname === "/api/v1/work-items" && request.method === "GET") {
-        json(response, 200, { workItems: await database.listWorkItems(membership) });
+        requirePermission(membership, "work-item.read");
+        json(response, 200, await database.queryWorkItems(membership, parseListQuery(url.searchParams)));
         return;
       }
       if (url.pathname === "/api/v1/work-items" && request.method === "POST") {
+        requirePermission(membership, "work-item.manage");
         const input = await body(request);
         const result = await database.createWorkItem(
           membership,
@@ -165,6 +195,7 @@ const server = createServer(async (request, response) => {
       }
       const workItemRoute = url.pathname.match(/^\/api\/v1\/work-items\/([0-9a-f-]+)$/i);
       if (workItemRoute && request.method === "PATCH") {
+        requirePermission(membership, "work-item.manage");
         const input = await body(request);
         json(response, 200, { workItem: await database.updateWorkItem(membership, workItemRoute[1], {
           summary: String(input.summary ?? ""), version: Number(input.version),
@@ -173,12 +204,48 @@ const server = createServer(async (request, response) => {
       }
       const archiveWorkItemRoute = url.pathname.match(/^\/api\/v1\/work-items\/([0-9a-f-]+)\/archive$/i);
       if (archiveWorkItemRoute && request.method === "POST") {
+        requirePermission(membership, "work-item.manage");
         const input = await body(request);
         const result = await database.archiveWorkItem(membership, archiveWorkItemRoute[1], {
           reason: String(input.reason ?? ""), version: Number(input.version),
         }, String(request.headers["idempotency-key"] ?? ""));
         json(response, result.status, result.body, traceId);
         return;
+      }
+      if (url.pathname === "/api/v1/list-preferences/work-items" && request.method === "GET") {
+        requirePermission(membership, "work-item.read");
+        json(response, 200, { preference: await database.getListPreference(membership, "work-items") });
+        return;
+      }
+      if (url.pathname === "/api/v1/list-preferences/work-items" && request.method === "PUT") {
+        requirePermission(membership, "work-item.read");
+        const input = await body(request); const viewMode = String(input.viewMode ?? "");
+        if (viewMode !== "grid" && viewMode !== "table") throw new ApiError(400, "VIEW_MODE_INVALID");
+        json(response, 200, { preference: await database.saveListPreference(membership, "work-items", viewMode) });
+        return;
+      }
+      if (url.pathname === "/api/v1/work-item-exports" && request.method === "POST") {
+        requirePermission(membership, "work-item.export");
+        const input = await body(request); const format = String(input.format ?? "").toUpperCase();
+        if (format !== "PDF" && format !== "XLSX") throw new ApiError(400, "EXPORT_FORMAT_INVALID");
+        const query = queryFromJson(input.query);
+        const result = await database.createListExport(membership, "work-items", format, query, String(request.headers["idempotency-key"] ?? ""));
+        if (!result.replay || result.job.status === "PENDING") queueWorkItemExport(membership, result.job.id, format, query);
+        json(response, result.replay ? 200 : 202, { export: result.job }, traceId);
+        return;
+      }
+      const listExportRoute = url.pathname.match(/^\/api\/v1\/work-item-exports\/([0-9a-f-]+)$/i);
+      if (listExportRoute && request.method === "GET") {
+        requirePermission(membership, "work-item.export");
+        json(response, 200, { export: await database.getListExport(membership, listExportRoute[1]) });
+        return;
+      }
+      const listExportDownloadRoute = url.pathname.match(/^\/api\/v1\/work-item-exports\/([0-9a-f-]+)\/download$/i);
+      if (listExportDownloadRoute && request.method === "GET") {
+        requirePermission(membership, "work-item.export");
+        const artifact = await database.downloadListExport(membership, listExportDownloadRoute[1]);
+        response.writeHead(200, { "content-type": artifact.mimeType, "content-disposition": `attachment; filename="${artifact.filename.replace(/["\r\n]/g, "")}"`, "cache-control": "private, no-store" });
+        response.end(artifact.content); return;
       }
       const missing = publicApiError(new ApiError(404, "NOT_FOUND"), traceId);
       json(response, missing.status, missing.body, traceId);

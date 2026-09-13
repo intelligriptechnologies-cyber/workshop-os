@@ -6,7 +6,25 @@ export type WorkItem = {
   branchId: string;
   summary: string;
   version: number;
+  updatedAt?: string;
 };
+
+export type WorkItemListQuery = { search: string; branchId: string; sort: "updatedAt.desc" | "updatedAt.asc" | "summary.asc" | "summary.desc"; page: number; pageSize: 25 | 50 | 100 };
+export type WorkItemListResult = { workItems: WorkItem[]; page: { page: number; pageSize: number; totalCount: number; pageCount: number }; query: WorkItemListQuery };
+export type ListPreference = { viewMode: "grid" | "table"; version: number };
+export type WorkItemExport = { id: string; screenKey: string; format: "PDF" | "XLSX"; status: "PENDING" | "READY" | "FAILED"; rowCount?: number; filename?: string; mimeType?: string };
+
+export const DEFAULT_WORK_ITEM_LIST_QUERY: WorkItemListQuery = { search: "", branchId: "", sort: "updatedAt.desc", page: 1, pageSize: 25 };
+
+export function workItemListSearch(query: WorkItemListQuery): string {
+  const params = new URLSearchParams();
+  if (query.search) params.set("search", query.search);
+  if (query.branchId) params.set("branchId", query.branchId);
+  if (query.sort !== DEFAULT_WORK_ITEM_LIST_QUERY.sort) params.set("sort", query.sort);
+  if (query.page !== 1) params.set("page", String(query.page));
+  if (query.pageSize !== 25) params.set("pageSize", String(query.pageSize));
+  return params.toString();
+}
 
 export type WorkItemAuth =
   | { mode: "cognito"; config: CognitoConfig }
@@ -22,6 +40,9 @@ const fallbackMessages: Record<string, string> = {
   SUMMARY_REQUIRED: "Enter a work item summary.",
   REASON_REQUIRED: "Enter a reason for this command.",
   VERSION_CONFLICT: "This work item changed since you opened it. Refresh and try again.",
+  EXPORT_NOT_READY: "The export is still being prepared. Try again shortly.",
+  EXPORT_NOT_FOUND: "The export was not found or is no longer available.",
+  PERMISSION_DENIED: "You do not have permission to perform this action.",
   WORK_ITEM_NOT_FOUND: "The work item was not found or is no longer available.",
   NOT_FOUND: "The work item was not found or is no longer available.",
   INTERNAL_ERROR: "WorkshopOS could not complete the request. Try again.",
@@ -57,8 +78,10 @@ export function createWorkItemsApi(auth: WorkItemAuth, fetcher: Fetcher = fetch)
   };
 
   return {
-    async list() {
-      return (await request<{ workItems: WorkItem[] }>("/api/v1/work-items")).workItems;
+    async list(query: WorkItemListQuery = DEFAULT_WORK_ITEM_LIST_QUERY) {
+      const search = workItemListSearch(query);
+      const result = await request<Partial<WorkItemListResult> & { workItems: WorkItem[] }>(`/api/v1/work-items${search ? `?${search}` : ""}`);
+      return { workItems: result.workItems, query: result.query ?? query, page: result.page ?? { page: query.page, pageSize: query.pageSize, totalCount: result.workItems.length, pageCount: 1 } };
     },
     async create(input: { branchId: string; summary: string }, idempotencyKey: string = crypto.randomUUID()) {
       return (await request<{ workItem: WorkItem }>("/api/v1/work-items", {
@@ -80,6 +103,22 @@ export function createWorkItemsApi(auth: WorkItemAuth, fetcher: Fetcher = fetch)
         headers: { "content-type": "application/json", "idempotency-key": idempotencyKey },
         body: JSON.stringify({ version: input.version, reason: input.reason }),
       })).workItem;
+    },
+    async getPreference() {
+      return (await request<{ preference: ListPreference }>("/api/v1/list-preferences/work-items")).preference;
+    },
+    async savePreference(viewMode: ListPreference["viewMode"]) {
+      return (await request<{ preference: ListPreference }>("/api/v1/list-preferences/work-items", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({ viewMode }) })).preference;
+    },
+    async requestExport(format: WorkItemExport["format"], query: WorkItemListQuery, idempotencyKey: string = crypto.randomUUID()) {
+      return (await request<{ export: WorkItemExport }>("/api/v1/work-item-exports", { method: "POST", headers: { "content-type": "application/json", "idempotency-key": idempotencyKey }, body: JSON.stringify({ format, query }) })).export;
+    },
+    async getExport(id: string) { return (await request<{ export: WorkItemExport }>(`/api/v1/work-item-exports/${id}`)).export; },
+    async downloadExport(id: string) {
+      const headers = new Headers({ accept: "application/octet-stream" });
+      const response = auth.mode === "cognito" ? await authenticatedFetch(auth.config, `/api/v1/work-item-exports/${id}/download`, { headers }) : await fetcher(`/api/v1/work-item-exports/${id}/download`, { headers: { ...Object.fromEntries(headers), "x-workshopos-identity": auth.identity } });
+      if (!response.ok) return parse<never>(response);
+      return { blob: await response.blob(), filename: response.headers.get("content-disposition")?.match(/filename="([^"]+)"/)?.[1] ?? "work-items-export" };
     },
   };
 }

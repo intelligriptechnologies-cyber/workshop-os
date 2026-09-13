@@ -1,0 +1,20 @@
+.v12-work-items { max-width: 72rem; margin: 2rem auto; padding: 0 1rem; font-family: system-ui, sans-serif; color: #172033; }
+.v12-work-items button, .v12-work-items input, .v12-work-items select { min-height: 2.75rem; font: inherit; }
+.v12-list-controls, .v12-presentation, .v12-pagination, .v12-row-actions { display: flex; align-items: center; flex-wrap: wrap; gap: .65rem; }
+.v12-list-controls { padding: 1rem; margin: 1rem 0; background: #f2f5f9; border: 1px solid #ced7e2; border-radius: .75rem; }
+.v12-list-controls input { min-width: min(18rem, 100%); }
+.v12-presentation { justify-content: space-between; margin-block: 1rem; }
+.v12-presentation [aria-pressed="true"] { color: white; background: #174f8f; }
+.v12-table-wrap { overflow-x: auto; }
+.v12-work-items table { width: 100%; border-collapse: collapse; }
+.v12-work-items th, .v12-work-items td { padding: .8rem; border-bottom: 1px solid #d8dee8; text-align: left; vertical-align: top; }
+.v12-card-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(17rem, 100%), 1fr)); gap: 1rem; padding: 0; list-style: none; }
+.v12-card-grid > li, .v12-empty { display: grid; gap: .75rem; padding: 1rem; border: 1px solid #ced7e2; border-radius: .75rem; }
+.v12-card-grid small { display: block; }
+.v12-pagination { justify-content: flex-end; padding-block: 1rem; }
+@media (max-width: 42rem) {
+  .v12-list-controls { align-items: stretch; }
+  .v12-list-controls > label, .v12-list-controls > input, .v12-list-controls > select { width: 100%; }
+  .v12-pagination { justify-content: flex-start; }
+}
+@media (prefers-reduced-motion: reduce) { .v12-work-items * { scroll-behavior: auto !important; } }

@@ -13,12 +13,14 @@ import {
   type UpdateMembership,
   type UserDirectory,
 } from "../src/admin-users.js";
+import type { ServerListQuery } from "../src/server-list-contract.js";
 
 export type Membership = {
   subject?: string;
   identitySubject?: string;
   tenantId: string;
   branchIds: string[];
+  permissions?: string[];
 };
 
 export type WorkItem = {
@@ -27,6 +29,18 @@ export type WorkItem = {
   branchId: string;
   summary: string;
   version: number;
+  updatedAt: string;
+};
+
+export type WorkItemListResult = {
+  workItems: WorkItem[];
+  page: { page: number; pageSize: number; totalCount: number; pageCount: number };
+  query: ServerListQuery;
+};
+
+export type ListExportJob = {
+  id: string; screenKey: string; format: "PDF" | "XLSX"; status: "PENDING" | "READY" | "FAILED";
+  rowCount?: number; filename?: string; mimeType?: string; createdAt: string; completedAt?: string;
 };
 
 export const memberships: Record<string, Membership> = {
@@ -34,16 +48,19 @@ export const memberships: Record<string, Membership> = {
     subject: "00000000-0000-4000-8000-000000000101",
     tenantId: "00000000-0000-4000-8000-000000000001",
     branchIds: ["00000000-0000-4000-8000-000000000011"],
+    permissions: ["work-item.read", "work-item.manage", "work-item.export"],
   },
   "north-jaipur-manager": {
     subject: "00000000-0000-4000-8000-000000000102",
     tenantId: "00000000-0000-4000-8000-000000000001",
     branchIds: ["00000000-0000-4000-8000-000000000012"],
+    permissions: ["work-item.read", "work-item.manage", "work-item.export"],
   },
   "south-reception": {
     subject: "00000000-0000-4000-8000-000000000201",
     tenantId: "00000000-0000-4000-8000-000000000002",
     branchIds: ["00000000-0000-4000-8000-000000000021"],
+    permissions: ["work-item.read"],
   },
 };
 
@@ -105,6 +122,7 @@ export class PostgresVertical implements AdminUserRepository {
         branchId: input.branchId,
         summary: input.summary.trim(),
         version: 1,
+        updatedAt: new Date().toISOString(),
       };
       const body: StoredResponse = { workItem, resourceVersion: 1, auditReference };
 
@@ -131,16 +149,123 @@ export class PostgresVertical implements AdminUserRepository {
   async listWorkItems(membership: Membership): Promise<WorkItem[]> {
     return this.inScope(membership, async (client) => {
       const result = await client.query<{
-        id: string; tenant_id: string; branch_id: string; summary: string; version: string;
-      }>("SELECT id, tenant_id, branch_id, summary, version::text FROM workshopos.work_item WHERE archived_at IS NULL ORDER BY created_at, id");
+        id: string; tenant_id: string; branch_id: string; summary: string; version: string; updated_at: Date;
+      }>("SELECT id, tenant_id, branch_id, summary, version::text, updated_at FROM workshopos.work_item WHERE archived_at IS NULL ORDER BY created_at, id");
       return result.rows.map((row) => ({
         id: row.id,
         tenantId: row.tenant_id,
         branchId: row.branch_id,
         summary: row.summary,
         version: Number(row.version),
+        updatedAt: row.updated_at.toISOString(),
       }));
     });
+  }
+
+  async queryWorkItems(membership: Membership, query: ServerListQuery, all = false): Promise<WorkItemListResult> {
+    if (query.branchId && !membership.branchIds.includes(query.branchId)) throw new ApiError(403, "BRANCH_FORBIDDEN");
+    return this.inScope(membership, async (client) => {
+      const values: unknown[] = [];
+      const where = ["archived_at IS NULL"];
+      if (query.search) { values.push(`%${query.search}%`); where.push(`summary ILIKE $${values.length}`); }
+      if (query.branchId) { values.push(query.branchId); where.push(`branch_id = $${values.length}`); }
+      const condition = where.join(" AND ");
+      const totalCount = Number((await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM workshopos.work_item WHERE ${condition}`, values)).rows[0].count);
+      const pageCount = Math.max(1, Math.ceil(totalCount / query.pageSize));
+      const page = all ? 1 : Math.min(query.page, pageCount);
+      const orderBy: Record<ServerListQuery["sort"], string> = {
+        "updatedAt.desc": "updated_at DESC, id ASC", "updatedAt.asc": "updated_at ASC, id ASC",
+        "summary.asc": "lower(summary) ASC, id ASC", "summary.desc": "lower(summary) DESC, id ASC",
+      };
+      const paging = all ? "" : ` LIMIT ${query.pageSize} OFFSET ${(page - 1) * query.pageSize}`;
+      const result = await client.query<{
+        id: string; tenant_id: string; branch_id: string; summary: string; version: string; updated_at: Date;
+      }>(`SELECT id, tenant_id, branch_id, summary, version::text, updated_at FROM workshopos.work_item WHERE ${condition} ORDER BY ${orderBy[query.sort]}${paging}`, values);
+      return {
+        workItems: result.rows.map((row) => ({ id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version), updatedAt: row.updated_at.toISOString() })),
+        page: { page, pageSize: query.pageSize, totalCount, pageCount }, query: { ...query, page },
+      };
+    });
+  }
+
+  async getListPreference(membership: Membership, screenKey: string): Promise<{ viewMode: "grid" | "table"; version: number }> {
+    return this.inScope(membership, async (client) => {
+      const result = await client.query<{ view_mode: "grid" | "table"; version: string }>(
+        "SELECT view_mode, version::text FROM workshopos.list_presentation_preference WHERE screen_key=$1", [screenKey],
+      );
+      return result.rowCount ? { viewMode: result.rows[0].view_mode, version: Number(result.rows[0].version) } : { viewMode: "table", version: 0 };
+    });
+  }
+
+  async saveListPreference(membership: Membership, screenKey: string, viewMode: "grid" | "table") {
+    const actor = this.actorId(membership);
+    return this.inScope(membership, async (client) => {
+      const result = await client.query<{ view_mode: "grid" | "table"; version: string }>(`
+        INSERT INTO workshopos.list_presentation_preference(tenant_id,actor_id,screen_key,view_mode)
+        VALUES($1,$2,$3,$4)
+        ON CONFLICT (tenant_id,actor_id,screen_key) DO UPDATE SET view_mode=EXCLUDED.view_mode,version=workshopos.list_presentation_preference.version+1,updated_at=transaction_timestamp()
+        RETURNING view_mode,version::text`, [membership.tenantId, actor, screenKey, viewMode]);
+      return { viewMode: result.rows[0].view_mode, version: Number(result.rows[0].version) };
+    });
+  }
+
+  async createListExport(membership: Membership, screenKey: string, format: "PDF" | "XLSX", query: ServerListQuery, idempotencyKey: string): Promise<{ job: ListExportJob; replay: boolean }> {
+    if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
+    const id = randomUUID(); const actor = this.actorId(membership);
+    return this.inScope(membership, async (client) => {
+      const requestHash = createHash("sha256").update(JSON.stringify({ screenKey, format, query })).digest("hex");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:${actor}:${idempotencyKey}`]);
+      const prior = await client.query<any>("SELECT * FROM workshopos.list_export_job WHERE idempotency_key=$1", [idempotencyKey]);
+      if (prior.rowCount) {
+        if (prior.rows[0].request_hash !== requestHash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED");
+        return { job: this.mapExportJob(prior.rows[0]), replay: true };
+      }
+      const result = await client.query<any>(`INSERT INTO workshopos.list_export_job(id,tenant_id,actor_id,screen_key,format,idempotency_key,request_hash,query,status)
+        VALUES($1,$2,$3,$4,$5,$6,$7,$8::jsonb,'PENDING') RETURNING *`, [id, membership.tenantId, actor, screenKey, format, idempotencyKey, requestHash, JSON.stringify(query)]);
+      return { job: this.mapExportJob(result.rows[0]), replay: false };
+    });
+  }
+
+  async completeListExport(membership: Membership, id: string, artifact: { content: Buffer; rowCount: number; filename: string; mimeType: string }) {
+    return this.inScope(membership, async (client) => {
+      const result = await client.query<any>(`UPDATE workshopos.list_export_job SET status='READY',content=$1,row_count=$2,filename=$3,mime_type=$4,completed_at=transaction_timestamp()
+        WHERE id=$5 AND status='PENDING' RETURNING *`, [artifact.content, artifact.rowCount, artifact.filename, artifact.mimeType, id]);
+      if (!result.rowCount) throw new ApiError(404, "EXPORT_NOT_FOUND");
+      return this.mapExportJob(result.rows[0]);
+    });
+  }
+
+  async failListExport(membership: Membership, id: string, code = "EXPORT_GENERATION_FAILED") {
+    return this.inScope(membership, async (client) => { await client.query("UPDATE workshopos.list_export_job SET status='FAILED',failure_code=$1,completed_at=transaction_timestamp() WHERE id=$2 AND status='PENDING'", [code, id]); });
+  }
+
+  async getListExport(membership: Membership, id: string): Promise<ListExportJob> {
+    return this.inScope(membership, async (client) => {
+      const result = await client.query<any>("SELECT * FROM workshopos.list_export_job WHERE id=$1", [id]);
+      if (!result.rowCount) throw new ApiError(404, "EXPORT_NOT_FOUND");
+      return this.mapExportJob(result.rows[0]);
+    });
+  }
+
+  async downloadListExport(membership: Membership, id: string): Promise<{ content: Buffer; filename: string; mimeType: string }> {
+    return this.inScope(membership, async (client) => {
+      const result = await client.query<any>("SELECT content,filename,mime_type,status FROM workshopos.list_export_job WHERE id=$1", [id]);
+      if (!result.rowCount) throw new ApiError(404, "EXPORT_NOT_FOUND");
+      if (result.rows[0].status !== "READY") throw new ApiError(409, "EXPORT_NOT_READY");
+      return { content: result.rows[0].content, filename: result.rows[0].filename, mimeType: result.rows[0].mime_type };
+    });
+  }
+
+  private actorId(membership: Membership): string {
+    const actor = membership.subject ?? membership.identitySubject;
+    if (!actor) throw new ApiError(401, "AUTHENTICATION_REQUIRED");
+    return actor;
+  }
+
+  private mapExportJob(row: any): ListExportJob {
+    return { id: row.id, screenKey: row.screen_key, format: row.format, status: row.status, ...(row.row_count === null ? {} : { rowCount: row.row_count }),
+      ...(row.filename ? { filename: row.filename } : {}), ...(row.mime_type ? { mimeType: row.mime_type } : {}), createdAt: row.created_at.toISOString(),
+      ...(row.completed_at ? { completedAt: row.completed_at.toISOString() } : {}) };
   }
 
   async updateWorkItem(membership: Membership, id: string, input: { summary: string; version: number }): Promise<WorkItem> {
@@ -162,7 +287,7 @@ export class PostgresVertical implements AdminUserRepository {
       );
       if (!result.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
       const row = result.rows[0];
-      return { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version) };
+      return { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version), updatedAt: new Date().toISOString() };
     });
   }
 
@@ -206,7 +331,7 @@ export class PostgresVertical implements AdminUserRepository {
       );
       if (!updated.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
       const row = updated.rows[0];
-      const workItem: WorkItem = { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version) };
+      const workItem: WorkItem = { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version), updatedAt: new Date().toISOString() };
       const response: StoredResponse = { workItem, resourceVersion: workItem.version, auditReference };
       await client.query(
         "INSERT INTO workshopos.audit_entry(id,tenant_id,branch_id,subject_id,action,detail) VALUES($1,$2,$3,$4,'work-item.archived',$5::jsonb)",
@@ -411,13 +536,14 @@ export class PostgresVertical implements AdminUserRepository {
     await this.pool.end();
   }
 
-  private async inScope<T>(membership: { tenantId: string; branchIds: string[] }, action: (client: PoolClient) => Promise<T>): Promise<T> {
+  private async inScope<T>(membership: Membership, action: (client: PoolClient) => Promise<T>): Promise<T> {
     const client = await this.pool.connect();
     try {
       await client.query("BEGIN");
-      await client.query("SELECT set_config('app.tenant_id', $1, true), set_config('app.branch_ids', $2, true)", [
+      await client.query("SELECT set_config('app.tenant_id', $1, true), set_config('app.branch_ids', $2, true), set_config('app.subject_id', $3, true)", [
         membership.tenantId,
         membership.branchIds.join(","),
+        membership.subject ?? membership.identitySubject ?? "",
       ]);
       const result = await action(client);
       await client.query("COMMIT");

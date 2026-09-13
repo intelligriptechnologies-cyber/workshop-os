@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 31);
+assert.equal(health.migrations, 32);
 
 const createInput = JSON.stringify({ branchId: branch, tenantId: "spoofed-tenant", summary: "Docker PostgreSQL smoke inspection" });
 const createdResponse = await api("/api/v1/work-items", "north-reception", {
@@ -59,10 +59,35 @@ assert.equal(stale.traceId, staleResponse.headers.get("x-trace-id"));
 
 const northItems = await api("/api/v1/work-items", "north-reception").then((response) => response.json());
 assert.ok(northItems.workItems.some((item) => item.id === created.workItem.id));
+assert.equal(northItems.page.pageSize, 25);
+const filteredItems = await api("/api/v1/work-items?search=brake&sort=summary.asc&page=1&pageSize=50", "north-reception").then((response) => response.json());
+assert.ok(filteredItems.workItems.some((item) => item.id === created.workItem.id));
+assert.equal(filteredItems.query.sort, "summary.asc");
 const southItems = await api("/api/v1/work-items", "south-reception").then((response) => response.json());
 assert.ok(!southItems.workItems.some((item) => item.id === created.workItem.id));
 const jaipurItems = await api("/api/v1/work-items", "north-jaipur-manager").then((response) => response.json());
 assert.ok(!jaipurItems.workItems.some((item) => item.id === created.workItem.id));
+
+const savedPreference = await api("/api/v1/list-preferences/work-items", "north-reception", { method: "PUT", body: JSON.stringify({ viewMode: "grid" }) }).then((response) => response.json());
+assert.equal(savedPreference.preference.viewMode, "grid");
+const privatePreference = await api("/api/v1/list-preferences/work-items", "north-jaipur-manager").then((response) => response.json());
+assert.equal(privatePreference.preference.viewMode, "table");
+
+const exportResponse = await api("/api/v1/work-item-exports", "north-reception", { method: "POST", headers: { "idempotency-key": `${key}-export` }, body: JSON.stringify({ format: "XLSX", query: filteredItems.query }) });
+assert.equal(exportResponse.status, 202);
+let exportJob = (await exportResponse.json()).export;
+for (let attempt = 0; exportJob.status === "PENDING" && attempt < 30; attempt += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  exportJob = await api(`/api/v1/work-item-exports/${exportJob.id}`, "north-reception").then((response) => response.json()).then((payload) => payload.export);
+}
+assert.equal(exportJob.status, "READY");
+assert.equal(exportJob.rowCount, filteredItems.page.totalCount);
+const exportDownload = await api(`/api/v1/work-item-exports/${exportJob.id}/download`, "north-reception");
+assert.equal(exportDownload.status, 200); assert.match(exportDownload.headers.get("content-type"), /spreadsheet/);
+const hiddenExport = await api(`/api/v1/work-item-exports/${exportJob.id}`, "north-jaipur-manager");
+assert.equal(hiddenExport.status, 404);
+const deniedExport = await api("/api/v1/work-item-exports", "south-reception", { method: "POST", headers: { "idempotency-key": `${key}-denied-export` }, body: JSON.stringify({ format: "PDF", query: filteredItems.query }) });
+assert.equal(deniedExport.status, 403);
 
 const forbidden = await api("/api/v1/work-items", "north-reception", {
   method: "POST",
@@ -115,5 +140,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

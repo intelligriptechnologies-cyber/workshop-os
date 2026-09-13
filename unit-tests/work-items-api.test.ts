@@ -18,12 +18,13 @@ test("work-items client authenticates list/create/update and preserves retry key
     return responses.shift()!;
   });
 
-  await api.list();
+  await api.list({ search: "brakes", branchId: "north-delhi", sort: "summary.asc", page: 2, pageSize: 50 });
   await api.create({ branchId: "north-delhi", summary: "Inspect" }, "retry-key-1");
   await api.update({ id: "wi-1", summary: "Inspect brakes", version: 1 });
   await api.archive({ id: "wi-1", version: 2, reason: "Duplicate training item" }, "archive-key-1");
 
   assert.equal(new Headers(requests[0].init.headers).get("x-workshopos-identity"), "north-reception");
+  assert.equal(requests[0].path, "/api/v1/work-items?search=brakes&branchId=north-delhi&sort=summary.asc&page=2&pageSize=50");
   assert.equal(new Headers(requests[1].init.headers).get("idempotency-key"), "retry-key-1");
   assert.deepEqual(JSON.parse(String(requests[2].init.body)), { summary: "Inspect brakes", version: 1 });
   assert.equal(requests[2].init.method, "PATCH");
