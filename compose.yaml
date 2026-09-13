@@ -24,6 +24,7 @@ services:
       PORT: 4173
       DATABASE_ADMIN_URL: postgresql://workshopos_admin:workshopos_admin_local@db:5432/workshopos
       DATABASE_URL: postgresql://workshopos_app:workshopos_app_local@db:5432/workshopos
+      ALLOW_DEMO_LOGIN: "true"
     ports:
       - "4173:4173"
     depends_on:

@@ -13,8 +13,75 @@ Parameters:
   OperationalAlertTopicArn:
     Type: String
     Description: Pre-authorized operations notification topic; deployment remains externally controlled
+  CognitoDomainPrefix:
+    Type: String
+    Description: Globally unique prefix for the WorkshopOS managed-login domain
+  CognitoCallbackUrls:
+    Type: CommaDelimitedList
+    Description: HTTPS OAuth callback URLs, plus localhost only for development
+  CognitoLogoutUrls:
+    Type: CommaDelimitedList
+    Description: HTTPS post-logout URLs, plus localhost only for development
 
 Resources:
+  WorkshopUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: workshopos-users
+      UsernameAttributes: [email]
+      AutoVerifiedAttributes: [email]
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: true
+        InviteMessageTemplate:
+          EmailSubject: Your WorkshopOS invitation
+          EmailMessage: "Your username is {username} and temporary password is {####}. Sign in to choose a new password."
+          SMSMessage: "WorkshopOS username: {username}; temporary password: {####}"
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 10
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: true
+          RequireUppercase: true
+          TemporaryPasswordValidityDays: 7
+      Schema:
+        - Name: tenant_id
+          AttributeDataType: String
+          Mutable: false
+          Required: false
+          StringAttributeConstraints:
+            MinLength: "36"
+            MaxLength: "36"
+
+  WorkshopUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref WorkshopUserPool
+      ClientName: workshopos-browser
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      SupportedIdentityProviders: [COGNITO]
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows: [code]
+      AllowedOAuthScopes: [openid, email, profile]
+      CallbackURLs: !Ref CognitoCallbackUrls
+      LogoutURLs: !Ref CognitoLogoutUrls
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+      ReadAttributes: [email, email_verified, name, custom:tenant_id]
+      WriteAttributes: [name]
+
+  WorkshopUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Ref CognitoDomainPrefix
+      UserPoolId: !Ref WorkshopUserPool
+
   Api:
     Type: AWS::Serverless::HttpApi
     Properties:
@@ -96,11 +163,20 @@ Resources:
           DATABASE_SECRET_ARN: !Ref DatabaseSecretArn
           OBJECT_BUCKET: !Ref TenantObjects
           WORK_QUEUE_URL: !Ref TenantWorkQueue
+          COGNITO_USER_POOL_ID: !Ref WorkshopUserPool
+          COGNITO_APP_CLIENT_ID: !Ref WorkshopUserPoolClient
       Policies:
         - S3CrudPolicy:
             BucketName: !Ref TenantObjects
         - SQSSendMessagePolicy:
             QueueName: !GetAtt TenantWorkQueue.QueueName
+        - Statement:
+            - Effect: Allow
+              Action:
+                - cognito-idp:AdminCreateUser
+                - cognito-idp:AdminGetUser
+                - cognito-idp:AdminDisableUser
+              Resource: !GetAtt WorkshopUserPool.Arn
       Events:
         VersionedApi:
           Type: HttpApi
@@ -136,3 +212,9 @@ Resources:
 Outputs:
   ApiEndpoint:
     Value: !Sub https://${Api}.execute-api.${AWS::Region}.amazonaws.com/v1
+  CognitoUserPoolId:
+    Value: !Ref WorkshopUserPool
+  CognitoAppClientId:
+    Value: !Ref WorkshopUserPoolClient
+  CognitoDomain:
+    Value: !Sub https://${CognitoDomainPrefix}.auth.${AWS::Region}.amazoncognito.com

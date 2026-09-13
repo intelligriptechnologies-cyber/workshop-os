@@ -55,7 +55,9 @@ $body = '{"branchId":"00000000-0000-4000-8000-000000000011","summary":"Inspect i
 Invoke-RestMethod -Method Post -Uri http://localhost:4173/api/v1/work-items -Headers $headers -Body $body
 ```
 
-The API derives the tenant from the local authenticated-membership fixture; a client-supplied tenant ID is ignored. The current PWA still uses its browser-local demo database for its rich screens. Connecting every journey screen to the PostgreSQL APIs remains application-runtime work; the local DB vertical proves the foundation rather than claiming that conversion is already complete.
+The API derives tenant and branch scope from the authenticated PostgreSQL membership; client-supplied tenant IDs and editable Cognito claims are never authorization inputs. In Cognito mode, login and User Management are global/server-backed while the other rich journey screens remain browser-local for this phase. Connecting those remaining screens to PostgreSQL is incremental application-runtime work.
+
+Production authentication uses Cognito managed login with authorization-code/PKCE. The Node API verifies access-token signature, expiry, user-pool ID, app-client ID, and `token_use` with `aws-jwt-verify`, then resolves roles, branches, and permissions from PostgreSQL. See `RAILWAY_DEPLOYMENT.md` for pool, IAM, initial-Admin, and rollout configuration.
 
 ## Current PWA management and search
 

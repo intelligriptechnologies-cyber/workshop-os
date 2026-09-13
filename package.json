@@ -23,7 +23,9 @@
     "local:down": "docker compose down"
   },
   "dependencies": {
+    "@aws-sdk/client-cognito-identity-provider": "^3.1131.0",
     "@vitejs/plugin-react": "^5.0.1",
+    "aws-jwt-verify": "^5.2.1",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.542.0",
     "pg": "^8.16.3",

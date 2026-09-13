@@ -111,6 +111,8 @@ export interface User {
   archived_reason?: string;
   created_at?: string;
   updated_at?: string;
+  externalAuth?: boolean;
+  externalId?: string;
 }
 
 export interface Customer {
