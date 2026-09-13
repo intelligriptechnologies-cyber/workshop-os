@@ -56,7 +56,6 @@ try {
         CREATE ROLE workshopos_app LOGIN PASSWORD 'workshopos_app_local' NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOBYPASSRLS;
       END IF;
     END $$;
-    GRANT CONNECT ON DATABASE workshopos TO workshopos_app;
     GRANT USAGE ON SCHEMA public TO workshopos_app;
     GRANT SELECT ON public.schema_migrations TO workshopos_app;
     GRANT USAGE ON SCHEMA workshopos TO workshopos_app;

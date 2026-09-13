@@ -18,6 +18,9 @@ import type {
   Photo,
   QcCheck,
   Receipt,
+  Role,
+  SearchCriteria,
+  SearchResult,
   StatusHistory,
   SubStatus,
   Task,
@@ -60,17 +63,44 @@ export function readState(db: Database): WorkshopState {
   const visits = all<Visit>(db, "select * from visits where archived_at is null order by id desc");
   const inventory = all<InventoryItem>(db, "select * from inventory where archived_at is null order by category, name");
   const jobRows = all<JobCard>(db, "select * from job_cards where archived_at is null order by id desc");
+  const byId = <T extends { id: number }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
+  const groupBy = <T>(rows: T[], key: (row: T) => number) => {
+    const grouped = new Map<number, T[]>();
+    rows.forEach((row) => grouped.set(key(row), [...(grouped.get(key(row)) ?? []), row]));
+    return grouped;
+  };
+  const allUsers = byId(all<User>(db, "select * from users"));
+  const allCustomers = byId(all<Customer>(db, "select * from customers"));
+  const allVehicles = byId(all<Vehicle>(db, "select * from vehicles"));
+  const allVisits = byId(all<Visit>(db, "select * from visits"));
+  const allInventory = byId(all<InventoryItem>(db, "select * from inventory"));
+  const estimates = all<Estimate>(db, "select * from estimates where archived_at is null order by id");
+  const estimatesByJob = groupBy(estimates, (row) => row.job_card_id);
+  const estimateItemsByEstimate = groupBy(all<EstimateItem>(db, "select * from estimate_items where archived_at is null"), (row) => row.estimate_id);
+  const materialByJob = groupBy(all<MaterialRequest>(db, "select * from material_requests where archived_at is null"), (row) => row.job_card_id);
+  const tasksByJob = groupBy(all<Task>(db, "select * from tasks where archived_at is null"), (row) => row.job_card_id);
+  const invoicesByJob = groupBy(all<Invoice>(db, "select * from invoices where voided_at is null order by id"), (row) => row.job_card_id);
+  const paymentsByJob = groupBy(all<Payment>(db, "select * from payments where voided_at is null order by id"), (row) => row.job_card_id);
+  const receiptsByJob = groupBy(all<Receipt>(db, "select * from receipts order by id"), (row) => row.job_card_id);
+  const passesByJob = groupBy(all<GatePass>(db, "select * from gate_passes order by id"), (row) => row.job_card_id);
+  const photosByJob = groupBy(all<Photo>(db, "select * from photos where archived_at is null"), (row) => row.job_card_id);
+  const followupsByJob = groupBy(all<Followup>(db, "select * from followups where archived_at is null"), (row) => row.job_card_id);
+  const qcByJob = groupBy(all<QcCheck>(db, "select * from qc_checks where archived_at is null"), (row) => row.job_card_id);
+  const historyByJob = groupBy(all<StatusHistory>(db, "select * from status_history order by id desc"), (row) => row.job_card_id);
+  const movements = all<MaterialMovement>(db, "select * from material_movements order by id desc");
+  const movementsByJob = groupBy(movements, (row) => row.job_card_id);
+  const globalMovements = movementsByJob.get(0) ?? [];
   const jobs: JobView[] = jobRows.map((job) => {
-    const visit = one<Visit>(db, "select * from visits where id=?", [job.visit_id]);
-    const customer = one<Customer>(db, "select * from customers where id=?", [visit.customer_id]);
-    const vehicle = one<Vehicle>(db, "select * from vehicles where id=?", [visit.vehicle_id]);
-    const advisor = one<User>(db, "select * from users where id=?", [job.advisor_id]);
-    const technician = one<User>(db, "select * from users where id=?", [job.technician_id]);
-    const estimate = maybe<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [job.id]);
-    const estimate_items = estimate ? all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null", [estimate.id]) : [];
-    const material_requests = all<MaterialRequest>(db, "select * from material_requests where job_card_id=? and archived_at is null", [job.id]);
-    const materialInventory = material_requests
-      .map((request) => maybe<InventoryItem>(db, "select * from inventory where id=?", [request.item_id]))
+    const visit = allVisits.get(job.visit_id)!;
+    const customer = allCustomers.get(visit.customer_id)!;
+    const vehicle = allVehicles.get(visit.vehicle_id)!;
+    const advisor = allUsers.get(job.advisor_id)!;
+    const technician = allUsers.get(job.technician_id)!;
+    const jobEstimates = estimatesByJob.get(job.id) ?? [];
+    const estimate = jobEstimates.at(-1);
+    const estimate_items = estimate ? estimateItemsByEstimate.get(estimate.id) ?? [] : [];
+    const material_requests = materialByJob.get(job.id) ?? [];
+    const materialInventory = material_requests.map((request) => allInventory.get(request.item_id))
       .filter(Boolean) as InventoryItem[];
     return {
       job,
@@ -83,35 +113,167 @@ export function readState(db: Database): WorkshopState {
       estimate_items,
       material_requests,
       inventory: materialInventory,
-      tasks: all<Task>(db, "select * from tasks where job_card_id=? and archived_at is null", [job.id]),
-      invoice: maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [job.id]),
-      payments: all<Payment>(db, "select * from payments where job_card_id=? and voided_at is null order by id", [job.id]),
-      receipt: maybe<Receipt>(db, "select * from receipts where job_card_id=? order by id desc limit 1", [job.id]),
-      gate_pass: maybe<GatePass>(db, "select * from gate_passes where job_card_id=? order by id desc limit 1", [job.id]),
-      photos: all<Photo>(db, "select * from photos where job_card_id=? and archived_at is null", [job.id]),
-      followups: all<Followup>(db, "select * from followups where job_card_id=? and archived_at is null", [job.id]),
-      qc_checks: all<QcCheck>(db, "select * from qc_checks where job_card_id=? and archived_at is null", [job.id]),
-      status_history: all<StatusHistory>(db, "select * from status_history where job_card_id=? order by id desc", [job.id]),
-      material_movements: all<MaterialMovement>(db, "select * from material_movements where job_card_id=? or job_card_id=0 order by id desc", [job.id]),
+      tasks: tasksByJob.get(job.id) ?? [],
+      invoice: (invoicesByJob.get(job.id) ?? []).at(-1),
+      payments: paymentsByJob.get(job.id) ?? [],
+      receipt: (receiptsByJob.get(job.id) ?? []).at(-1),
+      gate_pass: (passesByJob.get(job.id) ?? []).at(-1),
+      photos: photosByJob.get(job.id) ?? [],
+      followups: followupsByJob.get(job.id) ?? [],
+      qc_checks: qcByJob.get(job.id) ?? [],
+      status_history: historyByJob.get(job.id) ?? [],
+      material_movements: [...(movementsByJob.get(job.id) ?? []), ...globalMovements],
     };
   });
   return { users, customers, vehicles, visits, jobs, inventory };
+}
+
+export function loadLargeDemoDataset(db: Database) {
+  const subStatuses: SubStatus[] = ["Gather Requirements", "Create Estimate", "Get Confirmation", "Material Requested", "Material Issued", "Washing Needed", "Work Started", "Follow-up Needed", "Photos Shared", "QC Pending", "Customer Verification", "Invoice Ready", "Payment Received", "Receipt Generated", "Gate Pass Generated", "Delivered"];
+  const makes = [["Hyundai", "Creta"], ["Mahindra", "Thar"], ["Tata", "Nexon"], ["Maruti", "Brezza"], ["Honda", "City"], ["Toyota", "Fortuner"], ["Kia", "Seltos"], ["BMW", "X1"]];
+  const colors = ["White", "Black", "Silver", "Blue", "Red", "Grey"];
+  const categories = ["Before", "After", "Inspection", "Progress", "Job Sheet"];
+  const tables = ["approvals", "material_movements", "material_requests", "inventory", "gate_passes", "receipts", "payments", "invoices", "qc_checks", "tasks", "estimate_items", "estimates", "status_history", "photos", "followups", "job_cards", "visits", "vehicles", "customers"];
+  db.run("begin transaction");
+  try {
+    tables.forEach((table) => db.run(`delete from ${table}`));
+    [
+      ["PPF-ROLL", "PPF", "Gloss PPF roll", "metre", 500, 40],
+      ["CERAMIC-1L", "Detailing", "Ceramic coating", "litre", 80, 10],
+      ["PAINT-CLEAR", "Paint", "Clear coat", "litre", 60, 8],
+    ].forEach((row) => db.run("insert into inventory(sku,category,name,unit,stock_qty,low_stock_qty,created_at,updated_at) values(?,?,?,?,?,?,?,?)", [...row, "2026-01-01T08:00:00.000Z", "2026-01-01T08:00:00.000Z"]));
+    for (let i = 1; i <= 120; i += 1) {
+      const stamp = `2026-${String(((i - 1) % 8) + 1).padStart(2, "0")}-${String(((i * 3) % 27) + 1).padStart(2, "0")}T09:00:00.000Z`;
+      db.run("insert into customers(name,mobile,type,created_at,updated_at) values(?,?,?,?,?)", [`Demo Customer ${String(i).padStart(3, "0")}`, `8${String(100000000 + i).padStart(9, "0")}`, i % 5 === 0 ? "Dealer" : "Individual", stamp, stamp]);
+    }
+    for (let i = 1; i <= 132; i += 1) {
+      const [make, model] = makes[(i - 1) % makes.length];
+      const customerId = ((i - 1) % 120) + 1;
+      const stamp = `2026-${String(((i - 1) % 8) + 1).padStart(2, "0")}-15T10:00:00.000Z`;
+      db.run("insert into vehicles(customer_id,number,make,model,color,km,created_at,updated_at) values(?,?,?,?,?,?,?,?)", [customerId, `OD${String((i % 30) + 1).padStart(2, "0")}DM${String(1000 + i)}`, make, model, colors[(i - 1) % colors.length], 5000 + i * 317, stamp, stamp]);
+    }
+    for (let i = 1; i <= 144; i += 1) {
+      const vehicleId = ((i - 1) % 132) + 1;
+      const customerId = ((vehicleId - 1) % 120) + 1;
+      const subIndex = (i - 1) % subStatuses.length;
+      const sub = subStatuses[subIndex];
+      const main: MainStatus = subIndex <= 2 ? "NEW" : subIndex <= 9 ? "IN_PROGRESS" : subIndex <= 12 ? "COMPLETED" : "CLOSED";
+      const date = `2026-${String(((i - 1) % 8) + 1).padStart(2, "0")}-${String(((i * 5) % 27) + 1).padStart(2, "0")}T${String(8 + (i % 9)).padStart(2, "0")}:00:00.000Z`;
+      const work = ["Full body PPF", "Ceramic coating", "Paint correction", "Interior detailing"][i % 4];
+      const visitId = insert(db, "insert into visits(customer_id,vehicle_id,advisor_id,received_by,received_at,fuel,keys,accessories,requested_work,photos_note,created_at,updated_at) values(?,?,?,?,?,'Half','2 keys','Mats',?,'Offline demo media',?,?)", [customerId, vehicleId, 2, 3, date, work, date, date]);
+      const jobId = insert(db, "insert into job_cards(job_no,visit_id,advisor_id,technician_id,main_status,sub_status,work_list,promised_at,qc_status,washing_needed,closed_at,advisor_notes,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [`JC-2026-${String(2000 + i).padStart(6, "0")}`, visitId, 2, 6, main, sub, work, "Next business day", main === "NEW" || main === "IN_PROGRESS" ? "Pending" : "Pass", i % 3 === 0 ? 1 : 0, main === "CLOSED" ? date : "", "Deterministic large demo", date, date]);
+      const estimateId = insert(db, "insert into estimates(job_card_id,status,discount,gst_rate,approval_note,created_at,updated_at) values(?,?,?,?,?,?,?)", [jobId, subIndex < 2 ? "Draft" : "Approved", i % 4 === 0 ? 500 : 0, 18, subIndex < 2 ? "Awaiting approval" : "Approved for demo", date, date]);
+      const rate = 3500 + (i % 12) * 750;
+      insert(db, "insert into estimate_items(estimate_id,kind,description,qty,rate,created_at,updated_at) values(?,'Service',?,1,?,?,?)", [estimateId, work, rate, date, date]);
+      if (subIndex >= 3) insert(db, "insert into material_requests(job_card_id,item_id,requested_qty,issued_qty,used_qty,returned_qty,wasted_qty,created_at,updated_at) values(?,?,2,?,?,?,?,?,?)", [jobId, (i % 3) + 1, subIndex >= 4 ? 2 : 0, subIndex >= 6 ? 1.8 : 0, main === "CLOSED" ? 0.1 : 0, main === "CLOSED" ? 0.1 : 0, date, date]);
+      insert(db, "insert into tasks(job_card_id,technician_id,title,status,notes,created_at,updated_at,started_at,completed_at) values(?,?,?,?,?,?,?,?,?)", [jobId, 6, work, main === "NEW" ? "Pending" : main === "IN_PROGRESS" ? "Started" : "Completed", "Generated demo task", date, date, main === "NEW" ? null : date, main === "COMPLETED" || main === "CLOSED" ? date : null]);
+      ["Edges checked", "Surface cleaned", "Customer items verified"].forEach((label) => insert(db, "insert into qc_checks(job_card_id,label,passed) values(?,?,?)", [jobId, label, main === "COMPLETED" || main === "CLOSED" ? 1 : 0]));
+      if (main !== "NEW") insert(db, "insert into followups(job_card_id,note,due_at,done,outcome,created_at,updated_at) values(?,?,?,?,?,?,?)", [jobId, "Customer progress update", date.slice(0, 10), main === "CLOSED" ? 1 : 0, main === "CLOSED" ? "Delivered" : "", date, date]);
+      if (main === "COMPLETED" || main === "CLOSED") insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,total,status,created_at,updated_at) values(?,?,?,?, 'Generated',?,?)", [jobId, `INV-2026-${String(i).padStart(5, "0")}`, `TLY-${String(5000 + i)}`, Math.round(rate * 1.18), date, date]);
+      if (main === "CLOSED") {
+        insert(db, "insert into payments(job_card_id,amount,mode,reference,created_at,updated_at) values(?,?,?,?,?,?)", [jobId, Math.round(rate * 1.18), "UPI", `PAY-${String(i).padStart(5, "0")}`, date, date]);
+        insert(db, "insert into receipts(job_card_id,receipt_no) values(?,?)", [jobId, `REC-2026-${String(i).padStart(5, "0")}`]);
+        insert(db, "insert into gate_passes(job_card_id,gate_pass_no) values(?,?)", [jobId, `GP-2026-${String(i).padStart(5, "0")}`]);
+      }
+      const photoCount = 2;
+      for (let p = 0; p < photoCount; p += 1) insert(db, "insert into photos(job_card_id,label,src,category,created_at,updated_at) values(?,?,?,?,?,?)", [jobId, `${categories[(i + p) % categories.length]} documentation`, "/media-placeholder.svg", categories[(i + p) % categories.length], date, date]);
+      insert(db, "insert into status_history(job_card_id,main_status,sub_status,note,created_at) values(?,?,?,?,?)", [jobId, main, sub, "Generated coherent demo lifecycle", date]);
+    }
+    validateLargeDemoDataset(db);
+    db.run("commit");
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
+}
+
+function validateLargeDemoDataset(db: Database) {
+  const expected: [string, number][] = [["customers", 120], ["vehicles", 132], ["job_cards", 144], ["photos", 288]];
+  expected.forEach(([table, count]) => {
+    if (scalar<number>(db, `select count(*) from ${table}`) !== count) throw new Error(`Large demo validation failed for ${table}.`);
+  });
+  const uniquenessChecks = [
+    "select count(*)-count(distinct mobile) from customers",
+    "select count(*)-count(distinct number) from vehicles",
+    "select count(*)-count(distinct job_no) from job_cards",
+    "select count(*)-count(distinct invoice_no) from invoices",
+  ];
+  if (uniquenessChecks.some((sql) => scalar<number>(db, sql) !== 0)) throw new Error("Large demo identifiers are not unique.");
+  const orphanCount = scalar<number>(db, `select
+    (select count(*) from vehicles v left join customers c on c.id=v.customer_id where c.id is null) +
+    (select count(*) from visits v left join customers c on c.id=v.customer_id left join vehicles x on x.id=v.vehicle_id where c.id is null or x.id is null) +
+    (select count(*) from job_cards j left join visits v on v.id=j.visit_id where v.id is null) +
+    (select count(*) from photos p left join job_cards j on j.id=p.job_card_id where j.id is null)`);
+  if (orphanCount !== 0) throw new Error("Large demo contains invalid relationships.");
+  const incompleteClosures = scalar<number>(db, `select count(*) from job_cards j where j.main_status='CLOSED' and (
+    j.closed_at='' or not exists(select 1 from invoices i where i.job_card_id=j.id and i.voided_at is null) or
+    not exists(select 1 from payments p where p.job_card_id=j.id and p.voided_at is null) or
+    not exists(select 1 from receipts r where r.job_card_id=j.id) or
+    not exists(select 1 from gate_passes g where g.job_card_id=j.id))`);
+  if (incompleteClosures !== 0 || scalar<number>(db, "select count(distinct main_status) from job_cards") !== 4 || scalar<number>(db, "select count(distinct sub_status) from job_cards") !== 16) {
+    throw new Error("Large demo lifecycle records are incomplete.");
+  }
 }
 
 export function login(state: WorkshopState, email: string, password: string) {
   return state.users.find((user) => user.email.toLowerCase() === email.trim().toLowerCase() && user.password === password);
 }
 
+const roles: Role[] = ["admin", "service", "reception", "accounts", "store", "tech"];
+
+export function createUser(db: Database, payload: Pick<User, "email" | "name" | "role" | "password">) {
+  validateUser(db, payload);
+  return insert(db, "insert into users(email, name, role, password, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), datetime('now'))", [
+    payload.email.trim().toLowerCase(),
+    payload.name.trim(),
+    payload.role,
+    payload.password,
+  ]);
+}
+
+export function updateUser(db: Database, id: number, payload: Pick<User, "email" | "name" | "role" | "password">) {
+  one<User>(db, "select * from users where id=? and archived_at is null", [id]);
+  validateUser(db, payload, id);
+  db.run("update users set email=?, name=?, role=?, password=?, updated_at=datetime('now') where id=?", [
+    payload.email.trim().toLowerCase(),
+    payload.name.trim(),
+    payload.role,
+    payload.password,
+    id,
+  ]);
+}
+
+export function archiveUser(db: Database, id: number, reason: string, actingUserId: number) {
+  const target = one<User>(db, "select * from users where id=? and archived_at is null", [id]);
+  if (id === actingUserId) throw new Error("You cannot archive your own signed-in account.");
+  if (!reason.trim()) throw new Error("An archive reason is required.");
+  if (target.role === "admin" && scalar<number>(db, "select count(*) from users where role='admin' and archived_at is null") <= 1) {
+    throw new Error("The final active Admin cannot be archived.");
+  }
+  archive(db, "users", id, reason.trim());
+}
+
+function validateUser(db: Database, payload: Pick<User, "email" | "name" | "role" | "password">, existingId = 0) {
+  if (!payload.name.trim()) throw new Error("User name is required.");
+  if (!/^\S+@\S+\.\S+$/.test(payload.email.trim())) throw new Error("Enter a valid user email.");
+  if (!roles.includes(payload.role)) throw new Error("Select a valid user role.");
+  if (!payload.password || payload.password.length < 6) throw new Error("User password must contain at least 6 characters.");
+  const duplicate = maybe<{ id: number }>(db, "select id from users where lower(email)=lower(?) and archived_at is null and id<>?", [payload.email.trim(), existingId]);
+  if (duplicate) throw new Error("A user with this email already exists.");
+}
+
 export function createCustomer(db: Database, payload: Pick<Customer, "name" | "mobile" | "type">) {
+  validateCustomer(db, payload);
   return insert(db, "insert into customers(name, mobile, type, created_at, updated_at) values (?, ?, ?, datetime('now'), datetime('now'))", [
-    payload.name,
-    payload.mobile,
-    payload.type,
+    payload.name.trim(),
+    payload.mobile.trim(),
+    payload.type.trim(),
   ]);
 }
 
 export function updateCustomer(db: Database, id: number, payload: Pick<Customer, "name" | "mobile" | "type">) {
-  db.run("update customers set name=?, mobile=?, type=?, updated_at=datetime('now') where id=?", [payload.name, payload.mobile, payload.type, id]);
+  validateCustomer(db, payload, id);
+  db.run("update customers set name=?, mobile=?, type=?, updated_at=datetime('now') where id=?", [payload.name.trim(), payload.mobile.trim(), payload.type.trim(), id]);
 }
 
 export function archiveCustomer(db: Database, id: number, reason: string) {
@@ -119,20 +281,22 @@ export function archiveCustomer(db: Database, id: number, reason: string) {
 }
 
 export function createVehicle(db: Database, payload: Omit<Vehicle, "id">) {
+  validateVehicle(db, payload);
   return insert(
     db,
     "insert into vehicles(customer_id, number, make, model, color, km, created_at, updated_at) values (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [payload.customer_id, payload.number.toUpperCase(), payload.make, payload.model, payload.color, payload.km],
+    [payload.customer_id, payload.number.trim().toUpperCase(), payload.make.trim(), payload.model.trim(), payload.color.trim(), payload.km],
   );
 }
 
 export function updateVehicle(db: Database, id: number, payload: Omit<Vehicle, "id">) {
+  validateVehicle(db, payload, id);
   db.run("update vehicles set customer_id=?, number=?, make=?, model=?, color=?, km=?, updated_at=datetime('now') where id=?", [
     payload.customer_id,
-    payload.number.toUpperCase(),
-    payload.make,
-    payload.model,
-    payload.color,
+    payload.number.trim().toUpperCase(),
+    payload.make.trim(),
+    payload.model.trim(),
+    payload.color.trim(),
     payload.km,
     id,
   ]);
@@ -176,6 +340,14 @@ export function receiveVehicle(
     receptionId: number;
   },
 ) {
+  if (!payload.customerName.trim()) throw new Error("Customer name is required.");
+  if (!payload.mobile.trim()) throw new Error("Customer mobile is required.");
+  if (!payload.vehicleNo.trim()) throw new Error("Vehicle number is required.");
+  if (!payload.make.trim() || !payload.model.trim()) throw new Error("Vehicle make and model are required.");
+  if (!payload.requestedWork.trim()) throw new Error("Requested work is required.");
+  if (!payload.advisorId || !payload.receptionId) throw new Error("Advisor and receiving user are required.");
+  db.run("savepoint reception_intake");
+  try {
   const customerId =
     payload.customerId ||
     maybe<{ id: number }>(db, "select id from customers where mobile=? and archived_at is null", [payload.mobile])?.id ||
@@ -213,7 +385,13 @@ export function receiveVehicle(
   ["Edges checked", "Surface cleaned", "Customer items verified"].forEach((label) => insert(db, "insert into qc_checks(job_card_id, label, passed) values (?, ?, 0)", [jobId, label]));
   createPhoto(db, { job_card_id: jobId, label: "Reception intake", category: "Reception", src: "" });
   history(db, jobId, "NEW", "Gather Requirements", "Visit received and job card opened");
+  db.run("release savepoint reception_intake");
   return jobId;
+  } catch (error) {
+    db.run("rollback to savepoint reception_intake");
+    db.run("release savepoint reception_intake");
+    throw error;
+  }
 }
 
 export function updateJobCard(
@@ -556,28 +734,41 @@ export function addPhoto(db: Database, jobId: number, label: string) {
   createPhoto(db, { job_card_id: jobId, label, src: "", category: "General" });
 }
 
-export function searchJobs(state: WorkshopState, query: string) {
-  const q = query.trim().toLowerCase();
-  if (!q) return state.jobs;
-  return state.jobs.filter(({ job, customer, vehicle, invoice, advisor, estimate_items, payments, photos, material_movements }) =>
-    [
-      job.job_no,
-      customer.name,
-      customer.mobile,
-      vehicle.number,
-      invoice?.invoice_no,
-      invoice?.tally_invoice_no,
-      advisor.name,
-      estimate_items.map((item) => item.description).join(" "),
-      payments.map((payment) => `${payment.mode} ${payment.reference}`).join(" "),
-      photos.map((photo) => `${photo.label} ${photo.category}`).join(" "),
-      material_movements.map((movement) => `${movement.direction} ${movement.note}`).join(" "),
-    ]
-      .filter(Boolean)
-      .join(" ")
-      .toLowerCase()
-      .includes(q),
-  );
+export function searchJobs(state: WorkshopState, criteria: SearchCriteria): SearchResult[] {
+  const normalizedQuery = criteria.query.trim().toLowerCase();
+  return state.jobs.flatMap((view) => {
+    if (criteria.status !== "ALL" && view.job.main_status !== criteria.status) return [];
+    const searchable: Record<Exclude<SearchCriteria["category"], "all">, string[]> = {
+      job: [view.job.job_no, view.advisor.name, view.job.work_list, ...view.estimate_items.map((item) => item.description), ...view.photos.map((photo) => `${photo.label} ${photo.category}`), ...view.material_movements.map((movement) => `${movement.direction} ${movement.note}`)],
+      customer: [view.customer.name, view.customer.mobile],
+      vehicle: [view.vehicle.number, view.vehicle.make, view.vehicle.model, view.vehicle.color],
+      invoice: [view.invoice?.invoice_no ?? "", view.invoice?.tally_invoice_no ?? "", ...view.payments.map((payment) => `${payment.mode} ${payment.reference}`)],
+    };
+    const categories = (Object.keys(searchable) as Exclude<SearchCriteria["category"], "all">[]).filter((category) =>
+      searchable[category].join(" ").toLowerCase().includes(normalizedQuery),
+    );
+    const permitted = criteria.category === "all" ? categories : categories.filter((category) => category === criteria.category);
+    if (normalizedQuery && permitted.length === 0) return [];
+    return [{ view, match: { categories: normalizedQuery ? permitted : [], normalizedQuery } }];
+  });
+}
+
+function validateCustomer(db: Database, payload: Pick<Customer, "name" | "mobile" | "type">, existingId = 0) {
+  if (!payload.name.trim()) throw new Error("Customer name is required.");
+  if (!payload.mobile.trim()) throw new Error("Customer mobile is required.");
+  if (!payload.type.trim()) throw new Error("Customer type is required.");
+  if (maybe<{ id: number }>(db, "select id from customers where mobile=? and archived_at is null and id<>?", [payload.mobile.trim(), existingId])) {
+    throw new Error("A customer with this mobile already exists.");
+  }
+}
+
+function validateVehicle(db: Database, payload: Omit<Vehicle, "id">, existingId = 0) {
+  if (!payload.customer_id) throw new Error("Vehicle customer is required.");
+  if (!payload.number.trim()) throw new Error("Vehicle number is required.");
+  if (!payload.make.trim() || !payload.model.trim()) throw new Error("Vehicle make and model are required.");
+  if (maybe<{ id: number }>(db, "select id from vehicles where upper(number)=upper(?) and archived_at is null and id<>?", [payload.number.trim(), existingId])) {
+    throw new Error("A vehicle with this number already exists.");
+  }
 }
 
 export function closureBlockers(view?: JobView) {

@@ -23,6 +23,83 @@ export type SubStatus =
 export type TaskStatus = "Pending" | "Started" | "Paused" | "Completed";
 export type QcStatus = "Pending" | "Pass" | "Fail";
 export type PaymentStatus = "Pending" | "Partial" | "Paid";
+export type ViewMode = "grid" | "table";
+
+export interface ListQuery {
+  search: string;
+  filters: Record<string, string>;
+  sort: string;
+  page: number;
+  pageSize: number;
+}
+
+export interface PagedResult<T> {
+  items: T[];
+  totalCount: number;
+  pageCount: number;
+  page: number;
+  from: number;
+  to: number;
+}
+
+export interface JobListSummary {
+  id: number;
+  jobNo: string;
+  vehicle: string;
+  customer: string;
+  status: MainStatus;
+  workflow: SubStatus;
+  total: number;
+  createdAt: string;
+}
+
+export interface VehicleListSummary {
+  id: number;
+  registration: string;
+  makeModel: string;
+  color: string;
+  customer: string;
+  km: number;
+  createdAt: string;
+}
+
+export interface CustomerListSummary {
+  id: number;
+  name: string;
+  mobile: string;
+  type: string;
+  vehicleCount: number;
+  openJobCount: number;
+  lastVisit: string;
+  createdAt: string;
+}
+
+export interface MediaListSummary {
+  id: number;
+  label: string;
+  category: string;
+  jobNo: string;
+  vehicle: string;
+  src: string;
+  createdAt: string;
+}
+export type SearchCategory = "all" | "job" | "customer" | "vehicle" | "invoice";
+
+export interface SearchCriteria {
+  query: string;
+  category: SearchCategory;
+  status: MainStatus | "ALL";
+}
+
+export interface SearchMatchMetadata {
+  categories: Exclude<SearchCategory, "all">[];
+  normalizedQuery: string;
+}
+
+export interface SearchResult {
+  view: JobView;
+  match: SearchMatchMetadata;
+}
 
 export interface User {
   id: number;

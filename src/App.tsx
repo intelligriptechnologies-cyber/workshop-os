@@ -21,13 +21,14 @@ import {
   Wrench,
 } from "lucide-react";
 import type { Database } from "sql.js";
-import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import {
   addFollowup,
   addPayment,
   addPhoto,
   adjustStock,
   approveEstimate,
+  archiveUser,
   archiveCustomer,
   archiveEstimateItem,
   archiveFollowup,
@@ -47,6 +48,7 @@ import {
   createMaterialRequest,
   createPhoto,
   createTask,
+  createUser,
   createVehicle,
   failQcWithRework,
   generateInvoice,
@@ -55,6 +57,7 @@ import {
   issueMaterialQty,
   invoiceItemsTotal,
   login,
+  loadLargeDemoDataset,
   markWashingNeeded,
   markFollowupDone,
   openWorkshopDb,
@@ -79,12 +82,15 @@ import {
   updatePhoto,
   updateQcCheck,
   updateTask,
+  updateUser,
   updateVisit,
   updateVehicle,
   voidInvoice,
   voidPayment,
 } from "./db";
-import type { Customer, EstimateItem, Followup, InventoryItem, JobView, MainStatus, MaterialRequest, Photo, QcCheck, Role, SubStatus, Task, TaskStatus, User, Vehicle, WorkshopState } from "./types";
+import type { Customer, EstimateItem, Followup, InventoryItem, JobView, MainStatus, MaterialRequest, Photo, QcCheck, Role, SearchCriteria, SubStatus, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
+import { activeFilterSummary, normalizeSearch, pageNumbers, paginate } from "./list-utils";
+import { downloadExcel, downloadPdf, type ExportColumn } from "./export-utils";
 
 const roleLabels: Record<Role, string> = {
   admin: "Owner/Admin",
@@ -107,6 +113,7 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Receive Vehicle", icon: <DoorOpen size={18} /> },
     { label: "Today Queue", icon: <Car size={18} /> },
     { label: "Customers", icon: <UserRound size={18} /> },
+    { label: "Vehicles", icon: <Car size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
   ],
   service: [
@@ -114,7 +121,7 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Job Card", icon: <FileText size={18} /> },
     { label: "Estimate", icon: <ReceiptText size={18} /> },
     { label: "Follow-ups", icon: <ClipboardCheck size={18} /> },
-    { label: "Photos", icon: <Camera size={18} /> },
+    { label: "Media", icon: <Camera size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
   ],
   store: [
@@ -141,7 +148,11 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Dashboard", icon: <Gauge size={18} /> },
     { label: "Data Flow", icon: <ClipboardCheck size={18} /> },
     { label: "Jobs", icon: <FileText size={18} /> },
+    { label: "Customers", icon: <UserRound size={18} /> },
+    { label: "Vehicles", icon: <Car size={18} /> },
+    { label: "Media", icon: <Camera size={18} /> },
     { label: "Masters", icon: <Boxes size={18} /> },
+    { label: "Manage", icon: <ShieldCheck size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
   ],
 };
@@ -167,6 +178,8 @@ function App() {
   const railToggleMoved = useRef(false);
   const railToggleStartY = useRef(0);
   const [query, setQuery] = useState("");
+  const [searchCategory, setSearchCategory] = useState<SearchCriteria["category"]>("all");
+  const [searchStatus, setSearchStatus] = useState<SearchCriteria["status"]>("ALL");
   const [loginError, setLoginError] = useState("");
 
   useEffect(() => {
@@ -214,21 +227,32 @@ function App() {
     };
   }, []);
 
-  const jobs = useMemo(() => (state ? searchJobs(state, query) : []), [state, query]);
-  const selected = jobs.find((item) => item.job.id === selectedJobId) ?? jobs[0] ?? state?.jobs[0];
+  const searchCriteria = useMemo<SearchCriteria>(() => ({ query, category: searchCategory, status: searchStatus }), [query, searchCategory, searchStatus]);
+  const searchResults = useMemo(() => (state ? searchJobs(state, searchCriteria) : []), [state, searchCriteria]);
+  const jobs = useMemo(() => searchResults.map((result) => result.view), [searchResults]);
+  const selected = activeMenuItem === "Search"
+    ? jobs.find((item) => item.job.id === selectedJobId) ?? jobs[0]
+    : state?.jobs.find((item) => item.job.id === selectedJobId) ?? state?.jobs[0];
+
+  useEffect(() => {
+    if (activeMenuItem !== "Search") return;
+    if (jobs.length === 0) setSelectedJobId(undefined);
+    else if (!jobs.some((item) => item.job.id === selectedJobId)) setSelectedJobId(jobs[0].job.id);
+  }, [activeMenuItem, jobs, selectedJobId]);
 
   const mutate = (action: (database: Database) => void) => {
-    if (!db) return;
+    if (!db) return false;
     try {
       action(db);
     } catch (error) {
       window.alert(error instanceof Error ? error.message : "Action failed");
-      return;
+      return false;
     }
     persist(db);
     const next = readState(db);
     setState(next);
     if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
+    return true;
   };
 
   const handleLogin = (email: string, password: string) => {
@@ -335,9 +359,13 @@ function App() {
           jobs={jobs}
           mutate={mutate}
           query={query}
+          searchCategory={searchCategory}
+          searchStatus={searchStatus}
           selected={selected}
           selectedJobId={selectedJobId}
           setQuery={setQuery}
+          setSearchCategory={setSearchCategory}
+          setSearchStatus={setSearchStatus}
           setSelectedJobId={setSelectedJobId}
           state={state}
           user={user}
@@ -399,9 +427,13 @@ function RoleWorkspace({
   jobs,
   mutate,
   query,
+  searchCategory,
+  searchStatus,
   selected,
   selectedJobId,
   setQuery,
+  setSearchCategory,
+  setSearchStatus,
   setSelectedJobId,
   state,
   user,
@@ -410,9 +442,13 @@ function RoleWorkspace({
   jobs: JobView[];
   mutate: Mutate;
   query: string;
+  searchCategory: SearchCriteria["category"];
+  searchStatus: SearchCriteria["status"];
   selected?: JobView;
   selectedJobId?: number;
   setQuery: (value: string) => void;
+  setSearchCategory: (value: SearchCriteria["category"]) => void;
+  setSearchStatus: (value: SearchCriteria["status"]) => void;
   setSelectedJobId: (value: number) => void;
   state: WorkshopState;
   user: User;
@@ -420,39 +456,58 @@ function RoleWorkspace({
   if (activeMenuItem === "Search") {
     return (
       <>
-        <SearchPortal jobs={jobs} query={query} selectedJobId={selected?.job.id ?? selectedJobId} setQuery={setQuery} setSelectedJobId={setSelectedJobId} />
+        <SearchPortal jobs={jobs} query={query} category={searchCategory} status={searchStatus} selectedJobId={selected?.job.id ?? selectedJobId} setQuery={setQuery} setCategory={setSearchCategory} setStatus={setSearchStatus} setSelectedJobId={setSelectedJobId} />
         {selected && <SearchSummary view={selected} />}
       </>
     );
   }
+
+  if (activeMenuItem === "Jobs" || activeMenuItem === "My Queue") return <EntityList kind="jobs" state={state} mutate={mutate} role={user.role} userId={user.id} />;
+  if (activeMenuItem === "Customers") return <EntityList kind="customers" state={state} mutate={mutate} role={user.role} userId={user.id} />;
+  if (activeMenuItem === "Vehicles") return <EntityList kind="vehicles" state={state} mutate={mutate} role={user.role} userId={user.id} />;
+  if (activeMenuItem === "Media") return <EntityList kind="media" state={state} mutate={mutate} role={user.role} userId={user.id} />;
 
   if (user.role === "reception") return <Reception activeMenuItem={activeMenuItem} state={state} mutate={mutate} user={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "service") return <ServiceAdvisor activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "tech") return <Technician activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "accounts") return <Accounts activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
-  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
+  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} />;
 }
 
 function SearchPortal({
   jobs,
   query,
+  category,
+  status,
   selectedJobId,
   setQuery,
+  setCategory,
+  setStatus,
   setSelectedJobId,
 }: {
   jobs: JobView[];
   query: string;
+  category: SearchCriteria["category"];
+  status: SearchCriteria["status"];
   selectedJobId?: number;
   setQuery: (value: string) => void;
+  setCategory: (value: SearchCriteria["category"]) => void;
+  setStatus: (value: SearchCriteria["status"]) => void;
   setSelectedJobId: (value: number) => void;
 }) {
   return (
     <section className="portal">
+      <div className="search-controls">
       <label className="search-box">
         <Search size={18} />
-        <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vehicle, mobile, customer, job card, invoice" />
+        <input aria-label="Search records" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Search vehicle, mobile, customer, job card, invoice" />
       </label>
+      <label>Category<select aria-label="Search category" value={category} onChange={(event) => setCategory(event.target.value as SearchCriteria["category"])}><option value="all">All</option><option value="job">Job</option><option value="customer">Customer</option><option value="vehicle">Vehicle</option><option value="invoice">Invoice</option></select></label>
+      <label>Status<select aria-label="Job status" value={status} onChange={(event) => setStatus(event.target.value as SearchCriteria["status"])}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CLOSED"].map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+      <button onClick={() => { setQuery(""); setCategory("all"); setStatus("ALL"); }}>Clear</button>
+      <strong aria-live="polite">{jobs.length} {jobs.length === 1 ? "result" : "results"}</strong>
+      </div>
       <div className="job-strip">
         {jobs.map((job) => (
           <button key={job.job.id} className={selectedJobId === job.job.id ? "active" : ""} onClick={() => setSelectedJobId(job.job.id)}>
@@ -461,6 +516,7 @@ function SearchPortal({
             <Status status={job.job.main_status} sub={job.job.sub_status} />
           </button>
         ))}
+        {jobs.length === 0 && <div className="empty-state"><strong>No matching records</strong><span>Try another search or clear the filters.</span></div>}
       </div>
     </section>
   );
@@ -508,6 +564,38 @@ function SearchSummary({ view }: { view: JobView }) {
       <Info label="Photos" value={`${view.photos.length} placeholder(s)`} />
     </section>
   );
+}
+
+type EntityListKind = "jobs" | "customers" | "vehicles" | "media";
+
+function LegacyEntityList({ kind, state, mutate, role }: { kind: EntityListKind; state: WorkshopState; mutate: Mutate; role: Role; userId: number }) {
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const q = normalizeSearch(deferredSearch);
+  const title = kind === "jobs" && role === "service" ? "My Queue" : ({ jobs: "Jobs", customers: "Customers", vehicles: "Vehicles", media: "Media" } as const)[kind];
+  const records = useMemo<unknown[]>(() => {
+    if (kind === "jobs") return state.jobs.filter((item) => normalizeSearch(`${item.job.job_no} ${item.customer.name} ${item.customer.mobile} ${item.vehicle.number} ${item.vehicle.make} ${item.vehicle.model}`).includes(q));
+    if (kind === "customers") return state.customers.filter((item) => normalizeSearch(`${item.name} ${item.mobile} ${item.type}`).includes(q));
+    if (kind === "vehicles") return state.vehicles.filter((item) => normalizeSearch(`${item.number} ${item.make} ${item.model} ${item.color} ${state.customers.find((customer) => customer.id === item.customer_id)?.name ?? ""}`).includes(q));
+    return state.jobs.flatMap((job) => job.photos.map((photo) => ({ photo, job }))).filter(({ photo, job }) => normalizeSearch(`${photo.label} ${photo.category} ${job.job.job_no} ${job.vehicle.number}`).includes(q));
+  }, [kind, q, state]);
+  const result = paginate(records, page, pageSize);
+  useEffect(() => setPage(1), [kind, q, pageSize]);
+  return <section className="workspace single-panel"><div className="desk-panel entity-list-page">
+    <PanelTitle icon={kind === "vehicles" ? <Car /> : kind === "media" ? <Camera /> : kind === "customers" ? <UserRound /> : <FileText />} title={title} subtitle="Searchable records with grid and table views" />
+    <div className="list-filter-bar"><label className="search-box"><Search size={18} /><input aria-label={`Search ${title}`} value={search} onChange={(event) => setSearch(event.target.value)} placeholder={`Search ${title.toLowerCase()}`} /></label></div>
+    <div className="list-toolbar"><div className="view-toggle" aria-label="View mode"><button className={viewMode === "grid" ? "active" : ""} onClick={() => setViewMode("grid")}>Grid</button><button className={viewMode === "table" ? "active" : ""} onClick={() => setViewMode("table")}>Table</button></div><span>Showing {result.from} to {result.to} of {result.totalCount}</span><label>Page size<select value={pageSize} onChange={(event) => setPageSize(Number(event.target.value))}><option>12</option><option>24</option><option>48</option></select></label></div>
+    {result.items.length === 0 ? <div className="empty-state"><strong>No matching records</strong><button onClick={() => setSearch("")}>Clear search</button></div> : <div className={`entity-records ${viewMode}`}>{result.items.map((record) => {
+      if (kind === "jobs") { const job = record as JobView; return <article className="entity-card" key={job.job.id}><strong>{job.job.job_no}</strong><h3>{job.vehicle.number}</h3><span>{job.vehicle.make} {job.vehicle.model}</span><span>{job.customer.name} · {job.customer.mobile}</span><Status status={job.job.main_status} sub={job.job.sub_status} />{role === "admin" && <button className="danger-action" onClick={() => mutate((db) => cancelJobCard(db, job.job.id, "Archived by Admin from job list"))}>Archive</button>}</article>; }
+      if (kind === "customers") { const customer = record as Customer; return <article className="entity-card" key={customer.id}><strong>{customer.name}</strong><span>{customer.mobile}</span><span>{customer.type}</span>{role === "admin" && <button className="danger-action" onClick={() => mutate((db) => archiveCustomer(db, customer.id, "Archived by Admin from customer list"))}>Archive</button>}</article>; }
+      if (kind === "vehicles") { const vehicle = record as Vehicle; const customer = state.customers.find((item) => item.id === vehicle.customer_id); return <article className="entity-card" key={vehicle.id}><strong>{vehicle.number}</strong><h3>{vehicle.make} {vehicle.model}</h3><span>{vehicle.color} · {vehicle.km} km</span><span>{customer?.name ?? "Unknown customer"}</span>{role === "admin" && <button className="danger-action" onClick={() => mutate((db) => archiveVehicle(db, vehicle.id, "Archived by Admin from vehicle list"))}>Archive</button>}</article>; }
+      const media = record as { photo: Photo; job: JobView }; return <article className="entity-card media-card" key={media.photo.id}><img src={media.photo.src || "/media-placeholder.svg"} alt="" /><strong>{media.job.vehicle.number}</strong><span>{media.photo.category} · {media.photo.label}</span><span>{media.job.job.job_no}</span>{role === "admin" && <button className="danger-action" onClick={() => mutate((db) => archivePhoto(db, media.photo.id, "Archived by Admin from media list"))}>Archive</button>}</article>;
+    })}</div>}
+    <nav className="pagination" aria-label={`${title} pages`}><button disabled={result.page === 1} onClick={() => setPage(result.page - 1)}>Previous</button>{pageNumbers(result.page, result.pageCount).map((number) => <button key={number} aria-current={number === result.page ? "page" : undefined} className={number === result.page ? "active" : ""} onClick={() => setPage(number)}>{number}</button>)}<button disabled={result.page === result.pageCount} onClick={() => setPage(result.page + 1)}>Next</button></nav>
+  </div></section>;
 }
 
 function Reception({
@@ -594,7 +682,7 @@ function Reception({
       <section className="workspace two-panel">
         <div className="desk-panel">
           <PanelTitle icon={<Car />} title="Today Queue" subtitle={`${state.visits.length} visits recorded`} />
-          <JobRows jobs={state.jobs.filter((item) => item.job.main_status !== "CLOSED")} selectedJobId={selected?.job.id} onSelect={setSelectedJobId} />
+          <FilterableJobRows title="Today Queue" jobs={state.jobs.filter((item) => item.job.main_status !== "CLOSED")} selectedJobId={selected?.job.id} onSelect={setSelectedJobId} showStatusFilter />
         </div>
         <div className="desk-panel">
           <PanelTitle icon={<FileText />} title="Job Detail" subtitle={selected?.job.job_no ?? "Select a job"} />
@@ -763,21 +851,11 @@ function ServiceAdvisor({
 }
 
 function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { activeMenuItem: string; state: WorkshopState; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
-  const requests = state.jobs.flatMap((view) => view.material_requests.map((request, index) => ({ view, request, item: view.inventory[index] })));
+  const requests = state.jobs.flatMap((view) => view.material_requests.map((request) => ({ view, request, item: state.inventory.find((item) => item.id === request.item_id) })));
   if (activeMenuItem === "Stock") {
     return (
       <section className="workspace two-panel">
-        <div className="desk-panel stock-grid">
-          <PanelTitle icon={<Boxes />} title="Stock" subtitle="PPF and paint inventory from demo workbook" />
-          {state.inventory.map((item) => (
-            <div key={item.id} className={item.stock_qty < item.low_stock_qty ? "stock-item low" : "stock-item"}>
-              <strong>{item.name}</strong>
-              <span>
-                {item.stock_qty} {item.unit} · min {item.low_stock_qty}
-              </span>
-            </div>
-          ))}
-        </div>
+        <StoreList key="stock" kind="stock" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} />
         <InventoryEditor state={state} mutate={mutate} />
       </section>
     );
@@ -785,43 +863,117 @@ function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { active
   if (activeMenuItem === "Material Requests") {
     return (
       <section className="workspace two-panel">
-        <div className="desk-panel issue-counter">
-          <PanelTitle icon={<PackageCheck />} title="Material Requests" subtitle="Create, edit and archive job-linked requests" />
-          {requests.map(({ view, request, item }) => (
-            <button className="request-line" key={request.id} onClick={() => setSelectedJobId(view.job.id)}>
-              <strong>{view.job.job_no}</strong>
-              <span>{item?.name}</span>
-              <Info label="Requested" value={`${request.requested_qty} ${item?.unit ?? ""}`} />
-            </button>
-          ))}
-        </div>
+        <StoreList key="requests" kind="requests" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} />
         <MaterialRequestEditor state={state} mutate={mutate} />
       </section>
     );
   }
   return (
     <section className="workspace two-panel">
-      <div className="desk-panel issue-counter">
-        <PanelTitle icon={<PackageCheck />} title={activeMenuItem} subtitle="Issue only against a job card and reconcile movement" />
-        {requests.map(({ view, request, item }) => {
-          const diff = request.issued_qty - request.used_qty - request.returned_qty - request.wasted_qty;
-          return (
-            <div className="request-line" key={request.id}>
-              <strong>{view.job.job_no}</strong>
-              <span>{item?.name}</span>
-              <Info label="Requested" value={`${request.requested_qty} ${item?.unit ?? ""}`} />
-              <Info label="Issued = Used + Returned + Wasted" value={diff === 0 ? "Matched" : `Diff ${diff}`} />
-              <div className="action-row">
-                <button onClick={() => mutate((db) => issueMaterial(db, request.id))}>Issue</button>
-                <button onClick={() => mutate((db) => reconcileMaterial(db, request.id, request.issued_qty, 0, 0))}>Reconcile</button>
-              </div>
-            </div>
-          );
-        })}
-      </div>
+      <StoreList key={activeMenuItem} kind={activeMenuItem === "Issue Material" ? "issue" : "reconcile"} inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} />
       {activeMenuItem === "Issue Material" ? <IssueMaterialEditor requests={requests} mutate={mutate} /> : <ReconcileEditor requests={requests} mutate={mutate} />}
     </section>
   );
+}
+
+type StoreListKind = "stock" | "requests" | "issue" | "reconcile";
+type StoreRequestRow = { view: JobView; request: MaterialRequest; item?: InventoryItem };
+
+function requestState(row: StoreRequestRow) {
+  const { request } = row;
+  const reconciled = request.used_qty + request.returned_qty + request.wasted_qty;
+  if (request.issued_qty > 0 && Math.abs(reconciled - request.issued_qty) < 0.001) return "Reconciled";
+  if (request.issued_qty >= request.requested_qty) return "Issued";
+  if (request.issued_qty > 0) return "Partially issued";
+  return "Pending";
+}
+
+function reconciliationState(row: StoreRequestRow) {
+  const { request } = row;
+  return request.issued_qty > 0 && Math.abs(request.issued_qty - request.used_qty - request.returned_qty - request.wasted_qty) < 0.001 ? "Matched" : "Open";
+}
+
+function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKind; inventory: InventoryItem[]; requests: StoreRequestRow[]; onOpenJob: (id: number) => void }) {
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [primary, setPrimary] = useState("ALL");
+  const [job, setJob] = useState("ALL");
+  const [item, setItem] = useState("ALL");
+  const [unit, setUnit] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const needle = normalizeSearch(deferredSearch);
+  const reset = (action: () => void) => { action(); setPage(1); };
+  const title = kind === "stock" ? "Stock" : kind === "requests" ? "Material Requests" : kind === "issue" ? "Issue Material" : "Reconcile";
+
+  const stockRows = useMemo(() => inventory.filter((row) => {
+    const stockState = row.stock_qty < row.low_stock_qty ? "LOW" : "OK";
+    return (!needle || normalizeSearch(`${row.sku} ${row.name} ${row.category} ${row.unit}`).includes(needle))
+      && (primary === "ALL" || row.category === primary)
+      && (job === "ALL" || stockState === job)
+      && (unit === "ALL" || row.unit === unit);
+  }), [inventory, needle, primary, job, unit]);
+
+  const requestRows = useMemo(() => requests.filter((row) => {
+    const state = kind === "reconcile" ? reconciliationState(row) : requestState(row);
+    return (!needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.item?.sku ?? ""} ${row.item?.name ?? ""}`).includes(needle))
+      && (primary === "ALL" || state === primary)
+      && (job === "ALL" || String(row.view.job.id) === job)
+      && (item === "ALL" || String(row.request.item_id) === item);
+  }), [requests, kind, needle, primary, job, item]);
+
+  const filtered: Array<InventoryItem | StoreRequestRow> = kind === "stock" ? stockRows : requestRows;
+  const paged = paginate<InventoryItem | StoreRequestRow>(filtered, page, pageSize);
+  useEffect(() => { if (paged.page !== page) setPage(paged.page); }, [paged.page, page]);
+  const categories = Array.from(new Set(inventory.map((row) => row.category))).sort();
+  const units = Array.from(new Set(inventory.map((row) => row.unit))).sort();
+  const uniqueJobs = Array.from(new Map(requests.map((row) => [row.view.job.id, row.view])).values());
+  const activeFilters = activeFilterSummary(kind === "stock"
+    ? { Search: search.trim(), Category: primary, "Stock status": job === "LOW" ? "Low stock" : job === "OK" ? "In stock" : "ALL", Unit: unit }
+    : { Search: search.trim(), [kind === "reconcile" ? "Reconciliation state" : "Request status"]: primary, Job: job === "ALL" ? "ALL" : uniqueJobs.find((row) => String(row.job.id) === job)?.job.job_no ?? job, Item: item === "ALL" ? "ALL" : inventory.find((row) => String(row.id) === item)?.name ?? item });
+
+  const stockColumns: ExportColumn<InventoryItem>[] = [
+    { header: "SKU", value: (row) => row.sku }, { header: "Item", value: (row) => row.name },
+    { header: "Category", value: (row) => row.category }, { header: "Stock", value: (row) => row.stock_qty },
+    { header: "Unit", value: (row) => row.unit }, { header: "Minimum", value: (row) => row.low_stock_qty },
+    { header: "Status", value: (row) => row.stock_qty < row.low_stock_qty ? "Low stock" : "In stock" },
+  ];
+  const requestColumns: ExportColumn<StoreRequestRow>[] = [
+    { header: "Job", value: (row) => row.view.job.job_no }, { header: "Vehicle", value: (row) => row.view.vehicle.number },
+    { header: "Item", value: (row) => row.item?.name ?? "Unknown" }, { header: "Requested", value: (row) => row.request.requested_qty },
+    { header: "Issued", value: (row) => row.request.issued_qty },
+    ...(kind === "reconcile" ? [
+      { header: "Used", value: (row: StoreRequestRow) => row.request.used_qty }, { header: "Returned", value: (row: StoreRequestRow) => row.request.returned_qty },
+      { header: "Wasted", value: (row: StoreRequestRow) => row.request.wasted_qty }, { header: "State", value: reconciliationState },
+    ] : [{ header: "Status", value: requestState }]),
+  ];
+  const exportReport = kind === "stock"
+    ? { title, filters: activeFilters, columns: stockColumns, rows: stockRows }
+    : { title, filters: activeFilters, columns: requestColumns, rows: requestRows };
+
+  return <div className="desk-panel store-list-page">
+    <PanelTitle icon={kind === "stock" ? <Boxes /> : kind === "issue" ? <Package /> : kind === "reconcile" ? <Check /> : <PackageCheck />} title={title} subtitle="Search, filter and export the current list" />
+    <div className="store-filter-grid">
+      <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} onChange={(event) => reset(() => setSearch(event.target.value))} placeholder={kind === "stock" ? "SKU, item or category" : "Job, vehicle or item"} /></label>
+      {kind === "stock" ? <>
+        <label>Category<select aria-label="Stock category" value={primary} onChange={(event) => reset(() => setPrimary(event.target.value))}><option value="ALL">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label>Stock status<select aria-label="Stock status" value={job} onChange={(event) => reset(() => setJob(event.target.value))}><option value="ALL">All stock</option><option value="LOW">Low stock</option><option value="OK">In stock</option></select></label>
+        <label>Unit<select aria-label="Stock unit" value={unit} onChange={(event) => reset(() => setUnit(event.target.value))}><option value="ALL">All units</option>{units.map((value) => <option key={value}>{value}</option>)}</select></label>
+      </> : <>
+        <label>{kind === "reconcile" ? "Reconciliation state" : "Request status"}<select aria-label={kind === "reconcile" ? "Reconciliation state" : "Request status"} value={primary} onChange={(event) => reset(() => setPrimary(event.target.value))}><option value="ALL">All states</option>{(kind === "reconcile" ? ["Matched", "Open"] : ["Pending", "Partially issued", "Issued", "Reconciled"]).map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label>Job<select aria-label={`${title} job`} value={job} onChange={(event) => reset(() => setJob(event.target.value))}><option value="ALL">All jobs</option>{uniqueJobs.map((row) => <option key={row.job.id} value={row.job.id}>{row.job.job_no}</option>)}</select></label>
+        <label>Item<select aria-label={`${title} item`} value={item} onChange={(event) => reset(() => setItem(event.target.value))}><option value="ALL">All items</option>{inventory.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+      </>}
+    </div>
+    <div className="list-result-controls">
+      <ListExportControls report={exportReport} />
+      <div className="result-summary" aria-live="polite">Showing {paged.from} to {paged.to} of {paged.totalCount}</div>
+      <label className="page-size">Per page<select aria-label={`${title} records per page`} value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>12</option><option>24</option><option>48</option></select></label>
+    </div>
+    {paged.totalCount === 0 ? <div className="list-empty"><h3>No matching records</h3><p>Adjust the search or clear the filters.</p><button onClick={() => { setSearch(""); setPrimary("ALL"); setJob("ALL"); setItem("ALL"); setUnit("ALL"); setPage(1); }}>Clear filters</button></div> :
+      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}</tr>) : (paged.items as StoreRequestRow[]).map((row) => <tr key={row.request.id} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}</tr>)}</tbody></table></div>}
+    <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
+  </div>;
 }
 
 function Technician({ activeMenuItem, state, mutate, setSelectedJobId }: { activeMenuItem: string; state: WorkshopState; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
@@ -874,13 +1026,17 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId }: { a
   const [amount, setAmount] = useState(view?.invoice?.total || 1000);
   const [mode, setMode] = useState("UPI");
   const [reference, setReference] = useState("MANUAL");
+  const [paymentSearch, setPaymentSearch] = useState("");
+  const [paymentModeFilter, setPaymentModeFilter] = useState("ALL");
+  const [paymentPage, setPaymentPage] = useState(1);
+  const [paymentPageSize, setPaymentPageSize] = useState(12);
   const [delivery, setDelivery] = useState({ by: "Accounts Desk", finalKm: view?.vehicle.km ?? 0, acknowledgement: "Customer acknowledged delivery" });
   if (activeMenuItem === "Ready To Invoice") {
     return (
       <section className="workspace two-panel">
         <div className="desk-panel">
           <PanelTitle icon={<ClipboardList />} title="Ready To Invoice" subtitle="Completed jobs waiting for billing" />
-          <JobRows jobs={state.jobs.filter((item) => item.job.main_status === "COMPLETED")} selectedJobId={view?.job.id} onSelect={setSelectedJobId} />
+          <FilterableJobRows title="Ready To Invoice" jobs={state.jobs.filter((item) => item.job.main_status === "COMPLETED")} selectedJobId={view?.job.id} onSelect={setSelectedJobId} />
         </div>
         <div className="desk-panel">
           <PanelTitle icon={<ReceiptText />} title="Billable Items" subtitle={view?.job.job_no ?? "Select a completed job"} />
@@ -892,13 +1048,21 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId }: { a
   if (!view) return null;
   const blockers = closureBlockers(view);
   if (activeMenuItem === "Payment") {
+    const paymentNeedle = normalizeSearch(paymentSearch);
+    const filteredPayments = view.payments.filter((payment) => (!paymentNeedle || normalizeSearch(`${payment.amount} ${payment.mode} ${payment.reference}`).includes(paymentNeedle)) && (paymentModeFilter === "ALL" || payment.mode === paymentModeFilter));
+    const pagedPayments = paginate(filteredPayments, paymentPage, paymentPageSize);
+    const paymentColumns: ExportColumn<(typeof view.payments)[number]>[] = [
+      { header: "Amount", value: (payment) => payment.amount }, { header: "Mode", value: (payment) => payment.mode }, { header: "Reference", value: (payment) => payment.reference },
+    ];
     return (
       <section className="workspace single-panel">
         <div className="desk-panel">
           <PanelTitle icon={<Banknote />} title="Payment" subtitle="Full or split collection" />
           <Info label="Invoice Total" value={money(view.invoice?.total ?? 0)} />
           <Info label="Paid" value={money(view.payments.reduce((sum, payment) => sum + payment.amount, 0))} />
-          {view.payments.map((payment) => (
+          <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search payments" value={paymentSearch} onChange={(event) => { setPaymentSearch(event.target.value); setPaymentPage(1); }} placeholder="Amount, mode or reference" /></label><label>Mode<select aria-label="Payment mode filter" value={paymentModeFilter} onChange={(event) => { setPaymentModeFilter(event.target.value); setPaymentPage(1); }}><option value="ALL">All modes</option>{Array.from(new Set(view.payments.map((payment) => payment.mode))).map((value) => <option key={value}>{value}</option>)}</select></label></div>
+          <div className="list-result-controls"><ListExportControls report={{ title: `Payments ${view.job.job_no}`, filters: activeFilterSummary({ Search: paymentSearch.trim(), Mode: paymentModeFilter }), columns: paymentColumns, rows: filteredPayments }} /><span className="result-summary">Showing {pagedPayments.from} to {pagedPayments.to} of {pagedPayments.totalCount}</span><label className="page-size">Per page<select aria-label="Payment records per page" value={paymentPageSize} onChange={(event) => { setPaymentPageSize(Number(event.target.value)); setPaymentPage(1); }}><option>12</option><option>24</option><option>48</option></select></label></div>
+          {pagedPayments.items.map((payment) => (
             <div className="request-line" key={payment.id}>
               <strong>{money(payment.amount)}</strong>
               <span>
@@ -910,6 +1074,8 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId }: { a
               </div>
             </div>
           ))}
+          {pagedPayments.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={() => { setPaymentSearch(""); setPaymentModeFilter("ALL"); setPaymentPage(1); }}>Clear filters</button></div>}
+          <ResultPagination page={pagedPayments.page} pageCount={pagedPayments.pageCount} onChange={setPaymentPage} />
           <label>
             Amount
             <input type="number" value={amount} onChange={(event) => setAmount(Number(event.target.value))} />
@@ -976,6 +1142,10 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId }: { a
         <PanelTitle icon={<ReceiptText />} title="Invoice" subtitle="Allowed after COMPLETED" />
         <Info label="Job Status" value={`${view.job.main_status} / ${view.job.sub_status}`} />
         <InvoiceSummary view={view} />
+        <ListExportControls report={{ title: `Invoice ${view.job.job_no}`, filters: [], columns: [
+          { header: "Invoice", value: (invoice: NonNullable<JobView["invoice"]>) => invoice.invoice_no }, { header: "Tally invoice", value: (invoice: NonNullable<JobView["invoice"]>) => invoice.tally_invoice_no },
+          { header: "Total", value: (invoice: NonNullable<JobView["invoice"]>) => invoice.total }, { header: "Status", value: (invoice: NonNullable<JobView["invoice"]>) => invoice.status },
+        ], rows: view.invoice ? [view.invoice] : [] }} />
         <label>
           Tally invoice number
           <input value={tally} onChange={(event) => setTally(event.target.value)} />
@@ -991,7 +1161,7 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId }: { a
   );
 }
 
-function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
+function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User }) {
   const funnel = ["NEW", "IN_PROGRESS", "COMPLETED", "CLOSED"].map((status) => ({
     status,
     count: state.jobs.filter((view) => view.job.main_status === status).length,
@@ -1043,6 +1213,9 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId }: { 
       </section>
     );
   }
+  if (activeMenuItem === "Manage") {
+    return <ManagementHub state={state} mutate={mutate} actingUser={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
+  }
   return (
     <section className="workspace admin-room">
       <Kpis jobs={state.jobs} inventory={state.inventory} />
@@ -1063,6 +1236,129 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId }: { 
           ))}
       </div>
     </section>
+  );
+}
+
+const managementAreas = ["Users", "Customers", "Vehicles", "Visits / Jobs", "Estimates", "Tasks / QC", "Inventory / Materials", "Billing / Delivery"] as const;
+type ManagementArea = (typeof managementAreas)[number];
+
+function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId }: { state: WorkshopState; mutate: Mutate; actingUser: User; selected?: JobView; setSelectedJobId: (id: number) => void }) {
+  const [area, setArea] = useState<ManagementArea>("Users");
+  return (
+    <section className="workspace single-panel management-hub">
+      <div className="desk-panel">
+        <PanelTitle icon={<ShieldCheck />} title="Management Hub" subtitle="Admin master data and workflow controls" />
+        <div className="demo-dataset-control">
+          <div><strong>Large demo dataset</strong><span>120 customers, 132 vehicles, 144 jobs and 288 offline media records.</span></div>
+          <button className="primary-action" onClick={() => {
+            if (window.confirm("Load Large Demo Dataset? Current local demo records will be replaced. This cannot be undone from this screen.")) mutate(loadLargeDemoDataset);
+          }}>Load Large Demo Dataset</button>
+        </div>
+        <div className="management-tabs" role="tablist" aria-label="Management areas">
+          {managementAreas.map((item) => <button key={item} role="tab" aria-selected={area === item} className={area === item ? "active" : ""} onClick={() => setArea(item)}>{item}</button>)}
+        </div>
+        {area === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} />}
+        {area === "Customers" && <CustomerManager customers={state.customers} mutate={mutate} />}
+        {area === "Vehicles" && <VehicleManager state={state} mutate={mutate} />}
+        {area === "Visits / Jobs" && <VisitJobManager state={state} mutate={mutate} actingUser={actingUser} selected={selected} setSelectedJobId={setSelectedJobId} />}
+        {area === "Estimates" && <EstimateManager view={selected} mutate={mutate} />}
+        {area === "Tasks / QC" && <TaskQcManager view={selected} users={state.users} mutate={mutate} />}
+        {area === "Inventory / Materials" && <InventoryMaterialsManager state={state} mutate={mutate} />}
+        {area === "Billing / Delivery" && <BillingDeliveryManager state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} />}
+      </div>
+    </section>
+  );
+}
+
+function CustomerManager({ customers, mutate }: { customers: Customer[]; mutate: Mutate }) {
+  const empty: Customer = { id: 0, name: "", mobile: "", type: "Individual" };
+  const [draft, setDraft] = useState<Customer>(empty);
+  const [editing, setEditing] = useState(false);
+  return <div className="manager-panel" role="tabpanel">
+    <div className="panel-actions"><h3>Customers</h3><button className="primary-action" onClick={() => { setDraft(empty); setEditing(true); }}>Add Customer</button></div>
+    {editing && <CustomerEditor value={draft} setValue={setDraft} mutate={mutate} />}
+    <div className="record-list">{customers.map((customer) => <div className="managed-record" key={customer.id}><div><strong>{customer.name}</strong><span>{customer.mobile} · {customer.type}</span></div><div className="action-row"><button onClick={() => { setDraft(customer); setEditing(true); }}>Edit</button><button className="danger-action" onClick={() => mutate((db) => archiveCustomer(db, customer.id, "Archived by Admin"))}>Archive</button></div></div>)}</div>
+  </div>;
+}
+
+function VehicleManager({ state, mutate }: { state: WorkshopState; mutate: Mutate }) {
+  const empty: Vehicle = { id: 0, customer_id: state.customers[0]?.id ?? 0, number: "", make: "", model: "", color: "", km: 0 };
+  const [draft, setDraft] = useState<Vehicle>(empty);
+  return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Vehicles</h3><button className="primary-action" onClick={() => setDraft(empty)}>Add Vehicle</button></div><VehicleMasterPanel key={draft.id} state={state} value={draft} setValue={setDraft} mutate={mutate} /></div>;
+}
+
+function VisitJobManager({ state, mutate, actingUser, selected, setSelectedJobId }: { state: WorkshopState; mutate: Mutate; actingUser: User; selected?: JobView; setSelectedJobId: (id: number) => void }) {
+  const [creating, setCreating] = useState(false);
+  return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Visits / Jobs</h3><button className="primary-action" onClick={() => setCreating((value) => !value)}>Create Visit / Job</button></div>{creating && <Reception activeMenuItem="Receive Vehicle" state={state} mutate={mutate} user={actingUser} selected={selected} setSelectedJobId={setSelectedJobId} />}<JobRows jobs={state.jobs} selectedJobId={selected?.job.id} onSelect={setSelectedJobId} />{selected && <div className="admin-override"><strong>Admin override</strong><JobEditor view={selected} users={state.users} mutate={mutate} allowStatus /><button className="danger-action" onClick={() => mutate((db) => cancelJobCard(db, selected.job.id, "Admin override: archived from Management Hub"))}>Archive Job</button></div>}</div>;
+}
+
+function EstimateManager({ view, mutate }: { view?: JobView; mutate: Mutate }) {
+  return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Estimates</h3><button className="primary-action" disabled={!view} onClick={() => view && mutate((db) => createEstimate(db, view.job.id))}>Create Estimate</button></div>{view ? <EstimateEditor view={view} mutate={mutate} /> : <p className="empty-state">Select a job first.</p>}</div>;
+}
+
+function TaskQcManager({ view, users, mutate }: { view?: JobView; users: User[]; mutate: Mutate }) {
+  return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Tasks / QC</h3><span className="override-badge">Admin override controls</span></div>{view ? <><TaskCreator view={view} users={users} mutate={mutate} /><QcEditor view={view} technicianId={view.job.technician_id} mutate={mutate} /></> : <p className="empty-state">Select a job first.</p>}</div>;
+}
+
+function InventoryMaterialsManager({ state, mutate }: { state: WorkshopState; mutate: Mutate }) {
+  return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Inventory / Materials</h3><span>Use the forms below to add inventory and material requests.</span></div><InventoryEditor state={state} mutate={mutate} /><MaterialRequestEditor state={state} mutate={mutate} /></div>;
+}
+
+function BillingDeliveryManager({ state, view, mutate, setSelectedJobId }: { state: WorkshopState; view?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
+  const [mode, setMode] = useState<"Invoice" | "Payment" | "Delivery">("Invoice");
+  return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Billing / Delivery</h3><span className="override-badge">Reasoned voids preserve financial history</span></div><div className="sub-tabs" aria-label="Billing actions">{(["Invoice", "Payment", "Delivery"] as const).map((item) => <button key={item} className={mode === item ? "active" : ""} onClick={() => setMode(item)}>{item}</button>)}</div>{view ? <Accounts activeMenuItem={mode} state={state} view={view} mutate={mutate} setSelectedJobId={setSelectedJobId} /> : <p className="empty-state">Select a job first.</p>}</div>;
+}
+
+function UserManager({ users, mutate, actingUser }: { users: User[]; mutate: Mutate; actingUser: User }) {
+  const empty: User = { id: 0, name: "", email: "", role: "service", password: "" };
+  const [draft, setDraft] = useState<User>(empty);
+  const [editing, setEditing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [roleFilter, setRoleFilter] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const needle = normalizeSearch(search);
+  const filtered = users.filter((item) => (!needle || normalizeSearch(`${item.name} ${item.email} ${roleLabels[item.role]}`).includes(needle)) && (roleFilter === "ALL" || item.role === roleFilter));
+  const paged = paginate(filtered, page, pageSize);
+  const userColumns: ExportColumn<User>[] = [
+    { header: "Name", value: (item) => item.name }, { header: "Email", value: (item) => item.email }, { header: "Role", value: (item) => roleLabels[item.role] },
+  ];
+  return (
+    <div className="manager-panel" role="tabpanel">
+      <div className="panel-actions">
+        <h3>Users</h3>
+        <button className="primary-action" onClick={() => { setDraft(empty); setEditing(true); }}>Add User</button>
+      </div>
+      {editing && (
+        <form onSubmit={(event) => {
+          event.preventDefault();
+          if (mutate((db) => draft.id ? updateUser(db, draft.id, draft) : createUser(db, draft))) setEditing(false);
+        }}>
+          <div className="form-grid">
+            <label>User name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+            <label>User email<input required type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label>
+            <label>User role<select value={draft.role} onChange={(event) => setDraft({ ...draft, role: event.target.value as Role })}>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label>
+            <label>User password<input required minLength={6} type="password" value={draft.password} onChange={(event) => setDraft({ ...draft, password: event.target.value })} /></label>
+          </div>
+          <div className="action-row"><button className="primary-action">Save User</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></div>
+        </form>
+      )}
+      <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email or role" /></label><label>Role<select aria-label="Filter users by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="ALL">All roles</option>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label></div>
+      <div className="list-result-controls"><ListExportControls report={{ title: "Users", filters: activeFilterSummary({ Search: search.trim(), Role: roleFilter }), columns: userColumns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><label className="page-size">Per page<select aria-label="User records per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>12</option><option>24</option><option>48</option></select></label></div>
+      <div className="record-list">
+        {paged.items.map((item) => (
+          <div className="managed-record" key={item.id}>
+            <div><strong>{item.name}</strong><span>{item.email} · {roleLabels[item.role]}</span></div>
+            <div className="action-row">
+              <button onClick={() => { setDraft(item); setEditing(true); }}>Edit</button>
+              <button className="danger-action" disabled={item.id === actingUser.id} title={item.id === actingUser.id ? "You cannot archive your own signed-in account" : undefined} onClick={() => mutate((db) => archiveUser(db, item.id, "Archived by Admin", actingUser.id))}>Archive</button>
+            </div>
+          </div>
+        ))}
+      </div>
+      {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={() => { setSearch(""); setRoleFilter("ALL"); setPage(1); }}>Clear filters</button></div>}
+      <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
+    </div>
   );
 }
 
@@ -1103,9 +1399,9 @@ function CustomerEditor({ value, setValue, mutate }: { value: Customer; setValue
       mutate((db) => (value.id ? updateCustomer(db, value.id, value) : createCustomer(db, value)));
     }}>
       <PanelTitle icon={<UserRound />} title="Customer Form" subtitle={value.id ? "Edit selected customer" : "Add customer"} />
-      <label>Name<input value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} /></label>
-      <label>Mobile<input value={value.mobile} onChange={(event) => setValue({ ...value, mobile: event.target.value })} /></label>
-      <label>Type<input value={value.type} onChange={(event) => setValue({ ...value, type: event.target.value })} /></label>
+      <label>Customer name<input aria-label="Customer name" required value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} /></label>
+      <label>Mobile<input required value={value.mobile} onChange={(event) => setValue({ ...value, mobile: event.target.value })} /></label>
+      <label>Type<input required value={value.type} onChange={(event) => setValue({ ...value, type: event.target.value })} /></label>
       <div className="action-row">
         <button className="primary-action">Save Customer</button>
         <button type="button" onClick={() => setValue({ id: 0, name: "", mobile: "", type: "Individual" })}>New</button>
@@ -1700,6 +1996,193 @@ function DuplicateDataFlow({ view }: { view: JobView }) {
   );
 }
 
+type EntityKind = "jobs" | "customers" | "vehicles" | "media";
+
+function EntityList({ kind, state, mutate, role, userId }: { kind: EntityKind; state: WorkshopState; mutate: Mutate; role: Role; userId: number }) {
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [filter, setFilter] = useState("ALL");
+  const [secondaryFilter, setSecondaryFilter] = useState("ALL");
+  const [sort, setSort] = useState(kind === "jobs" ? "newest" : "alphabetical");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const [viewMode, setViewMode] = useState<ViewMode>("grid");
+  const [selectedId, setSelectedId] = useState<number>();
+  const [filtersOpen, setFiltersOpen] = useState(false);
+  const [creating, setCreating] = useState(false);
+  const [newCustomer, setNewCustomer] = useState<Customer>({ id: 0, name: "", mobile: "", type: "Individual" });
+  const scrollPosition = useRef(0);
+  const resultHeading = useRef<HTMLHeadingElement>(null);
+
+  const jobs = useMemo(() => {
+    const needle = normalizeSearch(deferredSearch);
+    const source = role === "service" ? state.jobs.filter((item) => item.job.advisor_id === userId) : state.jobs;
+    return source.filter((item) => {
+      const matchesText = !needle || normalizeSearch(`${item.job.job_no} ${item.vehicle.number} ${item.vehicle.make} ${item.vehicle.model} ${item.customer.name} ${item.customer.mobile}`).includes(needle);
+      return matchesText && (filter === "ALL" || item.job.main_status === filter) && (secondaryFilter === "ALL" || item.job.sub_status === secondaryFilter);
+    }).sort((a, b) => {
+      if (sort === "oldest") return a.job.id - b.job.id;
+      if (sort === "amount") return jobTotal(b) - jobTotal(a);
+      return b.job.id - a.job.id;
+    });
+  }, [deferredSearch, filter, secondaryFilter, sort, state.jobs, role, userId]);
+
+  const customers = useMemo(() => {
+    const needle = normalizeSearch(deferredSearch);
+    return state.customers.filter((item) => (!needle || normalizeSearch(`${item.name} ${item.mobile}`).includes(needle)) && (filter === "ALL" || item.type === filter)).sort((a, b) => sort === "recent" ? b.id - a.id : a.name.localeCompare(b.name));
+  }, [deferredSearch, filter, sort, state.customers]);
+
+  const vehicles = useMemo(() => {
+    const needle = normalizeSearch(deferredSearch);
+    return state.vehicles.filter((item) => {
+      const owner = state.customers.find((customer) => customer.id === item.customer_id)?.name ?? "";
+      return !needle || normalizeSearch(`${item.number} ${item.make} ${item.model} ${owner}`).includes(needle);
+    }).sort((a, b) => sort === "recent" ? b.id - a.id : a.number.localeCompare(b.number));
+  }, [deferredSearch, sort, state.vehicles, state.customers]);
+
+  const media = useMemo(() => {
+    const needle = normalizeSearch(deferredSearch);
+    return state.jobs.flatMap((job) => job.photos.map((photo) => ({ photo, job }))).filter(({ photo, job }) => {
+      const matchesText = !needle || normalizeSearch(`${photo.label} ${job.job.job_no} ${job.vehicle.number}`).includes(needle);
+      return matchesText && (filter === "ALL" || String(photo.job_card_id) === filter) && (secondaryFilter === "ALL" || (photo.category || "General") === secondaryFilter);
+    }).sort((a, b) => b.photo.id - a.photo.id);
+  }, [deferredSearch, filter, secondaryFilter, state.jobs]);
+
+  const filtered: unknown[] = kind === "jobs" ? jobs : kind === "customers" ? customers : kind === "vehicles" ? vehicles : media;
+  const paged = paginate(filtered, page, pageSize);
+  useEffect(() => { if (paged.page !== page) setPage(paged.page); }, [paged.page, page]);
+
+  const changePage = (next: number) => {
+    setPage(next);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+    requestAnimationFrame(() => resultHeading.current?.focus());
+  };
+  const resetPage = (action: () => void) => { action(); setPage(1); };
+  const openRecord = (id: number) => { scrollPosition.current = window.scrollY; setSelectedId(id); };
+  const closeRecord = () => { setSelectedId(undefined); requestAnimationFrame(() => window.scrollTo(0, scrollPosition.current)); };
+
+  if (selectedId !== undefined) {
+    const selectedJob = kind === "jobs" ? state.jobs.find((item) => item.job.id === selectedId) : kind === "media" ? state.jobs.find((item) => item.photos.some((photo) => photo.id === selectedId)) : undefined;
+    const selectedCustomer = kind === "customers" ? state.customers.find((item) => item.id === selectedId) : undefined;
+    const selectedVehicle = kind === "vehicles" ? state.vehicles.find((item) => item.id === selectedId) : undefined;
+    const selectedPhoto = selectedJob?.photos.find((photo) => photo.id === selectedId);
+    return <section className="record-workspace">
+      <button className="back-button" onClick={closeRecord}>← Back to {entityTitle(kind)}</button>
+      <div className="list-page-heading"><div><h2>{kind === "jobs" ? "Job Card Workspace" : `${entityTitle(kind)} Detail`}</h2><p>Focused record workspace</p></div></div>
+      {selectedJob && kind === "jobs" && <div className="job-detail-layout"><aside className="desk-panel"><PanelTitle icon={<Car />} title="Customer & Vehicle" subtitle={selectedJob.job.job_no} /><JobSnapshot view={selectedJob} /><Info label="Media" value={selectedJob.photos.length} /></aside><JobEditor key={selectedJob.job.updated_at} view={selectedJob} users={state.users} mutate={mutate} allowStatus={role === "admin" || role === "service"} /></div>}
+      {selectedCustomer && <div className="workspace two-panel"><CustomerDetail key={`${selectedCustomer.id}-${selectedCustomer.updated_at}`} customer={selectedCustomer} mutate={mutate} /><div className="desk-panel"><PanelTitle icon={<Car />} title="Linked vehicles" subtitle={selectedCustomer.name} />{state.vehicles.filter((vehicle) => vehicle.customer_id === selectedCustomer.id).map((vehicle) => <Info key={vehicle.id} label={vehicle.number} value={`${vehicle.make} ${vehicle.model}`} />)}</div></div>}
+      {selectedVehicle && <VehicleMasterPanel key={selectedVehicle.updated_at} state={state} value={selectedVehicle} setValue={() => undefined} mutate={mutate} />}
+      {selectedJob && selectedPhoto && kind === "media" && <div className="job-detail-layout"><aside className="desk-panel"><img className="media-detail-image" src={selectedPhoto.src || "/media-placeholder.svg"} alt={selectedPhoto.label} /><Info label="Vehicle" value={selectedJob.vehicle.number} /><Info label="Job" value={selectedJob.job.job_no} /></aside><PhotoEditor key={selectedPhoto.updated_at} view={selectedJob} mutate={mutate} /></div>}
+    </section>;
+  }
+
+  const title = entityTitle(kind);
+  const categories = Array.from(new Set(state.jobs.flatMap((job) => job.photos.map((photo) => photo.category || "General")))).sort();
+  const customerTypes = Array.from(new Set(state.customers.map((customer) => customer.type))).sort();
+  const canCreate = (kind === "customers" || kind === "vehicles") && (role === "admin" || role === "reception") || kind === "media" && (role === "admin" || role === "service");
+  const createLabel = kind === "customers" ? "Add Customer" : kind === "vehicles" ? "Add Vehicle" : "Upload Media";
+  const exportFilters = activeFilterSummary(kind === "jobs"
+    ? { Search: search.trim(), "Main status": filter, Workflow: secondaryFilter, Sort: sort }
+    : kind === "customers" ? { Search: search.trim(), "Customer type": filter, Sort: sort }
+    : kind === "media" ? { Search: search.trim(), "Job card": filter === "ALL" ? "ALL" : state.jobs.find((row) => String(row.job.id) === filter)?.job.job_no ?? filter, Category: secondaryFilter }
+    : { Search: search.trim(), Sort: sort });
+  const exportColumns: ExportColumn<any>[] = kind === "jobs" ? [
+    { header: "Job", value: (row: JobView) => row.job.job_no }, { header: "Vehicle", value: (row: JobView) => `${row.vehicle.number} ${row.vehicle.make} ${row.vehicle.model}` },
+    { header: "Customer", value: (row: JobView) => row.customer.name }, { header: "Status", value: (row: JobView) => row.job.main_status },
+    { header: "Workflow", value: (row: JobView) => row.job.sub_status }, { header: "Total", value: (row: JobView) => jobTotal(row) },
+  ] : kind === "customers" ? [
+    { header: "Customer", value: (row: Customer) => row.name }, { header: "Mobile", value: (row: Customer) => row.mobile }, { header: "Type", value: (row: Customer) => row.type },
+    { header: "Vehicles", value: (row: Customer) => state.vehicles.filter((vehicle) => vehicle.customer_id === row.id).length }, { header: "Open jobs", value: (row: Customer) => state.jobs.filter((job) => job.customer.id === row.id && job.job.main_status !== "CLOSED").length },
+  ] : kind === "vehicles" ? [
+    { header: "Registration", value: (row: Vehicle) => row.number }, { header: "Make / Model", value: (row: Vehicle) => `${row.make} ${row.model}` }, { header: "Color", value: (row: Vehicle) => row.color },
+    { header: "Customer", value: (row: Vehicle) => state.customers.find((customer) => customer.id === row.customer_id)?.name ?? "" }, { header: "KM", value: (row: Vehicle) => row.km },
+  ] : [
+    { header: "Label", value: (row: { photo: Photo }) => row.photo.label }, { header: "Category", value: (row: { photo: Photo }) => row.photo.category ?? "General" },
+    { header: "Vehicle", value: (row: { job: JobView }) => row.job.vehicle.number }, { header: "Job", value: (row: { job: JobView }) => row.job.job.job_no },
+  ];
+  return <section className={`entity-list-page kind-${kind}`}>
+    <div className="list-page-heading"><div><h2 ref={resultHeading} tabIndex={-1}>{title}</h2><p>{kind === "media" ? "Before, after and workshop documentation" : `Browse and manage ${title.toLocaleLowerCase()}`}</p></div>{canCreate && <button className="primary-action" onClick={() => setCreating((value) => !value)}>{createLabel}</button>}</div>
+    {creating && kind === "customers" && <CustomerEditor value={newCustomer} setValue={setNewCustomer} mutate={mutate} />}
+    {creating && kind === "vehicles" && <VehicleMasterPanel state={state} value={{ id: 0, customer_id: state.customers[0]?.id ?? 0, number: "", make: "", model: "", color: "", km: 0 }} setValue={() => undefined} mutate={mutate} />}
+    {creating && kind === "media" && state.jobs[0] && <PhotoEditor view={state.jobs[0]} mutate={mutate} />}
+    <div className="list-filter-bar">
+      <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} placeholder={searchPlaceholder(kind)} onChange={(event) => resetPage(() => setSearch(event.target.value))} /></label>
+      <button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}>{filtersOpen ? "Hide filters" : "Show filters"}</button>
+      <div className={filtersOpen ? "list-filter-fields open" : "list-filter-fields"}>
+        {kind === "jobs" && <><label>Main status<select aria-label="Main status" value={filter} onChange={(event) => resetPage(() => setFilter(event.target.value))}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label><label>Workflow<select aria-label="Workflow status" value={secondaryFilter} onChange={(event) => resetPage(() => setSecondaryFilter(event.target.value))}><option value="ALL">All workflows</option>{Array.from(new Set(state.jobs.map((item) => item.job.sub_status))).map((value) => <option key={value}>{value}</option>)}</select></label></>}
+        {kind === "customers" && <label>Customer type<select aria-label="Customer type" value={filter} onChange={(event) => resetPage(() => setFilter(event.target.value))}><option value="ALL">All types</option>{customerTypes.map((value) => <option key={value}>{value}</option>)}</select></label>}
+        {kind === "media" && <><label>Job card<select aria-label="Job card filter" value={filter} onChange={(event) => resetPage(() => setFilter(event.target.value))}><option value="ALL">All job cards</option>{state.jobs.map((item) => <option value={item.job.id} key={item.job.id}>{item.job.job_no}</option>)}</select></label><label>Category<select aria-label="Media category" value={secondaryFilter} onChange={(event) => resetPage(() => setSecondaryFilter(event.target.value))}><option value="ALL">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label></>}
+        {kind !== "media" && <label>Sort<select aria-label="Sort results" value={sort} onChange={(event) => resetPage(() => setSort(event.target.value))}>{kind === "jobs" ? <><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="amount">Amount</option></> : <><option value="alphabetical">Alphabetical</option><option value="recent">Recent</option></>}</select></label>}
+        <button onClick={() => { setSearch(""); setFilter("ALL"); setSecondaryFilter("ALL"); setPage(1); }}>Clear filters</button>
+      </div>
+    </div>
+    {kind === "media" && <MediaKpis rows={media} />}
+    <div className="list-result-controls">
+      <ListExportControls report={{ title, filters: exportFilters, columns: exportColumns, rows: filtered }} />
+      <ViewModeToggle value={viewMode} onChange={setViewMode} />
+      <div className="result-summary" aria-live="polite">Showing {paged.from} to {paged.to} of {paged.totalCount}</div>
+      <label className="page-size">Per page<select aria-label="Records per page" value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>12</option><option>24</option><option>48</option></select></label>
+    </div>
+    {paged.totalCount === 0 ? <div className="list-empty"><h3>No matching records</h3><p>Adjust the search or clear the filters.</p><button onClick={() => { setSearch(""); setFilter("ALL"); setSecondaryFilter("ALL"); setPage(1); }}>Clear filters</button></div> : <EntityResults kind={kind} rows={paged.items} state={state} viewMode={viewMode} role={role} openRecord={openRecord} mutate={mutate} />}
+    <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={changePage} />
+  </section>;
+}
+
+function entityTitle(kind: EntityKind) { return ({ jobs: "Jobs", customers: "Customers", vehicles: "Vehicles", media: "Media" })[kind]; }
+function searchPlaceholder(kind: EntityKind) { return ({ jobs: "Job, vehicle or customer", customers: "Name or mobile", vehicles: "Registration, make, model or customer", media: "Label, job or vehicle" })[kind]; }
+function jobTotal(view: JobView) { return view.invoice?.total ?? invoiceItemsTotal(view.estimate_items, view.estimate); }
+
+function ViewModeToggle({ value, onChange }: { value: ViewMode; onChange: (mode: ViewMode) => void }) {
+  return <div className="view-toggle" role="group" aria-label="View mode"><button aria-pressed={value === "grid"} className={value === "grid" ? "active" : ""} onClick={() => onChange("grid")}>Grid</button><button aria-pressed={value === "table"} className={value === "table" ? "active" : ""} onClick={() => onChange("table")}>Table</button></div>;
+}
+
+function ResultPagination({ page, pageCount, onChange }: { page: number; pageCount: number; onChange: (page: number) => void }) {
+  return <nav className="result-pagination" aria-label="Results pagination"><button disabled={page <= 1} onClick={() => onChange(page - 1)}>Previous</button><span className="mobile-page-label">Page {page} of {pageCount}</span><div className="numbered-pages">{pageNumbers(page, pageCount).map((number) => <button key={number} aria-current={page === number ? "page" : undefined} className={page === number ? "active" : ""} onClick={() => onChange(number)}>{number}</button>)}</div><button disabled={page >= pageCount} onClick={() => onChange(page + 1)}>Next</button></nav>;
+}
+
+function ListExportControls({ report }: { report: { title: string; filters: string[]; columns: ExportColumn<any>[]; rows: any[] } }) {
+  return <div className="export-controls" aria-label={`${report.title} exports`}>
+    <button disabled={report.rows.length === 0} onClick={() => downloadPdf(report)}>Download PDF</button>
+    <button disabled={report.rows.length === 0} onClick={() => downloadExcel(report)}>Download Excel</button>
+  </div>;
+}
+
+function MediaKpis({ rows }: { rows: { photo: Photo; job: JobView }[] }) {
+  const before = rows.filter(({ photo }) => photo.category === "Before").length;
+  const after = rows.filter(({ photo }) => photo.category === "After").length;
+  return <div className="media-kpis"><Info label="Total Images" value={rows.length} /><Info label="Before Images" value={before} /><Info label="After Images" value={after} /><Info label="Job Cards" value={new Set(rows.map(({ job }) => job.job.id)).size} /></div>;
+}
+
+function EntityResults({ kind, rows, state, viewMode, role, openRecord, mutate }: { kind: EntityKind; rows: unknown[]; state: WorkshopState; viewMode: ViewMode; role: Role; openRecord: (id: number) => void; mutate: Mutate }) {
+  const canArchive = role === "admin" || role === "reception" || (role === "service" && (kind === "jobs" || kind === "media"));
+  const archive = (id: number) => {
+    if (!window.confirm(`Archive this ${kind === "media" ? "media record" : kind.slice(0, -1)}? It remains recoverable in the local database.`)) return;
+    mutate((db) => kind === "jobs" ? cancelJobCard(db, id, "Archived from list") : kind === "customers" ? archiveCustomer(db, id, "Archived from list") : kind === "vehicles" ? archiveVehicle(db, id, "Archived from list") : archivePhoto(db, id, "Archived from list"));
+  };
+  const cardFor = (raw: unknown): ReactNode => {
+    if (kind === "jobs") { const row = raw as JobView; return <article className="record-card job-card" key={row.job.id}><div className="record-identity"><strong>{row.vehicle.number}</strong><span>{row.vehicle.make} {row.vehicle.model}</span></div><h3>{row.job.job_no}</h3><p>{row.customer.name} · {row.customer.mobile}</p><Status status={row.job.main_status} sub={row.job.sub_status} /><Info label="Total" value={money(jobTotal(row))} /><RecordActions onView={() => openRecord(row.job.id)} onArchive={canArchive ? () => archive(row.job.id) : undefined} /></article>; }
+    if (kind === "customers") { const row = raw as Customer; const vehicles = state.vehicles.filter((item) => item.customer_id === row.id); const jobs = state.jobs.filter((item) => item.customer.id === row.id); return <article className="record-card" key={row.id}><div className="record-identity"><strong>{row.name}</strong><span>{row.mobile}</span></div><span className="category-badge">{row.type}</span><Info label="Vehicles" value={vehicles.length} /><Info label="Open jobs" value={jobs.filter((job) => job.job.main_status !== "CLOSED").length} /><Info label="Last visit" value={jobs[0]?.visit.received_at?.slice(0, 10) || "—"} /><RecordActions onView={() => openRecord(row.id)} onArchive={canArchive ? () => archive(row.id) : undefined} /></article>; }
+    if (kind === "vehicles") { const row = raw as Vehicle; const customer = state.customers.find((item) => item.id === row.customer_id); return <article className="record-card" key={row.id}><div className="record-identity"><strong>{row.number}</strong><span>{row.make} {row.model}</span></div><p><i className="color-swatch" style={{ background: row.color }} />{row.color}</p><Info label="Customer" value={customer?.name ?? "—"} /><Info label="KM" value={row.km.toLocaleString("en-IN")} /><RecordActions onView={() => openRecord(row.id)} onArchive={canArchive ? () => archive(row.id) : undefined} /></article>; }
+    const { photo, job } = raw as { photo: Photo; job: JobView }; return <article className="record-card media-card" key={photo.id}><div className="media-preview"><img src={photo.src || "/media-placeholder.svg"} alt={photo.label} /><span>{photo.category || "General"}</span></div><h3>{job.vehicle.number}</h3><p>{job.job.job_no} · {photo.label}</p><RecordActions onView={() => openRecord(photo.id)} onArchive={canArchive ? () => archive(photo.id) : undefined} /></article>;
+  };
+  const cards = <div className={`record-grid ${kind}`}>{rows.map(cardFor)}</div>;
+  if (viewMode === "grid") return cards;
+  return <><div className="mobile-table-fallback">{cards}</div><div className="table-wrap"><table><thead><tr>{tableHeaders(kind).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((raw) => <EntityTableRow key={rowId(kind, raw)} kind={kind} raw={raw} state={state} canArchive={canArchive} openRecord={openRecord} archive={archive} />)}</tbody></table></div></>;
+}
+
+function RecordActions({ onView, onArchive }: { onView: () => void; onArchive?: () => void }) { return <div className="record-actions"><button onClick={onView}>View</button><button onClick={onView}>Edit</button>{onArchive && <button className="danger-action" onClick={onArchive}>Archive</button>}</div>; }
+function CustomerDetail({ customer, mutate }: { customer: Customer; mutate: Mutate }) { const [draft, setDraft] = useState(customer); return <CustomerEditor value={draft} setValue={setDraft} mutate={mutate} />; }
+function tableHeaders(kind: EntityKind) { return kind === "jobs" ? ["Job", "Vehicle", "Customer", "Status", "Total", "Actions"] : kind === "customers" ? ["Customer", "Mobile", "Type", "Vehicles", "Open Jobs", "Actions"] : kind === "vehicles" ? ["Registration", "Make / Model", "Color", "Customer", "KM", "Actions"] : ["Preview", "Label", "Category", "Vehicle / Job", "Actions"]; }
+function rowId(kind: EntityKind, raw: unknown) { return kind === "jobs" ? (raw as JobView).job.id : kind === "media" ? (raw as { photo: Photo }).photo.id : (raw as Customer | Vehicle).id; }
+function EntityTableRow({ kind, raw, state, canArchive, openRecord, archive }: { kind: EntityKind; raw: unknown; state: WorkshopState; canArchive: boolean; openRecord: (id: number) => void; archive: (id: number) => void }) {
+  const id = rowId(kind, raw); let cells: ReactNode[];
+  if (kind === "jobs") { const row = raw as JobView; cells = [row.job.job_no, `${row.vehicle.number} · ${row.vehicle.make} ${row.vehicle.model}`, row.customer.name, <Status status={row.job.main_status} sub={row.job.sub_status} />, money(jobTotal(row))]; }
+  else if (kind === "customers") { const row = raw as Customer; cells = [row.name, row.mobile, row.type, state.vehicles.filter((item) => item.customer_id === row.id).length, state.jobs.filter((item) => item.customer.id === row.id && item.job.main_status !== "CLOSED").length]; }
+  else if (kind === "vehicles") { const row = raw as Vehicle; cells = [row.number, `${row.make} ${row.model}`, row.color, state.customers.find((item) => item.id === row.customer_id)?.name ?? "—", row.km.toLocaleString("en-IN")]; }
+  else { const { photo, job } = raw as { photo: Photo; job: JobView }; cells = [<img className="table-thumb" src={photo.src || "/media-placeholder.svg"} alt="" />, photo.label, photo.category || "General", `${job.vehicle.number} · ${job.job.job_no}`]; }
+  return <tr>{cells.map((cell, index) => <td key={index}>{cell}</td>)}<td><RecordActions onView={() => openRecord(id)} onArchive={canArchive ? () => archive(id) : undefined} /></td></tr>;
+}
+
 function JobRows({ jobs, selectedJobId, onSelect }: { jobs: JobView[]; selectedJobId?: number; onSelect?: (id: number) => void }) {
   return (
     <div className="row-list">
@@ -1712,6 +2195,28 @@ function JobRows({ jobs, selectedJobId, onSelect }: { jobs: JobView[]; selectedJ
       ))}
     </div>
   );
+}
+
+function FilterableJobRows({ title, jobs, selectedJobId, onSelect, showStatusFilter = false }: { title: string; jobs: JobView[]; selectedJobId?: number; onSelect: (id: number) => void; showStatusFilter?: boolean }) {
+  const [search, setSearch] = useState("");
+  const deferredSearch = useDeferredValue(search);
+  const [status, setStatus] = useState("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(12);
+  const needle = normalizeSearch(deferredSearch);
+  const filtered = useMemo(() => jobs.filter((row) => (!needle || normalizeSearch(`${row.job.job_no} ${row.vehicle.number} ${row.customer.name}`).includes(needle)) && (status === "ALL" || row.job.main_status === status)), [jobs, needle, status]);
+  const paged = paginate(filtered, page, pageSize);
+  useEffect(() => { if (paged.page !== page) setPage(paged.page); }, [paged.page, page]);
+  const columns: ExportColumn<JobView>[] = [
+    { header: "Job", value: (row) => row.job.job_no }, { header: "Vehicle", value: (row) => row.vehicle.number },
+    { header: "Customer", value: (row) => row.customer.name }, { header: "Status", value: (row) => row.job.main_status }, { header: "Workflow", value: (row) => row.job.sub_status },
+  ];
+  return <div className="embedded-list">
+    <div className="store-filter-grid"><label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Job, vehicle or customer" /></label>{showStatusFilter && <label>Status<select aria-label={`${title} status`} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>}</div>
+    <div className="list-result-controls"><ListExportControls report={{ title, filters: activeFilterSummary({ Search: search.trim(), Status: status }), columns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><label className="page-size">Per page<select aria-label={`${title} records per page`} value={pageSize} onChange={(event) => { setPageSize(Number(event.target.value)); setPage(1); }}><option>12</option><option>24</option><option>48</option></select></label></div>
+    {paged.totalCount ? <JobRows jobs={paged.items} selectedJobId={selectedJobId} onSelect={onSelect} /> : <div className="list-empty"><h3>No matching records</h3><button onClick={() => { setSearch(""); setStatus("ALL"); setPage(1); }}>Clear filters</button></div>}
+    <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
+  </div>;
 }
 
 function PanelTitle({ icon, title, subtitle }: { icon: React.ReactNode; title: string; subtitle: string }) {
@@ -1777,6 +2282,6 @@ function money(value: number) {
   return `Rs ${Math.round(value).toLocaleString("en-IN")}`;
 }
 
-type Mutate = (action: (database: Database) => void) => void;
+type Mutate = (action: (database: Database) => void) => boolean;
 
 export default App;

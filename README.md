@@ -56,3 +56,13 @@ Invoke-RestMethod -Method Post -Uri http://localhost:4173/api/v1/work-items -Hea
 ```
 
 The API derives the tenant from the local authenticated-membership fixture; a client-supplied tenant ID is ignored. The current PWA still uses its browser-local demo database for its rich screens. Connecting every journey screen to the PostgreSQL APIs remains application-runtime work; the local DB vertical proves the foundation rather than claiming that conversion is already complete.
+
+## Current PWA management and search
+
+The browser-local PWA now includes an Admin **Manage** hub for users, customers, vehicles, visits/jobs, estimates, tasks/QC, inventory/materials, and billing/delivery. Admin creation uses the same lifecycle operations as the role desks, including the atomic Reception intake path; records are archived or financially voided instead of hard-deleted.
+
+Shared Jobs, Customers, Vehicles, and Media list pages provide search, filters, grid/table views, result ranges, and responsive pagination. The global Search screen supports entity category and job-status filters, a result count, Clear, and an explicit no-results state.
+
+The rich screens and their new management/search features still persist only in browser-local `sql.js`. They are not evidence that the PWA has been migrated to PostgreSQL.
+
+UI programme details and verification evidence are recorded in `UI_ENHANCEMENT_PLAN_v1.0.0.md` and `UI_ENHANCEMENT_CHECKLIST_v1.0.0.md`.

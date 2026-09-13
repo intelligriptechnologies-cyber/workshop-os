@@ -7,9 +7,10 @@
     "dev": "vite --host 0.0.0.0",
     "build": "tsc && vite build",
     "preview": "vite preview --host 0.0.0.0",
-    "start": "node scripts/serve.mjs",
+    "start": "npm run local:container",
     "test:harness": "node scripts/verify-harness.mjs",
     "test:e2e": "playwright test",
+    "test:unit": "tsx --test unit-tests/*.test.ts",
     "test:production": "tsx --test production/tests/**/*.test.ts",
     "test:production:typecheck": "tsc -p production/tsconfig.json",
     "db:up": "docker compose up -d --wait db",
@@ -23,13 +24,15 @@
   },
   "dependencies": {
     "@vitejs/plugin-react": "^5.0.1",
+    "jspdf": "^4.2.1",
     "lucide-react": "^0.542.0",
     "pg": "^8.16.3",
     "react": "^19.1.1",
     "react-dom": "^19.1.1",
     "sql.js": "^1.14.2",
     "typescript": "^5.9.2",
-    "vite": "^7.1.4"
+    "vite": "^7.1.4",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@playwright/test": "^1.63.0",

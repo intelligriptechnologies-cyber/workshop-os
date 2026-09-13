@@ -78,6 +78,9 @@ This appendix is historical evidence only. It does not satisfy a production slic
 - [x] Technician start/pause/complete, wash/photo placeholder, and simplified QC progression.
 - [x] Accounts invoice/payment/receipt/gate-pass/closure demonstration.
 - [x] Owner KPIs, funnel, blockers, revenue, inventory alerts, and data-flow view.
+- [x] Admin management hub with validated user CRUD, contextual business creation paths, and archive/void semantics.
+- [x] Typed cross-entity/status search with count, Clear, stable selection, and explicit no-results behavior.
+- [x] Responsive searchable/paginated Jobs, Customers, Vehicles, and Media list views.
 - [x] Role-specific desktop/mobile visual redesign.
 - [x] PWA manifest/service worker/offline shell and local persistence.
 - [x] Demo build, login, reception persistence, linked-workflow, and screenshot verification.
