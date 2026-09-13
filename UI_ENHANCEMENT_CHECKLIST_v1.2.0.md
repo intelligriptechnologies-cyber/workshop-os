@@ -5,7 +5,7 @@ Canonical PRD: `harness/v1.2/03-prd.md`
 Traceability: `harness/v1.2/06-traceability.md`
 
 - [x] V12-00 — Persist the approved programme contract, traceability baseline, slices, handoff, and executable verifier. Complete; evidence: `node scripts/verify-ui-enhancement-v1.2.mjs`, `npm run test:harness`, `npm run test:unit`, `npm run test:production:typecheck`, `npm run build`, `git diff --check` (2026-09-13).
-- [ ] V12-01 — Deliver the authenticated React → HTTP → PostgreSQL tracer with RLS, idempotency, versions, and readable errors.
+- [x] V12-01 — Deliver the authenticated React → HTTP → PostgreSQL tracer with RLS, idempotency, versions, and readable errors. Complete; evidence: build, 9/9 unit, 215/217 production with two expected environment-gated skips, production typecheck, isolated PostgreSQL integration 1/1, Docker 30-migration smoke, focused Playwright 4/4, and diff check (2026-09-13).
 - [ ] V12-02 — Deliver reusable accessible resource and reason-command dialogs with dirty-close protection.
 - [ ] V12-03 — Deliver the server list/query, URL state, preferences, and private full-result export contract.
 - [ ] V12-04 — Migrate tenant User Management to production authority and enforce final-admin protections.

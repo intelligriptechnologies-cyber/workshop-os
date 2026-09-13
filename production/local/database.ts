@@ -70,24 +70,31 @@ export class PostgresVertical implements AdminUserRepository {
 
   async createWorkItem(membership: Membership, input: { branchId: string; summary: string }, idempotencyKey: string) {
     if (!membership.branchIds.includes(input.branchId)) {
-      return { status: 403, body: { code: "BRANCH_FORBIDDEN" } } as const;
+      throw new ApiError(403, "BRANCH_FORBIDDEN");
     }
     if (!idempotencyKey.trim()) {
-      return { status: 400, body: { code: "IDEMPOTENCY_KEY_REQUIRED" } } as const;
+      throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
     }
     if (!input.summary.trim()) {
-      return { status: 400, body: { code: "SUMMARY_REQUIRED" } } as const;
+      throw new ApiError(400, "SUMMARY_REQUIRED");
     }
 
     return this.inScope(membership, async (client) => {
+      const requestHash = createHash("sha256").update(JSON.stringify({
+        branchId: input.branchId,
+        summary: input.summary.trim(),
+      })).digest("hex");
       await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", [
         `${membership.tenantId}:${idempotencyKey}`,
       ]);
-      const replay = await client.query<{ response: StoredResponse }>(
-        "SELECT response FROM workshopos.idempotency_result WHERE tenant_id = $1 AND idempotency_key = $2 FOR UPDATE",
+      const replay = await client.query<{ request_hash: string | null; response: StoredResponse }>(
+        "SELECT request_hash, response FROM workshopos.idempotency_result WHERE tenant_id = $1 AND idempotency_key = $2 FOR UPDATE",
         [membership.tenantId, idempotencyKey],
       );
-      if (replay.rowCount) return { status: 200, body: replay.rows[0].response } as const;
+      if (replay.rowCount) {
+        if (replay.rows[0].request_hash && replay.rows[0].request_hash !== requestHash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED");
+        return { status: 200, body: replay.rows[0].response } as const;
+      }
 
       const id = randomUUID();
       const auditReference = randomUUID();
@@ -114,8 +121,8 @@ export class PostgresVertical implements AdminUserRepository {
         [outboxId, membership.tenantId, input.branchId, id, auditReference, JSON.stringify({ workItemId: id })],
       );
       await client.query(
-        "INSERT INTO workshopos.idempotency_result (tenant_id, idempotency_key, response) VALUES ($1, $2, $3::jsonb)",
-        [membership.tenantId, idempotencyKey, JSON.stringify(body)],
+        "INSERT INTO workshopos.idempotency_result (tenant_id, idempotency_key, request_hash, response) VALUES ($1, $2, $3, $4::jsonb)",
+        [membership.tenantId, idempotencyKey, requestHash, JSON.stringify(body)],
       );
       return { status: 201, body } as const;
     });
@@ -133,6 +140,29 @@ export class PostgresVertical implements AdminUserRepository {
         summary: row.summary,
         version: Number(row.version),
       }));
+    });
+  }
+
+  async updateWorkItem(membership: Membership, id: string, input: { summary: string; version: number }): Promise<WorkItem> {
+    const summary = input.summary.trim();
+    if (!summary) throw new ApiError(400, "SUMMARY_REQUIRED");
+    if (!Number.isSafeInteger(input.version) || input.version < 1) throw new ApiError(400, "VERSION_REQUIRED");
+    return this.inScope(membership, async (client) => {
+      const visible = await client.query<{ version: string }>(
+        "SELECT version::text FROM workshopos.work_item WHERE id = $1",
+        [id],
+      );
+      if (!visible.rowCount) throw new ApiError(404, "WORK_ITEM_NOT_FOUND");
+      if (Number(visible.rows[0].version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+      const result = await client.query<{
+        id: string; tenant_id: string; branch_id: string; summary: string; version: string;
+      }>(
+        "UPDATE workshopos.work_item SET summary = $1, version = version + 1, updated_at = transaction_timestamp() WHERE id = $2 AND version = $3 RETURNING id, tenant_id, branch_id, summary, version::text",
+        [summary, id, input.version],
+      );
+      if (!result.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
+      const row = result.rows[0];
+      return { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, summary: row.summary, version: Number(row.version) };
     });
   }
 

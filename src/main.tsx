@@ -1,11 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import App from "./App";
+import ProductionWorkItemsApp from "./ProductionWorkItemsApp";
 import "./styles.css";
+
+const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : App;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <RootApp />
   </React.StrictMode>,
 );
 

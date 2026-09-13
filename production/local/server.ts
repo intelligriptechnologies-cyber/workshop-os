@@ -1,11 +1,13 @@
 import { createReadStream } from "node:fs";
 import { access, stat } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 
 import { memberships, PostgresVertical } from "./database.js";
 import { CognitoGateway } from "./cognito.js";
 import { AdminUserService, ApiError, type AuthenticatedMembership } from "../src/admin-users.js";
+import { publicApiError } from "../src/http-errors.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -24,8 +26,8 @@ function required(name: string): string {
   return value;
 }
 
-function json(response: ServerResponse, status: number, body: unknown): void {
-  response.writeHead(status, { "content-type": "application/json; charset=utf-8" });
+function json(response: ServerResponse, status: number, body: unknown, traceId?: string): void {
+  response.writeHead(status, { "content-type": "application/json; charset=utf-8", ...(traceId ? { "x-trace-id": traceId } : {}) });
   response.end(JSON.stringify(body));
 }
 
@@ -43,6 +45,7 @@ async function membershipFor(request: IncomingMessage) {
     const subject = await cognito.verifyAccessToken(authorization.slice(7));
     return database.resolveMembership(subject);
   }
+  if (process.env.ALLOW_DEMO_LOGIN !== "true") return undefined;
   const identity = request.headers["x-workshopos-identity"];
   return typeof identity === "string" ? memberships[identity] : undefined;
 }
@@ -76,6 +79,7 @@ async function staticFile(urlPath: string, response: ServerResponse): Promise<vo
 }
 
 const server = createServer(async (request, response) => {
+  const traceId = randomUUID();
   try {
     const url = new URL(request.url ?? "/", `http://${request.headers.host ?? "localhost"}`);
     if (url.pathname === "/health") {
@@ -103,11 +107,13 @@ const server = createServer(async (request, response) => {
     if (url.pathname.startsWith("/api/")) {
       const membership = await membershipFor(request);
       if (!membership) {
-        json(response, 401, { code: cognito ? "MEMBERSHIP_REQUIRED" : "LOCAL_IDENTITY_REQUIRED" });
+        const failure = publicApiError(new ApiError(401, cognito ? "MEMBERSHIP_REQUIRED" : "LOCAL_IDENTITY_REQUIRED"), traceId);
+        json(response, failure.status, failure.body, traceId);
         return;
       }
       if (url.pathname.startsWith("/api/platform/")) {
-        json(response, 403, { code: "PLATFORM_CREDENTIAL_REQUIRED" });
+        const failure = publicApiError(new ApiError(403, "PLATFORM_CREDENTIAL_REQUIRED"), traceId);
+        json(response, failure.status, failure.body, traceId);
         return;
       }
       if (url.pathname === "/api/v1/session" && request.method === "GET") {
@@ -157,15 +163,23 @@ const server = createServer(async (request, response) => {
         json(response, result.status, result.body);
         return;
       }
-      json(response, 404, { code: "NOT_FOUND" });
+      const workItemRoute = url.pathname.match(/^\/api\/v1\/work-items\/([0-9a-f-]+)$/i);
+      if (workItemRoute && request.method === "PATCH") {
+        const input = await body(request);
+        json(response, 200, { workItem: await database.updateWorkItem(membership, workItemRoute[1], {
+          summary: String(input.summary ?? ""), version: Number(input.version),
+        }) }, traceId);
+        return;
+      }
+      const missing = publicApiError(new ApiError(404, "NOT_FOUND"), traceId);
+      json(response, missing.status, missing.body, traceId);
       return;
     }
     await staticFile(url.pathname, response);
   } catch (error) {
-    console.error(error);
-    if (error instanceof ApiError) json(response, error.status, { code: error.code, message: error.message });
-    else if ((error as { code?: string }).code === "23505") json(response, 409, { code: "EMAIL_EXISTS" });
-    else json(response, 500, { code: "INTERNAL_ERROR" });
+    const failure = publicApiError(error, traceId);
+    console.error(JSON.stringify({ event: "api.request.failed", traceId, code: failure.body.code, status: failure.status }));
+    json(response, failure.status, failure.body, traceId);
   }
 });
 
