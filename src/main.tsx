@@ -3,9 +3,11 @@ import ReactDOM from "react-dom/client";
 import App from "./App";
 import ProductionWorkItemsApp from "./ProductionWorkItemsApp";
 import ProductionUsersApp from "./ProductionUsersApp";
+import ProductionRolesApp from "./ProductionRolesApp";
+import ProductionSearchApp from "./ProductionSearchApp";
 import "./styles.css";
 
-const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : App;
+const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : App;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

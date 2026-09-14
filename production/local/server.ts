@@ -12,6 +12,7 @@ import { parseListQuery, type ServerListQuery } from "../src/server-list-contrac
 import { createWorkItemExportArtifact } from "../src/work-item-export.js";
 import { parseUserListQuery, type UserListQuery } from "../src/user-list-contract.js";
 import { createUserExportArtifact } from "../src/user-export.js";
+import { RolePermissionService } from "../src/role-permissions.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -24,6 +25,7 @@ const cognito = identityMode === "cognito" ? new CognitoGateway(
 ) : undefined;
 const localIdentity = !cognito && process.env.ALLOW_DEMO_LOGIN === "true" ? new LocalIdentityGateway() : undefined;
 const adminUsers = cognito || localIdentity ? new AdminUserService(database, cognito ?? localIdentity!) : undefined;
+const rolePermissions = new RolePermissionService(database);
 
 function required(name: string): string {
   const value = process.env[name];
@@ -53,6 +55,7 @@ async function membershipFor(request: IncomingMessage) {
   if (process.env.ALLOW_DEMO_LOGIN !== "true") return undefined;
   const identity = request.headers["x-workshopos-identity"];
   if (identity === "north-admin") return database.resolveMembership("local-north-admin");
+  if (identity === "north-users-admin") return database.resolveMembership("local-north-users-admin");
   return typeof identity === "string" ? memberships[identity] : undefined;
 }
 
@@ -61,7 +64,7 @@ function isGlobalMembership(value: unknown): value is AuthenticatedMembership {
 }
 
 function hasPermission(membership: { permissions?: string[] }, permission: string): boolean {
-  return Boolean(membership.permissions?.includes(permission) || membership.permissions?.includes("membership.manage"));
+  return Boolean(membership.permissions?.includes(permission));
 }
 
 function requirePermission(membership: { permissions?: string[] }, permission: string): void {
@@ -165,6 +168,31 @@ const server = createServer(async (request, response) => {
         } else {
           json(response, 200, { tenantId: membership.tenantId, branchIds: membership.branchIds });
         }
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/roles" && request.method === "GET" && isGlobalMembership(membership)) {
+        json(response, 200, await rolePermissions.list(membership, url.searchParams.get("search") ?? ""));
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/roles" && request.method === "POST" && isGlobalMembership(membership)) {
+        const result = await rolePermissions.create(membership, await body(request), String(request.headers["idempotency-key"] ?? ""));
+        json(response, result.replay ? 200 : 201, { role: result.role }, traceId);
+        return;
+      }
+      const roleRoute = url.pathname.match(/^\/api\/v1\/admin\/roles\/([0-9a-f-]+)$/i);
+      if (roleRoute && request.method === "PATCH" && isGlobalMembership(membership)) {
+        json(response, 200, { role: await rolePermissions.update(membership, roleRoute[1], await body(request)) }, traceId);
+        return;
+      }
+      const roleArchiveRoute = url.pathname.match(/^\/api\/v1\/admin\/roles\/([0-9a-f-]+)\/archive$/i);
+      if (roleArchiveRoute && request.method === "POST" && isGlobalMembership(membership)) {
+        const result = await rolePermissions.archive(membership, roleArchiveRoute[1], await body(request), String(request.headers["idempotency-key"] ?? ""));
+        json(response, 200, { role: result.role }, traceId);
+        return;
+      }
+      if (url.pathname === "/api/v1/search" && request.method === "GET") {
+        requirePermission(membership, "global-search.use");
+        json(response, 200, await database.globalSearch(membership, url.searchParams.get("query") ?? ""));
         return;
       }
       if (url.pathname === "/api/v1/admin/users" && request.method === "GET" && adminUsers && isGlobalMembership(membership)) {

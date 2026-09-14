@@ -4,6 +4,7 @@ import { loadAuthConfig, loadWorkshopSession, type CognitoConfig, type WorkshopS
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { createWorkItemsApi, DEFAULT_WORK_ITEM_LIST_QUERY, workItemListSearch, WorkItemsApiError, type WorkItem, type WorkItemAuth, type WorkItemListQuery } from "./work-items-api";
 import "./production-work-items.css";
+import { ProductionNavigation } from "./ProductionNavigation";
 
 const localIdentities = {
   "north-reception": "00000000-0000-4000-8000-000000000011",
@@ -50,8 +51,8 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
   const branchRef = useRef<HTMLSelectElement>(null);
   const editSummaryRef = useRef<HTMLInputElement>(null);
   const retry = useRef<{ signature: string; key: string } | undefined>(undefined);
-  const canManage = identity.permissions.includes("work-item.manage") || identity.permissions.includes("membership.manage");
-  const canExport = identity.permissions.includes("work-item.export") || identity.permissions.includes("membership.manage");
+  const canManage = identity.permissions.includes("work-item.manage");
+  const canExport = identity.permissions.includes("work-item.export");
 
   const refresh = useCallback(async () => {
     setBusy(true);
@@ -151,6 +152,7 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
       <p><a href="/">Back to WorkshopOS</a></p>
       <h1>Production work items</h1>
       <p>This tracer reads and writes the authenticated PostgreSQL tenant and branch scope.</p>
+      <ProductionNavigation permissions={identity.permissions} />
     </header>
     {error && <p role="alert" style={{ color: "#9b1c1c" }}>{error}</p>}
     <section aria-labelledby="saved-work-items">
@@ -239,11 +241,12 @@ export default function ProductionWorkItemsApp() {
         if (config.mode === "local") {
           if (!config.allowDemo) { setSessionError("Local demo authentication is disabled."); return; }
           const name = "north-reception" as keyof typeof localIdentities;
-          setIdentity({ auth: { mode: "local", identity: name }, branches: [{ id: localIdentities[name], name: "Delhi" }], permissions: ["work-item.read", "work-item.manage", "work-item.export"] });
+          setIdentity({ auth: { mode: "local", identity: name }, branches: [{ id: localIdentities[name], name: "Delhi" }], permissions: ["work-items.page", "work-item.read", "work-item.manage", "work-item.export"] });
           return;
         }
         const session = await loadWorkshopSession(config);
         if (!session) { setSessionError("Sign in from WorkshopOS before opening the production tracer."); return; }
+        if (!session.membership.permissions.includes("work-items.page") || !session.membership.permissions.includes("work-item.read")) { setSessionError("You do not have permission to view production work items."); return; }
         setIdentityFromSession(config, session, setIdentity);
       } catch { setSessionError("WorkshopOS could not establish an authenticated production session."); }
     })();

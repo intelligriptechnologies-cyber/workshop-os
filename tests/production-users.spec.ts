@@ -5,7 +5,7 @@ const roles = [{ id: "role-admin", name: "Business Owner/Admin", permissions: ["
 const branches = [{ id: "branch-delhi", name: "Delhi" }];
 const admin = { id: "user-admin", name: "Admin", email: "admin@example.com", status: "ACTIVE", roleIds: ["role-admin"], roles: [roles[0]], branchIds: ["branch-delhi"], branches, version: 1, createdAt: "2026-09-14T00:00:00.000Z", updatedAt: "2026-09-14T00:00:00.000Z" };
 
-async function mock(page: Page, permissions = ["membership.manage"]) {
+async function mock(page: Page, permissions = ["admin.users.page", "membership.manage"]) {
   const state = { users: [admin], query: "", staleOnce: true, invited: undefined as Record<string, unknown> | undefined };
   await page.addInitScript(() => sessionStorage.setItem("workshopos.cognito.tokens.v1", JSON.stringify({ accessToken: "token", expiresAt: Date.now() + 3_600_000 })));
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ json: config }));

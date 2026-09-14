@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { createProductionUsersApi, DEFAULT_USER_QUERY, userListSearch, UsersApiError, type ManagedUser, type UserDirectory, type UserQuery, type UsersAuth } from "./production-users-api";
+import { ProductionNavigation } from "./ProductionNavigation";
 import "./production-users.css";
 
 type Draft = { id?: string; name: string; email: string; roleIds: string[]; branchIds: string[]; version?: number };
@@ -18,7 +19,7 @@ function queryFromLocation(): UserQuery {
     page: Number.isSafeInteger(page) && page > 0 ? page : 1, pageSize: pageSize === 50 || pageSize === 100 ? pageSize : 25 };
 }
 
-function ProductionUsersScreen({ auth, actorId }: { auth: UsersAuth; actorId: string }) {
+function ProductionUsersScreen({ auth, actorId, permissions }: { auth: UsersAuth; actorId: string; permissions: string[] }) {
   const api = useMemo(() => createProductionUsersApi(auth), [auth]);
   const [directory, setDirectory] = useState<UserDirectory>(); const [query, setQuery] = useState(queryFromLocation);
   const [search, setSearch] = useState(query.search); const [view, setView] = useState<"grid" | "table">("table");
@@ -64,7 +65,7 @@ function ProductionUsersScreen({ auth, actorId }: { auth: UsersAuth; actorId: st
 
   if (!directory) return <main className="v12-users"><h1>Tenant User Management</h1>{failure ? <p role="alert">{failure.message}</p> : <p>Loading tenant users…</p>}</main>;
   const dirty = JSON.stringify(draft) !== JSON.stringify(original); const activeFilters = Boolean(query.search || query.status || query.roleId || query.branchId);
-  return <main className="v12-users"><header><a href="/">Back to WorkshopOS</a><h1>Tenant User Management</h1><p>Invite and govern users in the authenticated PostgreSQL tenant.</p></header>
+  return <main className="v12-users"><header><a href="/">Back to WorkshopOS</a><h1>Tenant User Management</h1><p>Invite and govern users in the authenticated PostgreSQL tenant.</p><ProductionNavigation permissions={permissions} /></header>
     {failure && !draft && <div role="alert" className="v12-user-error"><span>{failure.message}</span></div>}{status && <p role="status">{status}</p>}
     <section aria-labelledby="tenant-users"><div className="v12-user-heading"><h2 id="tenant-users">Users</h2><button onClick={openInvite}>Invite user</button><button onClick={() => void refresh()} disabled={busy}>Refresh</button></div>
       <form role="search" className="v12-user-filters" onSubmit={(event) => { event.preventDefault(); navigate({ ...query, search: search.trim(), page: 1 }); }}><label>Search <input value={search} onChange={(event) => setSearch(event.target.value)} /></label>
@@ -94,20 +95,20 @@ function UserCells(props: Actions) { const { user } = props; return <><td>{user.
 function UserCard(props: Actions) { return <><h3>{props.user.name}</h3><p>{props.user.email}</p><p>{props.user.status}</p><p>{props.user.roles.map((role) => role.name).join(", ")}</p><UserActions {...props} /></>; }
 
 export default function ProductionUsersApp() {
-  const [ready, setReady] = useState<{ auth: UsersAuth; actorId: string }>(); const [error, setError] = useState("");
+  const [ready, setReady] = useState<{ auth: UsersAuth; actorId: string; permissions: string[] }>(); const [error, setError] = useState("");
   useEffect(() => { void (async () => { try {
     const config = await loadAuthConfig();
     if (config.mode === "local") {
       if (!config.allowDemo) { setError("Local demo authentication is disabled."); return; }
       const auth: UsersAuth = { mode: "local", identity: "north-admin" };
       const session = await createProductionUsersApi(auth).session();
-      if (!session.membership.permissions.includes("membership.manage")) { setError("You do not have permission to manage tenant users."); return; }
-      setReady({ auth, actorId: session.membership.id }); return;
+      if (!session.membership.permissions.includes("admin.users.page") || !session.membership.permissions.includes("membership.manage")) { setError("You do not have permission to manage tenant users."); return; }
+      setReady({ auth, actorId: session.membership.id, permissions: session.membership.permissions }); return;
     }
     const session = await loadWorkshopSession(config);
     if (!session) { setError("Sign in to manage tenant users."); return; }
-    if (!session.membership.permissions.includes("membership.manage")) { setError("You do not have permission to manage tenant users."); return; }
-    setReady({ auth: { mode: "cognito", config }, actorId: session.membership.id });
+    if (!session.membership.permissions.includes("admin.users.page") || !session.membership.permissions.includes("membership.manage")) { setError("You do not have permission to manage tenant users."); return; }
+    setReady({ auth: { mode: "cognito", config }, actorId: session.membership.id, permissions: session.membership.permissions });
   } catch { setError("WorkshopOS could not establish the user-management session."); } })(); }, []);
   if (error) return <main><h1>Tenant User Management</h1><p role="alert">{error}</p><a href="/">Return to WorkshopOS</a></main>; if (!ready) return <main><p>Loading user management…</p></main>; return <ProductionUsersScreen {...ready} />;
 }

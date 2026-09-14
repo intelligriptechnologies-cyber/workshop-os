@@ -14,12 +14,39 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 33);
+assert.equal(health.migrations, 34);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
 const adminSession = await adminSessionResponse.json();
 assert.ok(adminSession.membership.permissions.includes("membership.manage"));
+assert.ok(adminSession.membership.permissions.includes("role.manage"));
+assert.ok(adminSession.membership.permissions.includes("global-search.use"));
+const roleDirectoryResponse = await api("/api/v1/admin/roles?search=export", "north-admin");
+assert.equal(roleDirectoryResponse.status, 200);
+const roleDirectory = await roleDirectoryResponse.json();
+assert.ok(roleDirectory.roles.some((role) => role.protected && role.name === "Business Owner/Admin"));
+assert.ok(roleDirectory.catalog.flatMap((group) => group.pages).some((page) => page.actions.some((action) => action.key === "work-item.export")));
+const deniedRoleDirectory = await api("/api/v1/admin/roles", "north-reception");
+assert.equal(deniedRoleDirectory.status, 404);
+const usersAdminSession = await api("/api/v1/session", "north-users-admin").then((response) => response.json());
+assert.ok(usersAdminSession.membership.permissions.includes("membership.manage"));
+assert.ok(!usersAdminSession.membership.permissions.includes("role.manage"));
+assert.ok(!usersAdminSession.membership.permissions.includes("work-item.export"));
+assert.equal((await api("/api/v1/admin/roles", "north-users-admin")).status, 403);
+const roleName = `Smoke role ${Date.now()}`;
+const createRoleInput = JSON.stringify({ name: roleName, description: "Local role smoke", permissions: ["work-items.page", "work-item.read"] });
+const createRoleResponse = await api("/api/v1/admin/roles", "north-admin", { method: "POST", body: createRoleInput, headers: { "idempotency-key": `${key}-role-create` } });
+assert.equal(createRoleResponse.status, 201);
+const createdRole = (await createRoleResponse.json()).role;
+const replayRoleResponse = await api("/api/v1/admin/roles", "north-admin", { method: "POST", body: createRoleInput, headers: { "idempotency-key": `${key}-role-create` } });
+assert.equal(replayRoleResponse.status, 200); assert.equal((await replayRoleResponse.json()).role.id, createdRole.id);
+const revisedRoleResponse = await api(`/api/v1/admin/roles/${createdRole.id}`, "north-admin", { method: "PATCH", body: JSON.stringify({ ...createdRole, name: `${roleName} revised`, permissions: ["work-items.page", "work-item.read", "work-item.manage"] }) });
+assert.equal(revisedRoleResponse.status, 200); const revisedRole = (await revisedRoleResponse.json()).role; assert.equal(revisedRole.version, 2);
+const protectedRoleResponse = await api("/api/v1/admin/roles/00000000-0000-4000-8000-000000000301", "north-admin", { method: "PATCH", body: JSON.stringify({ name: "Weakened", description: "", permissions: ["admin.roles.page"], version: 1 }) });
+assert.equal(protectedRoleResponse.status, 409); assert.equal((await protectedRoleResponse.json()).code, "PROTECTED_ROLE");
+const archiveRoleResponse = await api(`/api/v1/admin/roles/${createdRole.id}/archive`, "north-admin", { method: "POST", body: JSON.stringify({ version: revisedRole.version, reason: "Smoke-test cleanup" }), headers: { "idempotency-key": `${key}-role-archive` } });
+assert.equal(archiveRoleResponse.status, 200); assert.equal((await archiveRoleResponse.json()).role.active, false);
 const adminDirectoryResponse = await api("/api/v1/admin/users?pageSize=25&sort=name.asc", "north-admin");
 assert.equal(adminDirectoryResponse.status, 200);
 const adminDirectory = await adminDirectoryResponse.json();
@@ -35,6 +62,15 @@ const createdResponse = await api("/api/v1/work-items", "north-reception", {
 assert.equal(createdResponse.status, 201);
 const created = await createdResponse.json();
 assert.equal(created.workItem.tenantId, "00000000-0000-4000-8000-000000000001");
+const globalSearchResponse = await api("/api/v1/search?query=Docker%20PostgreSQL", "north-admin");
+assert.equal(globalSearchResponse.status, 200);
+const globalSearch = await globalSearchResponse.json();
+assert.ok(globalSearch.records.some((record) => record.id === created.workItem.id));
+assert.equal(Object.hasOwn(globalSearch, "totalCount"), false);
+const usersAdminSearch = await api("/api/v1/search?query=Docker%20PostgreSQL", "north-users-admin").then((response) => response.json());
+assert.deepEqual(usersAdminSearch.records, []);
+const usersAdminDeniedExport = await api("/api/v1/work-item-exports", "north-users-admin", { method: "POST", headers: { "idempotency-key": `${key}-users-admin-export` }, body: JSON.stringify({ format: "XLSX", query: {} }) });
+assert.equal(usersAdminDeniedExport.status, 403);
 
 const replayResponse = await api("/api/v1/work-items", "north-reception", {
   method: "POST", body: createInput, headers: { "idempotency-key": key },
@@ -152,5 +188,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "production tenant-admin session", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

@@ -19,6 +19,16 @@ const messages: Record<string, string> = {
   VIEW_MODE_INVALID: "Choose grid or table view.",
   NOT_FOUND: "The requested resource was not found.",
   EMAIL_EXISTS: "A user with that email already exists.",
+  ROLE_NAME_REQUIRED: "Enter a role name.",
+  ROLE_NAME_TOO_LONG: "Role names must be 100 characters or fewer.",
+  ROLE_DESCRIPTION_TOO_LONG: "Role descriptions must be 500 characters or fewer.",
+  ROLE_NAME_EXISTS: "A role with that name already exists.",
+  ROLE_NOT_FOUND: "The role was not found or is no longer available.",
+  ROLE_IN_USE: "Remove this role from every user before archiving it.",
+  PROTECTED_ROLE: "Protected role templates cannot be changed or archived.",
+  PERMISSION_INVALID: "Choose permissions from the current catalog.",
+  PAGE_PERMISSION_REQUIRED: "Select a page permission before selecting its actions.",
+  ARCHIVE_REASON_REQUIRED: "Enter a reason for archiving this record.",
   INTERNAL_ERROR: "WorkshopOS could not complete the request. Try again.",
 };
 
