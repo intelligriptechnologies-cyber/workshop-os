@@ -23,7 +23,7 @@ try {
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO workshopos.role_template(id,tenant_id,name,permissions,system_template) VALUES
-      ('00000000-0000-4000-8000-000000000301','00000000-0000-4000-8000-000000000001','Business Owner/Admin','["admin.users.page","membership.manage","admin.roles.page","role.manage","business-settings.page","business-settings.manage","work-items.page","work-item.read","work-item.manage","work-item.export","global-search.page","global-search.use"]',true),
+      ('00000000-0000-4000-8000-000000000301','00000000-0000-4000-8000-000000000001','Business Owner/Admin','["admin.users.page","membership.manage","admin.roles.page","role.manage","business-settings.page","business-settings.manage","customers.page","customer.read","customer.manage","customer.export","vehicles.page","vehicle.read","vehicle.manage","vehicle.export","work-items.page","work-item.read","work-item.manage","work-item.export","global-search.page","global-search.use"]',true),
       ('00000000-0000-4000-8000-000000000302','00000000-0000-4000-8000-000000000001','Service Advisor','["visit.view"]',true),
       ('00000000-0000-4000-8000-000000000303','00000000-0000-4000-8000-000000000001','User Administrator','["admin.users.page","membership.manage","global-search.page","global-search.use"]',true)
     ON CONFLICT (id) DO NOTHING;

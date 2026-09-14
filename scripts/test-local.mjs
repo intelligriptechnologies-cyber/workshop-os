@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 35);
+assert.equal(health.migrations, 36);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -23,6 +23,23 @@ assert.ok(adminSession.membership.permissions.includes("membership.manage"));
 assert.ok(adminSession.membership.permissions.includes("role.manage"));
 assert.ok(adminSession.membership.permissions.includes("global-search.use"));
 assert.ok(adminSession.membership.permissions.includes("business-settings.manage"));
+assert.ok(adminSession.membership.permissions.includes("customer.manage"));
+assert.ok(adminSession.membership.permissions.includes("vehicle.manage"));
+const customerInput = JSON.stringify({ branchId: branch, displayName: "Local Identity Smoke", mobile: `9${String(Date.now()).slice(-9)}`, email: "identity-smoke@example.test" });
+const customerResponse = await api("/api/v1/customers", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-customer` }, body: customerInput });
+assert.equal(customerResponse.status, 201); const customer = (await customerResponse.json()).customer;
+assert.equal((await api("/api/v1/customers", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-customer` }, body: customerInput })).status, 201);
+const duplicateMobileResponse = await api("/api/v1/customers", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-customer-duplicate` }, body: JSON.stringify({ branchId: branch, displayName: "Duplicate", mobile: customer.mobile, email: "" }) });
+assert.equal(duplicateMobileResponse.status, 409); assert.equal((await duplicateMobileResponse.json()).code, "DUPLICATE_MOBILE");
+const vehicleInput = JSON.stringify({ branchId: branch, registration: `DL01${String(Date.now()).slice(-6)}`, vin: "", make: "Tata", model: "Nexon", ownerCustomerId: customer.id });
+const vehicleResponse = await api("/api/v1/vehicles", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-vehicle` }, body: vehicleInput });
+assert.equal(vehicleResponse.status, 201); const vehicle = (await vehicleResponse.json()).vehicle; assert.equal(vehicle.ownerCustomerId, customer.id);
+const vehicleDirectory = await api("/api/v1/vehicles?search=DL01&sort=summary.asc", "north-admin").then((response) => response.json()); assert.ok(vehicleDirectory.vehicles.some((row) => row.id === vehicle.id));
+assert.equal((await api("/api/v1/customers", "north-reception")).status, 403);
+const identityExportResponse = await api("/api/v1/customer-vehicle-exports", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-customer-export` }, body: JSON.stringify({ screen: "customers", format: "XLSX", query: { search: "Local Identity Smoke", branchId: "", sort: "summary.asc", page: 1, pageSize: 25 } }) });
+assert.equal(identityExportResponse.status, 202); let identityExport = (await identityExportResponse.json()).export;
+for (let attempt=0;identityExport.status==="PENDING"&&attempt<30;attempt+=1){await new Promise(resolve=>setTimeout(resolve,100));identityExport=await api(`/api/v1/customer-vehicle-exports/${identityExport.id}`,"north-admin").then(response=>response.json()).then(payload=>payload.export);}
+assert.equal(identityExport.status,"READY"); assert.ok(identityExport.rowCount >= 1); const identityDownload=await api(`/api/v1/customer-vehicle-exports/${identityExport.id}/download`,"north-admin"); assert.equal(identityDownload.status,200); assert.match(identityDownload.headers.get("cache-control"),/private/);
 const tenantSettingsResponse = await api("/api/v1/admin/business-settings", "north-admin");
 assert.equal(tenantSettingsResponse.status, 200); const tenantSettings = await tenantSettingsResponse.json();
 const savedSettingsResponse = await api("/api/v1/admin/business-settings", "north-admin", { method: "PATCH", body: JSON.stringify({ version: tenantSettings.draftVersion, values: { ...tenantSettings.effective, invoiceFooter: "WorkshopOS local verification" } }) });
@@ -204,5 +221,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

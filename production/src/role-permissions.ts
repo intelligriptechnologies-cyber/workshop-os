@@ -17,6 +17,16 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
     ] },
   ] },
   { key: "operations", label: "Workshop operations", pages: [
+    { key: "customers.page", label: "Customers", description: "Open production customer records.", actions: [
+      { key: "customer.read", label: "View customers", description: "Read customers in permitted branches." },
+      { key: "customer.manage", label: "Manage customers", description: "Create and edit customer records." },
+      { key: "customer.export", label: "Export customers", description: "Create and download complete private customer exports." },
+    ] },
+    { key: "vehicles.page", label: "Vehicles", description: "Open production vehicle records.", actions: [
+      { key: "vehicle.read", label: "View vehicles", description: "Read vehicles and current ownership in permitted branches." },
+      { key: "vehicle.manage", label: "Manage vehicles", description: "Create and edit vehicles and owner associations." },
+      { key: "vehicle.export", label: "Export vehicles", description: "Create and download complete private vehicle exports." },
+    ] },
     { key: "work-items.page", label: "Production work items", description: "Open the production work-item list.", actions: [
       { key: "work-item.read", label: "View work items", description: "Read work items in permitted branches." },
       { key: "work-item.manage", label: "Manage work items", description: "Create, edit, and archive work items." },

@@ -63,6 +63,12 @@ test("PostgreSQL Business Settings publish inherited versions and freeze effecti
     const nextDraft = await service.save(actor, undefined, { version: tenantPublished.draftVersion, values: { ...tenantPublished.effective, defaultLaborRateMinor: 225000 } });
     await service.publish(actor, undefined, { version: nextDraft.draftVersion }, "tenant-publish-2");
     assert.equal((await service.snapshot(actor, workItemId, actor.branchIds[0], "snapshot-existing")).values.defaultLaborRateMinor, 175000);
+    for (let expectedVersion = 3; expectedVersion <= 10; expectedVersion += 1) {
+      const current = await service.get(actor);
+      const draft = await service.save(actor, undefined, { version: current.draftVersion, values: current.effective });
+      await service.publish(actor, undefined, { version: draft.draftVersion }, `tenant-publish-${expectedVersion}`);
+    }
+    assert.equal((await service.get(actor)).publishedVersion, 10);
     await assert.rejects(() => service.save(viewer, actor.branchIds[0], { version: 1, values: {} }), (error: any) => error.code === "PERMISSION_DENIED");
     await assert.rejects(() => service.get(actor, "50000000-0000-4000-8000-000000000012"), (error: any) => error.code === "BRANCH_FORBIDDEN");
   } finally { await database.close(); }
@@ -76,7 +82,7 @@ test("PostgreSQL Business Settings publish inherited versions and freeze effecti
       VALUES('50000000-0000-4000-8000-000000000041','50000000-0000-4000-8000-000000000001','50000000-0000-4000-8000-000000000011',1,
       '{"defaultLaborRateMinor":1,"defaultJobDurationMinutes":60,"customerUpdatesEnabled":true,"invoiceFooter":"x"}',
       '50000000-0000-4000-8000-000000000031')`), /foreign key/);
-    const versions = await immutable.query<{ version: string }>("SELECT version::text FROM workshopos.business_settings_version WHERE tenant_id='50000000-0000-4000-8000-000000000001' AND branch_id IS NULL ORDER BY version");
-    assert.deepEqual(versions.rows.map((row) => Number(row.version)), [1, 2]);
+    const versions = await immutable.query<{ version: string }>("SELECT version::text FROM workshopos.business_settings_version WHERE tenant_id='50000000-0000-4000-8000-000000000001' AND branch_id IS NULL ORDER BY business_settings_version.version");
+    assert.deepEqual(versions.rows.map((row) => Number(row.version)), [1, 2, 3, 4, 5, 6, 7, 8, 9, 10]);
   } finally { await immutable.end(); }
 });

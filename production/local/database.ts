@@ -49,6 +49,10 @@ export type WorkItemListResult = {
   query: ServerListQuery;
 };
 
+export type CustomerRecord = { id: string; tenantId: string; branchId: string; displayName: string; mobile: string; email: string; status: "ACTIVE" | "MERGED"; version: number; updatedAt: string };
+export type VehicleRecord = { id: string; tenantId: string; branchId: string; registration: string; vin: string; make: string; model: string; ownerCustomerId: string; ownerName: string; status: "ACTIVE" | "MERGED"; version: number; updatedAt: string };
+export type EntityListResult<T, K extends string> = { page: { page: number; pageSize: number; totalCount: number; pageCount: number }; query: ServerListQuery } & Record<K, T[]>;
+
 export type ListExportJob = {
   id: string; screenKey: string; format: "PDF" | "XLSX"; status: "PENDING" | "READY" | "FAILED";
   rowCount?: number; filename?: string; mimeType?: string; createdAt: string; completedAt?: string;
@@ -266,6 +270,129 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
       return { content: result.rows[0].content, filename: result.rows[0].filename, mimeType: result.rows[0].mime_type };
     });
   }
+
+  async queryCustomers(membership: Membership, query: ServerListQuery, all = false): Promise<EntityListResult<CustomerRecord, "customers">> {
+    if (query.branchId && !membership.branchIds.includes(query.branchId)) throw new ApiError(403, "BRANCH_FORBIDDEN");
+    return this.inScope(membership, async (client) => {
+      const values: unknown[] = []; const where = ["c.status='ACTIVE'"];
+      if (query.search) { values.push(`%${query.search}%`); where.push(`(c.display_name ILIKE $${values.length} OR EXISTS (SELECT 1 FROM workshopos.customer_contact sc WHERE sc.customer_id=c.id AND sc.contact_value ILIKE $${values.length}))`); }
+      if (query.branchId) { values.push(query.branchId); where.push(`c.branch_id=$${values.length}`); }
+      const condition = where.join(" AND ");
+      const totalCount = Number((await client.query<{ count: string }>(`SELECT count(*)::text count FROM workshopos.customer c WHERE ${condition}`, values)).rows[0].count);
+      const pageCount = Math.max(1, Math.ceil(totalCount / query.pageSize)); const page = all ? 1 : Math.min(query.page, pageCount);
+      const order = query.sort === "updatedAt.asc" ? "c.updated_at ASC,c.id" : query.sort === "summary.asc" ? "lower(c.display_name) ASC,c.id" : query.sort === "summary.desc" ? "lower(c.display_name) DESC,c.id" : "c.updated_at DESC,c.id";
+      const paging = all ? "" : ` LIMIT ${query.pageSize} OFFSET ${(page - 1) * query.pageSize}`;
+      const rows = await client.query<any>(`SELECT c.id,c.tenant_id,c.branch_id,c.display_name,c.status,c.resource_version,c.updated_at,
+        coalesce(max(cc.contact_value) FILTER (WHERE cc.contact_type='MOBILE'),'') mobile,coalesce(max(cc.contact_value) FILTER (WHERE cc.contact_type='EMAIL'),'') email
+        FROM workshopos.customer c LEFT JOIN workshopos.customer_contact cc ON cc.customer_id=c.id AND cc.tenant_id=c.tenant_id AND cc.branch_id=c.branch_id
+        WHERE ${condition} GROUP BY c.id,c.tenant_id,c.branch_id ORDER BY ${order}${paging}`, values);
+      return { customers: rows.rows.map((row) => this.mapCustomer(row)), page: { page, pageSize: query.pageSize, totalCount, pageCount }, query: { ...query, page } };
+    });
+  }
+
+  async createCustomer(membership: Membership, input: { branchId: string; displayName: string; mobile: string; email: string }, idempotencyKey: string) {
+    this.validateBranchAndKey(membership, input.branchId, idempotencyKey);
+    const displayName = input.displayName.trim(); const mobile = this.normalizeMobile(input.mobile); const email = input.email.trim().toLowerCase();
+    if (!displayName) throw new ApiError(400, "CUSTOMER_NAME_REQUIRED");
+    if (mobile.length !== 10) throw new ApiError(400, "MOBILE_INVALID");
+    return this.inScope(membership, async (client) => {
+      const requestHash = this.commandHash({ action: "create-customer", ...input, displayName, mobile, email });
+      const replay = await this.customerVehicleReplay(client, membership.tenantId, idempotencyKey, requestHash); if (replay) return replay;
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:${input.branchId}:mobile:${mobile}`]);
+      if ((await client.query("SELECT 1 FROM workshopos.customer_contact WHERE contact_type='MOBILE' AND normalized_value=$1", [mobile])).rowCount) throw new ApiError(409, "DUPLICATE_MOBILE");
+      const id = randomUUID();
+      await client.query("INSERT INTO workshopos.customer(id,tenant_id,branch_id,display_name) VALUES($1,$2,$3,$4)", [id, membership.tenantId, input.branchId, displayName]);
+      await client.query(`INSERT INTO workshopos.customer_contact(id,tenant_id,branch_id,customer_id,contact_name,contact_type,contact_value,normalized_value,consent_status,preferred) VALUES($1,$2,$3,$4,$5,'MOBILE',$6,$7,'UNKNOWN',true)`, [randomUUID(), membership.tenantId, input.branchId, id, displayName, input.mobile.trim(), mobile]);
+      if (email) await client.query(`INSERT INTO workshopos.customer_contact(id,tenant_id,branch_id,customer_id,contact_name,contact_type,contact_value,normalized_value,consent_status,preferred) VALUES($1,$2,$3,$4,$5,'EMAIL',$6,$6,'UNKNOWN',false)`, [randomUUID(), membership.tenantId, input.branchId, id, displayName, email]);
+      const customer: CustomerRecord = { id, tenantId: membership.tenantId, branchId: input.branchId, displayName, mobile: input.mobile.trim(), email, status: "ACTIVE", version: 1, updatedAt: new Date().toISOString() };
+      const response = { customer, resourceVersion: 1, auditReference: await this.identityAudit(client, membership, input.branchId, "customer.created", id) };
+      await this.storeCustomerVehicleReplay(client, membership.tenantId, idempotencyKey, requestHash, 201, response); return response;
+    });
+  }
+
+  async getCustomer(membership: Membership, id: string): Promise<CustomerRecord> { return this.inScope(membership, async (client) => { const result = await client.query<any>(`SELECT c.id,c.tenant_id,c.branch_id,c.display_name,c.status,c.resource_version,c.updated_at,coalesce(max(cc.contact_value) FILTER (WHERE cc.contact_type='MOBILE'),'') mobile,coalesce(max(cc.contact_value) FILTER (WHERE cc.contact_type='EMAIL'),'') email FROM workshopos.customer c LEFT JOIN workshopos.customer_contact cc ON cc.customer_id=c.id AND cc.tenant_id=c.tenant_id AND cc.branch_id=c.branch_id WHERE c.id=$1 GROUP BY c.id,c.tenant_id,c.branch_id`, [id]); if (!result.rowCount) throw new ApiError(404,"CUSTOMER_NOT_FOUND"); return this.mapCustomer(result.rows[0]); }); }
+
+  async updateCustomer(membership: Membership, id: string, input: { displayName: string; mobile: string; email: string; version: number }): Promise<CustomerRecord> {
+    const displayName = input.displayName.trim(); const mobile = this.normalizeMobile(input.mobile); const email = input.email.trim().toLowerCase();
+    if (!displayName) throw new ApiError(400, "CUSTOMER_NAME_REQUIRED"); if (mobile.length !== 10) throw new ApiError(400, "MOBILE_INVALID");
+    return this.inScope(membership, async (client) => {
+      const current = await client.query<any>("SELECT branch_id,resource_version::text FROM workshopos.customer WHERE id=$1 AND status='ACTIVE'", [id]);
+      if (!current.rowCount) throw new ApiError(404, "CUSTOMER_NOT_FOUND"); if (Number(current.rows[0].resource_version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:${current.rows[0].branch_id}:mobile:${mobile}`]);
+      if ((await client.query("SELECT 1 FROM workshopos.customer_contact WHERE contact_type='MOBILE' AND normalized_value=$1 AND customer_id<>$2", [mobile, id])).rowCount) throw new ApiError(409, "DUPLICATE_MOBILE");
+      const updated = await client.query<any>("UPDATE workshopos.customer SET display_name=$1,resource_version=resource_version+1,updated_at=transaction_timestamp() WHERE id=$2 AND resource_version=$3 RETURNING tenant_id,branch_id,status,resource_version::text,updated_at", [displayName, id, input.version]);
+      if (!updated.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
+      await client.query("UPDATE workshopos.customer_contact SET contact_name=$1,contact_value=$2,normalized_value=$3,resource_version=resource_version+1 WHERE customer_id=$4 AND contact_type='MOBILE'", [displayName, input.mobile.trim(), mobile, id]);
+      await client.query("DELETE FROM workshopos.customer_contact WHERE customer_id=$1 AND contact_type='EMAIL'", [id]);
+      if (email) await client.query(`INSERT INTO workshopos.customer_contact(id,tenant_id,branch_id,customer_id,contact_name,contact_type,contact_value,normalized_value,consent_status,preferred) VALUES($1,$2,$3,$4,$5,'EMAIL',$6,$6,'UNKNOWN',false)`, [randomUUID(), membership.tenantId, current.rows[0].branch_id, id, displayName, email]);
+      await this.identityAudit(client, membership, current.rows[0].branch_id, "customer.updated", id);
+      return { id, tenantId: membership.tenantId, branchId: current.rows[0].branch_id, displayName, mobile: input.mobile.trim(), email, status: updated.rows[0].status, version: Number(updated.rows[0].resource_version), updatedAt: updated.rows[0].updated_at.toISOString() };
+    });
+  }
+
+  async queryVehicles(membership: Membership, query: ServerListQuery, all = false): Promise<EntityListResult<VehicleRecord, "vehicles">> {
+    if (query.branchId && !membership.branchIds.includes(query.branchId)) throw new ApiError(403, "BRANCH_FORBIDDEN");
+    return this.inScope(membership, async (client) => {
+      const values: unknown[] = []; const where = ["v.status='ACTIVE'"];
+      if (query.search) { values.push(`%${query.search.replace(/[^a-zA-Z0-9]/g, "")}%`); where.push(`(v.normalized_registration ILIKE $${values.length} OR v.vin ILIKE $${values.length} OR v.attributes->>'make' ILIKE $${values.length} OR v.attributes->>'model' ILIKE $${values.length})`); }
+      if (query.branchId) { values.push(query.branchId); where.push(`v.branch_id=$${values.length}`); }
+      const condition = where.join(" AND "); const totalCount = Number((await client.query<{ count: string }>(`SELECT count(*)::text count FROM workshopos.vehicle v WHERE ${condition}`, values)).rows[0].count);
+      const pageCount = Math.max(1, Math.ceil(totalCount / query.pageSize)); const page = all ? 1 : Math.min(query.page, pageCount);
+      const order = query.sort === "updatedAt.asc" ? "v.updated_at ASC,v.id" : query.sort === "summary.asc" ? "v.normalized_registration ASC,v.id" : query.sort === "summary.desc" ? "v.normalized_registration DESC,v.id" : "v.updated_at DESC,v.id";
+      const paging = all ? "" : ` LIMIT ${query.pageSize} OFFSET ${(page - 1) * query.pageSize}`;
+      const rows = await client.query<any>(`SELECT v.id,v.tenant_id,v.branch_id,v.normalized_registration registration,coalesce(v.vin::text,'') vin,v.attributes,v.status,v.resource_version,v.updated_at,coalesce(o.customer_id::text,'') owner_customer_id,coalesce(c.display_name,'') owner_name
+        FROM workshopos.vehicle v LEFT JOIN LATERAL (SELECT customer_id FROM workshopos.vehicle_ownership_history WHERE vehicle_id=v.id ORDER BY effective_from DESC,recorded_at DESC LIMIT 1) o ON true LEFT JOIN workshopos.customer c ON c.id=o.customer_id AND c.tenant_id=v.tenant_id AND c.branch_id=v.branch_id
+        WHERE ${condition} ORDER BY ${order}${paging}`, values);
+      return { vehicles: rows.rows.map((row) => this.mapVehicle(row)), page: { page, pageSize: query.pageSize, totalCount, pageCount }, query: { ...query, page } };
+    });
+  }
+
+  async createVehicle(membership: Membership, input: { branchId: string; registration: string; vin: string; make: string; model: string; ownerCustomerId: string }, idempotencyKey: string) {
+    this.validateBranchAndKey(membership, input.branchId, idempotencyKey); const registration = this.normalizeRegistration(input.registration); const vin = input.vin.trim().toUpperCase();
+    if (!registration && !vin) throw new ApiError(400, "VEHICLE_IDENTITY_REQUIRED"); if (vin && !/^[A-HJ-NPR-Z0-9]{17}$/.test(vin)) throw new ApiError(400, "VIN_INVALID");
+    return this.inScope(membership, async (client) => {
+      const requestHash = this.commandHash({ action: "create-vehicle", ...input, registration, vin }); const replay = await this.customerVehicleReplay(client, membership.tenantId, idempotencyKey, requestHash); if (replay) return replay;
+      for (const identity of [registration && `registration:${registration}`, vin && `vin:${vin}`].filter(Boolean)) await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:${input.branchId}:${identity}`]);
+      const owner = await client.query<{ display_name: string }>("SELECT display_name FROM workshopos.customer WHERE id=$1 AND branch_id=$2 AND status='ACTIVE'", [input.ownerCustomerId, input.branchId]); if (!owner.rowCount) throw new ApiError(409, "OWNER_ASSOCIATION_INVALID");
+      if (registration && (await client.query("SELECT 1 FROM workshopos.vehicle WHERE normalized_registration=$1 AND status='ACTIVE'", [registration])).rowCount) throw new ApiError(409, "DUPLICATE_REGISTRATION");
+      if (vin && (await client.query("SELECT 1 FROM workshopos.vehicle WHERE vin=$1 AND status='ACTIVE'", [vin])).rowCount) throw new ApiError(409, "DUPLICATE_VIN");
+      const id = randomUUID(); const auditReference = randomUUID();
+      await client.query("INSERT INTO workshopos.vehicle(id,tenant_id,branch_id,registration,normalized_registration,vin,attributes) VALUES($1,$2,$3,$4,$5,$6,$7::jsonb)", [id, membership.tenantId, input.branchId, registration || null, registration || null, vin || null, JSON.stringify({ make: input.make.trim(), model: input.model.trim() })]);
+      await client.query("INSERT INTO workshopos.vehicle_ownership_history(id,tenant_id,branch_id,vehicle_id,customer_id,effective_from,reason,evidence,audit_reference) VALUES($1,$2,$3,$4,$5,current_date,'Initial owner','[]',$6)", [randomUUID(), membership.tenantId, input.branchId, id, input.ownerCustomerId, auditReference]);
+      await this.identityAudit(client, membership, input.branchId, "vehicle.created", id, auditReference);
+      const vehicle: VehicleRecord = { id, tenantId: membership.tenantId, branchId: input.branchId, registration, vin, make: input.make.trim(), model: input.model.trim(), ownerCustomerId: input.ownerCustomerId, ownerName: owner.rows[0].display_name, status: "ACTIVE", version: 1, updatedAt: new Date().toISOString() };
+      const response = { vehicle, resourceVersion: 1, auditReference }; await this.storeCustomerVehicleReplay(client, membership.tenantId, idempotencyKey, requestHash, 201, response); return response;
+    });
+  }
+
+  async getVehicle(membership: Membership, id: string): Promise<VehicleRecord> { return this.inScope(membership, async (client) => { const result = await client.query<any>(`SELECT v.id,v.tenant_id,v.branch_id,v.normalized_registration registration,coalesce(v.vin::text,'') vin,v.attributes,v.status,v.resource_version,v.updated_at,coalesce(o.customer_id::text,'') owner_customer_id,coalesce(c.display_name,'') owner_name FROM workshopos.vehicle v LEFT JOIN LATERAL (SELECT customer_id FROM workshopos.vehicle_ownership_history WHERE vehicle_id=v.id ORDER BY effective_from DESC,recorded_at DESC LIMIT 1) o ON true LEFT JOIN workshopos.customer c ON c.id=o.customer_id AND c.tenant_id=v.tenant_id AND c.branch_id=v.branch_id WHERE v.id=$1`, [id]); if (!result.rowCount) throw new ApiError(404,"VEHICLE_NOT_FOUND"); return this.mapVehicle(result.rows[0]); }); }
+
+  async updateVehicle(membership: Membership, id: string, input: { registration: string; vin: string; make: string; model: string; ownerCustomerId: string; version: number }): Promise<VehicleRecord> {
+    const registration = this.normalizeRegistration(input.registration); const vin = input.vin.trim().toUpperCase(); if (!registration && !vin) throw new ApiError(400, "VEHICLE_IDENTITY_REQUIRED");
+    return this.inScope(membership, async (client) => {
+      const current = await client.query<any>("SELECT branch_id,resource_version::text FROM workshopos.vehicle WHERE id=$1 AND status='ACTIVE' FOR UPDATE", [id]); if (!current.rowCount) throw new ApiError(404, "VEHICLE_NOT_FOUND"); if (Number(current.rows[0].resource_version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+      const owner = await client.query<{ display_name: string }>("SELECT display_name FROM workshopos.customer WHERE id=$1 AND branch_id=$2 AND status='ACTIVE'", [input.ownerCustomerId, current.rows[0].branch_id]); if (!owner.rowCount) throw new ApiError(409, "OWNER_ASSOCIATION_INVALID");
+      for (const identity of [registration && `registration:${registration}`, vin && `vin:${vin}`].filter(Boolean)) await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:${current.rows[0].branch_id}:${identity}`]);
+      if (registration && (await client.query("SELECT 1 FROM workshopos.vehicle WHERE normalized_registration=$1 AND id<>$2 AND status='ACTIVE'", [registration, id])).rowCount) throw new ApiError(409, "DUPLICATE_REGISTRATION");
+      if (vin && (await client.query("SELECT 1 FROM workshopos.vehicle WHERE vin=$1 AND id<>$2 AND status='ACTIVE'", [vin, id])).rowCount) throw new ApiError(409, "DUPLICATE_VIN");
+      const present = await client.query<{ customer_id: string }>("SELECT customer_id FROM workshopos.vehicle_ownership_history WHERE vehicle_id=$1 ORDER BY effective_from DESC,recorded_at DESC LIMIT 1", [id]);
+      if (present.rows[0]?.customer_id !== input.ownerCustomerId && (await client.query("SELECT 1 FROM workshopos.vehicle_ownership_history WHERE vehicle_id=$1 AND effective_from=current_date", [id])).rowCount) throw new ApiError(409, "OWNERSHIP_DATE_CONFLICT");
+      const updated = await client.query<any>("UPDATE workshopos.vehicle SET registration=$1,normalized_registration=$1,vin=$2,attributes=$3::jsonb,resource_version=resource_version+1,updated_at=transaction_timestamp() WHERE id=$4 AND resource_version=$5 RETURNING tenant_id,branch_id,status,resource_version::text,updated_at", [registration || null, vin || null, JSON.stringify({ make: input.make.trim(), model: input.model.trim() }), id, input.version]); if (!updated.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
+      if (present.rows[0]?.customer_id !== input.ownerCustomerId) await client.query("INSERT INTO workshopos.vehicle_ownership_history(id,tenant_id,branch_id,vehicle_id,customer_id,effective_from,reason,evidence,audit_reference) VALUES($1,$2,$3,$4,$5,current_date,'Owner changed through vehicle edit','[]',$6)", [randomUUID(), membership.tenantId, current.rows[0].branch_id, id, input.ownerCustomerId, randomUUID()]);
+      await this.identityAudit(client, membership, current.rows[0].branch_id, "vehicle.updated", id);
+      return { id, tenantId: membership.tenantId, branchId: current.rows[0].branch_id, registration, vin, make: input.make.trim(), model: input.model.trim(), ownerCustomerId: input.ownerCustomerId, ownerName: owner.rows[0].display_name, status: updated.rows[0].status, version: Number(updated.rows[0].resource_version), updatedAt: updated.rows[0].updated_at.toISOString() };
+    });
+  }
+
+  private normalizeMobile(value: string) { return value.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, ""); }
+  private normalizeRegistration(value: string) { return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""); }
+  private commandHash(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
+  private validateBranchAndKey(membership: Membership, branchId: string, key: string) { if (!membership.branchIds.includes(branchId)) throw new ApiError(403, "BRANCH_FORBIDDEN"); if (!key.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED"); }
+  private async customerVehicleReplay(client: PoolClient, tenantId: string, key: string, hash: string): Promise<any | undefined> { await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${tenantId}:identity:${key}`]); const result = await client.query<any>("SELECT command_fingerprint,response_body FROM workshopos.customer_vehicle_idempotency WHERE idempotency_key=$1", [key]); if (!result.rowCount) return undefined; if (result.rows[0].command_fingerprint !== hash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED"); return result.rows[0].response_body; }
+  private async storeCustomerVehicleReplay(client: PoolClient, tenantId: string, key: string, hash: string, status: number, response: unknown) { await client.query("INSERT INTO workshopos.customer_vehicle_idempotency(tenant_id,idempotency_key,command_fingerprint,response_status,response_body) VALUES($1,$2,$3,$4,$5::jsonb)", [tenantId, key, hash, status, JSON.stringify(response)]); }
+  private async identityAudit(client: PoolClient, membership: Membership, branchId: string, action: string, id: string, reference = randomUUID()) { await client.query("INSERT INTO workshopos.audit_entry(id,tenant_id,branch_id,subject_id,action,detail) VALUES($1,$2,$3,$4,$5,$6::jsonb)", [reference, membership.tenantId, branchId, this.actorId(membership), action, JSON.stringify({ resourceId: id })]); return reference; }
+  private mapCustomer(row: any): CustomerRecord { return { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, displayName: row.display_name, mobile: row.mobile, email: row.email, status: row.status, version: Number(row.resource_version), updatedAt: row.updated_at.toISOString() }; }
+  private mapVehicle(row: any): VehicleRecord { return { id: row.id, tenantId: row.tenant_id, branchId: row.branch_id, registration: row.registration ?? "", vin: row.vin ?? "", make: row.attributes?.make ?? "", model: row.attributes?.model ?? "", ownerCustomerId: row.owner_customer_id, ownerName: row.owner_name, status: row.status, version: Number(row.resource_version), updatedAt: row.updated_at.toISOString() }; }
 
   private actorId(membership: Membership): string {
     const actor = membership.subject ?? membership.identitySubject;
@@ -812,7 +939,7 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
 
   private async latestSettings(client: PoolClient, scopeKey: string) {
     const result = await client.query<{ version: string; values: BusinessSettingsOverrides }>(
-      "SELECT version::text,values FROM workshopos.business_settings_version WHERE scope_key=$1 ORDER BY version DESC LIMIT 1", [scopeKey],
+      "SELECT version::text,values FROM workshopos.business_settings_version WHERE scope_key=$1 ORDER BY business_settings_version.version DESC LIMIT 1", [scopeKey],
     );
     return result.rowCount ? { version: Number(result.rows[0].version), values: result.rows[0].values } : { version: 0, values: {} as BusinessSettingsOverrides };
   }

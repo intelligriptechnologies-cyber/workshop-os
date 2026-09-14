@@ -29,6 +29,18 @@ const messages: Record<string, string> = {
   PERMISSION_INVALID: "Choose permissions from the current catalog.",
   PAGE_PERMISSION_REQUIRED: "Select a page permission before selecting its actions.",
   ARCHIVE_REASON_REQUIRED: "Enter a reason for archiving this record.",
+  CUSTOMER_NAME_REQUIRED: "Enter a customer name.",
+  MOBILE_INVALID: "Enter a valid 10-digit mobile number.",
+  DUPLICATE_MOBILE: "That mobile number already belongs to another customer. Open the existing record or use a different number.",
+  CUSTOMER_NOT_FOUND: "The customer was not found or is no longer available.",
+  VEHICLE_IDENTITY_REQUIRED: "Enter a registration or VIN.",
+  VIN_INVALID: "Enter a valid 17-character VIN.",
+  DUPLICATE_REGISTRATION: "That registration already belongs to another vehicle. Open the existing record instead.",
+  DUPLICATE_VIN: "That VIN already belongs to another vehicle.",
+  OWNER_ASSOCIATION_INVALID: "Choose an active customer from the same branch.",
+  OWNERSHIP_DATE_CONFLICT: "This vehicle already has an ownership change for today. Review its ownership history before trying again.",
+  VEHICLE_NOT_FOUND: "The vehicle was not found or is no longer available.",
+  EXPORT_SCREEN_INVALID: "Choose the customer or vehicle export.",
   INTERNAL_ERROR: "WorkshopOS could not complete the request. Try again.",
 };
 

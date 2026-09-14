@@ -14,6 +14,7 @@ import { parseUserListQuery, type UserListQuery } from "../src/user-list-contrac
 import { createUserExportArtifact } from "../src/user-export.js";
 import { RolePermissionService } from "../src/role-permissions.js";
 import { BusinessSettingsService } from "../src/business-settings.js";
+import { createCustomerVehicleExportArtifact } from "../src/customer-vehicle-export.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -100,6 +101,10 @@ function queueUserExport(membership: AuthenticatedMembership, id: string, format
       await database.failListExport(membership, id);
     }
   })());
+}
+
+function queueCustomerVehicleExport(membership: Parameters<PostgresVertical["queryCustomers"]>[0], id: string, screen: "customers" | "vehicles", format: "PDF" | "XLSX", query: ServerListQuery): void {
+  setImmediate(() => void (async () => { try { const rows = screen === "customers" ? (await database.queryCustomers(membership, query, true)).customers : (await database.queryVehicles(membership, query, true)).vehicles; await database.completeListExport(membership, id, createCustomerVehicleExportArtifact(screen, format, rows)); } catch { await database.failListExport(membership, id); } })());
 }
 
 async function staticFile(urlPath: string, response: ServerResponse): Promise<void> {
@@ -290,6 +295,22 @@ const server = createServer(async (request, response) => {
         json(response, 200, await database.queryWorkItems(membership, parseListQuery(url.searchParams)));
         return;
       }
+      if (url.pathname === "/api/v1/customers" && request.method === "GET") { requirePermission(membership, "customer.read"); json(response, 200, await database.queryCustomers(membership, parseListQuery(url.searchParams)), traceId); return; }
+      if (url.pathname === "/api/v1/customers" && request.method === "POST") { requirePermission(membership, "customer.manage"); const input = await body(request); json(response, 201, await database.createCustomer(membership, { branchId: String(input.branchId ?? ""), displayName: String(input.displayName ?? ""), mobile: String(input.mobile ?? ""), email: String(input.email ?? "") }, String(request.headers["idempotency-key"] ?? "")), traceId); return; }
+      const customerRoute = url.pathname.match(/^\/api\/v1\/customers\/([0-9a-f-]+)$/i);
+      if (customerRoute && request.method === "GET") { requirePermission(membership, "customer.read"); json(response, 200, { customer: await database.getCustomer(membership, customerRoute[1]) }, traceId); return; }
+      if (customerRoute && request.method === "PATCH") { requirePermission(membership, "customer.manage"); const input = await body(request); json(response, 200, { customer: await database.updateCustomer(membership, customerRoute[1], { displayName: String(input.displayName ?? ""), mobile: String(input.mobile ?? ""), email: String(input.email ?? ""), version: Number(input.version) }) }, traceId); return; }
+      if (url.pathname === "/api/v1/vehicles" && request.method === "GET") { requirePermission(membership, "vehicle.read"); json(response, 200, await database.queryVehicles(membership, parseListQuery(url.searchParams)), traceId); return; }
+      if (url.pathname === "/api/v1/vehicles" && request.method === "POST") { requirePermission(membership, "vehicle.manage"); const input = await body(request); json(response, 201, await database.createVehicle(membership, { branchId: String(input.branchId ?? ""), registration: String(input.registration ?? ""), vin: String(input.vin ?? ""), make: String(input.make ?? ""), model: String(input.model ?? ""), ownerCustomerId: String(input.ownerCustomerId ?? "") }, String(request.headers["idempotency-key"] ?? "")), traceId); return; }
+      const vehicleRoute = url.pathname.match(/^\/api\/v1\/vehicles\/([0-9a-f-]+)$/i);
+      if (vehicleRoute && request.method === "GET") { requirePermission(membership, "vehicle.read"); json(response, 200, { vehicle: await database.getVehicle(membership, vehicleRoute[1]) }, traceId); return; }
+      if (vehicleRoute && request.method === "PATCH") { requirePermission(membership, "vehicle.manage"); const input = await body(request); json(response, 200, { vehicle: await database.updateVehicle(membership, vehicleRoute[1], { registration: String(input.registration ?? ""), vin: String(input.vin ?? ""), make: String(input.make ?? ""), model: String(input.model ?? ""), ownerCustomerId: String(input.ownerCustomerId ?? ""), version: Number(input.version) }) }, traceId); return; }
+      const identityPreference = url.pathname.match(/^\/api\/v1\/list-preferences\/(customers|vehicles)$/);
+      if (identityPreference && request.method === "GET") { requirePermission(membership, identityPreference[1] === "customers" ? "customer.read" : "vehicle.read"); json(response, 200, { preference: await database.getListPreference(membership, identityPreference[1]) }, traceId); return; }
+      if (identityPreference && request.method === "PUT") { requirePermission(membership, identityPreference[1] === "customers" ? "customer.read" : "vehicle.read"); const input = await body(request); const viewMode = String(input.viewMode ?? ""); if (viewMode !== "grid" && viewMode !== "table") throw new ApiError(400, "VIEW_MODE_INVALID"); json(response, 200, { preference: await database.saveListPreference(membership, identityPreference[1], viewMode) }, traceId); return; }
+      if (url.pathname === "/api/v1/customer-vehicle-exports" && request.method === "POST") { const input = await body(request); const screen = String(input.screen ?? "") as "customers" | "vehicles"; if (screen !== "customers" && screen !== "vehicles") throw new ApiError(400, "EXPORT_SCREEN_INVALID"); requirePermission(membership, screen === "customers" ? "customer.export" : "vehicle.export"); const format = String(input.format ?? "").toUpperCase(); if (format !== "PDF" && format !== "XLSX") throw new ApiError(400, "EXPORT_FORMAT_INVALID"); const query = queryFromJson(input.query); const result = await database.createListExport(membership, screen, format, query, String(request.headers["idempotency-key"] ?? "")); if (!result.replay || result.job.status === "PENDING") queueCustomerVehicleExport(membership, result.job.id, screen, format, query); json(response, result.replay ? 200 : 202, { export: result.job }, traceId); return; }
+      const identityExportRoute = url.pathname.match(/^\/api\/v1\/customer-vehicle-exports\/([0-9a-f-]+)$/i); if (identityExportRoute && request.method === "GET") { if (!hasPermission(membership, "customer.export") && !hasPermission(membership, "vehicle.export")) throw new ApiError(403, "PERMISSION_DENIED"); const job = await database.getListExport(membership, identityExportRoute[1]); requirePermission(membership, job.screenKey === "customers" ? "customer.export" : "vehicle.export"); json(response, 200, { export: job }, traceId); return; }
+      const identityExportDownload = url.pathname.match(/^\/api\/v1\/customer-vehicle-exports\/([0-9a-f-]+)\/download$/i); if (identityExportDownload && request.method === "GET") { if (!hasPermission(membership, "customer.export") && !hasPermission(membership, "vehicle.export")) throw new ApiError(403, "PERMISSION_DENIED"); const job = await database.getListExport(membership, identityExportDownload[1]); requirePermission(membership, job.screenKey === "customers" ? "customer.export" : "vehicle.export"); const artifact = await database.downloadListExport(membership, identityExportDownload[1]); response.writeHead(200, { "content-type": artifact.mimeType, "content-disposition": `attachment; filename="${artifact.filename.replace(/["\r\n]/g, "")}"`, "cache-control": "private, no-store" }); response.end(artifact.content); return; }
       if (url.pathname === "/api/v1/work-items" && request.method === "POST") {
         requirePermission(membership, "work-item.manage");
         const input = await body(request);
