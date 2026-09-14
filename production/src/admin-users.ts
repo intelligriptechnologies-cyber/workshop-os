@@ -16,6 +16,7 @@ export type AuthenticatedMembership = {
   roles: RoleOption[];
   branchIds: string[];
   branches: BranchOption[];
+  warehouseIds?: string[];
   permissions: string[];
   version: number;
 };

@@ -25,13 +25,16 @@ import {
 import type {
   BusinessSettings, BusinessSettingsOverrides, BusinessSettingsRepository, SettingsSnapshot, SettingsWorkspace,
 } from "../src/business-settings.js";
+import { buildInventoryErrorManifest, formatInventoryQuantity, inventoryQuantityUnits, isValidInventoryQuantity, isValidInventoryValueMinor, normalizeInventoryImportRows, type NormalizedInventoryImportRow } from "../src/inventory-operations.js";
 
 export type Membership = {
+  id?: string;
   subject?: string;
   identitySubject?: string;
   tenantId: string;
   branchIds: string[];
   permissions?: string[];
+  warehouseIds?: string[];
 };
 
 export type WorkItem = {
@@ -52,6 +55,8 @@ export type WorkItemListResult = {
 export type CustomerRecord = { id: string; tenantId: string; branchId: string; displayName: string; mobile: string; email: string; status: "ACTIVE" | "MERGED"; version: number; updatedAt: string };
 export type VehicleRecord = { id: string; tenantId: string; branchId: string; registration: string; vin: string; make: string; model: string; ownerCustomerId: string; ownerName: string; status: "ACTIVE" | "MERGED"; version: number; updatedAt: string };
 export type EntityListResult<T, K extends string> = { page: { page: number; pageSize: number; totalCount: number; pageCount: number }; query: ServerListQuery } & Record<K, T[]>;
+export type InventoryPosition = { id: string; branchId: string; warehouseId: string; warehouseName: string; sku: string; baseUom: string; quantity: string; valueMinor: string; reorderPoint: string; reorder: boolean; lastMovementAt?: string; ageDays?: number };
+export type InventoryImportRecord = { id: string; branchId: string; filename: string; status: "STAGED" | "COMMITTED"; version: number; summary: { totalRows: number; validRows: number; invalidRows: number; quantity: string; valueMinor: string }; stagedAt: string; committedAt?: string; reconciliation?: { ledgerBatches: number; quantity: string; valueMinor: string } };
 
 export type ListExportJob = {
   id: string; screenKey: string; format: "PDF" | "XLSX"; status: "PENDING" | "READY" | "FAILED";
@@ -384,6 +389,96 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
     });
   }
 
+  async queryInventory(membership: Membership, query: ServerListQuery, all = false) {
+    if (query.branchId && !membership.branchIds.includes(query.branchId)) throw new ApiError(403, "BRANCH_FORBIDDEN");
+    return this.inScope(membership, async (client) => {
+      const values: unknown[] = []; const where = ["i.active"];
+      if (query.search) { values.push(`%${query.search}%`); where.push(`(i.sku ILIKE $${values.length} OR w.name ILIKE $${values.length})`); }
+      if (query.branchId) { values.push(query.branchId); where.push(`i.branch_id=$${values.length}`); }
+      const condition = where.join(" AND ");
+      const from = `FROM workshopos.inventory_item i JOIN workshopos.inventory_warehouse w ON w.tenant_id=i.tenant_id AND w.branch_id=i.branch_id AND w.active LEFT JOIN workshopos.inventory_balance b ON b.tenant_id=i.tenant_id AND b.branch_id=i.branch_id AND b.item_id=i.id AND b.warehouse_id=w.id LEFT JOIN LATERAL (SELECT max(e.occurred_at) last_movement_at FROM workshopos.inventory_ledger_entry e WHERE e.tenant_id=i.tenant_id AND e.branch_id=i.branch_id AND e.item_id=i.id AND e.warehouse_id=w.id) movement ON true WHERE ${condition} GROUP BY i.tenant_id,i.branch_id,i.id,w.tenant_id,w.branch_id,w.id,movement.last_movement_at`;
+      const projection = `SELECT i.id,i.branch_id,w.id warehouse_id,w.name warehouse_name,i.sku,i.base_uom,i.reorder_point::text,coalesce(sum(b.quantity_base),0)::text quantity,coalesce(sum(b.value_minor),0)::text value_minor,movement.last_movement_at ${from}`;
+      const aggregate = (await client.query<{ count: string; quantity: string; value_minor: string; reorder_count: string }>(`SELECT count(*)::text count,coalesce(sum(quantity::numeric),0)::text quantity,coalesce(sum(value_minor::bigint),0)::text value_minor,count(*) FILTER (WHERE quantity::numeric <= reorder_point::numeric)::text reorder_count FROM (${projection}) inventory_rows`, values)).rows[0];
+      const totalCount = Number(aggregate.count);
+      const pageCount = Math.max(1, Math.ceil(totalCount / query.pageSize)); const page = all ? 1 : Math.min(query.page, pageCount);
+      const order = query.sort === "updatedAt.asc" ? "movement.last_movement_at ASC NULLS FIRST,i.id,w.id" : query.sort === "summary.asc" ? "lower(i.sku) ASC,i.id,w.id" : query.sort === "summary.desc" ? "lower(i.sku) DESC,i.id,w.id" : "movement.last_movement_at DESC NULLS LAST,i.id,w.id";
+      const paging = all ? "" : ` LIMIT ${query.pageSize} OFFSET ${(page - 1) * query.pageSize}`;
+      const result = await client.query<any>(`${projection} ORDER BY ${order}${paging}`, values);
+      const now = Date.now();
+      const inventory: InventoryPosition[] = result.rows.map((row) => ({ id: row.id, branchId: row.branch_id, warehouseId: row.warehouse_id, warehouseName: row.warehouse_name, sku: row.sku, baseUom: row.base_uom, quantity: row.quantity, valueMinor: row.value_minor, reorderPoint: row.reorder_point, reorder: Number(row.quantity) <= Number(row.reorder_point), ...(row.last_movement_at ? { lastMovementAt: row.last_movement_at.toISOString(), ageDays: Math.max(0, Math.floor((now - row.last_movement_at.getTime()) / 86400000)) } : {}) }));
+      return { inventory, analytics: { skuCount: totalCount, totalQuantity: aggregate.quantity, totalValueMinor: aggregate.value_minor, reorderCount: Number(aggregate.reorder_count) }, page: { page, pageSize: query.pageSize, totalCount, pageCount }, query: { ...query, page } };
+    });
+  }
+
+  async stageInventoryImport(membership: Membership, input: { branchId: string; filename: string; rows: unknown }, idempotencyKey: string) {
+    this.validateBranchAndKey(membership, input.branchId, idempotencyKey);
+    const filename = input.filename.trim(); if (!filename) throw new ApiError(400, "IMPORT_FILENAME_REQUIRED");
+    const normalized = normalizeInventoryImportRows(input.rows); if (!normalized.length || normalized.length > 1000) throw new ApiError(400, "IMPORT_ROWS_INVALID");
+    return this.inScope(membership, async (client) => {
+      const hash = this.commandHash({ action: "stage-inventory-import", branchId: input.branchId, filename, rows: normalized });
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:inventory-stage:${idempotencyKey}`]);
+      const prior = await client.query<any>("SELECT * FROM workshopos.inventory_import WHERE idempotency_key=$1", [idempotencyKey]);
+      if (prior.rowCount) { if (prior.rows[0].request_hash !== hash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED"); return { import: this.mapInventoryImport(prior.rows[0]), replay: true }; }
+      const skus = [...new Set(normalized.map((row) => row.sku).filter(Boolean))]; const warehouseCodes = [...new Set(normalized.map((row) => row.warehouseCode).filter(Boolean))];
+      const items = await client.query<{ sku: string }>("SELECT sku FROM workshopos.inventory_item WHERE branch_id=$1 AND sku=ANY($2::text[]) AND active", [input.branchId, skus]);
+      const warehouses = await client.query<{ name: string }>("SELECT name FROM workshopos.inventory_warehouse WHERE branch_id=$1 AND upper(name)=ANY($2::text[]) AND active", [input.branchId, warehouseCodes]);
+      const knownSkus = new Set(items.rows.map((row) => row.sku.toUpperCase())); const knownWarehouses = new Set(warehouses.rows.map((row) => row.name.toUpperCase()));
+      const rows: NormalizedInventoryImportRow[] = normalized.map((row) => ({ ...row, errors: [...row.errors, ...(!row.sku || knownSkus.has(row.sku) ? [] : ["SKU_NOT_FOUND"]), ...(!row.warehouseCode || knownWarehouses.has(row.warehouseCode) ? [] : ["WAREHOUSE_NOT_FOUND"])] }));
+      const valid = rows.filter((row) => !row.errors.length); const manifest = buildInventoryErrorManifest(rows);
+      const summary = { totalRows: rows.length, validRows: valid.length, invalidRows: rows.length - valid.length, quantity: formatInventoryQuantity(valid.reduce((sum, row) => sum + inventoryQuantityUnits(row.quantity), 0n)), valueMinor: valid.reduce((sum, row) => sum + BigInt(row.valueMinor), 0n).toString() };
+      const result = await client.query<any>(`INSERT INTO workshopos.inventory_import(id,tenant_id,branch_id,filename,idempotency_key,request_hash,status,rows,summary,error_manifest,staged_by_membership_id) VALUES($1,$2,$3,$4,$5,$6,'STAGED',$7::jsonb,$8::jsonb,$9,$10) RETURNING *`, [randomUUID(), membership.tenantId, input.branchId, filename, idempotencyKey, hash, JSON.stringify(rows), JSON.stringify(summary), manifest.rowCount ? manifest.content : null, this.membershipId(membership)]);
+      return { import: this.mapInventoryImport(result.rows[0]), replay: false };
+    });
+  }
+
+  async getInventoryImport(membership: Membership, id: string) { return this.inScope(membership, async (client) => { const result = await client.query<any>("SELECT * FROM workshopos.inventory_import WHERE id=$1", [id]); if (!result.rowCount) throw new ApiError(404, "INVENTORY_IMPORT_NOT_FOUND"); return this.mapInventoryImport(result.rows[0]); }); }
+
+  async receiveInventory(membership: Membership, input: { branchId: string; warehouseId: string; itemId: string; quantity: string; valueMinor: string; reason: string }, idempotencyKey: string) {
+    this.validateBranchAndKey(membership, input.branchId, idempotencyKey); if (!input.reason.trim()) throw new ApiError(400, "REASON_REQUIRED");
+    if (!isValidInventoryQuantity(input.quantity)) throw new ApiError(400, "QUANTITY_INVALID"); if (!isValidInventoryValueMinor(input.valueMinor)) throw new ApiError(400, "VALUE_MINOR_INVALID");
+    return this.inScope(membership, async (client) => {
+      const hash = this.commandHash({ action: "inventory-receipt", ...input, reason: input.reason.trim() }); await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:inventory-receipt:${idempotencyKey}`]);
+      const prior = await client.query<any>("SELECT command_fingerprint,response_body FROM workshopos.inventory_command_receipt WHERE idempotency_key=$1", [idempotencyKey]); if (prior.rowCount) { if (prior.rows[0].command_fingerprint !== hash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED"); return { ...prior.rows[0].response_body, replay: true }; }
+      const valid = await client.query("SELECT 1 FROM workshopos.inventory_item i JOIN workshopos.inventory_warehouse w ON w.tenant_id=i.tenant_id AND w.branch_id=i.branch_id WHERE i.id=$1 AND w.id=$2 AND i.branch_id=$3 AND i.active AND w.active", [input.itemId, input.warehouseId, input.branchId]); if (!valid.rowCount) throw new ApiError(404, "INVENTORY_POSITION_NOT_FOUND");
+      const batchId = await this.postInventoryReceipt(client, membership, { ...input, sourceType: "AUTHORIZED_RECEIPT", sourceId: idempotencyKey, reason: input.reason.trim() }); const response = { ledgerBatchId: batchId, quantity: input.quantity, valueMinor: input.valueMinor };
+      await client.query("INSERT INTO workshopos.inventory_command_receipt(tenant_id,branch_id,idempotency_key,command_fingerprint,response_status,response_body) VALUES($1,$2,$3,$4,201,$5::jsonb)", [membership.tenantId, input.branchId, idempotencyKey, hash, JSON.stringify(response)]); return { ...response, replay: false };
+    });
+  }
+
+  async downloadInventoryImportErrors(membership: Membership, id: string) { return this.inScope(membership, async (client) => { const result = await client.query<{ error_manifest: Buffer | null }>("SELECT error_manifest FROM workshopos.inventory_import WHERE id=$1", [id]); if (!result.rowCount) throw new ApiError(404, "INVENTORY_IMPORT_NOT_FOUND"); if (!result.rows[0].error_manifest) throw new ApiError(409, "IMPORT_HAS_NO_ERRORS"); return { content: result.rows[0].error_manifest, filename: `inventory-import-${id}-errors.csv`, mimeType: "text/csv; charset=utf-8" }; }); }
+
+  async commitInventoryImport(membership: Membership, id: string, input: { version: number }, idempotencyKey: string) {
+    if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
+    return this.inScope(membership, async (client) => {
+      const hash = this.commandHash({ action: "commit-inventory-import", id, version: input.version });
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${membership.tenantId}:inventory-commit:${id}`]);
+      const prior = await client.query<{ request_hash: string; response: any }>("SELECT request_hash,response FROM workshopos.inventory_import_commit WHERE idempotency_key=$1", [idempotencyKey]);
+      if (prior.rowCount) { if (prior.rows[0].request_hash !== hash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED"); return { ...prior.rows[0].response, replay: true }; }
+      const found = await client.query<any>("SELECT * FROM workshopos.inventory_import WHERE id=$1 FOR UPDATE", [id]); if (!found.rowCount) throw new ApiError(404, "INVENTORY_IMPORT_NOT_FOUND"); const staged = found.rows[0];
+      if (staged.status !== "STAGED" || Number(staged.resource_version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT"); if (Number(staged.summary.invalidRows) > 0) throw new ApiError(409, "IMPORT_VALIDATION_FAILED");
+      const batchIds: string[] = [];
+      for (const row of staged.rows as NormalizedInventoryImportRow[]) {
+        const item = await client.query<any>("SELECT id FROM workshopos.inventory_item WHERE branch_id=$1 AND sku=$2 AND active", [staged.branch_id, row.sku]); const warehouse = await client.query<any>("SELECT id FROM workshopos.inventory_warehouse WHERE branch_id=$1 AND upper(name)=$2 AND active", [staged.branch_id, row.warehouseCode]);
+        if (!item.rowCount || !warehouse.rowCount) throw new ApiError(409, "IMPORT_REFERENCE_CHANGED");
+        batchIds.push(await this.postInventoryReceipt(client, membership, { branchId: staged.branch_id, warehouseId: warehouse.rows[0].id, itemId: item.rows[0].id, quantity: row.quantity, valueMinor: row.valueMinor, sourceType: "INVENTORY_IMPORT", sourceId: `${id}:${row.rowNumber}`, reason: `Inventory import ${staged.filename}` }));
+      }
+      const effects = await client.query<{ batches: string; quantity: string; value_minor: string }>("SELECT count(DISTINCT batch_id)::text batches,coalesce(sum(quantity_base),0)::text quantity,coalesce(sum(value_minor),0)::text value_minor FROM workshopos.inventory_ledger_entry WHERE batch_id=ANY($1::uuid[]) AND account='LOCATION_STOCK'", [batchIds]);
+      const reconciliation = { ledgerBatches: Number(effects.rows[0].batches), quantity: effects.rows[0].quantity, valueMinor: effects.rows[0].value_minor };
+      if (reconciliation.ledgerBatches !== staged.rows.length || inventoryQuantityUnits(reconciliation.quantity) !== inventoryQuantityUnits(staged.summary.quantity) || BigInt(reconciliation.valueMinor) !== BigInt(staged.summary.valueMinor)) throw new ApiError(500, "IMPORT_RECONCILIATION_FAILED");
+      const updated = await client.query<any>("UPDATE workshopos.inventory_import SET status='COMMITTED',committed_by_membership_id=$1,committed_at=transaction_timestamp(),resource_version=resource_version+1,summary=summary || $2::jsonb WHERE id=$3 RETURNING *", [this.membershipId(membership), JSON.stringify({ reconciliation }), id]);
+      const response = { import: this.mapInventoryImport(updated.rows[0]), reconciliation }; await client.query("INSERT INTO workshopos.inventory_import_commit(tenant_id,import_id,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4,$5::jsonb)", [membership.tenantId, id, idempotencyKey, hash, JSON.stringify(response)]); return { ...response, replay: false };
+    });
+  }
+
+  private async postInventoryReceipt(client: PoolClient, membership: Membership, input: { branchId: string; warehouseId: string; itemId: string; quantity: string; valueMinor: string; sourceType: string; sourceId: string; reason: string }) {
+    const batchId = randomUUID(); const audit = randomUUID(); const actor = this.membershipId(membership);
+    await client.query("INSERT INTO workshopos.inventory_ledger_batch(tenant_id,branch_id,id,source_type,source_id,actor_membership_id,reason,audit_reference,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,transaction_timestamp())", [membership.tenantId, input.branchId, batchId, input.sourceType, input.sourceId, actor, input.reason, audit]);
+    await client.query(`INSERT INTO workshopos.inventory_ledger_entry(tenant_id,branch_id,batch_id,sequence,account,warehouse_id,item_id,quantity_base,value_minor,source_type,source_id,actor_membership_id,reason,audit_reference,occurred_at) VALUES($1,$2,$3,1,'LOCATION_STOCK',$4,$5,$6,$7,$8,$9,$10,$11,$12,transaction_timestamp()),($1,$2,$3,2,'INVENTORY_CONTROL',NULL,$5,-$6,-$7,$8,$9,$10,$11,$12,transaction_timestamp())`, [membership.tenantId, input.branchId, batchId, input.warehouseId, input.itemId, input.quantity, input.valueMinor, input.sourceType, input.sourceId, actor, input.reason, audit]);
+    await client.query(`INSERT INTO workshopos.inventory_balance(tenant_id,branch_id,id,warehouse_id,item_id,quantity_base,value_minor) VALUES($1,$2,$3,$4,$5,$6,$7) ON CONFLICT (tenant_id,branch_id,warehouse_id,bin_id,item_id,lot_id,remnant_id) DO UPDATE SET quantity_base=workshopos.inventory_balance.quantity_base+EXCLUDED.quantity_base,value_minor=workshopos.inventory_balance.value_minor+EXCLUDED.value_minor,resource_version=workshopos.inventory_balance.resource_version+1`, [membership.tenantId, input.branchId, randomUUID(), input.warehouseId, input.itemId, input.quantity, input.valueMinor]); return batchId;
+  }
+
+  private mapInventoryImport(row: any): InventoryImportRecord { return { id: row.id, branchId: row.branch_id, filename: row.filename, status: row.status, version: Number(row.resource_version), summary: row.summary, stagedAt: row.staged_at.toISOString(), ...(row.committed_at ? { committedAt: row.committed_at.toISOString() } : {}), ...(row.summary?.reconciliation ? { reconciliation: row.summary.reconciliation } : {}) }; }
+
   private normalizeMobile(value: string) { return value.replace(/\D/g, "").replace(/^91(?=\d{10}$)/, ""); }
   private normalizeRegistration(value: string) { return value.trim().toUpperCase().replace(/[^A-Z0-9]/g, ""); }
   private commandHash(value: unknown) { return createHash("sha256").update(JSON.stringify(value)).digest("hex"); }
@@ -399,6 +494,8 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
     if (!actor) throw new ApiError(401, "AUTHENTICATION_REQUIRED");
     return actor;
   }
+
+  private membershipId(membership: Membership): string { return membership.id ?? this.actorId(membership); }
 
   private mapExportJob(row: any): ListExportJob {
     return { id: row.id, screenKey: row.screen_key, format: row.format, status: row.status, ...(row.row_count === null ? {} : { rowCount: row.row_count }),
@@ -515,6 +612,7 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
       const branches = branchIds.length ? (await client.query<BranchOption>(
         "SELECT id, name FROM workshopos.branch WHERE id = ANY($1::uuid[]) ORDER BY name", [branchIds],
       )).rows : [];
+      const warehouseIds = (await client.query<{ warehouse_id: string }>("SELECT warehouse_id FROM workshopos.membership_inventory_warehouse WHERE membership_id=$1 ORDER BY warehouse_id", [membership.id])).rows.map((row) => row.warehouse_id);
       const overrides = await client.query<{ permission: string; effect: "ALLOW" | "DENY" }>(
         "SELECT permission, effect FROM workshopos.membership_permission WHERE membership_id=$1", [membership.id],
       );
@@ -527,6 +625,7 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
         displayName: membership.display_name, email: membership.email, status: membership.status,
         roleIds: roleResult.rows.map((role) => role.id), roles: roleResult.rows,
         branchIds, branches,
+        warehouseIds,
         permissions: [...new Set([...rolePermissions, ...allowed])].filter((permission) => !denied.has(permission)),
         version: Number(membership.version),
       };
@@ -1054,6 +1153,7 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
         membership.branchIds.join(","),
         membership.subject ?? membership.identitySubject ?? "",
       ]);
+      await client.query("SELECT set_config('app.warehouse_ids',$1,true)", [(membership.warehouseIds ?? []).join(",")]);
       const result = await action(client);
       await client.query("COMMIT");
       return result;

@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 36);
+assert.equal(health.migrations, 37);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -25,6 +25,15 @@ assert.ok(adminSession.membership.permissions.includes("global-search.use"));
 assert.ok(adminSession.membership.permissions.includes("business-settings.manage"));
 assert.ok(adminSession.membership.permissions.includes("customer.manage"));
 assert.ok(adminSession.membership.permissions.includes("vehicle.manage"));
+assert.ok(adminSession.membership.permissions.includes("inventory.import"));
+const inventoryBefore = await api("/api/v1/inventory?search=OIL-5W30", "north-admin").then((response) => response.json());
+assert.equal(inventoryBefore.inventory.length, 1);
+assert.equal((await api("/api/v1/inventory", "north-reception")).status, 403);
+const inventoryStageResponse = await api("/api/v1/inventory/imports", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-inventory-stage` }, body: JSON.stringify({ branchId: branch, filename: "local-smoke.csv", rows: [{ sku: "OIL-5W30", warehouseCode: "MAIN", quantity: "2", valueMinor: "100" }] }) });
+assert.equal(inventoryStageResponse.status, 201); const inventoryStage = (await inventoryStageResponse.json()).import; assert.equal(inventoryStage.summary.invalidRows, 0);
+const inventoryCommitResponse = await api(`/api/v1/inventory/imports/${inventoryStage.id}/commit`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-inventory-commit` }, body: JSON.stringify({ version: inventoryStage.version }) });
+assert.equal(inventoryCommitResponse.status, 200); const inventoryCommit = await inventoryCommitResponse.json(); assert.equal(inventoryCommit.reconciliation.ledgerBatches, 1);
+assert.equal((await api(`/api/v1/inventory/imports/${inventoryStage.id}/commit`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-inventory-commit` }, body: JSON.stringify({ version: inventoryStage.version }) })).status, 200);
 const customerInput = JSON.stringify({ branchId: branch, displayName: "Local Identity Smoke", mobile: `9${String(Date.now()).slice(-9)}`, email: "identity-smoke@example.test" });
 const customerResponse = await api("/api/v1/customers", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-customer` }, body: customerInput });
 assert.equal(customerResponse.status, 201); const customer = (await customerResponse.json()).customer;
@@ -221,5 +230,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

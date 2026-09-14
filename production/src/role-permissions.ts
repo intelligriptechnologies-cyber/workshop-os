@@ -17,6 +17,12 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
     ] },
   ] },
   { key: "operations", label: "Workshop operations", pages: [
+    { key: "inventory.page", label: "Inventory", description: "Open production stock analytics and operations.", actions: [
+      { key: "inventory.read", label: "View inventory", description: "Read stock position, movement, ageing, and reorder indicators." },
+      { key: "inventory.operate", label: "Operate inventory", description: "Post authorized stock operations without rewriting ledger history." },
+      { key: "inventory.export", label: "Export inventory", description: "Create and download complete private inventory exports." },
+      { key: "inventory.import", label: "Import inventory", description: "Stage, validate, dry-run, and explicitly commit inventory imports." },
+    ] },
     { key: "customers.page", label: "Customers", description: "Open production customer records.", actions: [
       { key: "customer.read", label: "View customers", description: "Read customers in permitted branches." },
       { key: "customer.manage", label: "Manage customers", description: "Create and edit customer records." },

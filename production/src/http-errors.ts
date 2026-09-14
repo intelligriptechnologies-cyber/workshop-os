@@ -41,6 +41,15 @@ const messages: Record<string, string> = {
   OWNERSHIP_DATE_CONFLICT: "This vehicle already has an ownership change for today. Review its ownership history before trying again.",
   VEHICLE_NOT_FOUND: "The vehicle was not found or is no longer available.",
   EXPORT_SCREEN_INVALID: "Choose the customer or vehicle export.",
+  IMPORT_FILENAME_REQUIRED: "Enter the source filename for this inventory import.",
+  IMPORT_ROWS_INVALID: "Add between 1 and 1,000 inventory rows.",
+  IMPORT_VALIDATION_FAILED: "Resolve every rejected inventory row before committing.",
+  IMPORT_REFERENCE_CHANGED: "An inventory item or warehouse changed after validation. Stage the import again.",
+  INVENTORY_IMPORT_NOT_FOUND: "The inventory import was not found or is no longer available.",
+  IMPORT_HAS_NO_ERRORS: "This inventory import has no rejected-row manifest.",
+  INVENTORY_POSITION_NOT_FOUND: "The inventory item or warehouse is not available in your scope.",
+  QUANTITY_INVALID: "Enter a positive inventory quantity with no more than six decimal places.",
+  VALUE_MINOR_INVALID: "Enter a non-negative whole value within the supported currency range.",
   INTERNAL_ERROR: "WorkshopOS could not complete the request. Try again.",
 };
 

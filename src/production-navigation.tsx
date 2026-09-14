@@ -7,6 +7,7 @@ export const PRODUCTION_NAVIGATION: ProductionNavItem[] = [
   { href: "/production/settings", label: "Business Settings", permission: "business-settings.page" },
   { href: "/production/customers", label: "Customers", permission: "customers.page" },
   { href: "/production/vehicles", label: "Vehicles", permission: "vehicles.page" },
+  { href: "/production/inventory", label: "Inventory", permission: "inventory.page" },
   { href: "/production/search", label: "Global search", permission: "global-search.page" },
 ];
 
