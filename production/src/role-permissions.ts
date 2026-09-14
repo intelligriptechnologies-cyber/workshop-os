@@ -12,6 +12,9 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
     { key: "admin.roles.page", label: "Roles and permissions", description: "Open Roles and Permissions.", actions: [
       { key: "role.manage", label: "Manage custom roles", description: "Create, revise, and archive custom roles." },
     ] },
+    { key: "business-settings.page", label: "Business Settings", description: "Open versioned tenant and branch settings.", actions: [
+      { key: "business-settings.manage", label: "Manage Business Settings", description: "Save, reset, and publish tenant defaults and branch overrides." },
+    ] },
   ] },
   { key: "operations", label: "Workshop operations", pages: [
     { key: "work-items.page", label: "Production work items", description: "Open the production work-item list.", actions: [

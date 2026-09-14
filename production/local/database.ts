@@ -22,6 +22,9 @@ import {
   type RoleInput,
   type RolePermissionRepository,
 } from "../src/role-permissions.js";
+import type {
+  BusinessSettings, BusinessSettingsOverrides, BusinessSettingsRepository, SettingsSnapshot, SettingsWorkspace,
+} from "../src/business-settings.js";
 
 export type Membership = {
   subject?: string;
@@ -78,7 +81,7 @@ type StoredResponse = {
   auditReference: string;
 };
 
-export class PostgresVertical implements AdminUserRepository, RolePermissionRepository {
+export class PostgresVertical implements AdminUserRepository, RolePermissionRepository, BusinessSettingsRepository {
   readonly pool: Pool;
 
   constructor(connectionString = process.env.DATABASE_URL) {
@@ -798,6 +801,117 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
       invitedAt: row.invited_at?.toISOString(), lastInvitedAt: row.last_invited_at?.toISOString(),
       createdAt: row.created_at.toISOString(), updatedAt: row.updated_at.toISOString(),
     };
+  }
+
+  private readonly defaultBusinessSettings: BusinessSettings = {
+    defaultLaborRateMinor: 150000,
+    defaultJobDurationMinutes: 60,
+    customerUpdatesEnabled: true,
+    invoiceFooter: "Thank you for choosing our workshop.",
+  };
+
+  private async latestSettings(client: PoolClient, scopeKey: string) {
+    const result = await client.query<{ version: string; values: BusinessSettingsOverrides }>(
+      "SELECT version::text,values FROM workshopos.business_settings_version WHERE scope_key=$1 ORDER BY version DESC LIMIT 1", [scopeKey],
+    );
+    return result.rowCount ? { version: Number(result.rows[0].version), values: result.rows[0].values } : { version: 0, values: {} as BusinessSettingsOverrides };
+  }
+
+  private async ensureSettingsDraft(client: PoolClient, actor: AuthenticatedMembership, branchId?: string) {
+    const scopeKey = branchId ?? "00000000-0000-0000-0000-000000000000";
+    const current = await this.latestSettings(client, scopeKey);
+    const initialValues = branchId ? current.values : current.version ? current.values : this.defaultBusinessSettings;
+    await client.query(`INSERT INTO workshopos.business_settings_draft(tenant_id,scope_key,branch_id,base_published_version,values,updated_by_membership_id)
+      VALUES($1,$2,$3,$4,$5::jsonb,$6) ON CONFLICT (tenant_id,scope_key) DO NOTHING`,
+    [actor.tenantId, scopeKey, branchId ?? null, current.version, JSON.stringify(initialValues), actor.id]);
+    return scopeKey;
+  }
+
+  private async settingsWorkspace(client: PoolClient, actor: AuthenticatedMembership, branchId?: string): Promise<SettingsWorkspace> {
+    const scopeKey = await this.ensureSettingsDraft(client, actor, branchId);
+    const draft = (await client.query<{ version: string; values: BusinessSettingsOverrides; updated_at: Date }>(
+      "SELECT version::text,values,updated_at FROM workshopos.business_settings_draft WHERE scope_key=$1", [scopeKey],
+    )).rows[0];
+    if (!draft) throw new ApiError(404, "SETTINGS_NOT_FOUND");
+    const published = await this.latestSettings(client, scopeKey);
+    const tenantPublished = branchId ? await this.latestSettings(client, "00000000-0000-0000-0000-000000000000") : published;
+    const inherited = branchId
+      ? { ...this.defaultBusinessSettings, ...(tenantPublished.version ? tenantPublished.values : {}) }
+      : this.defaultBusinessSettings;
+    let branchName: string | undefined;
+    if (branchId) {
+      const branch = await client.query<{ name: string }>("SELECT name FROM workshopos.branch WHERE id=$1", [branchId]);
+      if (!branch.rowCount) throw new ApiError(403, "BRANCH_FORBIDDEN");
+      branchName = branch.rows[0].name;
+    }
+    return {
+      scope: branchId ? { kind: "BRANCH", branchId, branchName: branchName! } : { kind: "TENANT" },
+      draftVersion: Number(draft.version), publishedVersion: published.version, inherited,
+      overrides: draft.values, effective: { ...inherited, ...draft.values }, updatedAt: draft.updated_at.toISOString(),
+    };
+  }
+
+  async workspace(actor: AuthenticatedMembership, branchId?: string): Promise<SettingsWorkspace> {
+    return this.inScope(actor, (client) => this.settingsWorkspace(client, actor, branchId));
+  }
+
+  async saveDraft(actor: AuthenticatedMembership, branchId: string | undefined, input: { version: number; values: BusinessSettingsOverrides }): Promise<SettingsWorkspace> {
+    return this.inScope(actor, async (client) => {
+      const scopeKey = await this.ensureSettingsDraft(client, actor, branchId);
+      const updated = await client.query(`UPDATE workshopos.business_settings_draft SET values=$1::jsonb,version=version+1,updated_by_membership_id=$2,updated_at=transaction_timestamp()
+        WHERE scope_key=$3 AND version=$4 RETURNING version`, [JSON.stringify(input.values), actor.id, scopeKey, input.version]);
+      if (!updated.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
+      return this.settingsWorkspace(client, actor, branchId);
+    });
+  }
+
+  async publish(actor: AuthenticatedMembership, branchId: string | undefined, input: { version: number }, idempotencyKey: string): Promise<SettingsWorkspace> {
+    return this.inScope(actor, async (client) => {
+      const scopeKey = await this.ensureSettingsDraft(client, actor, branchId);
+      const hash = createHash("sha256").update(JSON.stringify({ action: "publish-settings", scopeKey, input })).digest("hex");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${actor.tenantId}:settings:${idempotencyKey}`]);
+      const prior = await client.query<{ request_hash: string; response: SettingsWorkspace }>("SELECT request_hash,response FROM workshopos.business_settings_command WHERE idempotency_key=$1", [idempotencyKey]);
+      if (prior.rowCount) {
+        if (prior.rows[0].request_hash !== hash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED");
+        return prior.rows[0].response;
+      }
+      const draftResult = await client.query<{ version: string; base_published_version: string; values: BusinessSettingsOverrides }>(
+        "SELECT version::text,base_published_version::text,values FROM workshopos.business_settings_draft WHERE scope_key=$1 FOR UPDATE", [scopeKey]);
+      const draft = draftResult.rows[0]; const latest = await this.latestSettings(client, scopeKey);
+      if (!draft || Number(draft.version) !== input.version || Number(draft.base_published_version) !== latest.version) throw new ApiError(409, "VERSION_CONFLICT");
+      const nextVersion = latest.version + 1;
+      await client.query(`INSERT INTO workshopos.business_settings_version(id,tenant_id,scope_key,branch_id,version,values,published_by_membership_id)
+        VALUES($1,$2,$3,$4,$5,$6::jsonb,$7)`, [randomUUID(), actor.tenantId, scopeKey, branchId ?? null, nextVersion, JSON.stringify(draft.values), actor.id]);
+      await client.query("UPDATE workshopos.business_settings_draft SET version=version+1,base_published_version=$1,updated_at=transaction_timestamp() WHERE scope_key=$2", [nextVersion, scopeKey]);
+      const response = await this.settingsWorkspace(client, actor, branchId);
+      await client.query("INSERT INTO workshopos.business_settings_command(tenant_id,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4::jsonb)", [actor.tenantId, idempotencyKey, hash, JSON.stringify(response)]);
+      return response;
+    });
+  }
+
+  async snapshotWorkItem(actor: AuthenticatedMembership, workItemId: string, branchId: string, idempotencyKey: string): Promise<SettingsSnapshot> {
+    return this.inScope(actor, async (client) => {
+      const hash = createHash("sha256").update(JSON.stringify({ action: "snapshot-work-item-settings", workItemId, branchId })).digest("hex");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${actor.tenantId}:settings:${idempotencyKey}`]);
+      const prior = await client.query<{ request_hash: string; response: SettingsSnapshot }>("SELECT request_hash,response FROM workshopos.business_settings_command WHERE idempotency_key=$1", [idempotencyKey]);
+      if (prior.rowCount) { if (prior.rows[0].request_hash !== hash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED"); return prior.rows[0].response; }
+      const item = await client.query("SELECT 1 FROM workshopos.work_item WHERE id=$1 AND branch_id=$2 AND archived_at IS NULL FOR UPDATE", [workItemId, branchId]);
+      if (!item.rowCount) throw new ApiError(404, "WORK_ITEM_NOT_FOUND");
+      const existing = await client.query<{ tenant_version: string; branch_version: string | null; values: BusinessSettings; captured_at: Date }>(
+        "SELECT tenant_version::text,branch_version::text,values,captured_at FROM workshopos.work_item_settings_snapshot WHERE work_item_id=$1", [workItemId]);
+      let response: SettingsSnapshot;
+      if (existing.rowCount) response = { workItemId, tenantVersion: Number(existing.rows[0].tenant_version), branchVersion: existing.rows[0].branch_version ? Number(existing.rows[0].branch_version) : undefined, values: existing.rows[0].values, capturedAt: existing.rows[0].captured_at.toISOString() };
+      else {
+        const tenant = await this.latestSettings(client, "00000000-0000-0000-0000-000000000000");
+        if (!tenant.version) throw new ApiError(409, "TENANT_SETTINGS_NOT_PUBLISHED");
+        const branch = await this.latestSettings(client, branchId); const values = { ...this.defaultBusinessSettings, ...tenant.values, ...(branch.version ? branch.values : {}) } as BusinessSettings;
+        const inserted = (await client.query<{ captured_at: Date }>(`INSERT INTO workshopos.work_item_settings_snapshot(work_item_id,tenant_id,branch_id,tenant_version,branch_version,values,captured_by_membership_id)
+          VALUES($1,$2,$3,$4,$5,$6::jsonb,$7) RETURNING captured_at`, [workItemId, actor.tenantId, branchId, tenant.version, branch.version || null, JSON.stringify(values), actor.id])).rows[0];
+        response = { workItemId, tenantVersion: tenant.version, branchVersion: branch.version || undefined, values, capturedAt: inserted.captured_at.toISOString() };
+      }
+      await client.query("INSERT INTO workshopos.business_settings_command(tenant_id,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4::jsonb)", [actor.tenantId, idempotencyKey, hash, JSON.stringify(response)]);
+      return response;
+    });
   }
 
   async close(): Promise<void> {

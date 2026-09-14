@@ -5,9 +5,10 @@ import ProductionWorkItemsApp from "./ProductionWorkItemsApp";
 import ProductionUsersApp from "./ProductionUsersApp";
 import ProductionRolesApp from "./ProductionRolesApp";
 import ProductionSearchApp from "./ProductionSearchApp";
+import ProductionBusinessSettingsApp from "./ProductionBusinessSettingsApp";
 import "./styles.css";
 
-const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : App;
+const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : location.pathname === "/production/settings" ? ProductionBusinessSettingsApp : App;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

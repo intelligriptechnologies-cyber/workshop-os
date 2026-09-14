@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 34);
+assert.equal(health.migrations, 35);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -22,6 +22,22 @@ const adminSession = await adminSessionResponse.json();
 assert.ok(adminSession.membership.permissions.includes("membership.manage"));
 assert.ok(adminSession.membership.permissions.includes("role.manage"));
 assert.ok(adminSession.membership.permissions.includes("global-search.use"));
+assert.ok(adminSession.membership.permissions.includes("business-settings.manage"));
+const tenantSettingsResponse = await api("/api/v1/admin/business-settings", "north-admin");
+assert.equal(tenantSettingsResponse.status, 200); const tenantSettings = await tenantSettingsResponse.json();
+const savedSettingsResponse = await api("/api/v1/admin/business-settings", "north-admin", { method: "PATCH", body: JSON.stringify({ version: tenantSettings.draftVersion, values: { ...tenantSettings.effective, invoiceFooter: "WorkshopOS local verification" } }) });
+assert.equal(savedSettingsResponse.status, 200); const savedSettings = await savedSettingsResponse.json();
+const publishedSettingsResponse = await api("/api/v1/admin/business-settings/publish", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-settings-publish` }, body: JSON.stringify({ version: savedSettings.draftVersion }) });
+assert.equal(publishedSettingsResponse.status, 200); const publishedSettings = await publishedSettingsResponse.json(); assert.ok(publishedSettings.publishedVersion > 0);
+const settingsWorkResponse = await api("/api/v1/work-items", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-settings-work` }, body: JSON.stringify({ branchId: branch, summary: "Business Settings snapshot smoke" }) });
+assert.equal(settingsWorkResponse.status, 201); const settingsWork = await settingsWorkResponse.json();
+const firstSnapshotResponse = await api(`/api/v1/work-items/${settingsWork.workItem.id}/settings-snapshot`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-settings-snapshot-1` }, body: JSON.stringify({ branchId: branch }) });
+assert.equal(firstSnapshotResponse.status, 201); const firstSnapshot = (await firstSnapshotResponse.json()).snapshot;
+const nextSettingsResponse = await api("/api/v1/admin/business-settings", "north-admin", { method: "PATCH", body: JSON.stringify({ version: publishedSettings.draftVersion, values: { ...publishedSettings.effective, defaultLaborRateMinor: publishedSettings.effective.defaultLaborRateMinor + 1 } }) });
+assert.equal(nextSettingsResponse.status, 200); const nextSettings = await nextSettingsResponse.json();
+assert.equal((await api("/api/v1/admin/business-settings/publish", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-settings-publish-2` }, body: JSON.stringify({ version: nextSettings.draftVersion }) })).status, 200);
+const stableSnapshotResponse = await api(`/api/v1/work-items/${settingsWork.workItem.id}/settings-snapshot`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-settings-snapshot-2` }, body: JSON.stringify({ branchId: branch }) });
+assert.equal(stableSnapshotResponse.status, 201); assert.deepEqual((await stableSnapshotResponse.json()).snapshot.values, firstSnapshot.values);
 const roleDirectoryResponse = await api("/api/v1/admin/roles?search=export", "north-admin");
 assert.equal(roleDirectoryResponse.status, 200);
 const roleDirectory = await roleDirectoryResponse.json();
@@ -188,5 +204,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

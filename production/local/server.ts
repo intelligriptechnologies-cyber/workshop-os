@@ -13,6 +13,7 @@ import { createWorkItemExportArtifact } from "../src/work-item-export.js";
 import { parseUserListQuery, type UserListQuery } from "../src/user-list-contract.js";
 import { createUserExportArtifact } from "../src/user-export.js";
 import { RolePermissionService } from "../src/role-permissions.js";
+import { BusinessSettingsService } from "../src/business-settings.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -26,6 +27,7 @@ const cognito = identityMode === "cognito" ? new CognitoGateway(
 const localIdentity = !cognito && process.env.ALLOW_DEMO_LOGIN === "true" ? new LocalIdentityGateway() : undefined;
 const adminUsers = cognito || localIdentity ? new AdminUserService(database, cognito ?? localIdentity!) : undefined;
 const rolePermissions = new RolePermissionService(database);
+const businessSettings = new BusinessSettingsService(database);
 
 function required(name: string): string {
   const value = process.env[name];
@@ -168,6 +170,26 @@ const server = createServer(async (request, response) => {
         } else {
           json(response, 200, { tenantId: membership.tenantId, branchIds: membership.branchIds });
         }
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/business-settings" && request.method === "GET" && isGlobalMembership(membership)) {
+        json(response, 200, await businessSettings.get(membership, url.searchParams.get("branchId") ?? undefined), traceId);
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/business-settings" && request.method === "PATCH" && isGlobalMembership(membership)) {
+        const input = await body(request); const branchId = typeof input.branchId === "string" ? input.branchId : undefined;
+        json(response, 200, await businessSettings.save(membership, branchId, input), traceId);
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/business-settings/publish" && request.method === "POST" && isGlobalMembership(membership)) {
+        const input = await body(request); const branchId = typeof input.branchId === "string" ? input.branchId : undefined;
+        json(response, 200, await businessSettings.publish(membership, branchId, input, String(request.headers["idempotency-key"] ?? "")), traceId);
+        return;
+      }
+      const settingsSnapshotRoute = url.pathname.match(/^\/api\/v1\/work-items\/([0-9a-f-]+)\/settings-snapshot$/i);
+      if (settingsSnapshotRoute && request.method === "POST" && isGlobalMembership(membership)) {
+        const input = await body(request); const branchId = String(input.branchId ?? "");
+        json(response, 201, { snapshot: await businessSettings.snapshot(membership, settingsSnapshotRoute[1], branchId, String(request.headers["idempotency-key"] ?? "")) }, traceId);
         return;
       }
       if (url.pathname === "/api/v1/admin/roles" && request.method === "GET" && isGlobalMembership(membership)) {
