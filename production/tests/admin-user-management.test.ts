@@ -48,18 +48,28 @@ class MemoryRepository implements AdminUserRepository {
     Object.assign(user, { name: input.name, roleIds: input.roleIds, roles: roles.filter((item) => input.roleIds.includes(item.id)), branchIds: input.branchIds, branches: branches.filter((item) => input.branchIds.includes(item.id)), version: user.version + 1 });
     return user;
   }
-  async archive(current: AuthenticatedMembership, id: string, _reason: string) {
+  async archive(current: AuthenticatedMembership, id: string, input: { version: number; reason: string }, _key: string) {
     if (id === current.id) throw new ApiError(409, "SELF_ARCHIVE_FORBIDDEN");
     const user = this.target(id);
+    if (user.version !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
     if (user.roleIds.includes("role-admin") && this.adminCount() === 1) throw new ApiError(409, "FINAL_ADMIN_REQUIRED");
     user.status = "ARCHIVED"; user.version += 1;
-    return { user, cognitoUsername: user.email };
+    return { user, cognitoUsername: user.email, replay: false };
   }
-  async markInviteResent(_current: AuthenticatedMembership, id: string) {
+  async markInviteResent(_current: AuthenticatedMembership, id: string, version: number, _key: string) {
     const user = this.target(id);
+    if (user.version !== version) throw new ApiError(409, "VERSION_CONFLICT");
     if (user.status !== "INVITED") throw new ApiError(409, "INVITE_ALREADY_COMPLETED");
     user.lastInvitedAt = now(); user.version += 1;
-    return { user, cognitoUsername: user.email };
+    return { user, cognitoUsername: user.email, replay: false };
+  }
+  async changeStatus(current: AuthenticatedMembership, id: string, input: { status: "ACTIVE" | "SUSPENDED"; version: number; reason: string }, _key: string) {
+    const user = this.target(id);
+    if (user.version !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+    if (id === current.id && input.status === "SUSPENDED") throw new ApiError(409, "SELF_ACCESS_FORBIDDEN");
+    if (user.roleIds.includes("role-admin") && input.status === "SUSPENDED" && this.adminCount() === 1) throw new ApiError(409, "FINAL_ADMIN_REQUIRED");
+    if (user.status === "INVITED") throw new ApiError(409, "STATUS_TRANSITION_INVALID");
+    user.status = input.status; user.version += 1; return { user, cognitoUsername: user.email, replay: false };
   }
   private makeUser(input: CreateMembership): ManagedUser {
     return { id: `user-${this.users.length + 1}`, name: input.name, email: input.email, status: input.status,
@@ -84,6 +94,7 @@ class MemoryCognito implements CognitoAdminPort {
     this.identities.set(input.email, created); return created;
   }
   async disableUser(username: string) { this.disabled.push(username); }
+  async enableUser() {}
   async resendInvitation(username: string) { this.resent.push(username); }
 }
 
@@ -126,9 +137,20 @@ test("quota, optimistic edits, self/final-admin protection, resend, and archive 
   const invited = (await service.create(actor, { name: "A", email: "a@example.com", roleIds: ["role-advisor"], branchIds: ["branch-delhi"] }, "a")).user;
   await rejectsCode(() => service.update(actor, invited.id, { name: "Changed", roleIds: invited.roleIds, branchIds: invited.branchIds, version: 99 }), "VERSION_CONFLICT");
   await rejectsCode(() => service.update(actor, actor.id, { name: "Admin", roleIds: ["role-advisor"], branchIds: actor.branchIds, version: 1 }), "FINAL_ADMIN_REQUIRED");
-  await rejectsCode(() => service.archive(actor, actor.id, "no"), "SELF_ARCHIVE_FORBIDDEN");
-  await service.resendInvite(actor, invited.id); assert.deepEqual(cognito.resent, [invited.email]);
-  await service.archive(actor, invited.id, "Left business"); assert.deepEqual(cognito.disabled, [invited.email]);
+  await rejectsCode(() => service.archive(actor, actor.id, { version: actor.version, reason: "no" }, "self-archive"), "SELF_ARCHIVE_FORBIDDEN");
+  await service.resendInvite(actor, invited.id, { version: invited.version }, "resend"); assert.deepEqual(cognito.resent, [invited.email]);
+  await service.archive(actor, invited.id, { version: repository.users.find((item) => item.id === invited.id)!.version, reason: "Left business" }, "archive"); assert.deepEqual(cognito.disabled, [invited.email]);
+});
+
+test("status commands require versions and reasons and protect self access", async () => {
+  const repository = new MemoryRepository(); const service = new AdminUserService(repository, new MemoryCognito());
+  const invited = (await service.create(actor, { name: "A", email: "status@example.com", roleIds: ["role-advisor"], branchIds: ["branch-delhi"] }, "status-user")).user;
+  await rejectsCode(() => service.changeStatus(actor, invited.id, { status: "ACTIVE", version: invited.version, reason: "Invitation accepted" }, "activate-user"), "STATUS_TRANSITION_INVALID");
+  invited.status = "ACTIVE";
+  await service.changeStatus(actor, invited.id, { status: "SUSPENDED", version: invited.version, reason: "Access review" }, "suspend-user");
+  await rejectsCode(() => service.changeStatus(actor, invited.id, { status: "ACTIVE", version: 1, reason: "Review complete" }, "stale-activate"), "VERSION_CONFLICT");
+  await rejectsCode(() => service.changeStatus(actor, actor.id, { status: "SUSPENDED", version: actor.version, reason: "Mistake" }, "self-suspend"), "SELF_ACCESS_FORBIDDEN");
+  await rejectsCode(() => service.changeStatus(actor, invited.id, { status: "ACTIVE", version: 2, reason: "" }, "reasonless"), "STATUS_REASON_REQUIRED");
 });
 
 test("identity migration adds lifecycle, branch mappings, RLS, and subject-only tenant resolution", async () => {

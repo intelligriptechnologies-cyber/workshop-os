@@ -3,6 +3,7 @@ import test from "node:test";
 
 import { Client } from "pg";
 import { AdminUserService, type CognitoAdminPort } from "../src/admin-users.js";
+import { DEFAULT_USER_LIST_QUERY } from "../src/user-list-contract.js";
 import { PostgresVertical } from "../local/database.js";
 
 const adminUrl = process.env.USER_MGMT_TEST_ADMIN_URL;
@@ -42,6 +43,7 @@ test("PostgreSQL user-management repository enforces real RLS, idempotency, life
       return { identitySubject: subject, username: input.email, status: "INVITED" };
     },
     async disableUser(username) { disabled.push(username); },
+    async enableUser() {},
     async resendInvitation() {},
   };
   try {
@@ -63,10 +65,38 @@ test("PostgreSQL user-management repository enforces real RLS, idempotency, life
     assert.deepEqual(listed.users.map((item) => item.email).sort(), ["admin@example.com", "advisor@example.com"]);
     assert.deepEqual(created.user.branches.map((item) => item.name), ["Delhi"]);
 
-    await assert.rejects(() => service.archive(actor, actor.id, "self"), (error: any) => error.code === "SELF_ARCHIVE_FORBIDDEN");
-    await assert.rejects(() => service.update(actor, actor.id, { name: "Admin", roleIds: ["10000000-0000-4000-8000-000000000022"], branchIds: actor.branchIds, version: actor.version }), (error: any) => error.code === "FINAL_ADMIN_REQUIRED");
-    await service.archive(actor, created.user.id, "Employment ended");
+    await assert.rejects(() => service.archive(actor, actor.id, { version: actor.version, reason: "self" }, "self-archive"), (error: any) => error.code === "SELF_ARCHIVE_FORBIDDEN");
+    await assert.rejects(() => service.update(actor, actor.id, { name: "Admin", roleIds: ["10000000-0000-4000-8000-000000000022"], branchIds: actor.branchIds, version: actor.version }), (error: any) => error.code === "SELF_ACCESS_FORBIDDEN");
+    await service.archive(actor, created.user.id, { version: created.user.version, reason: "Employment ended" }, "archive-advisor");
     assert.deepEqual(disabled, ["advisor@example.com"]);
     assert.equal((await service.list(actor)).users.some((item) => item.email === "advisor@example.com"), false);
+
+    const second = await service.create(actor, {
+      name: "Second Admin", email: "second-admin@example.com",
+      roleIds: ["10000000-0000-4000-8000-000000000021"], branchIds: ["10000000-0000-4000-8000-000000000012"],
+    }, "invite-second-admin");
+    const secondActor = await database.resolveMembership(identities.get(second.user.email)!);
+    assert.ok(secondActor);
+    const filtered = await service.list(actor, { ...DEFAULT_USER_LIST_QUERY, search: "second", status: "ACTIVE" });
+    assert.deepEqual(filtered.users.map((item) => item.email), ["second-admin@example.com"]);
+
+    const concurrent = await Promise.allSettled([
+      service.changeStatus(actor, secondActor.id, { status: "SUSPENDED", version: secondActor.version, reason: "Concurrent review A" }, "suspend-second-admin"),
+      service.changeStatus(secondActor, actor.id, { status: "SUSPENDED", version: actor.version, reason: "Concurrent review B" }, "suspend-first-admin"),
+    ]);
+    assert.equal(concurrent.filter((result) => result.status === "fulfilled").length, 1);
+    const rejected = concurrent.find((result): result is PromiseRejectedResult => result.status === "rejected");
+    assert.equal(rejected?.reason.code, "FINAL_ADMIN_REQUIRED");
+    const suspendedSubject = concurrent[0].status === "fulfilled" ? identities.get(second.user.email)! : "sub-admin";
+    assert.equal(await database.resolveMembership(suspendedSubject), undefined);
   } finally { await database.close(); }
+
+  const immutable = new Client({ connectionString: adminUrl });
+  await immutable.connect();
+  try {
+    await assert.rejects(
+      () => immutable.query("UPDATE workshopos.membership_admin_audit SET reason='rewritten'"),
+      /append-only/,
+    );
+  } finally { await immutable.end(); }
 });

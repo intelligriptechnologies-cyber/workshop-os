@@ -14,6 +14,7 @@ import {
   type UserDirectory,
 } from "../src/admin-users.js";
 import type { ServerListQuery } from "../src/server-list-contract.js";
+import { DEFAULT_USER_LIST_QUERY, type UserListQuery } from "../src/user-list-contract.js";
 
 export type Membership = {
   subject?: string;
@@ -209,7 +210,7 @@ export class PostgresVertical implements AdminUserRepository {
     });
   }
 
-  async createListExport(membership: Membership, screenKey: string, format: "PDF" | "XLSX", query: ServerListQuery, idempotencyKey: string): Promise<{ job: ListExportJob; replay: boolean }> {
+  async createListExport(membership: Membership, screenKey: string, format: "PDF" | "XLSX", query: ServerListQuery | UserListQuery, idempotencyKey: string): Promise<{ job: ListExportJob; replay: boolean }> {
     if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
     const id = randomUUID(); const actor = this.actorId(membership);
     return this.inScope(membership, async (client) => {
@@ -357,8 +358,8 @@ export class PostgresVertical implements AdminUserRepository {
       await client.query("BEGIN");
       await client.query("SELECT set_config('app.tenant_id', $1, true), set_config('app.branch_ids', '', true)", [tenantId]);
       const membershipResult = await client.query<{
-        id: string; identity_subject: string; display_name: string; email: string; status: "INVITED" | "ACTIVE" | "ARCHIVED"; version: string;
-      }>("SELECT id, identity_subject, display_name, email, status, version::text FROM workshopos.membership WHERE identity_subject = $1 AND active", [identitySubject]);
+        id: string; identity_subject: string; display_name: string; email: string; status: "INVITED" | "ACTIVE" | "SUSPENDED" | "ARCHIVED"; version: string;
+      }>("SELECT id, identity_subject, display_name, email, status, version::text FROM workshopos.membership WHERE identity_subject = $1 AND active AND status IN ('INVITED', 'ACTIVE')", [identitySubject]);
       if (!membershipResult.rowCount) { await client.query("ROLLBACK"); return undefined; }
       const membership = membershipResult.rows[0];
       if (membership.status === "INVITED") {
@@ -405,17 +406,34 @@ export class PostgresVertical implements AdminUserRepository {
     });
   }
 
-  async directory(actor: AuthenticatedMembership): Promise<UserDirectory> {
+  async directory(actor: AuthenticatedMembership, query: UserListQuery = DEFAULT_USER_LIST_QUERY, all = false): Promise<UserDirectory> {
+    if (query.branchId && !actor.branchIds.includes(query.branchId)) throw new ApiError(403, "BRANCH_FORBIDDEN");
     return this.inScope(actor, async (client) => {
       const roles = (await client.query<RoleOption>("SELECT id, name, permissions FROM workshopos.role_template ORDER BY name")).rows;
       const branches = (await client.query<BranchOption>("SELECT id, name FROM workshopos.branch ORDER BY name")).rows;
+      const values: unknown[] = [];
+      const where = ["m.status <> 'ARCHIVED'"];
+      if (query.search) { values.push(`%${query.search}%`); where.push(`(m.display_name ILIKE $${values.length} OR m.email ILIKE $${values.length})`); }
+      if (query.status) { values.push(query.status); where.push(`m.status = $${values.length}`); }
+      if (query.roleId) { values.push(query.roleId); where.push(`EXISTS (SELECT 1 FROM workshopos.membership_role fmr WHERE fmr.membership_id=m.id AND fmr.role_id=$${values.length})`); }
+      if (query.branchId) { values.push(query.branchId); where.push(`EXISTS (SELECT 1 FROM workshopos.membership_branch fmb WHERE fmb.membership_id=m.id AND fmb.branch_id=$${values.length})`); }
+      const condition = where.join(" AND ");
+      const totalCount = Number((await client.query<{ count: string }>(`SELECT count(*)::text AS count FROM workshopos.membership m WHERE ${condition}`, values)).rows[0].count);
+      const pageCount = Math.max(1, Math.ceil(totalCount / query.pageSize));
+      const page = all ? 1 : Math.min(query.page, pageCount);
+      const orderBy: Record<UserListQuery["sort"], string> = {
+        "updatedAt.desc": "m.updated_at DESC, m.id ASC", "updatedAt.asc": "m.updated_at ASC, m.id ASC",
+        "name.asc": "lower(m.display_name) ASC, m.id ASC", "name.desc": "lower(m.display_name) DESC, m.id ASC",
+        "email.asc": "lower(m.email) ASC, m.id ASC", "email.desc": "lower(m.email) DESC, m.id ASC",
+      };
+      const paging = all ? "" : ` LIMIT ${query.pageSize} OFFSET ${(page - 1) * query.pageSize}`;
       const rows = await client.query<{
         id: string; display_name: string; email: string; status: ManagedUser["status"]; version: string;
         invited_at: Date | null; last_invited_at: Date | null; created_at: Date; updated_at: Date;
-      }>("SELECT id, display_name, email, status, version::text, invited_at, last_invited_at, created_at, updated_at FROM workshopos.membership WHERE status <> 'ARCHIVED' ORDER BY display_name, email");
+      }>(`SELECT m.id, m.display_name, m.email, m.status, m.version::text, m.invited_at, m.last_invited_at, m.created_at, m.updated_at FROM workshopos.membership m WHERE ${condition} ORDER BY ${orderBy[query.sort]}${paging}`, values);
       const users: ManagedUser[] = [];
       for (const row of rows.rows) users.push(await this.hydrateManagedUser(client, row, roles, branches));
-      return { users, roles, branches };
+      return { users, roles, branches, page: { page, pageSize: query.pageSize, totalCount, pageCount }, query: { ...query, page } };
     });
   }
 
@@ -456,33 +474,104 @@ export class PostgresVertical implements AdminUserRepository {
 
   async update(actor: AuthenticatedMembership, id: string, input: UpdateMembership) {
     return this.inScope(actor, async (client) => {
+      await this.lockAdminInvariant(client, actor.tenantId);
       const target = await this.lockTarget(client, id);
       if (Number(target.version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+      if (id === actor.id && !await this.hasManageRole(client, input.roleIds)) throw new ApiError(409, "SELF_ACCESS_FORBIDDEN");
       await this.protectFinalAdmin(client, id, input.roleIds);
       const updated = await client.query("UPDATE workshopos.membership SET display_name=$1, version=version+1, updated_at=transaction_timestamp() WHERE id=$2 AND version=$3", [input.name, id, input.version]);
       if (!updated.rowCount) throw new ApiError(409, "VERSION_CONFLICT");
       await this.replaceAssignments(client, actor.tenantId, id, input.roleIds, input.branchIds);
-      return this.userById(client, id);
+      const user = await this.userById(client, id);
+      await this.auditAdmin(client, actor, id, "UPDATED", "User profile and assignments updated", user.version);
+      return user;
     });
   }
 
-  async archive(actor: AuthenticatedMembership, id: string, reason: string) {
+  async archive(actor: AuthenticatedMembership, id: string, input: { version: number; reason: string }, idempotencyKey: string) {
     return this.inScope(actor, async (client) => {
+      const requestHash = this.adminRequestHash("ARCHIVED", id, input);
+      const replay = await this.replayAdminCommand(client, idempotencyKey, requestHash);
+      if (replay) return { ...replay, replay: true };
+      await this.lockAdminInvariant(client, actor.tenantId);
       const target = await this.lockTarget(client, id);
       if (id === actor.id) throw new ApiError(409, "SELF_ARCHIVE_FORBIDDEN");
+      if (Number(target.version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
       await this.protectFinalAdmin(client, id, []);
-      await client.query("UPDATE workshopos.membership SET active=false,status='ARCHIVED',archived_at=transaction_timestamp(),archived_reason=$1,updated_at=transaction_timestamp(),version=version+1 WHERE id=$2", [reason, id]);
-      return { user: await this.userById(client, id, true), cognitoUsername: String(target.cognito_username) };
+      await client.query("UPDATE workshopos.membership SET active=false,status='ARCHIVED',archived_at=transaction_timestamp(),archived_reason=$1,updated_at=transaction_timestamp(),version=version+1 WHERE id=$2", [input.reason, id]);
+      const result = { user: await this.userById(client, id, true), cognitoUsername: String(target.cognito_username) };
+      await this.auditAdmin(client, actor, id, "ARCHIVED", input.reason, result.user.version);
+      await this.storeAdminCommand(client, actor.tenantId, idempotencyKey, requestHash, result);
+      return { ...result, replay: false };
     });
   }
 
-  async markInviteResent(actor: AuthenticatedMembership, id: string) {
+  async markInviteResent(actor: AuthenticatedMembership, id: string, version: number, idempotencyKey: string) {
     return this.inScope(actor, async (client) => {
+      const requestHash = this.adminRequestHash("INVITE_RESENT", id, { version });
+      const replay = await this.replayAdminCommand(client, idempotencyKey, requestHash);
+      if (replay) return { ...replay, replay: true };
       const target = await this.lockTarget(client, id);
+      if (Number(target.version) !== version) throw new ApiError(409, "VERSION_CONFLICT");
       if (target.status !== "INVITED") throw new ApiError(409, "INVITE_ALREADY_COMPLETED");
       await client.query("UPDATE workshopos.membership SET last_invited_at=transaction_timestamp(),updated_at=transaction_timestamp(),version=version+1 WHERE id=$1", [id]);
-      return { user: await this.userById(client, id), cognitoUsername: String(target.cognito_username) };
+      const result = { user: await this.userById(client, id), cognitoUsername: String(target.cognito_username) };
+      await this.auditAdmin(client, actor, id, "INVITE_RESENT", "Invitation resent", result.user.version);
+      await this.storeAdminCommand(client, actor.tenantId, idempotencyKey, requestHash, result);
+      return { ...result, replay: false };
     });
+  }
+
+  async changeStatus(actor: AuthenticatedMembership, id: string, input: { status: "ACTIVE" | "SUSPENDED"; version: number; reason: string }, idempotencyKey: string) {
+    return this.inScope(actor, async (client) => {
+      const requestHash = this.adminRequestHash(input.status, id, input);
+      const replay = await this.replayAdminCommand(client, idempotencyKey, requestHash);
+      if (replay) return { ...replay, replay: true };
+      await this.lockAdminInvariant(client, actor.tenantId);
+      const target = await this.lockTarget(client, id);
+      if (Number(target.version) !== input.version) throw new ApiError(409, "VERSION_CONFLICT");
+      if (target.status === "INVITED" || target.status === input.status) throw new ApiError(409, "STATUS_TRANSITION_INVALID");
+      if (id === actor.id && input.status === "SUSPENDED") throw new ApiError(409, "SELF_ACCESS_FORBIDDEN");
+      if (input.status === "SUSPENDED") await this.protectFinalAdmin(client, id, []);
+      await client.query("UPDATE workshopos.membership SET status=$1,active=true,updated_at=transaction_timestamp(),version=version+1 WHERE id=$2", [input.status, id]);
+      const result = { user: await this.userById(client, id), cognitoUsername: String(target.cognito_username) };
+      await this.auditAdmin(client, actor, id, input.status === "ACTIVE" ? "ACTIVATED" : "SUSPENDED", input.reason, result.user.version);
+      await this.storeAdminCommand(client, actor.tenantId, idempotencyKey, requestHash, result);
+      return { ...result, replay: false };
+    });
+  }
+
+  private adminRequestHash(action: string, id: string, input: unknown) {
+    return createHash("sha256").update(JSON.stringify({ action, id, input })).digest("hex");
+  }
+
+  private async replayAdminCommand(client: PoolClient, idempotencyKey: string, requestHash: string) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`membership-command:${idempotencyKey}`]);
+    const prior = await client.query<{ request_hash: string; response: { user: ManagedUser; cognitoUsername: string } }>(
+      "SELECT request_hash,response FROM workshopos.membership_command WHERE idempotency_key=$1", [idempotencyKey],
+    );
+    if (!prior.rowCount) return undefined;
+    if (prior.rows[0].request_hash !== requestHash) throw new ApiError(409, "IDEMPOTENCY_KEY_REUSED");
+    return prior.rows[0].response;
+  }
+
+  private async storeAdminCommand(client: PoolClient, tenantId: string, key: string, hash: string, response: unknown) {
+    await client.query("INSERT INTO workshopos.membership_command(tenant_id,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4::jsonb)", [tenantId, key, hash, JSON.stringify(response)]);
+  }
+
+  private async lockAdminInvariant(client: PoolClient, tenantId: string) {
+    await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))", [`${tenantId}:effective-admins`]);
+  }
+
+  private async hasManageRole(client: PoolClient, roleIds: string[]) {
+    if (!roleIds.length) return false;
+    const result = await client.query("SELECT 1 FROM workshopos.role_template WHERE id=ANY($1::uuid[]) AND permissions ? 'membership.manage'", [roleIds]);
+    return Boolean(result.rowCount);
+  }
+
+  private async auditAdmin(client: PoolClient, actor: AuthenticatedMembership, targetId: string, action: string, reason: string, version: number) {
+    await client.query("INSERT INTO workshopos.membership_admin_audit(id,tenant_id,target_membership_id,actor_membership_id,action,reason,resource_version) VALUES($1,$2,$3,$4,$5,$6,$7)",
+      [randomUUID(), actor.tenantId, targetId, actor.id, action, reason, version]);
   }
 
   private async replaceAssignments(client: PoolClient, tenantId: string, id: string, roleIds: string[], branchIds: string[]) {
@@ -497,10 +586,10 @@ export class PostgresVertical implements AdminUserRepository {
   }
 
   private async protectFinalAdmin(client: PoolClient, id: string, nextRoleIds: string[]) {
-    const currentlyAdmin = await client.query("SELECT 1 FROM workshopos.membership_role mr JOIN workshopos.role_template r ON r.id=mr.role_id AND r.tenant_id=mr.tenant_id WHERE mr.membership_id=$1 AND r.permissions ? 'membership.manage'", [id]);
+    const currentlyAdmin = await client.query("SELECT 1 FROM workshopos.membership m JOIN workshopos.membership_role mr ON mr.membership_id=m.id AND mr.tenant_id=m.tenant_id JOIN workshopos.role_template r ON r.id=mr.role_id AND r.tenant_id=mr.tenant_id WHERE m.id=$1 AND m.active AND m.status='ACTIVE' AND r.permissions ? 'membership.manage'", [id]);
     const remainsAdmin = nextRoleIds.length ? await client.query("SELECT 1 FROM workshopos.role_template WHERE id=ANY($1::uuid[]) AND permissions ? 'membership.manage'", [nextRoleIds]) : { rowCount: 0 };
     if (currentlyAdmin.rowCount && !remainsAdmin.rowCount) {
-      const admins = await client.query<{ count: string }>("SELECT count(DISTINCT m.id)::text AS count FROM workshopos.membership m JOIN workshopos.membership_role mr ON mr.membership_id=m.id AND mr.tenant_id=m.tenant_id JOIN workshopos.role_template r ON r.id=mr.role_id AND r.tenant_id=mr.tenant_id WHERE m.active AND r.permissions ? 'membership.manage'");
+      const admins = await client.query<{ count: string }>("SELECT count(DISTINCT m.id)::text AS count FROM workshopos.membership m JOIN workshopos.membership_role mr ON mr.membership_id=m.id AND mr.tenant_id=m.tenant_id JOIN workshopos.role_template r ON r.id=mr.role_id AND r.tenant_id=mr.tenant_id WHERE m.active AND m.status='ACTIVE' AND r.permissions ? 'membership.manage'");
       if (Number(admins.rows[0].count) <= 1) throw new ApiError(409, "FINAL_ADMIN_REQUIRED");
     }
   }

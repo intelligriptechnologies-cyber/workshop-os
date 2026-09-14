@@ -1,8 +1,9 @@
-import { randomBytes } from "node:crypto";
+import { createHash, randomBytes } from "node:crypto";
 
 import {
   AdminCreateUserCommand,
   AdminDisableUserCommand,
+  AdminEnableUserCommand,
   AdminGetUserCommand,
   CognitoIdentityProviderClient,
   type AttributeType,
@@ -89,6 +90,14 @@ export class CognitoGateway implements CognitoAdminPort {
     }
   }
 
+  async enableUser(username: string) {
+    try {
+      await this.client.send(new AdminEnableUserCommand({ UserPoolId: this.userPoolId, Username: username }));
+    } catch {
+      throw new ApiError(502, "IDENTITY_PROVIDER_ERROR");
+    }
+  }
+
   async resendInvitation(username: string) {
     try {
       await this.client.send(new AdminCreateUserCommand({
@@ -110,4 +119,15 @@ export class CognitoGateway implements CognitoAdminPort {
       throw new ApiError(502, "IDENTITY_PROVIDER_ERROR");
     }
   }
+}
+
+export class LocalIdentityGateway implements CognitoAdminPort {
+  async ensureUser(input: { email: string }) {
+    const identitySubject = `local-${createHash("sha256").update(input.email).digest("hex")}`;
+    return { identitySubject, username: input.email, status: "INVITED" as const };
+  }
+
+  async disableUser() {}
+  async enableUser() {}
+  async resendInvitation() {}
 }

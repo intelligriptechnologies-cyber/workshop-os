@@ -3,7 +3,7 @@ import { authenticatedFetch, type CognitoConfig } from "./auth";
 export type AdminRole = { id: string; name: string; permissions: string[] };
 export type AdminBranch = { id: string; name: string };
 export type AdminUser = {
-  id: string; name: string; email: string; status: "INVITED" | "ACTIVE" | "ARCHIVED";
+  id: string; name: string; email: string; status: "INVITED" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
   roleIds: string[]; roles: AdminRole[]; branchIds: string[]; branches: AdminBranch[];
   version: number; invitedAt?: string; lastInvitedAt?: string; createdAt: string; updatedAt: string;
 };
@@ -20,6 +20,13 @@ async function request<T>(config: CognitoConfig, path: string, init?: RequestIni
   return payload;
 }
 
+async function currentUser(config: CognitoConfig, id: string) {
+  const directory = await request<AdminDirectory>(config, "/api/v1/admin/users");
+  const user = directory.users.find((item) => item.id === id);
+  if (!user) throw new AdminApiError("USER_NOT_FOUND");
+  return user;
+}
+
 export const adminUsersApi = {
   list: (config: CognitoConfig) => request<AdminDirectory>(config, "/api/v1/admin/users"),
   create: (config: CognitoConfig, input: { name: string; email: string; roleIds: string[]; branchIds: string[] }) =>
@@ -30,8 +37,16 @@ export const adminUsersApi = {
     method: "PATCH", headers: { "content-type": "application/json" },
     body: JSON.stringify({ name: user.name, roleIds: user.roleIds, branchIds: user.branchIds, version: user.version }),
   }),
-  archive: (config: CognitoConfig, id: string, reason: string) => request<{ user: AdminUser }>(config, `/api/v1/admin/users/${id}/archive`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason }),
-  }),
-  resend: (config: CognitoConfig, id: string) => request<{ user: AdminUser }>(config, `/api/v1/admin/users/${id}/resend-invite`, { method: "POST" }),
+  archive: async (config: CognitoConfig, id: string, reason: string) => {
+    const user = await currentUser(config, id);
+    return request<{ user: AdminUser }>(config, `/api/v1/admin/users/${id}/archive`, {
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ reason, version: user.version }),
+    });
+  },
+  resend: async (config: CognitoConfig, id: string) => {
+    const user = await currentUser(config, id);
+    return request<{ user: AdminUser }>(config, `/api/v1/admin/users/${id}/resend-invite`, {
+      method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify({ version: user.version }),
+    });
+  },
 };

@@ -1,4 +1,6 @@
-export type MembershipStatus = "INVITED" | "ACTIVE" | "ARCHIVED";
+import { DEFAULT_USER_LIST_QUERY, type UserListQuery } from "./user-list-contract.js";
+
+export type MembershipStatus = "INVITED" | "ACTIVE" | "SUSPENDED" | "ARCHIVED";
 
 export type RoleOption = { id: string; name: string; permissions: string[] };
 export type BranchOption = { id: string; name: string };
@@ -38,6 +40,8 @@ export type UserDirectory = {
   users: ManagedUser[];
   roles: RoleOption[];
   branches: BranchOption[];
+  page?: { page: number; pageSize: number; totalCount: number; pageCount: number };
+  query?: UserListQuery;
 };
 
 export type CreateMembership = {
@@ -59,11 +63,12 @@ export class ApiError extends Error {
 }
 
 export interface AdminUserRepository {
-  directory(actor: AuthenticatedMembership): Promise<UserDirectory>;
+  directory(actor: AuthenticatedMembership, query?: UserListQuery, all?: boolean): Promise<UserDirectory>;
   create(actor: AuthenticatedMembership, input: CreateMembership, idempotencyKey: string): Promise<{ user: ManagedUser; replay: boolean }>;
   update(actor: AuthenticatedMembership, id: string, input: UpdateMembership): Promise<ManagedUser>;
-  archive(actor: AuthenticatedMembership, id: string, reason: string): Promise<{ user: ManagedUser; cognitoUsername: string }>;
-  markInviteResent(actor: AuthenticatedMembership, id: string): Promise<{ user: ManagedUser; cognitoUsername: string }>;
+  archive(actor: AuthenticatedMembership, id: string, input: { version: number; reason: string }, idempotencyKey: string): Promise<{ user: ManagedUser; cognitoUsername: string; replay: boolean }>;
+  markInviteResent(actor: AuthenticatedMembership, id: string, version: number, idempotencyKey: string): Promise<{ user: ManagedUser; cognitoUsername: string; replay: boolean }>;
+  changeStatus(actor: AuthenticatedMembership, id: string, input: { status: "ACTIVE" | "SUSPENDED"; version: number; reason: string }, idempotencyKey: string): Promise<{ user: ManagedUser; cognitoUsername: string; replay: boolean }>;
 }
 
 export interface CognitoAdminPort {
@@ -73,6 +78,7 @@ export interface CognitoAdminPort {
     status: MembershipStatus;
   }>;
   disableUser(username: string): Promise<void>;
+  enableUser(username: string): Promise<void>;
   resendInvitation(username: string): Promise<void>;
 }
 
@@ -95,9 +101,9 @@ function validateAssignments(actor: AuthenticatedMembership, directory: UserDire
 export class AdminUserService {
   constructor(private readonly repository: AdminUserRepository, private readonly cognito: CognitoAdminPort) {}
 
-  async list(actor: AuthenticatedMembership) {
+  async list(actor: AuthenticatedMembership, query: UserListQuery = DEFAULT_USER_LIST_QUERY, all = false) {
     requireManager(actor);
-    return this.repository.directory(actor);
+    return this.repository.directory(actor, query, all);
   }
 
   async create(actor: AuthenticatedMembership, raw: Record<string, unknown>, idempotencyKey: string) {
@@ -133,18 +139,44 @@ export class AdminUserService {
     return this.repository.update(actor, id, { name, roleIds, branchIds, version });
   }
 
-  async archive(actor: AuthenticatedMembership, id: string, reason: string) {
+  async archive(actor: AuthenticatedMembership, id: string, raw: Record<string, unknown>, idempotencyKey: string) {
     requireManager(actor);
+    const reason = String(raw.reason ?? "").trim();
+    const version = Number(raw.version);
+    if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
     if (!reason.trim()) throw new ApiError(400, "ARCHIVE_REASON_REQUIRED");
-    const archived = await this.repository.archive(actor, id, reason.trim());
-    await this.cognito.disableUser(archived.cognitoUsername);
+    if (!Number.isSafeInteger(version) || version < 1) throw new ApiError(400, "VERSION_REQUIRED");
+    if (id === actor.id) throw new ApiError(409, "SELF_ARCHIVE_FORBIDDEN");
+    const archived = await this.repository.archive(actor, id, { reason, version }, idempotencyKey);
+    if (!archived.replay) await this.cognito.disableUser(archived.cognitoUsername);
     return archived.user;
   }
 
-  async resendInvite(actor: AuthenticatedMembership, id: string) {
+  async resendInvite(actor: AuthenticatedMembership, id: string, raw: Record<string, unknown>, idempotencyKey: string) {
     requireManager(actor);
-    const pending = await this.repository.markInviteResent(actor, id);
-    await this.cognito.resendInvitation(pending.cognitoUsername);
+    const version = Number(raw.version);
+    if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
+    if (!Number.isSafeInteger(version) || version < 1) throw new ApiError(400, "VERSION_REQUIRED");
+    const pending = await this.repository.markInviteResent(actor, id, version, idempotencyKey);
+    if (!pending.replay) await this.cognito.resendInvitation(pending.cognitoUsername);
     return pending.user;
+  }
+
+  async changeStatus(actor: AuthenticatedMembership, id: string, raw: Record<string, unknown>, idempotencyKey: string) {
+    requireManager(actor);
+    const status = String(raw.status ?? "");
+    const version = Number(raw.version);
+    const reason = String(raw.reason ?? "").trim();
+    if (status !== "ACTIVE" && status !== "SUSPENDED") throw new ApiError(400, "STATUS_INVALID");
+    if (!Number.isSafeInteger(version) || version < 1) throw new ApiError(400, "VERSION_REQUIRED");
+    if (!reason) throw new ApiError(400, "STATUS_REASON_REQUIRED");
+    if (!idempotencyKey.trim()) throw new ApiError(400, "IDEMPOTENCY_KEY_REQUIRED");
+    if (id === actor.id && status === "SUSPENDED") throw new ApiError(409, "SELF_ACCESS_FORBIDDEN");
+    const changed = await this.repository.changeStatus(actor, id, { status, version, reason }, idempotencyKey);
+    if (!changed.replay) {
+      if (status === "SUSPENDED") await this.cognito.disableUser(changed.cognitoUsername);
+      else await this.cognito.enableUser(changed.cognitoUsername);
+    }
+    return changed.user;
   }
 }

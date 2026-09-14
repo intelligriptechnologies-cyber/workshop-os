@@ -14,7 +14,19 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 32);
+assert.equal(health.migrations, 33);
+
+const adminSessionResponse = await api("/api/v1/session", "north-admin");
+assert.equal(adminSessionResponse.status, 200);
+const adminSession = await adminSessionResponse.json();
+assert.ok(adminSession.membership.permissions.includes("membership.manage"));
+const adminDirectoryResponse = await api("/api/v1/admin/users?pageSize=25&sort=name.asc", "north-admin");
+assert.equal(adminDirectoryResponse.status, 200);
+const adminDirectory = await adminDirectoryResponse.json();
+assert.ok(adminDirectory.users.some((user) => user.email === "local-admin@workshopos.test"));
+assert.equal(adminDirectory.query.sort, "name.asc");
+const deniedAdminDirectory = await api("/api/v1/admin/users", "north-reception");
+assert.equal(deniedAdminDirectory.status, 404);
 
 const createInput = JSON.stringify({ branchId: branch, tenantId: "spoofed-tenant", summary: "Docker PostgreSQL smoke inspection" });
 const createdResponse = await api("/api/v1/work-items", "north-reception", {
@@ -140,5 +152,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "production tenant-admin session", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

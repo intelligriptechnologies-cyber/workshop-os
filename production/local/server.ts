@@ -5,11 +5,13 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import path from "node:path";
 
 import { memberships, PostgresVertical } from "./database.js";
-import { CognitoGateway } from "./cognito.js";
+import { CognitoGateway, LocalIdentityGateway } from "./cognito.js";
 import { AdminUserService, ApiError, type AuthenticatedMembership } from "../src/admin-users.js";
 import { publicApiError } from "../src/http-errors.js";
 import { parseListQuery, type ServerListQuery } from "../src/server-list-contract.js";
 import { createWorkItemExportArtifact } from "../src/work-item-export.js";
+import { parseUserListQuery, type UserListQuery } from "../src/user-list-contract.js";
+import { createUserExportArtifact } from "../src/user-export.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -20,7 +22,8 @@ const cognitoDomain = process.env.COGNITO_DOMAIN?.replace(/\/$/, "");
 const cognito = identityMode === "cognito" ? new CognitoGateway(
   required("COGNITO_USER_POOL_ID"), required("COGNITO_APP_CLIENT_ID"), required("AWS_REGION"),
 ) : undefined;
-const adminUsers = cognito ? new AdminUserService(database, cognito) : undefined;
+const localIdentity = !cognito && process.env.ALLOW_DEMO_LOGIN === "true" ? new LocalIdentityGateway() : undefined;
+const adminUsers = cognito || localIdentity ? new AdminUserService(database, cognito ?? localIdentity!) : undefined;
 
 function required(name: string): string {
   const value = process.env[name];
@@ -49,6 +52,7 @@ async function membershipFor(request: IncomingMessage) {
   }
   if (process.env.ALLOW_DEMO_LOGIN !== "true") return undefined;
   const identity = request.headers["x-workshopos-identity"];
+  if (identity === "north-admin") return database.resolveMembership("local-north-admin");
   return typeof identity === "string" ? memberships[identity] : undefined;
 }
 
@@ -76,6 +80,17 @@ function queueWorkItemExport(membership: Parameters<PostgresVertical["queryWorkI
     try {
       const rows = (await database.queryWorkItems(membership, query, true)).workItems;
       await database.completeListExport(membership, id, createWorkItemExportArtifact(format, rows));
+    } catch {
+      await database.failListExport(membership, id);
+    }
+  })());
+}
+
+function queueUserExport(membership: AuthenticatedMembership, id: string, format: "PDF" | "XLSX", query: UserListQuery): void {
+  setImmediate(() => void (async () => {
+    try {
+      const rows = (await adminUsers!.list(membership, query, true)).users;
+      await database.completeListExport(membership, id, createUserExportArtifact(format, rows));
     } catch {
       await database.failListExport(membership, id);
     }
@@ -153,7 +168,7 @@ const server = createServer(async (request, response) => {
         return;
       }
       if (url.pathname === "/api/v1/admin/users" && request.method === "GET" && adminUsers && isGlobalMembership(membership)) {
-        json(response, 200, await adminUsers.list(membership));
+        json(response, 200, await adminUsers.list(membership, parseUserListQuery(url.searchParams)));
         return;
       }
       if (url.pathname === "/api/v1/admin/users" && request.method === "POST" && adminUsers && isGlobalMembership(membership)) {
@@ -169,12 +184,55 @@ const server = createServer(async (request, response) => {
       const archiveRoute = url.pathname.match(/^\/api\/v1\/admin\/users\/([0-9a-f-]+)\/archive$/i);
       if (archiveRoute && request.method === "POST" && adminUsers && isGlobalMembership(membership)) {
         const input = await body(request);
-        json(response, 200, { user: await adminUsers.archive(membership, archiveRoute[1], String(input.reason ?? "")) });
+        json(response, 200, { user: await adminUsers.archive(membership, archiveRoute[1], input, String(request.headers["idempotency-key"] ?? "")) });
         return;
       }
       const resendRoute = url.pathname.match(/^\/api\/v1\/admin\/users\/([0-9a-f-]+)\/resend-invite$/i);
       if (resendRoute && request.method === "POST" && adminUsers && isGlobalMembership(membership)) {
-        json(response, 200, { user: await adminUsers.resendInvite(membership, resendRoute[1]) });
+        json(response, 200, { user: await adminUsers.resendInvite(membership, resendRoute[1], await body(request), String(request.headers["idempotency-key"] ?? "")) });
+        return;
+      }
+      const statusRoute = url.pathname.match(/^\/api\/v1\/admin\/users\/([0-9a-f-]+)\/status$/i);
+      if (statusRoute && request.method === "POST" && adminUsers && isGlobalMembership(membership)) {
+        json(response, 200, { user: await adminUsers.changeStatus(membership, statusRoute[1], await body(request), String(request.headers["idempotency-key"] ?? "")) });
+        return;
+      }
+      if (url.pathname === "/api/v1/list-preferences/admin-users" && request.method === "GET" && isGlobalMembership(membership)) {
+        requirePermission(membership, "membership.manage");
+        json(response, 200, { preference: await database.getListPreference(membership, "admin-users") });
+        return;
+      }
+      if (url.pathname === "/api/v1/list-preferences/admin-users" && request.method === "PUT" && isGlobalMembership(membership)) {
+        requirePermission(membership, "membership.manage");
+        const input = await body(request); const viewMode = String(input.viewMode ?? "");
+        if (viewMode !== "grid" && viewMode !== "table") throw new ApiError(400, "VIEW_MODE_INVALID");
+        json(response, 200, { preference: await database.saveListPreference(membership, "admin-users", viewMode) });
+        return;
+      }
+      if (url.pathname === "/api/v1/admin/user-exports" && request.method === "POST" && adminUsers && isGlobalMembership(membership)) {
+        requirePermission(membership, "membership.manage");
+        const input = await body(request); const format = String(input.format ?? "").toUpperCase();
+        if (format !== "PDF" && format !== "XLSX") throw new ApiError(400, "EXPORT_FORMAT_INVALID");
+        const params = new URLSearchParams(); const rawQuery = input.query && typeof input.query === "object" ? input.query as Record<string, unknown> : {};
+        for (const key of ["search", "status", "roleId", "branchId", "sort", "page", "pageSize"]) if (rawQuery[key] !== undefined) params.set(key, String(rawQuery[key]));
+        const query = parseUserListQuery(params);
+        const result = await database.createListExport(membership, "admin-users", format, query, String(request.headers["idempotency-key"] ?? ""));
+        if (!result.replay || result.job.status === "PENDING") queueUserExport(membership, result.job.id, format, query);
+        json(response, result.replay ? 200 : 202, { export: result.job }, traceId);
+        return;
+      }
+      const userExportRoute = url.pathname.match(/^\/api\/v1\/admin\/user-exports\/([0-9a-f-]+)$/i);
+      if (userExportRoute && request.method === "GET" && isGlobalMembership(membership)) {
+        requirePermission(membership, "membership.manage");
+        json(response, 200, { export: await database.getListExport(membership, userExportRoute[1]) });
+        return;
+      }
+      const userExportDownloadRoute = url.pathname.match(/^\/api\/v1\/admin\/user-exports\/([0-9a-f-]+)\/download$/i);
+      if (userExportDownloadRoute && request.method === "GET" && isGlobalMembership(membership)) {
+        requirePermission(membership, "membership.manage");
+        const artifact = await database.downloadListExport(membership, userExportDownloadRoute[1]);
+        response.writeHead(200, { "content-type": artifact.mimeType, "content-disposition": `attachment; filename="${artifact.filename.replace(/["\r\n]/g, "")}"`, "cache-control": "private, no-store" });
+        response.end(artifact.content);
         return;
       }
       if (url.pathname === "/api/v1/work-items" && request.method === "GET") {
