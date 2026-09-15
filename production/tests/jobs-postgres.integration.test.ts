@@ -20,6 +20,8 @@ test("PostgreSQL Job List uses Visit date, canonical lifecycle, immutable settin
   const receipt = "90000000-0000-4000-8000-000000000205";
   const validDocument = "90000000-0000-4000-8000-000000000206";
   const draftDocument = "90000000-0000-4000-8000-000000000207";
+  const historicalVisit = "90000000-0000-4000-8000-000000000208";
+  const historicalJob = "90000000-0000-4000-8000-000000000209";
   const seed = new Client({ connectionString: adminUrl }); await seed.connect();
   try {
     await seed.query("INSERT INTO workshopos.tenant(tenant_id,legal_name,plan_id,entitlements,quotas,base_currency,timezone,configuration_template_id) VALUES($1,'Job Workshop','pilot','[]','{}','INR','Asia/Kolkata','india-v1')", [tenant]);
@@ -29,9 +31,12 @@ test("PostgreSQL Job List uses Visit date, canonical lifecycle, immutable settin
     await seed.query("INSERT INTO workshopos.vehicle(id,tenant_id,branch_id,registration,normalized_registration,attributes) VALUES($3,$1,$2,'DL 01 AB 1234','DL01AB1234','{\"make\":\"Honda\",\"model\":\"City\"}')", [tenant, branch, vehicle]);
     await seed.query("INSERT INTO workshopos.reception_visit(id,tenant_id,branch_id,customer_id,vehicle_id,advisor_identity_id,odometer_km,fuel_level_eighths,key_count,customer_request,promised_handoff_at,reception_configuration_version_id,checked_in_at) VALUES($3,$1,$2,$4,$5,'job-user',42000,4,1,'Annual service',transaction_timestamp()+interval '4 hours',gen_random_uuid(),transaction_timestamp())", [tenant, branch, visit, customer, vehicle]);
     await seed.query("INSERT INTO workshopos.reception_job_card(id,tenant_id,branch_id,visit_id,customer_id,vehicle_id,advisor_identity_id,customer_request,promised_handoff_at,status) VALUES($3,$1,$2,$4,$5,$6,'job-user','Annual service',transaction_timestamp()+interval '4 hours','DRAFT')", [tenant, branch, job, visit, customer, vehicle]);
+    await seed.query("INSERT INTO workshopos.reception_visit(id,tenant_id,branch_id,customer_id,vehicle_id,advisor_identity_id,odometer_km,fuel_level_eighths,key_count,customer_request,promised_handoff_at,reception_configuration_version_id,checked_in_at) VALUES($3,$1,$2,$4,$5,'job-user',40000,4,1,'Historical repair','2025-03-01T12:00:00Z',gen_random_uuid(),'2025-03-01T04:00:00Z')", [tenant, branch, historicalVisit, customer, vehicle]);
+    await seed.query("INSERT INTO workshopos.reception_job_card(id,tenant_id,branch_id,visit_id,customer_id,vehicle_id,advisor_identity_id,customer_request,promised_handoff_at,status) VALUES($3,$1,$2,$4,$5,$6,'job-user','Historical repair','2025-03-01T12:00:00Z','DRAFT')", [tenant, branch, historicalJob, historicalVisit, customer, vehicle]);
     await seed.query("INSERT INTO workshopos.business_settings_version(id,tenant_id,scope_key,version,values,published_by_membership_id) VALUES(gen_random_uuid(),$1,'00000000-0000-0000-0000-000000000000',1,'{\"defaultLaborRateMinor\":75000,\"defaultJobDurationMinutes\":120,\"customerUpdatesEnabled\":true,\"invoiceFooter\":\"v1\"}',$2)", [tenant, member]);
     await seed.query("SELECT set_config('app.subject_id','job-user',false)");
     await seed.query("INSERT INTO workshopos.lifecycle_resources(id,tenant_id,branch_id,resource_type,stage,resource_version) VALUES($1,$2,$3,'JOB','ACTIVE',1)", [job, tenant, branch]);
+    await seed.query("INSERT INTO workshopos.lifecycle_resources(id,tenant_id,branch_id,resource_type,stage,resource_version) VALUES($1,$2,$3,'JOB','CHECK_IN',1)", [historicalJob, tenant, branch]);
     await seed.query("INSERT INTO workshopos.financial_event(tenant_id,branch_id,id,event_kind,customer_id,visit_id,job_id,payer_id,currency,amount_minor,payment_mode,external_reference,evidence_ref,occurred_at,actor_membership_id,audit_reference) VALUES($1,$2,$3,'PAYMENT_RECEIPT',$4,$5,$6,$4,'INR',10000,'UPI','job-test-receipt','private/test/receipt',transaction_timestamp(),$7,gen_random_uuid())", [tenant, branch, receipt, customer, visit, job, member]);
     await seed.query("INSERT INTO workshopos.rendered_document(tenant_id,branch_id,id,document_type,source_id,public_reference,template_version,artifacts,private_object_ref,content_sha256,rendered_at,audit_reference) VALUES($1,$2,$4,'RECEIPT',$3,'RCPT-TEST-001',1,'[]','private/test/receipt.pdf',repeat('a',64),transaction_timestamp(),gen_random_uuid()),($1,$2,$5,'RECEIPT',gen_random_uuid(),'RCPT-DRAFT-001',1,'[]','private/test/draft.pdf',repeat('b',64),transaction_timestamp(),gen_random_uuid())", [tenant, branch, receipt, validDocument, draftDocument]);
     await seed.query("INSERT INTO workshopos.job_document_content(tenant_id,branch_id,document_id,content,mime_type,filename) VALUES($1,$2,$3,decode('255044462d312e340a','hex'),'application/pdf','receipt.pdf'),($1,$2,$4,decode('255044462d312e340a','hex'),'application/pdf','draft.pdf')", [tenant, branch, validDocument, draftDocument]);
@@ -44,6 +49,40 @@ test("PostgreSQL Job List uses Visit date, canonical lifecycle, immutable settin
     const result = await database.queryJobs(actor, { search: "Asha", branchId: "", visitDate: "", stage: "ACTIVE", sort: "visitDate.desc", page: 1, pageSize: 25 });
     assert.equal(result.jobs.length, 1); assert.equal(result.jobs[0].statusLabel, "In Progress"); assert.equal(result.jobs[0].settingsSnapshotCaptured, true);
     assert.deepEqual(result.jobs[0].documents.map(item => item.id), [validDocument]);
+    assert.equal((await database.getJob(actor, job)).id, job);
+    const selector = await database.searchJobDataFlowJobs(actor, historicalJob);
+    assert.deepEqual(selector.jobs.map((item) => item.id), [historicalJob]);
+    assert.equal((await database.searchJobDataFlowJobs(denied, historicalJob)).jobs.length, 0);
+    const initialLifecycle = await database.getJobLifecycle(actor, job);
+    assert.equal(initialLifecycle.canonicalStage, "ACTIVE"); assert.equal(initialLifecycle.held, false);
+    const qc = await database.commandJobLifecycle(actor, job, { command: "ADVANCE", version: 1, reason: "" }, "job-to-qc");
+    assert.equal(qc.lifecycle.canonicalStage, "QC");
+    const accepted = await database.commandJobLifecycle(actor, job, { command: "RECORD_WORK_ACCEPTED", version: 2, reason: "Customer signed completion", evidence: { channel: "signed-handoff" } }, "job-work-accepted");
+    assert.equal(accepted.lifecycle.facts.workAccepted, true); assert.equal(accepted.lifecycle.facts.paymentCleared, false);
+    assert.ok(accepted.lifecycle.validActions.find((action: any) => action.command === "ADVANCE").blockers.some((item: any) => item.code === "QC_NOT_PASSED"));
+    await assert.rejects(() => database.commandJobLifecycle(actor, job, { command: "ADVANCE", version: 3, reason: "" }, "job-to-billing-blocked"), (error: any) => error.code === "LIFECYCLE_BLOCKED");
+    const upstream = new Client({ connectionString: adminUrl }); await upstream.connect();
+    try {
+      const auditReference = "90000000-0000-4000-8000-000000000301";
+      await upstream.query("UPDATE workshopos.lifecycle_resources SET stage='BILLING',resource_version=4,updated_at=transaction_timestamp() WHERE tenant_id=$1 AND branch_id=$2 AND id=$3", [tenant, branch, job]);
+      await upstream.query("INSERT INTO workshopos.lifecycle_history(id,tenant_id,branch_id,resource_id,from_stage,to_stage,actor_identity_id,reason,audit_reference,occurred_at) VALUES(gen_random_uuid(),$1,$2,$3,'QC','BILLING','upstream-qc','Upstream QC, material, and supplementary controls passed',$4,transaction_timestamp())", [tenant, branch, job, auditReference]);
+    } finally { await upstream.end(); }
+    const cleared = await database.commandJobLifecycle(actor, job, { command: "RECORD_PAYMENT_CLEARED", version: 4, reason: "Receipt reconciled", evidence: { receipt } }, "job-payment-cleared");
+    assert.deepEqual(cleared.lifecycle.validActions.find((action: any) => action.command === "ADVANCE").blockers.map((item: any) => item.code), ["QC_NOT_PASSED", "FINAL_INVOICE_REQUIRED", "GATE_PASS_REQUIRED", "DELIVERY_EVIDENCE_MISSING"]);
+    const held = await database.commandJobLifecycle(actor, job, { command: "HOLD", version: 5, reason: "Awaiting a replacement part" }, "job-hold");
+    assert.equal(held.lifecycle.canonicalStage, "BILLING"); assert.equal(held.lifecycle.held, true);
+    const resumed = await database.commandJobLifecycle(actor, job, { command: "RESUME", version: 6, reason: "Replacement received" }, "job-resume");
+    assert.equal(resumed.lifecycle.canonicalStage, "BILLING"); assert.equal(resumed.lifecycle.held, false);
+    await assert.rejects(() => database.commandJobLifecycle(actor, job, { command: "CANCEL", version: 6, reason: "Stale" }, "job-stale"), (error: any) => error.code === "VERSION_CONFLICT");
+    const cancelled = await database.commandJobLifecycle(actor, job, { command: "CANCEL", version: 7, reason: "Customer requested cancellation" }, "job-cancel");
+    assert.equal(cancelled.lifecycle.canonicalStage, "CANCELLED"); assert.equal(cancelled.lifecycle.resumeStage, "BILLING");
+    const reopened = await database.commandJobLifecycle(actor, job, { command: "REOPEN", version: 8, reason: "Customer restored approval" }, "job-reopen");
+    assert.equal(reopened.lifecycle.canonicalStage, "BILLING");
+    const flow = await database.getJobDataFlow(actor, job);
+    assert.equal(flow.selectedJob.id, job); assert.equal(flow.sections.length, 9); assert.match(flow.sections.find((section) => section.key === "payment")!.summary, /Payment Cleared: recorded/);
+    await database.commandJobLifecycle(actor, job, { command: "CANCEL", version: 9, reason: "Job will not continue" }, "job-final-cancel");
+    const archived = await database.commandJobLifecycle(actor, job, { command: "ARCHIVE", version: 10, reason: "Retain as cancelled audit record" }, "job-archive");
+    assert.equal(archived.lifecycle.archived, true); assert.deepEqual(archived.lifecycle.validActions, []);
     assert.equal((await database.getJob(actor, job)).id, job);
     assert.equal((await database.downloadJobDocument(actor, validDocument)).content.subarray(0, 4).toString(), "%PDF");
     await assert.rejects(() => database.downloadJobDocument(actor, draftDocument), (error: any) => error.code === "JOB_DOCUMENT_NOT_FOUND");
@@ -58,5 +97,7 @@ test("PostgreSQL Job List uses Visit date, canonical lifecycle, immutable settin
     assert.deepEqual(snapshot.rows[0], { tenant_version: "1", footer: "v1", capture_source: "LIFECYCLE" });
     await assert.rejects(() => verify.query("DELETE FROM workshopos.job_settings_snapshot WHERE tenant_id=$1", [tenant]), /immutable/);
     await assert.rejects(() => verify.query("DELETE FROM workshopos.rendered_document WHERE tenant_id=$1", [tenant]), /immutable/);
+    await assert.rejects(() => verify.query("DELETE FROM workshopos.job_lifecycle_fact WHERE tenant_id=$1", [tenant]), /append-only/);
+    assert.equal((await verify.query("SELECT count(*)::int count FROM workshopos.lifecycle_history WHERE resource_id=$1", [job])).rows[0].count, 5);
   } finally { await verify.end(); }
 });

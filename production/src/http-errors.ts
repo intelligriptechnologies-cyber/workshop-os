@@ -52,6 +52,9 @@ const messages: Record<string, string> = {
   VALUE_MINOR_INVALID: "Enter a non-negative whole value within the supported currency range.",
   JOB_NOT_FOUND: "The Job was not found or is no longer available in your permitted branches.",
   JOB_DOCUMENT_NOT_FOUND: "The Job document was not found, is not final, or is no longer available.",
+  LIFECYCLE_COMMAND_INVALID: "That lifecycle action is not valid for the Job's current state. Refresh and review the available actions.",
+  LIFECYCLE_BLOCKED: "Resolve the listed Job lifecycle blockers before trying this action.",
+  LIFECYCLE_EVIDENCE_REQUIRED: "Add evidence for this acceptance or clearance fact.",
   INTERNAL_ERROR: "WorkshopOS could not complete the request. Try again.",
 };
 

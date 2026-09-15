@@ -19,8 +19,15 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
   { key: "operations", label: "Workshop operations", pages: [
     { key: "jobs.page", label: "Jobs", description: "Open the production Job List.", actions: [
       { key: "job.read", label: "View Jobs", description: "Read Jobs in permitted branches." },
+      { key: "job.lifecycle.manage", label: "Manage Job lifecycle", description: "Run authorized, versioned lifecycle commands and record acceptance facts." },
+      { key: "job.estimate-approval.record", label: "Record Estimate Approved", description: "Record attributed estimate-approval evidence." },
+      { key: "job.work-acceptance.record", label: "Record Work Accepted", description: "Record attributed customer work-acceptance evidence." },
+      { key: "job.payment-clearance.record", label: "Record Payment Cleared", description: "Record attributed financial-clearance evidence." },
       { key: "job.document.download", label: "Download Job documents", description: "Download authorized Job Cards and immutable linked documents." },
       { key: "job.export", label: "Export Jobs", description: "Create and download complete private Job exports." },
+    ] },
+    { key: "data-flow.page", label: "Data Flow", description: "Open the record-specific production Job Data Flow.", actions: [
+      { key: "job.data-flow.read", label: "View Job Data Flow", description: "Explain Visit, work, finance, custody, artifacts, and history for permitted Jobs." },
     ] },
     { key: "inventory.page", label: "Inventory", description: "Open production stock analytics and operations.", actions: [
       { key: "inventory.read", label: "View inventory", description: "Read stock position, movement, ageing, and reorder indicators." },

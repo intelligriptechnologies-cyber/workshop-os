@@ -19,4 +19,8 @@
 }
 .job-status { display: inline-block; font-weight: 700; }
 .job-status-in-progress { color: #9a4d00; background: #fff0d6; border: 1px solid #d66a00; border-radius: .35rem; padding: .15rem .45rem; }
+.job-lifecycle { margin-block: 1rem; padding: 1rem; border: 1px solid #ced7e2; border-radius: .75rem; }
+.job-facts, .data-flow-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(14rem, 100%), 1fr)); gap: .75rem; }
+.job-facts > div, .data-flow-grid > article { padding: .75rem; border: 1px solid #d8dee8; border-radius: .5rem; }
+.job-facts dt { font-weight: 700; }.job-facts dd { margin: .25rem 0 0; }.job-history { padding-left: 1.5rem; }
 @media (prefers-reduced-motion: reduce) { .v12-work-items * { scroll-behavior: auto !important; } }

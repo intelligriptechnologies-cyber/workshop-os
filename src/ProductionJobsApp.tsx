@@ -5,6 +5,7 @@ import {
   JobApiError,
   type Job,
   type JobAuth,
+  type JobLifecycle,
 } from "./production-jobs-api";
 import {
   JOB_STAGES,
@@ -12,6 +13,7 @@ import {
   type JobListQuery,
 } from "../production/src/job-list-contract";
 import { ProductionNavigation } from "./ProductionNavigation";
+import { ReasonCommandDialog } from "./dialog-primitives";
 import "./production-work-items.css";
 const blank: JobListQuery = {
   search: "",
@@ -77,6 +79,9 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
     }),
     [view, setView] = useState<"grid" | "table">("table"),
     [detail, setDetail] = useState<Job>(),
+    [lifecycle, setLifecycle] = useState<JobLifecycle>(),
+    [pendingCommand, setPendingCommand] =
+      useState<JobLifecycle["validActions"][number]>(),
     [busy, setBusy] = useState(false),
     [failure, setFailure] = useState("");
   const branches = session.membership.branches as Array<{
@@ -149,6 +154,53 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
       setBusy(false);
     }
   }
+  async function openDetail(id: string) {
+    setBusy(true);
+    try {
+      const [job, projection] = await Promise.all([
+        api.get(id),
+        api.lifecycle(id),
+      ]);
+      setDetail(job);
+      setLifecycle(projection);
+      setFailure("");
+    } catch (e) {
+      setFailure(readable(e));
+    } finally {
+      setBusy(false);
+    }
+  }
+  async function runLifecycle(
+    command: JobLifecycle["validActions"][number],
+    reason = "",
+  ) {
+    if (!detail || !lifecycle) return;
+    setBusy(true);
+    try {
+      const result = await api.commandLifecycle(detail.id, {
+        command: command.command,
+        version: lifecycle.version,
+        reason,
+        ...(command.command.startsWith("RECORD_")
+          ? { evidence: { note: reason } }
+          : {}),
+      });
+      setLifecycle(result.lifecycle);
+      setDetail(await api.get(detail.id));
+      setPendingCommand(undefined);
+      setFailure("");
+      await load(query);
+    } catch (e) {
+      setFailure(readable(e));
+      try {
+        setLifecycle(await api.lifecycle(detail.id));
+      } catch {
+        /* preserve the command error */
+      }
+    } finally {
+      setBusy(false);
+    }
+  }
   const actions = (j: Job, showDetails = true) => (
     <>
       {permissions.includes("job.document.download") && (
@@ -167,16 +219,7 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
         </>
       )}
       {showDetails && (
-        <button
-          onClick={() =>
-            void api
-              .get(j.id)
-              .then(setDetail)
-              .catch((e) => setFailure(readable(e)))
-          }
-        >
-          View details
-        </button>
+        <button onClick={() => void openDetail(j.id)}>View details</button>
       )}
     </>
   );
@@ -186,11 +229,22 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
         <a href="/">Back to WorkshopOS</a>
         <h1>Jobs</h1>
         <p>
-          Current workshop Jobs from PostgreSQL. Visit dates use the workshop timezone.
+          Current workshop Jobs from PostgreSQL. Visit dates use the workshop
+          timezone.
         </p>
         <ProductionNavigation permissions={permissions} />
       </header>
       {failure && <p role="alert">{failure}</p>}
+      <ReasonCommandDialog
+        open={Boolean(pendingCommand)}
+        title={pendingCommand?.label ?? "Job lifecycle action"}
+        commandLabel={pendingCommand?.label ?? "Confirm"}
+        busy={busy}
+        onConfirm={(reason) =>
+          pendingCommand && void runLifecycle(pendingCommand, reason)
+        }
+        onClose={() => setPendingCommand(undefined)}
+      />
       {detail && (
         <section aria-labelledby="job-detail">
           <h2 id="job-detail">{detail.jobNumber}</h2>
@@ -199,11 +253,118 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
           </p>
           <p>Visit/check-in date: {detail.visitDate}</p>
           <p>
-            Status: <Status job={detail} />
+            Status: <Status job={detail} />{" "}
+            {lifecycle?.held && <strong>· On Hold</strong>}
           </p>
           <p>{detail.customerRequest}</p>
+          {lifecycle && (
+            <div className="job-lifecycle" aria-label="Job lifecycle">
+              <h3>Lifecycle</h3>
+              <p>
+                Canonical stage:{" "}
+                <strong>{lifecycle.canonicalStageLabel}</strong>
+              </p>
+              <dl className="job-facts">
+                <div>
+                  <dt>Estimate Approved</dt>
+                  <dd>
+                    {lifecycle.facts.estimateApproved
+                      ? "Recorded"
+                      : "Not recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Work Accepted</dt>
+                  <dd>
+                    {lifecycle.facts.workAccepted ? "Recorded" : "Not recorded"}
+                  </dd>
+                </div>
+                <div>
+                  <dt>Payment Cleared</dt>
+                  <dd>
+                    {lifecycle.facts.paymentCleared
+                      ? "Recorded"
+                      : "Not recorded"}
+                  </dd>
+                </div>
+              </dl>
+              {permissions.some((permission) =>
+                [
+                  "job.lifecycle.manage",
+                  "job.estimate-approval.record",
+                  "job.work-acceptance.record",
+                  "job.payment-clearance.record",
+                ].includes(permission),
+              ) && (
+                <div
+                  className="v12-row-actions"
+                  aria-label="Valid lifecycle actions"
+                >
+                  {lifecycle.validActions
+                    .filter((action) => {
+                      const factPermissions: Record<string, string> = {
+                        RECORD_ESTIMATE_APPROVED:
+                          "job.estimate-approval.record",
+                        RECORD_WORK_ACCEPTED: "job.work-acceptance.record",
+                        RECORD_PAYMENT_CLEARED: "job.payment-clearance.record",
+                      };
+                      return factPermissions[action.command]
+                        ? permissions.includes(factPermissions[action.command])
+                        : permissions.includes("job.lifecycle.manage");
+                    })
+                    .map((action) => (
+                      <div key={action.command}>
+                        <button
+                          disabled={busy || action.blockers.length > 0}
+                          onClick={() =>
+                            action.reasonRequired
+                              ? setPendingCommand(action)
+                              : void runLifecycle(action)
+                          }
+                        >
+                          {action.label}
+                        </button>
+                        {action.blockers.length > 0 && (
+                          <ul aria-label={`${action.label} blockers`}>
+                            {action.blockers.map((item) => (
+                              <li key={item.code}>
+                                <strong>{item.message}</strong>{" "}
+                                {item.resolution}
+                              </li>
+                            ))}
+                          </ul>
+                        )}
+                      </div>
+                    ))}
+                </div>
+              )}
+              <h3>Immutable history</h3>
+              {lifecycle.history.length ? (
+                <ol className="job-history">
+                  {lifecycle.history.map((event) => (
+                    <li key={event.auditReference}>
+                      <strong>{event.label}</strong> · {event.actor} ·{" "}
+                      <time dateTime={event.at}>
+                        {new Date(event.at).toLocaleString()}
+                      </time>
+                      {event.reason && <span> · {event.reason}</span>}
+                    </li>
+                  ))}
+                </ol>
+              ) : (
+                <p>No lifecycle commands have been recorded yet.</p>
+              )}
+            </div>
+          )}
           <div>{actions(detail, false)}</div>
-          <button onClick={() => setDetail(undefined)}>Close details</button>
+          <button
+            onClick={() => {
+              setDetail(undefined);
+              setLifecycle(undefined);
+            }}
+          >
+            Close details
+          </button>
         </section>
       )}
       <section>

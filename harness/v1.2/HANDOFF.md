@@ -1,25 +1,25 @@
 # WorkshopOS v1.2 handoff
 
 Updated: 2026-09-15
-Completed slice: V12-09
-Next slice: V12-10
+Completed slice: V12-10
+Next slice: V12-11
 
 ## Requirement IDs implemented
 
-V12-R001 through V12-R018 are implemented on the production tracer, shared dialogs/list/export contracts, tenant User Management, roles and permissions, Business Settings, Customers/Vehicles, Inventory, and the production Job List/document experience. V12-00 continues to provide governance coverage for the complete requirement register.
+V12-R001 through V12-R022 are implemented on the production tracer, shared UI/list/export contracts, management screens completed through V12-08, the Job List/documents, and the server-authoritative Job lifecycle and Data Flow. V12-00 continues to provide governance coverage for the complete requirement register.
 
 ## Changed paths
 
-`production/db/migrations/038_production_job_list_documents.sql`, `production/local/database.ts`, `production/local/seed-demo.ts`, `production/local/server.ts`, `production/src/http-errors.ts`, `production/src/job-export.ts`, `production/src/job-list-contract.ts`, `production/src/role-permissions.ts`, `production/tests/job-list-contract.test.ts`, `production/tests/jobs-postgres.integration.test.ts`, `production/tests/role-permissions.test.ts`, `scripts/test-local.mjs`, `src/ProductionJobsApp.tsx`, `src/main.tsx`, `src/production-jobs-api.ts`, `src/production-navigation.tsx`, `src/production-work-items.css`, `tests/production-jobs.spec.ts`, `unit-tests/production-jobs-api.test.ts`, and the v1.2 checklist/issue/traceability/handoff.
+`production/db/migrations/039_job_lifecycle_projection.sql`, `production/src/job-lifecycle.ts`, `production/src/http-errors.ts`, `production/src/role-permissions.ts`, `production/local/database.ts`, `production/local/server.ts`, `production/local/seed-demo.ts`, `production/tests/job-lifecycle-projection.test.ts`, `production/tests/jobs-postgres.integration.test.ts`, `src/ProductionDataFlowApp.tsx`, `src/ProductionJobsApp.tsx`, `src/production-jobs-api.ts`, `src/production-navigation.tsx`, `src/production-work-items.css`, `src/main.tsx`, `tests/production-jobs.spec.ts`, `unit-tests/production-jobs-api.test.ts`, `scripts/test-local.mjs`, and the v1.2 checklist/issue/handoff.
 
 ## Focused and regression evidence
 
-- A fresh database applied all 38 migrations; focused V12-09 PostgreSQL integration passed 1/1, covering branch-local dates, canonical lifecycle projection, settings snapshot capture and immutability, conditional documents, denial, and RLS.
-- `npm run local:up` succeeded and `npm run local:test` passed twice at 38 migrations, including Job List, settings snapshot, document discovery, authorized Job Card, and all preceding production smoke checks.
-- Focused Playwright passed 2/2 with the intended real-stack skip and 3/3 against Docker, including browser-to-HTTP-to-PostgreSQL Job List and Job Card behavior. Full Playwright passed 45/53 with eight expected environment-gated real-stack skips.
-- The full production suite passed 233/241 with eight expected opt-in PostgreSQL skips; focused query/export and permission contracts passed.
-- `npm run build` passed with the existing non-blocking bundle-size warning; `npm run test:unit` passed 19/19; production typecheck passed.
-- Both harness verifiers and `git diff --check` passed before commit.
+- A fresh database applied all 39 migrations; focused PostgreSQL integration passed 1/1, including historical Data Flow selection, blocker enforcement, distinct evidenced facts, Hold/resume, stale rejection, cancel/reopen/archive, RLS, and append-only evidence.
+- `npm run local:up` succeeded and `npm run local:test` passed repeatedly at 39 migrations, including lifecycle command replay, same-stage Hold resume, record-specific Data Flow, exact authorization, and all earlier smoke checks.
+- Focused projection/client tests passed 5/5. Focused Playwright passed 6/6 with one intended live-stack skip and 7/7 against Docker. Full Playwright passed 49/57 with eight expected environment-gated real-stack skips.
+- The full production suite passed 236/244 with eight expected opt-in PostgreSQL skips.
+- `npm run build` passed with the existing non-blocking bundle-size warning; unit passed 20/20; production typecheck and `git diff --check` passed.
+- Both harness verifiers passed and reported V12-11 as the next contiguous slice.
 
 ## Preserved pre-existing changes
 
@@ -27,12 +27,12 @@ Unstaged user-owned changes in `src/App.tsx`, `src/styles.css`, `tests/workshopo
 
 ## Risks and blockers
 
-- Rich PWA screens remain `sql.js`-authoritative except the production-backed screens completed through V12-09; V12-14 owns the final static authority gate.
-- V12-09 reads the canonical lifecycle and captures settings when active work begins, but lifecycle mutation, Hold/resume, cancellation/reopening/archive, Work Accepted, Payment Cleared, blockers, history, and explained Data Flow belong to V12-10.
+- Rich PWA screens remain `sql.js`-authoritative except production-backed screens completed through V12-10; V12-14 owns the final static authority gate.
+- V12-12 and V12-13 must connect their dedicated estimate, work-acceptance, and payment workflows to the V12-10 fact ledger rather than creating parallel approval concepts.
 - Production Cognito, private object storage, deployed authorization, deployment, and manual certification were not contacted and remain external evidence for their owning slices.
 - The local identity gateway and deterministic seed remain explicitly gated by `ALLOW_DEMO_LOGIN=true` and are not production identity authority.
-- The existing bundle-size warning and later security, finance/tax, recovery, device/accessibility, migration, and pilot evidence remain open.
+- Existing bundle size and later security, recovery, device/accessibility, migration, and pilot evidence remain open.
 
 ## Next-slice dependencies
 
-V12-10 implements V12-R019 through V12-R022 using migration 039. It must preserve canonical stages, model Hold as a pause overlay that resumes to the same underlying stage, keep Estimate Approved, Work Accepted, and Payment Cleared distinct, enforce valid next actions and blockers, preserve append-only history, support reasoned cancel/reopen/archive without hard deletion, and explain the selected Job's Data Flow from production state.
+V12-11 implements V12-R023 through V12-R025 using migration 040. It must require a valid Job for every media record, cascade Visit/check-in date to a searchable Job selector, enforce lifecycle category gates, store originals only in private object storage while PostgreSQL holds metadata/thumbnails, scan before access, support archive/view/download, and add upload entry points on both Media and Job details.

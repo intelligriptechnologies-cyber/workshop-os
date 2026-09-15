@@ -27,6 +27,7 @@ import type {
 } from "../src/business-settings.js";
 import { buildInventoryErrorManifest, formatInventoryQuantity, inventoryQuantityUnits, isValidInventoryQuantity, isValidInventoryValueMinor, normalizeInventoryImportRows, type NormalizedInventoryImportRow } from "../src/inventory-operations.js";
 import { jobStageLabel, type JobListQuery } from "../src/job-list-contract.js";
+import { isJobLifecycleCommand, projectJobLifecycle, type JobLifecycleStage } from "../src/job-lifecycle.js";
 
 export type Membership = {
   id?: string;
@@ -414,6 +415,121 @@ export class PostgresVertical implements AdminUserRepository, RolePermissionRepo
 
   async getJob(membership:Membership,id:string){return this.inScope(membership,async(client)=>{const tenant=await client.query<{timezone:string}>("SELECT timezone FROM workshopos.tenant WHERE tenant_id=$1",[membership.tenantId]);const result=await client.query<any>(`SELECT j.id,j.tenant_id,j.branch_id,j.visit_id,j.customer_request,j.promised_handoff_at,j.resource_version,lr.stage,lr.updated_at,rv.checked_in_at,c.display_name customer_name,v.normalized_registration registration,v.attributes,EXISTS(SELECT 1 FROM workshopos.job_settings_snapshot s WHERE s.tenant_id=j.tenant_id AND s.branch_id=j.branch_id AND s.job_id=j.id) snapshot_captured,
       coalesce((SELECT jsonb_agg(jsonb_build_object('id',d.id,'type',d.document_type,'label',d.public_reference) ORDER BY d.rendered_at,d.id) FROM workshopos.rendered_document d JOIN workshopos.job_document_content dc ON dc.document_id=d.id AND dc.tenant_id=d.tenant_id AND dc.branch_id=d.branch_id WHERE d.tenant_id=j.tenant_id AND d.branch_id=j.branch_id AND ((d.document_type='ESTIMATE' AND EXISTS(SELECT 1 FROM workshopos.estimate_version ev JOIN workshopos.estimate_stream es ON es.id=ev.estimate_stream_id AND es.tenant_id=ev.tenant_id AND es.branch_id=ev.branch_id WHERE ev.id=d.source_id AND ev.tenant_id=d.tenant_id AND ev.branch_id=d.branch_id AND es.job_id=j.id AND ev.status IN('SENT','APPROVED','PARTIALLY_APPROVED'))) OR (d.document_type='INVOICE' AND EXISTS(SELECT 1 FROM workshopos.native_invoice ni JOIN workshopos.native_invoice_document nd ON nd.entity_id=ni.id AND nd.tenant_id=ni.tenant_id AND nd.branch_id=ni.branch_id AND nd.entity_type='INVOICE' AND nd.scan_status='CLEAN' WHERE ni.id=d.source_id AND ni.tenant_id=d.tenant_id AND ni.branch_id=d.branch_id AND ni.job_id=j.id AND ni.status='FINALIZED')) OR (d.document_type='RECEIPT' AND EXISTS(SELECT 1 FROM workshopos.financial_event fe WHERE fe.id=d.source_id AND fe.tenant_id=d.tenant_id AND fe.branch_id=d.branch_id AND fe.job_id=j.id AND fe.event_kind='PAYMENT_RECEIPT')) OR (d.document_type='GATE_PASS' AND EXISTS(SELECT 1 FROM workshopos.gate_pass gp WHERE gp.id=d.source_id AND gp.tenant_id=d.tenant_id AND gp.branch_id=d.branch_id AND gp.job_id=j.id AND gp.status IN('ISSUED','RELEASED'))))),'[]'::jsonb) documents FROM workshopos.reception_job_card j JOIN workshopos.reception_visit rv ON rv.id=j.visit_id AND rv.tenant_id=j.tenant_id AND rv.branch_id=j.branch_id JOIN workshopos.lifecycle_resources lr ON lr.id=j.id AND lr.tenant_id=j.tenant_id AND lr.branch_id=j.branch_id AND lr.resource_type='JOB' JOIN workshopos.customer c ON c.id=j.customer_id AND c.tenant_id=j.tenant_id AND c.branch_id=j.branch_id JOIN workshopos.vehicle v ON v.id=j.vehicle_id AND v.tenant_id=j.tenant_id AND v.branch_id=j.branch_id WHERE j.id=$1`,[id]);if(!result.rowCount)throw new ApiError(404,"JOB_NOT_FOUND");return this.mapJob(result.rows[0],tenant.rows[0]?.timezone??"Asia/Kolkata");});}
+
+  async getJobLifecycle(membership:Membership,id:string){return this.inScope(membership,(client)=>this.jobLifecycleProjection(client,membership,id));}
+
+  async commandJobLifecycle(membership:Membership,id:string,input:{command:string;version:number;reason:string;evidence?:Record<string,unknown>},idempotencyKey:string){
+    if(!idempotencyKey.trim())throw new ApiError(400,"IDEMPOTENCY_KEY_REQUIRED");
+    if(!isJobLifecycleCommand(input.command))throw new ApiError(400,"LIFECYCLE_COMMAND_INVALID");
+    if(!Number.isSafeInteger(input.version)||input.version<1)throw new ApiError(400,"VERSION_REQUIRED");
+    return this.inScope(membership,async(client)=>{
+      if(!membership.id)throw new ApiError(403,"MEMBERSHIP_REQUIRED");
+      await client.query("SELECT pg_advisory_xact_lock(hashtextextended($1,0))",[`${membership.tenantId}:job-lifecycle:${idempotencyKey}`]);
+      const requestHash=this.commandHash({jobId:id,command:input.command,version:input.version,reason:input.reason.trim(),evidence:input.evidence??{}});
+      const replay=await client.query<{request_hash:string;response:any}>("SELECT request_hash,response FROM workshopos.job_lifecycle_command_receipt WHERE idempotency_key=$1",[idempotencyKey]);
+      if(replay.rowCount){if(replay.rows[0].request_hash!==requestHash)throw new ApiError(409,"IDEMPOTENCY_KEY_REUSED");return{...replay.rows[0].response,replay:true};}
+      await client.query("SELECT id FROM workshopos.lifecycle_resources WHERE id=$1 AND resource_type='JOB' FOR UPDATE",[id]);
+      const before=await this.jobLifecycleProjection(client,membership,id);
+      if(before.version!==input.version)throw new ApiError(409,"VERSION_CONFLICT");
+      const action=before.validActions.find((candidate:any)=>candidate.command===input.command);
+      if(!action)throw new ApiError(409,"LIFECYCLE_COMMAND_INVALID");
+      if(action.reasonRequired&&!input.reason.trim())throw new ApiError(422,"REASON_REQUIRED");
+      if(input.command.startsWith("RECORD_")&&(!input.evidence||Object.keys(input.evidence).length===0))throw new ApiError(422,"LIFECYCLE_EVIDENCE_REQUIRED");
+      if(action.blockers.length)throw new ApiError(422,"LIFECYCLE_BLOCKED");
+      const auditReference=randomUUID(); const now=new Date(); const reason=input.reason.trim();
+      const stage=before.canonicalStage as JobLifecycleStage;
+      if(input.command==="HOLD"||input.command==="RESUME"){
+        await client.query("INSERT INTO workshopos.job_lifecycle_overlay_event(tenant_id,branch_id,id,job_id,event_kind,underlying_stage,reason,actor_membership_id,occurred_at,audit_reference) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10)",[membership.tenantId,before.branchId,randomUUID(),id,input.command,stage,reason,membership.id,now,auditReference]);
+      }else if(input.command==="ARCHIVE"){
+        await client.query("INSERT INTO workshopos.job_archive_event(tenant_id,branch_id,id,job_id,reason,actor_membership_id,occurred_at,audit_reference) VALUES($1,$2,$3,$4,$5,$6,$7,$8)",[membership.tenantId,before.branchId,randomUUID(),id,reason,membership.id,now,auditReference]);
+      }else if(input.command.startsWith("RECORD_")){
+        const factKind=input.command.replace("RECORD_","");
+        await client.query("INSERT INTO workshopos.job_lifecycle_fact(tenant_id,branch_id,id,job_id,fact_kind,evidence,actor_membership_id,occurred_at,audit_reference) VALUES($1,$2,$3,$4,$5,$6::jsonb,$7,$8,$9)",[membership.tenantId,before.branchId,randomUUID(),id,factKind,JSON.stringify(input.evidence??{}),membership.id,now,auditReference]);
+      }else{
+        const target=action.targetStage as JobLifecycleStage;
+        const lastOperational=input.command==="CANCEL"?stage:before.resumeStage??null;
+        await client.query("UPDATE workshopos.lifecycle_resources SET stage=$1,last_operational_stage=$2,updated_at=$3 WHERE id=$4",[target,lastOperational,now,id]);
+        await client.query("INSERT INTO workshopos.lifecycle_history(id,tenant_id,branch_id,resource_id,from_stage,to_stage,actor_identity_id,reason,evidence,audit_reference,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10,$11)",[randomUUID(),membership.tenantId,before.branchId,id,stage,target,membership.subject??membership.identitySubject??"unknown",reason||null,JSON.stringify(input.evidence?Object.values(input.evidence).map(String):[]),auditReference,now]);
+      }
+      await client.query("UPDATE workshopos.lifecycle_resources SET resource_version=resource_version+1,updated_at=$1 WHERE id=$2",[now,id]);
+      await client.query("INSERT INTO workshopos.lifecycle_audit(id,tenant_id,branch_id,resource_id,audit_reference,actor_identity_id,membership_id,action,old_stage,new_stage,authentication,reason,evidence,overridden_blockers,occurred_at) VALUES($1,$2,$3,$4,$5,$6,$7,$8,$9,$10,'{}'::jsonb,$11,$12::jsonb,'[]'::jsonb,$13)",[randomUUID(),membership.tenantId,before.branchId,id,auditReference,membership.subject??membership.identitySubject??"unknown",membership.id,`job.${input.command.toLowerCase()}`,stage,action.targetStage??stage,reason||null,JSON.stringify(input.evidence?Object.values(input.evidence).map(String):[]),now]);
+      const lifecycle=await this.jobLifecycleProjection(client,membership,id); const response={lifecycle,auditReference};
+      await client.query("INSERT INTO workshopos.job_lifecycle_command_receipt(tenant_id,branch_id,idempotency_key,request_hash,response) VALUES($1,$2,$3,$4,$5::jsonb)",[membership.tenantId,before.branchId,idempotencyKey,requestHash,JSON.stringify(response)]);
+      return{...response,replay:false};
+    });
+  }
+
+  async getJobDataFlow(membership:Membership,id:string){return this.inScope(membership,async(client)=>{
+    const lifecycle=await this.jobLifecycleProjection(client,membership,id);
+    const row=(await client.query<any>(`SELECT j.id,j.visit_id,rv.checked_in_at,c.display_name customer_name,v.normalized_registration registration,
+      (SELECT count(*)::int FROM workshopos.estimate_stream es WHERE es.job_id=j.id) estimate_streams,
+      (SELECT count(*)::int FROM workshopos.work_plan wp WHERE wp.job_id=j.id) work_plans,
+      (SELECT count(*)::int FROM workshopos.qc_task_state qs WHERE qs.job_id=j.id) qc_tasks,
+      (SELECT count(*)::int FROM workshopos.native_invoice ni WHERE ni.job_id=j.id AND ni.status='FINALIZED') final_invoices,
+      (SELECT count(*)::int FROM workshopos.financial_event fe WHERE fe.job_id=j.id) financial_events,
+      (SELECT count(*)::int FROM workshopos.custody_incident ci WHERE ci.job_id=j.id AND ci.status='OPEN') open_incidents,
+      (SELECT count(*)::int FROM workshopos.rendered_document d JOIN workshopos.job_document_content dc ON dc.document_id=d.id AND dc.tenant_id=d.tenant_id AND dc.branch_id=d.branch_id WHERE
+        (d.document_type='ESTIMATE' AND EXISTS(SELECT 1 FROM workshopos.estimate_version ev JOIN workshopos.estimate_stream es ON es.id=ev.estimate_stream_id AND es.tenant_id=ev.tenant_id AND es.branch_id=ev.branch_id WHERE ev.id=d.source_id AND es.job_id=j.id)) OR
+        (d.document_type='INVOICE' AND EXISTS(SELECT 1 FROM workshopos.native_invoice ni WHERE ni.id=d.source_id AND ni.job_id=j.id AND ni.status='FINALIZED')) OR
+        (d.document_type='RECEIPT' AND EXISTS(SELECT 1 FROM workshopos.financial_event fe WHERE fe.id=d.source_id AND fe.job_id=j.id AND fe.event_kind='PAYMENT_RECEIPT')) OR
+        (d.document_type='GATE_PASS' AND EXISTS(SELECT 1 FROM workshopos.gate_pass gp WHERE gp.id=d.source_id AND gp.job_id=j.id AND gp.status IN('ISSUED','RELEASED')))) linked_documents
+      FROM workshopos.reception_job_card j JOIN workshopos.reception_visit rv ON rv.id=j.visit_id AND rv.tenant_id=j.tenant_id AND rv.branch_id=j.branch_id
+      JOIN workshopos.customer c ON c.id=j.customer_id AND c.tenant_id=j.tenant_id AND c.branch_id=j.branch_id
+      JOIN workshopos.vehicle v ON v.id=j.vehicle_id AND v.tenant_id=j.tenant_id AND v.branch_id=j.branch_id WHERE j.id=$1`,[id])).rows[0];
+    if(!row)throw new ApiError(404,"JOB_NOT_FOUND");
+    const sections=[
+      {key:"visit",label:"Visit / check-in",summary:`Checked in ${row.checked_in_at.toISOString()} for ${row.customer_name} · ${row.registration}.`,recordCount:1,relevance:"The Visit establishes custody and the Job's local-date identity."},
+      {key:"estimate",label:"Estimate",summary:`${row.estimate_streams} estimate stream(s); Estimate Approved: ${lifecycle.facts.estimateApproved?"recorded":"not recorded"}.`,recordCount:row.estimate_streams,relevance:"Approved scope is separate from later work acceptance."},
+      {key:"work",label:"Work",summary:`${row.work_plans} work plan(s); Work Accepted: ${lifecycle.facts.workAccepted?"recorded":"not recorded"}.`,recordCount:row.work_plans,relevance:"Work execution and customer acceptance remain separately attributable."},
+      {key:"qc",label:"Quality control",summary:`${row.qc_tasks} QC task projection(s).`,recordCount:row.qc_tasks,relevance:"QC evidence determines readiness for billing and may return work to In Progress."},
+      {key:"billing",label:"Billing",summary:`${row.final_invoices} final invoice(s).`,recordCount:row.final_invoices,relevance:"Final invoices are immutable and precede release."},
+      {key:"payment",label:"Payment",summary:`${row.financial_events} financial event(s); Payment Cleared: ${lifecycle.facts.paymentCleared?"recorded":"not recorded"}.`,recordCount:row.financial_events,relevance:"Payment events and the explicit clearance decision are distinct."},
+      {key:"custody",label:"Custody / release",summary:`${row.open_incidents} open custody incident(s).`,recordCount:row.open_incidents,relevance:"Gate verification and vehicle release complete workshop custody."},
+      {key:"documents",label:"Linked artifacts",summary:`${row.linked_documents} protected document artifact(s).`,recordCount:row.linked_documents,relevance:"Only existing immutable artifacts are downloadable."},
+      {key:"history",label:"Status history",summary:`${lifecycle.history.length} attributed lifecycle event(s).`,recordCount:lifecycle.history.length,relevance:"Append-only history explains how this Job reached its current state."},
+    ];
+    return{selectedJob:{id:row.id,jobNumber:`JOB-${String(row.id).slice(0,8).toUpperCase()}`,visitId:row.visit_id,customerName:row.customer_name,registration:row.registration},lifecycle,sections};
+  });}
+
+  async searchJobDataFlowJobs(membership:Membership,search:string){return this.inScope(membership,async(client)=>{
+    const needle=search.trim();const values:unknown[]=[];let condition="";
+    if(needle){values.push(`%${needle}%`);condition=`AND (j.id::text ILIKE $1 OR c.display_name ILIKE $1 OR v.normalized_registration ILIKE regexp_replace($1,'[^a-zA-Z0-9%]','','g'))`;}
+    const rows=await client.query<any>(`SELECT j.id,rv.checked_in_at,c.display_name customer_name,v.normalized_registration registration
+      FROM workshopos.reception_job_card j JOIN workshopos.reception_visit rv ON rv.id=j.visit_id AND rv.tenant_id=j.tenant_id AND rv.branch_id=j.branch_id
+      JOIN workshopos.customer c ON c.id=j.customer_id AND c.tenant_id=j.tenant_id AND c.branch_id=j.branch_id
+      JOIN workshopos.vehicle v ON v.id=j.vehicle_id AND v.tenant_id=j.tenant_id AND v.branch_id=j.branch_id
+      WHERE NOT EXISTS(SELECT 1 FROM workshopos.job_archive_event a WHERE a.job_id=j.id) ${condition}
+      ORDER BY rv.checked_in_at DESC,j.id LIMIT 50`,values);
+    return{jobs:rows.rows.map(row=>({id:row.id,jobNumber:`JOB-${String(row.id).slice(0,8).toUpperCase()}`,checkedInAt:row.checked_in_at.toISOString(),customerName:row.customer_name,registration:row.registration??""})),search:needle};
+  });}
+
+  private async jobLifecycleProjection(client:PoolClient,membership:Membership,id:string){
+    const row=(await client.query<any>(`SELECT lr.stage,lr.resource_version::int version,lr.last_operational_stage,j.branch_id,
+      coalesce((SELECT event_kind='HOLD' FROM workshopos.job_lifecycle_overlay_event e WHERE e.job_id=j.id ORDER BY e.occurred_at DESC,e.id DESC LIMIT 1),false) held,
+      EXISTS(SELECT 1 FROM workshopos.job_archive_event a WHERE a.job_id=j.id) archived,
+      (EXISTS(SELECT 1 FROM workshopos.job_lifecycle_fact f WHERE f.job_id=j.id AND f.fact_kind='ESTIMATE_APPROVED') OR EXISTS(SELECT 1 FROM workshopos.estimate_scope_activation a WHERE a.job_id=j.id)) estimate_approved,
+      EXISTS(SELECT 1 FROM workshopos.job_lifecycle_fact f WHERE f.job_id=j.id AND f.fact_kind='WORK_ACCEPTED') work_accepted,
+      EXISTS(SELECT 1 FROM workshopos.job_lifecycle_fact f WHERE f.job_id=j.id AND f.fact_kind='PAYMENT_CLEARED') payment_cleared,
+      EXISTS(SELECT 1 FROM workshopos.native_invoice i WHERE i.job_id=j.id AND i.status='FINALIZED') invoice_finalized,
+      EXISTS(SELECT 1 FROM workshopos.gate_pass g WHERE g.job_id=j.id AND g.status IN('ISSUED','RELEASED')) gate_pass_issued,
+      EXISTS(SELECT 1 FROM workshopos.gate_release r WHERE r.job_id=j.id) gate_verified,
+      NOT EXISTS(SELECT 1 FROM workshopos.technician_task t WHERE t.job_id=j.id AND t.status<>'COMPLETED') work_complete,
+      (EXISTS(SELECT 1 FROM workshopos.qc_task_state q WHERE q.job_id=j.id) AND NOT EXISTS(SELECT 1 FROM workshopos.qc_task_state q WHERE q.job_id=j.id AND q.qc_status NOT IN('PASSED','OVERRIDDEN'))) qc_passed,
+      NOT EXISTS(SELECT 1 FROM workshopos.job_material_issue i WHERE i.job_id=j.id AND NOT EXISTS(SELECT 1 FROM workshopos.job_material_reconciliation r WHERE r.job_id=i.job_id AND r.task_id=i.task_id AND r.item_id=i.item_id AND r.uom=i.uom)) materials_reconciled,
+      NOT EXISTS(SELECT 1 FROM workshopos.estimate_stream es WHERE es.job_id=j.id AND es.kind='SUPPLEMENTARY' AND NOT EXISTS(SELECT 1 FROM workshopos.estimate_scope_activation a WHERE a.job_id=j.id AND a.estimate_version_id IN(SELECT ev.id FROM workshopos.estimate_version ev WHERE ev.estimate_stream_id=es.id))) supplementary_scope_resolved,
+      NOT EXISTS(SELECT 1 FROM workshopos.custody_incident c WHERE c.job_id=j.id AND c.status='OPEN') incidents_resolved,
+      EXISTS(SELECT 1 FROM workshopos.delivery_evidence d WHERE d.job_id=j.id) delivery_evidence_captured
+      FROM workshopos.reception_job_card j JOIN workshopos.lifecycle_resources lr ON lr.id=j.id AND lr.tenant_id=j.tenant_id AND lr.branch_id=j.branch_id AND lr.resource_type='JOB' WHERE j.id=$1`,[id])).rows[0];
+    if(!row)throw new ApiError(404,"JOB_NOT_FOUND");
+    const projection=projectJobLifecycle({stage:row.stage,version:Number(row.version),held:row.held,archived:row.archived,resumeStage:row.last_operational_stage??undefined,facts:{estimateApproved:row.estimate_approved,workAccepted:row.work_accepted,paymentCleared:row.payment_cleared,invoiceFinalized:row.invoice_finalized,gatePassIssued:row.gate_pass_issued,gateVerified:row.gate_verified,vehicleReleased:row.gate_verified,workComplete:row.work_complete,qcPassed:row.qc_passed,materialsReconciled:row.materials_reconciled,supplementaryScopeResolved:row.supplementary_scope_resolved,incidentsResolved:row.incidents_resolved,deliveryEvidenceCaptured:row.delivery_evidence_captured}});
+    const history=(await client.query<any>(`SELECT kind,label,at,actor,reason,audit_reference FROM (
+      SELECT 'STAGE' kind,coalesce(from_stage,'Created')||' → '||to_stage label,occurred_at at,actor_identity_id actor,reason,audit_reference FROM workshopos.lifecycle_history WHERE resource_id=$1
+      UNION ALL SELECT event_kind,event_kind||' at '||underlying_stage,e.occurred_at,coalesce(m.display_name,m.identity_subject),e.reason,e.audit_reference::text FROM workshopos.job_lifecycle_overlay_event e JOIN workshopos.membership m ON m.id=e.actor_membership_id WHERE e.job_id=$1
+      UNION ALL SELECT 'FACT',replace(fact_kind,'_',' '),f.occurred_at,coalesce(m.display_name,m.identity_subject),f.evidence->>'note',f.audit_reference::text FROM workshopos.job_lifecycle_fact f JOIN workshopos.membership m ON m.id=f.actor_membership_id WHERE f.job_id=$1
+      UNION ALL SELECT 'ARCHIVE','JOB ARCHIVED',a.occurred_at,coalesce(m.display_name,m.identity_subject),a.reason,a.audit_reference::text FROM workshopos.job_archive_event a JOIN workshopos.membership m ON m.id=a.actor_membership_id WHERE a.job_id=$1
+    ) events ORDER BY at,audit_reference`,[id])).rows.map((item:any)=>({kind:item.kind,label:item.label,at:item.at.toISOString(),actor:item.actor,reason:item.reason??undefined,auditReference:item.audit_reference}));
+    return{...projection,branchId:row.branch_id,resumeStage:row.last_operational_stage??undefined,history};
+  }
 
   async downloadJobDocument(membership:Membership,id:string){return this.inScope(membership,async(client)=>{const result=await client.query<any>(`SELECT dc.content,dc.mime_type,dc.filename FROM workshopos.job_document_content dc JOIN workshopos.rendered_document d ON d.id=dc.document_id AND d.tenant_id=dc.tenant_id AND d.branch_id=dc.branch_id WHERE d.id=$1 AND ((d.document_type='ESTIMATE' AND EXISTS(SELECT 1 FROM workshopos.estimate_version ev WHERE ev.id=d.source_id AND ev.tenant_id=d.tenant_id AND ev.branch_id=d.branch_id AND ev.status IN('SENT','APPROVED','PARTIALLY_APPROVED'))) OR (d.document_type='INVOICE' AND EXISTS(SELECT 1 FROM workshopos.native_invoice ni JOIN workshopos.native_invoice_document nd ON nd.entity_id=ni.id AND nd.tenant_id=ni.tenant_id AND nd.branch_id=ni.branch_id AND nd.entity_type='INVOICE' AND nd.scan_status='CLEAN' WHERE ni.id=d.source_id AND ni.tenant_id=d.tenant_id AND ni.branch_id=d.branch_id AND ni.status='FINALIZED')) OR (d.document_type='RECEIPT' AND EXISTS(SELECT 1 FROM workshopos.financial_event fe WHERE fe.id=d.source_id AND fe.tenant_id=d.tenant_id AND fe.branch_id=d.branch_id AND fe.event_kind='PAYMENT_RECEIPT')) OR (d.document_type='GATE_PASS' AND EXISTS(SELECT 1 FROM workshopos.gate_pass gp WHERE gp.id=d.source_id AND gp.tenant_id=d.tenant_id AND gp.branch_id=d.branch_id AND gp.status IN('ISSUED','RELEASED'))))`,[id]);if(!result.rowCount)throw new ApiError(404,"JOB_DOCUMENT_NOT_FOUND");if(result.rowCount!==1)throw new ApiError(409,"JOB_DOCUMENT_REFERENCE_AMBIGUOUS");return{content:result.rows[0].content as Buffer,mimeType:result.rows[0].mime_type as string,filename:result.rows[0].filename as string};});}
 

@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 38);
+assert.equal(health.migrations, 39);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -27,6 +27,10 @@ assert.ok(adminSession.membership.permissions.includes("customer.manage"));
 assert.ok(adminSession.membership.permissions.includes("vehicle.manage"));
 assert.ok(adminSession.membership.permissions.includes("inventory.import"));
 assert.ok(adminSession.membership.permissions.includes("job.document.download"));
+assert.ok(adminSession.membership.permissions.includes("job.lifecycle.manage"));
+assert.ok(adminSession.membership.permissions.includes("job.work-acceptance.record"));
+assert.ok(adminSession.membership.permissions.includes("job.payment-clearance.record"));
+assert.ok(adminSession.membership.permissions.includes("job.data-flow.read"));
 const jobsTodayResponse = await api("/api/v1/jobs", "north-admin");
 assert.equal(jobsTodayResponse.status, 200);
 const jobsToday = await jobsTodayResponse.json();
@@ -39,6 +43,18 @@ assert.equal(jobCardResponse.status, 200);
 assert.match(jobCardResponse.headers.get("content-type") ?? "", /application\/pdf/);
 assert.equal((await jobCardResponse.arrayBuffer()).byteLength > 500, true);
 assert.equal((await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/job-card`, "north-users-admin")).status, 403);
+const lifecycleBefore = await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/lifecycle`, "north-admin").then((response) => response.json());
+assert.equal(lifecycleBefore.lifecycle.canonicalStage, "ACTIVE");
+const holdBody = JSON.stringify({ command: "HOLD", version: lifecycleBefore.lifecycle.version, reason: "Local smoke parts delay" });
+const holdResponse = await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/lifecycle`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-job-hold` }, body: holdBody });
+assert.equal(holdResponse.status, 201); const heldLifecycle = (await holdResponse.json()).lifecycle; assert.equal(heldLifecycle.held, true); assert.equal(heldLifecycle.canonicalStage, "ACTIVE");
+assert.equal((await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/lifecycle`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-job-hold` }, body: holdBody })).status, 200);
+const resumeResponse = await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/lifecycle`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-job-resume` }, body: JSON.stringify({ command: "RESUME", version: heldLifecycle.version, reason: "Parts available" }) });
+assert.equal(resumeResponse.status, 201); assert.equal((await resumeResponse.json()).lifecycle.held, false);
+const dataFlowResponse = await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/data-flow`, "north-admin"); assert.equal(dataFlowResponse.status, 200);
+const dataFlow = (await dataFlowResponse.json()).dataFlow; assert.equal(dataFlow.selectedJob.id, jobsToday.jobs[0].id); assert.equal(dataFlow.sections.length, 9);
+assert.equal((await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/data-flow`, "north-users-admin")).status, 403);
+assert.equal((await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/lifecycle`, "north-users-admin", { method: "POST", headers: { "idempotency-key": `${key}-denied-job-command` }, body: JSON.stringify({ command: "HOLD", version: 1, reason: "Denied" }) })).status, 403);
 const inventoryBefore = await api("/api/v1/inventory?search=OIL-5W30", "north-admin").then((response) => response.json());
 assert.equal(inventoryBefore.inventory.length, 1);
 assert.equal((await api("/api/v1/inventory", "north-reception")).status, 403);
@@ -243,5 +259,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

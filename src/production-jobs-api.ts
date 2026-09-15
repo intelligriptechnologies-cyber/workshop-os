@@ -23,6 +23,53 @@ export type Job = {
   documents: JobDocument[];
   settingsSnapshotCaptured: boolean;
 };
+export type JobLifecycle = {
+  canonicalStage: string;
+  canonicalStageLabel: string;
+  displayStage: string;
+  held: boolean;
+  archived: boolean;
+  version: number;
+  resumeStage?: string;
+  branchId: string;
+  facts: {
+    estimateApproved: boolean;
+    workAccepted: boolean;
+    paymentCleared: boolean;
+  };
+  validActions: Array<{
+    command: string;
+    label: string;
+    targetStage?: string;
+    reasonRequired: boolean;
+    blockers: Array<{ code: string; message: string; resolution: string }>;
+  }>;
+  history: Array<{
+    kind: string;
+    label: string;
+    at: string;
+    actor: string;
+    reason?: string;
+    auditReference: string;
+  }>;
+};
+export type JobDataFlow = {
+  selectedJob: {
+    id: string;
+    jobNumber: string;
+    visitId: string;
+    customerName: string;
+    registration: string;
+  };
+  lifecycle: JobLifecycle;
+  sections: Array<{
+    key: string;
+    label: string;
+    summary: string;
+    recordCount: number;
+    relevance: string;
+  }>;
+};
 export type JobAuth =
   | { mode: "cognito"; config: CognitoConfig }
   | { mode: "local"; identity: string };
@@ -40,7 +87,13 @@ export class JobApiError extends Error {
         ? "You do not have permission for this Job action."
         : code === "JOB_NOT_FOUND"
           ? "That Job is not available in your permitted branches."
-          : "WorkshopOS could not complete the Job request.",
+          : code === "VERSION_CONFLICT"
+            ? "This Job changed since you opened it. Refresh and review its valid actions."
+            : code === "LIFECYCLE_BLOCKED"
+              ? "Resolve the projected Job blockers before trying this action."
+              : code === "LIFECYCLE_COMMAND_INVALID"
+                ? "That action is no longer valid for this Job. Refresh and review the available actions."
+                : "WorkshopOS could not complete the Job request.",
     );
   }
 }
@@ -129,6 +182,43 @@ export function createJobsApi(auth: JobAuth, fetcher: Fetcher = fetch) {
       }>(`/api/v1/jobs?${jobListSearch(q)}`.replace(/\?$/, "")),
     get: async (id: string) =>
       (await request<{ job: Job }>(`/api/v1/jobs/${id}`)).job,
+    lifecycle: async (id: string) =>
+      (
+        await request<{ lifecycle: JobLifecycle }>(
+          `/api/v1/jobs/${id}/lifecycle`,
+        )
+      ).lifecycle,
+    commandLifecycle: async (
+      id: string,
+      input: {
+        command: string;
+        version: number;
+        reason: string;
+        evidence?: Record<string, unknown>;
+      },
+    ) =>
+      await write<{ lifecycle: JobLifecycle; auditReference: string }>(
+        `/api/v1/jobs/${id}/lifecycle`,
+        input,
+        crypto.randomUUID(),
+      ),
+    dataFlow: async (id: string) =>
+      (await request<{ dataFlow: JobDataFlow }>(`/api/v1/jobs/${id}/data-flow`))
+        .dataFlow,
+    dataFlowJobs: async (search = "") =>
+      (
+        await request<{
+          jobs: Array<{
+            id: string;
+            jobNumber: string;
+            checkedInAt: string;
+            customerName: string;
+            registration: string;
+          }>;
+        }>(
+          `/api/v1/job-data-flow/jobs${search.trim() ? `?search=${encodeURIComponent(search.trim())}` : ""}`,
+        )
+      ).jobs,
     getPreference: async () =>
       (
         await request<{ preference: { viewMode: "grid" | "table" } }>(
