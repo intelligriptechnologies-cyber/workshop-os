@@ -50,6 +50,8 @@ const messages: Record<string, string> = {
   INVENTORY_POSITION_NOT_FOUND: "The inventory item or warehouse is not available in your scope.",
   QUANTITY_INVALID: "Enter a positive inventory quantity with no more than six decimal places.",
   VALUE_MINOR_INVALID: "Enter a non-negative whole value within the supported currency range.",
+  JOB_NOT_FOUND: "The Job was not found or is no longer available in your permitted branches.",
+  JOB_DOCUMENT_NOT_FOUND: "The Job document was not found, is not final, or is no longer available.",
   INTERNAL_ERROR: "WorkshopOS could not complete the request. Try again.",
 };
 

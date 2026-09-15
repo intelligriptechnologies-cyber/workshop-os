@@ -14,7 +14,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 37);
+assert.equal(health.migrations, 38);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -26,6 +26,19 @@ assert.ok(adminSession.membership.permissions.includes("business-settings.manage
 assert.ok(adminSession.membership.permissions.includes("customer.manage"));
 assert.ok(adminSession.membership.permissions.includes("vehicle.manage"));
 assert.ok(adminSession.membership.permissions.includes("inventory.import"));
+assert.ok(adminSession.membership.permissions.includes("job.document.download"));
+const jobsTodayResponse = await api("/api/v1/jobs", "north-admin");
+assert.equal(jobsTodayResponse.status, 200);
+const jobsToday = await jobsTodayResponse.json();
+assert.equal(jobsToday.jobs.length, 1);
+assert.equal(jobsToday.jobs[0].statusLabel, "In Progress");
+assert.equal(jobsToday.jobs[0].settingsSnapshotCaptured, true);
+assert.deepEqual(jobsToday.jobs[0].documents.map((document) => document.type), ["RECEIPT"]);
+const jobCardResponse = await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/job-card`, "north-admin");
+assert.equal(jobCardResponse.status, 200);
+assert.match(jobCardResponse.headers.get("content-type") ?? "", /application\/pdf/);
+assert.equal((await jobCardResponse.arrayBuffer()).byteLength > 500, true);
+assert.equal((await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/job-card`, "north-users-admin")).status, 403);
 const inventoryBefore = await api("/api/v1/inventory?search=OIL-5W30", "north-admin").then((response) => response.json());
 assert.equal(inventoryBefore.inventory.length, 1);
 assert.equal((await api("/api/v1/inventory", "north-reception")).status, 403);
@@ -230,5 +243,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

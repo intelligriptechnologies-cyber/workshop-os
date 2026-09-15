@@ -17,4 +17,6 @@
   .v12-list-controls > label, .v12-list-controls > input, .v12-list-controls > select { width: 100%; }
   .v12-pagination { justify-content: flex-start; }
 }
+.job-status { display: inline-block; font-weight: 700; }
+.job-status-in-progress { color: #9a4d00; background: #fff0d6; border: 1px solid #d66a00; border-radius: .35rem; padding: .15rem .45rem; }
 @media (prefers-reduced-motion: reduce) { .v12-work-items * { scroll-behavior: auto !important; } }

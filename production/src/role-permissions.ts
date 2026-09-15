@@ -17,6 +17,11 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
     ] },
   ] },
   { key: "operations", label: "Workshop operations", pages: [
+    { key: "jobs.page", label: "Jobs", description: "Open the production Job List.", actions: [
+      { key: "job.read", label: "View Jobs", description: "Read Jobs in permitted branches." },
+      { key: "job.document.download", label: "Download Job documents", description: "Download authorized Job Cards and immutable linked documents." },
+      { key: "job.export", label: "Export Jobs", description: "Create and download complete private Job exports." },
+    ] },
     { key: "inventory.page", label: "Inventory", description: "Open production stock analytics and operations.", actions: [
       { key: "inventory.read", label: "View inventory", description: "Read stock position, movement, ageing, and reorder indicators." },
       { key: "inventory.operate", label: "Operate inventory", description: "Post authorized stock operations without rewriting ledger history." },

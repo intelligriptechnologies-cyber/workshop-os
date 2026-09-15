@@ -16,6 +16,8 @@ import { RolePermissionService } from "../src/role-permissions.js";
 import { BusinessSettingsService } from "../src/business-settings.js";
 import { createCustomerVehicleExportArtifact } from "../src/customer-vehicle-export.js";
 import { createInventoryExportArtifact } from "../src/inventory-export.js";
+import { parseJobListQuery, type JobListQuery } from "../src/job-list-contract.js";
+import { createJobCardPdf, createJobListExportArtifact } from "../src/job-export.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -82,6 +84,8 @@ function queryFromJson(value: unknown): ServerListQuery {
   return parseListQuery(params);
 }
 
+function jobQueryFromJson(value:unknown):JobListQuery{const input=value&&typeof value==="object"?value as Record<string,unknown>:{};const params=new URLSearchParams();for(const key of ["search","branchId","visitDate","stage","sort","page","pageSize"])if(input[key]!==undefined)params.set(key,String(input[key]));return parseJobListQuery(params);}
+
 function queueWorkItemExport(membership: Parameters<PostgresVertical["queryWorkItems"]>[0], id: string, format: "PDF" | "XLSX", query: ServerListQuery): void {
   setImmediate(() => void (async () => {
     try {
@@ -111,6 +115,7 @@ function queueCustomerVehicleExport(membership: Parameters<PostgresVertical["que
 function queueInventoryExport(membership: Parameters<PostgresVertical["queryInventory"]>[0], id: string, format: "PDF" | "XLSX", query: ServerListQuery): void {
   setImmediate(() => void (async () => { try { const rows = (await database.queryInventory(membership, query, true)).inventory; await database.completeListExport(membership, id, createInventoryExportArtifact(format, rows)); } catch { await database.failListExport(membership, id); } })());
 }
+function queueJobExport(membership:Parameters<PostgresVertical["queryJobs"]>[0],id:string,format:"PDF"|"XLSX",query:JobListQuery):void{setImmediate(()=>void(async()=>{try{const rows=(await database.queryJobs(membership,query,true)).jobs;await database.completeListExport(membership,id,createJobListExportArtifact(format,rows));}catch{await database.failListExport(membership,id);}})());}
 
 async function staticFile(urlPath: string, response: ServerResponse): Promise<void> {
   const requested = urlPath === "/" ? "index.html" : urlPath.slice(1);
@@ -300,6 +305,15 @@ const server = createServer(async (request, response) => {
         json(response, 200, await database.queryWorkItems(membership, parseListQuery(url.searchParams)));
         return;
       }
+      if(url.pathname==="/api/v1/jobs"&&request.method==="GET"){requirePermission(membership,"job.read");json(response,200,await database.queryJobs(membership,parseJobListQuery(url.searchParams)),traceId);return;}
+      const jobRoute=url.pathname.match(/^\/api\/v1\/jobs\/([0-9a-f-]+)$/i);if(jobRoute&&request.method==="GET"){requirePermission(membership,"job.read");json(response,200,{job:await database.getJob(membership,jobRoute[1])},traceId);return;}
+      const jobCardRoute=url.pathname.match(/^\/api\/v1\/jobs\/([0-9a-f-]+)\/job-card$/i);if(jobCardRoute&&request.method==="GET"){requirePermission(membership,"job.document.download");const artifact=createJobCardPdf(await database.getJob(membership,jobCardRoute[1]));response.writeHead(200,{"content-type":artifact.mimeType,"content-disposition":`attachment; filename="${artifact.filename.replace(/["\r\n]/g,"")}"`,"cache-control":"private, no-store"});response.end(artifact.content);return;}
+      const jobDocumentRoute=url.pathname.match(/^\/api\/v1\/job-documents\/([0-9a-f-]+)\/download$/i);if(jobDocumentRoute&&request.method==="GET"){requirePermission(membership,"job.document.download");const artifact=await database.downloadJobDocument(membership,jobDocumentRoute[1]);response.writeHead(200,{"content-type":artifact.mimeType,"content-disposition":`attachment; filename="${artifact.filename.replace(/["\r\n]/g,"")}"`,"cache-control":"private, no-store"});response.end(artifact.content);return;}
+      if(url.pathname==="/api/v1/list-preferences/jobs"&&request.method==="GET"){requirePermission(membership,"job.read");json(response,200,{preference:await database.getListPreference(membership,"jobs")},traceId);return;}
+      if(url.pathname==="/api/v1/list-preferences/jobs"&&request.method==="PUT"){requirePermission(membership,"job.read");const input=await body(request);const viewMode=String(input.viewMode??"");if(viewMode!=="grid"&&viewMode!=="table")throw new ApiError(400,"VIEW_MODE_INVALID");json(response,200,{preference:await database.saveListPreference(membership,"jobs",viewMode)},traceId);return;}
+      if(url.pathname==="/api/v1/job-exports"&&request.method==="POST"){requirePermission(membership,"job.export");const input=await body(request);const format=String(input.format??"").toUpperCase();if(format!=="PDF"&&format!=="XLSX")throw new ApiError(400,"EXPORT_FORMAT_INVALID");const query=jobQueryFromJson(input.query);const result=await database.createListExport(membership,"jobs",format,query as any,String(request.headers["idempotency-key"]??""));if(!result.replay||result.job.status==="PENDING")queueJobExport(membership,result.job.id,format,query);json(response,result.replay?200:202,{export:result.job},traceId);return;}
+      const jobExportRoute=url.pathname.match(/^\/api\/v1\/job-exports\/([0-9a-f-]+)$/i);if(jobExportRoute&&request.method==="GET"){requirePermission(membership,"job.export");const job=await database.getListExport(membership,jobExportRoute[1]);if(job.screenKey!=="jobs")throw new ApiError(404,"EXPORT_NOT_FOUND");json(response,200,{export:job},traceId);return;}
+      const jobExportDownload=url.pathname.match(/^\/api\/v1\/job-exports\/([0-9a-f-]+)\/download$/i);if(jobExportDownload&&request.method==="GET"){requirePermission(membership,"job.export");const job=await database.getListExport(membership,jobExportDownload[1]);if(job.screenKey!=="jobs")throw new ApiError(404,"EXPORT_NOT_FOUND");const artifact=await database.downloadListExport(membership,jobExportDownload[1]);response.writeHead(200,{"content-type":artifact.mimeType,"content-disposition":`attachment; filename="${artifact.filename.replace(/["\r\n]/g,"")}"`,"cache-control":"private, no-store"});response.end(artifact.content);return;}
       if (url.pathname === "/api/v1/customers" && request.method === "GET") { requirePermission(membership, "customer.read"); json(response, 200, await database.queryCustomers(membership, parseListQuery(url.searchParams)), traceId); return; }
       if (url.pathname === "/api/v1/customers" && request.method === "POST") { requirePermission(membership, "customer.manage"); const input = await body(request); json(response, 201, await database.createCustomer(membership, { branchId: String(input.branchId ?? ""), displayName: String(input.displayName ?? ""), mobile: String(input.mobile ?? ""), email: String(input.email ?? "") }, String(request.headers["idempotency-key"] ?? "")), traceId); return; }
       const customerRoute = url.pathname.match(/^\/api\/v1\/customers\/([0-9a-f-]+)$/i);

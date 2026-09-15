@@ -1,25 +1,25 @@
 # WorkshopOS v1.2 handoff
 
-Updated: 2026-09-14
-Completed slice: V12-08
-Next slice: V12-09
+Updated: 2026-09-15
+Completed slice: V12-09
+Next slice: V12-10
 
 ## Requirement IDs implemented
 
-V12-R001 through V12-R016 are implemented on the production tracer, shared dialogs/list/export contracts, tenant User Management, custom roles, authorized navigation/search, versioned Business Settings, PostgreSQL-authoritative Customer/Vehicle experiences, and production Inventory operations/import. V12-00 continues to provide governance coverage for the complete requirement register.
+V12-R001 through V12-R018 are implemented on the production tracer, shared dialogs/list/export contracts, tenant User Management, roles and permissions, Business Settings, Customers/Vehicles, Inventory, and the production Job List/document experience. V12-00 continues to provide governance coverage for the complete requirement register.
 
 ## Changed paths
 
-`production/db/migrations/037_inventory_operations_import.sql`, `production/local/database.ts`, `production/local/seed-demo.ts`, `production/local/server.ts`, `production/src/admin-users.ts`, `production/src/http-errors.ts`, `production/src/inventory-export.ts`, `production/src/inventory-operations.ts`, `production/src/role-permissions.ts`, `production/tests/inventory-import-contract.test.ts`, `production/tests/inventory-operations-postgres.integration.test.ts`, `production/tests/role-permissions.test.ts`, `scripts/test-local.mjs`, `src/ProductionInventoryApp.tsx`, `src/main.tsx`, `src/production-inventory-api.ts`, `src/production-navigation.tsx`, `tests/production-inventory.spec.ts`, `unit-tests/production-inventory-api.test.ts`, and the v1.2 checklist/issue/handoff.
+`production/db/migrations/038_production_job_list_documents.sql`, `production/local/database.ts`, `production/local/seed-demo.ts`, `production/local/server.ts`, `production/src/http-errors.ts`, `production/src/job-export.ts`, `production/src/job-list-contract.ts`, `production/src/role-permissions.ts`, `production/tests/job-list-contract.test.ts`, `production/tests/jobs-postgres.integration.test.ts`, `production/tests/role-permissions.test.ts`, `scripts/test-local.mjs`, `src/ProductionJobsApp.tsx`, `src/main.tsx`, `src/production-jobs-api.ts`, `src/production-navigation.tsx`, `src/production-work-items.css`, `tests/production-jobs.spec.ts`, `unit-tests/production-jobs-api.test.ts`, and the v1.2 checklist/issue/traceability/handoff.
 
 ## Focused and regression evidence
 
-- Five focused inventory contracts passed with the isolated PostgreSQL test run separately; the full production suite passed 231/238 with seven expected opt-in PostgreSQL skips.
-- A fresh database applied all 37 migrations; focused V12-08 PostgreSQL integration passed 1/1, including full-filter analytics, warehouse RLS, dry-run isolation, idempotency, exact reconciliation, and append-only evidence.
-- `npm run local:up` and `npm run local:test` passed repeatedly at 37 migrations with Inventory and all preceding HTTP/PostgreSQL checks; the stack was stopped after verification.
-- Focused Playwright passed 2/2 including real Inventory persistence; full Playwright passed 43/50 with seven expected environment-gated real-stack tests.
-- `npm run build` passed with the existing non-blocking bundle-size warning; `npm run test:unit` passed 18/18.
-- `npm run test:production:typecheck`, `npm run test:harness`, `npm run test:ui:v1.2`, and `git diff --check` passed.
+- A fresh database applied all 38 migrations; focused V12-09 PostgreSQL integration passed 1/1, covering branch-local dates, canonical lifecycle projection, settings snapshot capture and immutability, conditional documents, denial, and RLS.
+- `npm run local:up` succeeded and `npm run local:test` passed twice at 38 migrations, including Job List, settings snapshot, document discovery, authorized Job Card, and all preceding production smoke checks.
+- Focused Playwright passed 2/2 with the intended real-stack skip and 3/3 against Docker, including browser-to-HTTP-to-PostgreSQL Job List and Job Card behavior. Full Playwright passed 45/53 with eight expected environment-gated real-stack skips.
+- The full production suite passed 233/241 with eight expected opt-in PostgreSQL skips; focused query/export and permission contracts passed.
+- `npm run build` passed with the existing non-blocking bundle-size warning; `npm run test:unit` passed 19/19; production typecheck passed.
+- Both harness verifiers and `git diff --check` passed before commit.
 
 ## Preserved pre-existing changes
 
@@ -27,13 +27,12 @@ Unstaged user-owned changes in `src/App.tsx`, `src/styles.css`, `tests/workshopo
 
 ## Risks and blockers
 
-- Rich PWA screens remain `sql.js`-authoritative except Tenant User Management, Roles and Permissions, Business Settings, Customers, Vehicles, Inventory, Global Search, and the isolated Work Item tracer.
-- Production Cognito and deployed authorization behavior compile and have service/browser tests, but no live provider or deployed tenant was contacted; those remain external evidence.
-- The local identity gateway and deterministic seed are explicitly gated by `ALLOW_DEMO_LOGIN=true` and are not production identity authority.
-- The immutable settings snapshot is connected to the production governed-work tracer; V12-09/V12-10 must call it from the canonical Job-start lifecycle. Numeric ordering is explicitly regressed through settings version 10.
-- Production provisioning must assign permitted warehouses through `membership_inventory_warehouse`; local owner seeds include assignments, while warehouse-assignment administration remains for a later management surface.
-- Existing bundle size, production identity/email semantics, deployment, security, finance/tax, recovery, device/accessibility, migration, and pilot evidence remain open for their owning slices or external certification.
+- Rich PWA screens remain `sql.js`-authoritative except the production-backed screens completed through V12-09; V12-14 owns the final static authority gate.
+- V12-09 reads the canonical lifecycle and captures settings when active work begins, but lifecycle mutation, Hold/resume, cancellation/reopening/archive, Work Accepted, Payment Cleared, blockers, history, and explained Data Flow belong to V12-10.
+- Production Cognito, private object storage, deployed authorization, deployment, and manual certification were not contacted and remain external evidence for their owning slices.
+- The local identity gateway and deterministic seed remain explicitly gated by `ALLOW_DEMO_LOGIN=true` and are not production identity authority.
+- The existing bundle-size warning and later security, finance/tax, recovery, device/accessibility, migration, and pilot evidence remain open.
 
 ## Next-slice dependencies
 
-V12-09 implements the production Job List, current-local-date Visit/check-in default, explicit filters, orange `In Progress` state, Job Card PDF, and conditional immutable linked-document discovery/download. It must use migration 038 without changing migrations 001 through 037 and connect Jobs to immutable effective-settings snapshots where active work begins.
+V12-10 implements V12-R019 through V12-R022 using migration 039. It must preserve canonical stages, model Hold as a pause overlay that resumes to the same underlying stage, keep Estimate Approved, Work Accepted, and Payment Cleared distinct, enforce valid next actions and blockers, preserve append-only history, support reasoned cancel/reopen/archive without hard deletion, and explain the selected Job's Data Flow from production state.
