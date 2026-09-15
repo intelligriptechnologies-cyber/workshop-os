@@ -357,6 +357,11 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
             </div>
           )}
           <div>{actions(detail, false)}</div>
+          {permissions.includes("media.upload") && (
+            <a href={`/production/media?visitDate=${encodeURIComponent(detail.visitDate)}&jobId=${encodeURIComponent(detail.id)}`}>
+              Upload media for this Job
+            </a>
+          )}
           <button
             onClick={() => {
               setDetail(undefined);

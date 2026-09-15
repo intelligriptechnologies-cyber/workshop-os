@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 
 const baseUrl = process.env.LOCAL_BASE_URL ?? "http://127.0.0.1:4173";
+const expectedDatabase = process.env.LOCAL_DATABASE_NAME ?? "workshopos";
 const branch = "00000000-0000-4000-8000-000000000011";
 const key = `local-smoke-${Date.now()}`;
 
@@ -13,8 +14,8 @@ async function api(path, identity, init = {}) {
 
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
-assert.equal(health.database, "workshopos");
-assert.equal(health.migrations, 39);
+assert.equal(health.database, expectedDatabase);
+assert.equal(health.migrations, 40);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -31,6 +32,8 @@ assert.ok(adminSession.membership.permissions.includes("job.lifecycle.manage"));
 assert.ok(adminSession.membership.permissions.includes("job.work-acceptance.record"));
 assert.ok(adminSession.membership.permissions.includes("job.payment-clearance.record"));
 assert.ok(adminSession.membership.permissions.includes("job.data-flow.read"));
+assert.ok(adminSession.membership.permissions.includes("media.upload"));
+assert.ok(adminSession.membership.permissions.includes("media.download"));
 const jobsTodayResponse = await api("/api/v1/jobs", "north-admin");
 assert.equal(jobsTodayResponse.status, 200);
 const jobsToday = await jobsTodayResponse.json();
@@ -43,6 +46,17 @@ assert.equal(jobCardResponse.status, 200);
 assert.match(jobCardResponse.headers.get("content-type") ?? "", /application\/pdf/);
 assert.equal((await jobCardResponse.arrayBuffer()).byteLength > 500, true);
 assert.equal((await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/job-card`, "north-users-admin")).status, 403);
+const mediaJobsResponse = await api(`/api/v1/media/jobs?visitDate=${jobsToday.query.visitDate}&search=Asha`, "north-admin");
+assert.equal(mediaJobsResponse.status, 200); const mediaJobs = await mediaJobsResponse.json(); assert.deepEqual(mediaJobs.jobs.map((job) => job.id), [jobsToday.jobs[0].id]); assert.deepEqual(mediaJobs.jobs[0].allowedCategories, ["PROGRESS"]);
+const mediaBytes = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+const mediaUploadResponse = await api("/api/v1/media", "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-media-upload` }, body: JSON.stringify({ jobId: jobsToday.jobs[0].id, branchId: branch, category: "PROGRESS", label: "Local smoke progress", fileName: "progress.png", mimeType: "image/png", contentBase64: mediaBytes.toString("base64") }) });
+assert.equal(mediaUploadResponse.status, 201); const mediaRecord = (await mediaUploadResponse.json()).media; assert.equal(mediaRecord.scanStatus, "PENDING");
+assert.equal((await api(`/api/v1/media/${mediaRecord.id}/download`, "north-admin")).status, 404);
+assert.equal((await api(`/api/v1/internal/media/${mediaRecord.id}/scan`, "north-admin", { method: "POST", body: JSON.stringify({ status: "CLEAN", scannerReference: "local-smoke" }) })).status, 403);
+const scanResponse = await api(`/api/v1/internal/media/${mediaRecord.id}/scan`, "north-admin", { method: "POST", headers: { "x-workshopos-scanner-token": "local-dev-scanner" }, body: JSON.stringify({ status: "CLEAN", scannerReference: "local-smoke" }) }); assert.equal(scanResponse.status, 200);
+const mediaDownload = await api(`/api/v1/media/${mediaRecord.id}/download`, "north-admin"); assert.equal(mediaDownload.status, 200); assert.deepEqual(Buffer.from(await mediaDownload.arrayBuffer()), mediaBytes); assert.match(mediaDownload.headers.get("cache-control") ?? "", /private/);
+const mediaArchive = await api(`/api/v1/media/${mediaRecord.id}/archive`, "north-admin", { method: "POST", headers: { "idempotency-key": `${key}-media-archive` }, body: JSON.stringify({ version: 2, reason: "Local smoke cleanup" }) }); assert.equal(mediaArchive.status, 200); assert.equal((await api(`/api/v1/media/${mediaRecord.id}/view`, "north-admin")).status, 404);
+assert.equal((await api("/api/v1/media", "north-users-admin")).status, 403);
 const lifecycleBefore = await api(`/api/v1/jobs/${jobsToday.jobs[0].id}/lifecycle`, "north-admin").then((response) => response.json());
 assert.equal(lifecycleBefore.lifecycle.canonicalStage, "ACTIVE");
 const holdBody = JSON.stringify({ command: "HOLD", version: lifecycleBefore.lifecycle.version, reason: "Local smoke parts delay" });
@@ -259,5 +273,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Visit-date Job Media selector", "lifecycle-gated private Media upload", "scanner quarantine and trusted release", "private original download", "Media archive without hard delete", "Media exact authorization", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

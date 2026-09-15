@@ -26,6 +26,12 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
       { key: "job.document.download", label: "Download Job documents", description: "Download authorized Job Cards and immutable linked documents." },
       { key: "job.export", label: "Export Jobs", description: "Create and download complete private Job exports." },
     ] },
+    { key: "media.page", label: "Media", description: "Open Job-linked production Media.", actions: [
+      { key: "media.read", label: "View Media", description: "Read Job-linked media metadata and thumbnails in permitted branches." },
+      { key: "media.upload", label: "Upload Media", description: "Upload lifecycle-valid media to a selected Job." },
+      { key: "media.archive", label: "Archive Media", description: "Archive media with a reason without deleting evidence." },
+      { key: "media.download", label: "View and download Media", description: "Access clean, non-archived private originals." },
+    ] },
     { key: "data-flow.page", label: "Data Flow", description: "Open the record-specific production Job Data Flow.", actions: [
       { key: "job.data-flow.read", label: "View Job Data Flow", description: "Explain Visit, work, finance, custody, artifacts, and history for permitted Jobs." },
     ] },

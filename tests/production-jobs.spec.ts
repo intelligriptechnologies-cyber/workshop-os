@@ -72,6 +72,7 @@ async function mock(
     "job.lifecycle.manage",
     "job.document.download",
     "job.export",
+    "media.upload",
     "data-flow.page",
     "job.data-flow.read",
   ],
@@ -202,6 +203,7 @@ test("Job List defaults by Visit date and keeps In Progress orange in table, gri
     "In Progress",
   );
   await page.getByRole("button", { name: "View details" }).click();
+  await expect(page.getByRole("link", { name: "Upload media for this Job" })).toHaveAttribute("href", /\/production\/media\?visitDate=2026-09-15&jobId=/);
   await expect(
     page
       .locator("#job-detail")

@@ -25,11 +25,15 @@ services:
       DATABASE_ADMIN_URL: postgresql://workshopos_admin:workshopos_admin_local@db:5432/workshopos
       DATABASE_URL: postgresql://workshopos_app:workshopos_app_local@db:5432/workshopos
       ALLOW_DEMO_LOGIN: "true"
+      SCANNER_TOKEN: "local-dev-scanner"
+      PRIVATE_OBJECT_DIR: "/var/lib/workshopos/private-objects"
     ports:
       - "4173:4173"
     depends_on:
       db:
         condition: service_healthy
+    volumes:
+      - workshopos_private_objects:/var/lib/workshopos/private-objects
     healthcheck:
       test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
       interval: 3s
@@ -38,3 +42,4 @@ services:
 
 volumes:
   workshopos_postgres:
+  workshopos_private_objects:

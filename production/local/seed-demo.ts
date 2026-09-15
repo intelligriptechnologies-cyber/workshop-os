@@ -17,13 +17,17 @@ try {
     VALUES('00000000-0000-4000-8000-000000000001','WorkshopOS Local North','local-demo','[]','{"users":100}','INR','Asia/Kolkata','india-v1')
     ON CONFLICT (tenant_id) DO NOTHING;
 
+    INSERT INTO workshopos.secure_media_quota(tenant_id,quota_bytes)
+    VALUES('00000000-0000-4000-8000-000000000001',1073741824)
+    ON CONFLICT (tenant_id) DO NOTHING;
+
     INSERT INTO workshopos.branch(id,tenant_id,name) VALUES
       ('00000000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000001','Delhi'),
       ('00000000-0000-4000-8000-000000000012','00000000-0000-4000-8000-000000000001','Jaipur')
     ON CONFLICT (id) DO NOTHING;
 
     INSERT INTO workshopos.role_template(id,tenant_id,name,permissions,system_template) VALUES
-      ('00000000-0000-4000-8000-000000000301','00000000-0000-4000-8000-000000000001','Business Owner/Admin','["admin.users.page","membership.manage","admin.roles.page","role.manage","business-settings.page","business-settings.manage","customers.page","customer.read","customer.manage","customer.export","vehicles.page","vehicle.read","vehicle.manage","vehicle.export","inventory.page","inventory.read","inventory.operate","inventory.export","inventory.import","jobs.page","job.read","job.lifecycle.manage","job.estimate-approval.record","job.work-acceptance.record","job.payment-clearance.record","job.document.download","job.export","data-flow.page","job.data-flow.read","work-items.page","work-item.read","work-item.manage","work-item.export","global-search.page","global-search.use"]',true),
+      ('00000000-0000-4000-8000-000000000301','00000000-0000-4000-8000-000000000001','Business Owner/Admin','["admin.users.page","membership.manage","admin.roles.page","role.manage","business-settings.page","business-settings.manage","customers.page","customer.read","customer.manage","customer.export","vehicles.page","vehicle.read","vehicle.manage","vehicle.export","inventory.page","inventory.read","inventory.operate","inventory.export","inventory.import","jobs.page","job.read","job.lifecycle.manage","job.estimate-approval.record","job.work-acceptance.record","job.payment-clearance.record","job.document.download","job.export","data-flow.page","job.data-flow.read","media.page","media.read","media.upload","media.archive","media.download","work-items.page","work-item.read","work-item.manage","work-item.export","global-search.page","global-search.use"]',true),
       ('00000000-0000-4000-8000-000000000302','00000000-0000-4000-8000-000000000001','Service Advisor','["visit.view"]',true),
       ('00000000-0000-4000-8000-000000000303','00000000-0000-4000-8000-000000000001','User Administrator','["admin.users.page","membership.manage","global-search.page","global-search.use"]',true)
     ON CONFLICT (id) DO NOTHING;

@@ -1,6 +1,8 @@
 import { createReadStream } from "node:fs";
 import { access, stat } from "node:fs/promises";
-import { randomUUID } from "node:crypto";
+import { mkdir, readFile, rename, unlink, writeFile } from "node:fs/promises";
+import { createHash, randomUUID, timingSafeEqual } from "node:crypto";
+import { tmpdir } from "node:os";
 import { createServer, type IncomingMessage, type ServerResponse } from "node:http";
 import path from "node:path";
 
@@ -18,6 +20,7 @@ import { createCustomerVehicleExportArtifact } from "../src/customer-vehicle-exp
 import { createInventoryExportArtifact } from "../src/inventory-export.js";
 import { parseJobListQuery, type JobListQuery } from "../src/job-list-contract.js";
 import { createJobCardPdf, createJobListExportArtifact } from "../src/job-export.js";
+import { parseMediaListQuery, type MediaCategory } from "../src/job-media.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
@@ -32,6 +35,14 @@ const localIdentity = !cognito && process.env.ALLOW_DEMO_LOGIN === "true" ? new 
 const adminUsers = cognito || localIdentity ? new AdminUserService(database, cognito ?? localIdentity!) : undefined;
 const rolePermissions = new RolePermissionService(database);
 const businessSettings = new BusinessSettingsService(database);
+const privateObjectRoot = path.resolve(process.env.PRIVATE_OBJECT_DIR ?? path.join(tmpdir(), "workshopos-private-objects"));
+const thumbnailPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
+const maxMediaRequestBytes = 28 * 1024 * 1024;
+
+function privateObjectPath(objectKey:string):string{const file=path.resolve(privateObjectRoot,...objectKey.split("/"));if(!file.startsWith(`${privateObjectRoot}${path.sep}`))throw new ApiError(500,"INTERNAL_ERROR");return file;}
+async function putPrivateObject(objectKey:string,content:Buffer):Promise<void>{const file=privateObjectPath(objectKey);const temporary=`${file}.${randomUUID()}.tmp`;await mkdir(path.dirname(file),{recursive:true});try{await writeFile(temporary,content,{flag:"wx"});await rename(temporary,file);}catch(error){await unlink(temporary).catch(()=>undefined);throw error;}}
+function trustedScannerToken(value:string|string[]|undefined):boolean{const expected=process.env.SCANNER_TOKEN;if(!expected||typeof value!=="string")return false;const actualBytes=Buffer.from(value),expectedBytes=Buffer.from(expected);return actualBytes.length===expectedBytes.length&&timingSafeEqual(actualBytes,expectedBytes);}
+function validMediaSignature(content:Buffer,mimeType:string):boolean{if(mimeType==="image/jpeg")return content.length>=3&&content[0]===0xff&&content[1]===0xd8&&content[2]===0xff;if(mimeType==="image/png")return content.length>=8&&content.subarray(0,8).equals(Buffer.from([0x89,0x50,0x4e,0x47,0x0d,0x0a,0x1a,0x0a]));if(mimeType==="application/pdf")return content.length>=5&&content.subarray(0,5).toString("ascii")==="%PDF-";return false;}
 
 function required(name: string): string {
   const value = process.env[name];
@@ -44,9 +55,17 @@ function json(response: ServerResponse, status: number, body: unknown, traceId?:
   response.end(JSON.stringify(body));
 }
 
-async function body(request: IncomingMessage): Promise<Record<string, unknown>> {
+async function body(request: IncomingMessage, maximumBytes = 1024 * 1024): Promise<Record<string, unknown>> {
+  const declaredLength = Number(request.headers["content-length"] ?? 0);
+  if (Number.isFinite(declaredLength) && declaredLength > maximumBytes) throw new ApiError(413, "REQUEST_BODY_TOO_LARGE");
   const chunks: Buffer[] = [];
-  for await (const chunk of request) chunks.push(Buffer.from(chunk));
+  let receivedBytes = 0;
+  for await (const chunk of request) {
+    const buffer = Buffer.from(chunk);
+    receivedBytes += buffer.length;
+    if (receivedBytes > maximumBytes) throw new ApiError(413, "REQUEST_BODY_TOO_LARGE");
+    chunks.push(buffer);
+  }
   if (!chunks.length) return {};
   return JSON.parse(Buffer.concat(chunks).toString("utf8")) as Record<string, unknown>;
 }
@@ -306,6 +325,12 @@ const server = createServer(async (request, response) => {
         return;
       }
       if(url.pathname==="/api/v1/job-data-flow/jobs"&&request.method==="GET"){requirePermission(membership,"job.data-flow.read");json(response,200,await database.searchJobDataFlowJobs(membership,url.searchParams.get("search")??""),traceId);return;}
+      if(url.pathname==="/api/v1/media/jobs"&&request.method==="GET"){requirePermission(membership,"media.read");json(response,200,await database.mediaJobs(membership,{visitDate:url.searchParams.get("visitDate")??"",search:url.searchParams.get("search")??"",branchId:url.searchParams.get("branchId")??undefined}),traceId);return;}
+      if(url.pathname==="/api/v1/media"&&request.method==="GET"){requirePermission(membership,"media.read");json(response,200,await database.queryJobMedia(membership,parseMediaListQuery(url.searchParams)),traceId);return;}
+      if(url.pathname==="/api/v1/media"&&request.method==="POST"){requirePermission(membership,"media.upload");const input=await body(request,maxMediaRequestBytes);const encoded=String(input.contentBase64??"");if(!/^[A-Za-z0-9+/]*={0,2}$/.test(encoded)||!encoded)throw new ApiError(422,"MEDIA_FILE_INVALID");const content=Buffer.from(encoded,"base64");const mimeType=String(input.mimeType??"");if(content.toString("base64").replace(/=+$/,"")!==encoded.replace(/=+$/,"")||!validMediaSignature(content,mimeType))throw new ApiError(422,"MEDIA_FILE_INVALID");const result=await database.createJobMedia(membership,{jobId:String(input.jobId??""),branchId:String(input.branchId??""),category:String(input.category??"") as MediaCategory,label:String(input.label??""),fileName:String(input.fileName??""),mimeType,byteLength:content.length,checksumSha256:createHash("sha256").update(content).digest("hex"),thumbnail:thumbnailPng},String(request.headers["idempotency-key"]??""));if(!result.replay){try{await putPrivateObject(result.objectKey,content);}catch(error){await database.recordJobMediaScan(membership,result.media.id,"FAILED","object-store-write-failed");throw error;}}const media=result.replay?await database.getJobMedia(membership,result.media.id):result.media;if(media.scanStatus==="FAILED")throw new ApiError(409,"MEDIA_UPLOAD_FAILED");json(response,result.replay?200:201,{media},traceId);return;}
+      const mediaArchiveRoute=url.pathname.match(/^\/api\/v1\/media\/([0-9a-f-]+)\/archive$/i);if(mediaArchiveRoute&&request.method==="POST"){requirePermission(membership,"media.archive");const input=await body(request);const result=await database.archiveJobMedia(membership,mediaArchiveRoute[1],{version:Number(input.version),reason:String(input.reason??"")},String(request.headers["idempotency-key"]??""));json(response,200,result,traceId);return;}
+      const mediaScanRoute=url.pathname.match(/^\/api\/v1\/internal\/media\/([0-9a-f-]+)\/scan$/i);if(mediaScanRoute&&request.method==="POST"){if(!trustedScannerToken(request.headers["x-workshopos-scanner-token"]))throw new ApiError(403,"SCANNER_AUTHORITY_REQUIRED");const input=await body(request);const status=String(input.status??"");if(!["CLEAN","INFECTED","FAILED"].includes(status))throw new ApiError(422,"MEDIA_SCAN_RESULT_INVALID");json(response,200,await database.recordJobMediaScan(membership,mediaScanRoute[1],status as "CLEAN"|"INFECTED"|"FAILED",String(input.scannerReference??"")),traceId);return;}
+      const mediaAccessRoute=url.pathname.match(/^\/api\/v1\/media\/([0-9a-f-]+)\/(view|download)$/i);if(mediaAccessRoute&&request.method==="GET"){requirePermission(membership,"media.download");const artifact=await database.authorizeJobMediaAccess(membership,mediaAccessRoute[1]);let content:Buffer;try{content=await readFile(privateObjectPath(artifact.objectKey));}catch{throw new ApiError(404,"MEDIA_OBJECT_NOT_FOUND");}response.writeHead(200,{"content-type":artifact.mimeType,"content-disposition":mediaAccessRoute[2]==="download"?`attachment; filename="${artifact.fileName.replace(/["\r\n]/g,"")}"`:`inline; filename="${artifact.fileName.replace(/["\r\n]/g,"")}"`,"cache-control":"private, no-store","x-content-type-options":"nosniff"});response.end(content);return;}
       if(url.pathname==="/api/v1/jobs"&&request.method==="GET"){requirePermission(membership,"job.read");json(response,200,await database.queryJobs(membership,parseJobListQuery(url.searchParams)),traceId);return;}
       const jobRoute=url.pathname.match(/^\/api\/v1\/jobs\/([0-9a-f-]+)$/i);if(jobRoute&&request.method==="GET"){requirePermission(membership,"job.read");json(response,200,{job:await database.getJob(membership,jobRoute[1])},traceId);return;}
       const jobLifecycleRoute=url.pathname.match(/^\/api\/v1\/jobs\/([0-9a-f-]+)\/lifecycle$/i);
