@@ -11,9 +11,10 @@ import ProductionInventoryApp from "./ProductionInventoryApp";
 import ProductionJobsApp from "./ProductionJobsApp";
 import ProductionDataFlowApp from "./ProductionDataFlowApp";
 import ProductionMediaApp from "./ProductionMediaApp";
+import ProductionEstimatesTasksQcApp from "./ProductionEstimatesTasksQcApp";
 import "./styles.css";
 
-const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : location.pathname === "/production/settings" ? ProductionBusinessSettingsApp : ["/production/customers", "/production/vehicles"].includes(location.pathname) ? ProductionCustomersVehiclesApp : location.pathname === "/production/inventory" ? ProductionInventoryApp : location.pathname === "/production/jobs" ? ProductionJobsApp : location.pathname === "/production/data-flow" ? ProductionDataFlowApp : location.pathname === "/production/media" ? ProductionMediaApp : App;
+const RootApp = location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : location.pathname === "/production/settings" ? ProductionBusinessSettingsApp : ["/production/customers", "/production/vehicles"].includes(location.pathname) ? ProductionCustomersVehiclesApp : location.pathname === "/production/inventory" ? ProductionInventoryApp : location.pathname === "/production/jobs" ? ProductionJobsApp : location.pathname === "/production/data-flow" ? ProductionDataFlowApp : location.pathname === "/production/media" ? ProductionMediaApp : ["/production/estimates","/production/tasks","/production/qc"].includes(location.pathname) ? ProductionEstimatesTasksQcApp : App;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>

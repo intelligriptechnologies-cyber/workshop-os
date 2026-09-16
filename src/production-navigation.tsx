@@ -10,6 +10,9 @@ export const PRODUCTION_NAVIGATION: ProductionNavItem[] = [
   { href: "/production/inventory", label: "Inventory", permission: "inventory.page" },
   { href: "/production/jobs", label: "Jobs", permission: "jobs.page" },
   { href: "/production/media", label: "Media", permission: "media.page" },
+  { href: "/production/estimates", label: "Estimates", permission: "estimates.page" },
+  { href: "/production/tasks", label: "Tasks", permission: "tasks.page" },
+  { href: "/production/qc", label: "Quality control", permission: "qc.page" },
   { href: "/production/data-flow", label: "Data Flow", permission: "data-flow.page" },
   { href: "/production/search", label: "Global search", permission: "global-search.page" },
 ];

@@ -32,6 +32,25 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
       { key: "media.archive", label: "Archive Media", description: "Archive media with a reason without deleting evidence." },
       { key: "media.download", label: "View and download Media", description: "Access clean, non-archived private originals." },
     ] },
+    { key: "estimates.page", label: "Estimates", description: "Open immutable production Estimate versions.", actions: [
+      { key: "estimate.read", label: "View Estimates", description: "Read Estimate versions and approval evidence." },
+      { key: "estimate.manage", label: "Version Estimates", description: "Create Estimates and revisions without rewriting history." },
+      { key: "estimate.submit", label: "Submit Estimates", description: "Freeze and submit a current Estimate version." },
+      { key: "estimate.approve", label: "Approve Estimates", description: "Record attributed approval evidence and canonical lifecycle fact." },
+      { key: "estimate.document.download", label: "Download Estimates", description: "Download the selected immutable Estimate version." },
+    ] },
+    { key: "tasks.page", label: "Tasks", description: "Open production technician Tasks.", actions: [
+      { key: "task.read", label: "View Tasks", description: "Read dependency and execution state." },
+      { key: "task.assign", label: "Assign Tasks", description: "Assign an effective branch technician." },
+      { key: "task.execute", label: "Execute Tasks", description: "Run dependency-aware task transitions." },
+      { key: "task.evidence.write", label: "Add Task evidence", description: "Add clean private checklist evidence." },
+    ] },
+    { key: "qc.page", label: "Quality control", description: "Open independent QC and blocking rework.", actions: [
+      { key: "qc.read", label: "View QC", description: "Read QC checklists, decisions, and rework." },
+      { key: "qc.inspect", label: "Inspect Tasks", description: "Record independent checklist decisions." },
+      { key: "rework.assign", label: "Assign rework", description: "Assign failed-item rework." },
+      { key: "rework.execute", label: "Execute rework", description: "Complete evidence-backed rework for reinspection." },
+    ] },
     { key: "data-flow.page", label: "Data Flow", description: "Open the record-specific production Job Data Flow.", actions: [
       { key: "job.data-flow.read", label: "View Job Data Flow", description: "Explain Visit, work, finance, custody, artifacts, and history for permitted Jobs." },
     ] },
