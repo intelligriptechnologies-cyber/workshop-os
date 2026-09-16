@@ -15,7 +15,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, expectedDatabase);
-assert.equal(health.migrations, 41);
+assert.equal(health.migrations, 42);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -37,6 +37,7 @@ assert.ok(adminSession.membership.permissions.includes("media.download"));
 assert.ok(adminSession.membership.permissions.includes("estimate.approve"));
 assert.ok(adminSession.membership.permissions.includes("task.execute"));
 assert.ok(adminSession.membership.permissions.includes("qc.inspect"));
+assert.ok(adminSession.membership.permissions.includes("billing.read"));
 const jobsTodayResponse = await api("/api/v1/jobs", "north-admin");
 assert.equal(jobsTodayResponse.status, 200);
 const jobsToday = await jobsTodayResponse.json();
@@ -44,6 +45,7 @@ assert.equal(jobsToday.jobs.length, 1);
 assert.equal(jobsToday.jobs[0].statusLabel, "In Progress");
 assert.equal(jobsToday.jobs[0].settingsSnapshotCaptured, true);
 assert.ok(jobsToday.jobs[0].documents.some((document) => document.type === "RECEIPT"));
+const billingJobResponse=await api(`/api/v1/billing/jobs/${jobsToday.jobs[0].id}`,"north-admin");assert.equal(billingJobResponse.status,200);const billingJob=(await billingJobResponse.json()).billing;assert.equal(billingJob.id,jobsToday.jobs[0].id);assert.equal(billingJob.stage,"ACTIVE");assert.equal((await api(`/api/v1/billing/jobs/${jobsToday.jobs[0].id}`,"north-users-admin")).status,403);
 const estimateCreate=await api("/api/v1/estimates","north-admin",{method:"POST",headers:{"idempotency-key":`${key}-estimate-create`},body:JSON.stringify({branchId:branch,jobId:jobsToday.jobs[0].id,notes:"Local immutable estimate smoke",totalMinor:"99000",validDays:14})});
 assert.equal(estimateCreate.status,201);const estimate=(await estimateCreate.json()).estimate;assert.equal(estimate.status,"DRAFT");
 assert.equal((await api("/api/v1/estimates","north-admin",{method:"POST",headers:{"idempotency-key":`${key}-estimate-create`},body:JSON.stringify({branchId:branch,jobId:jobsToday.jobs[0].id,notes:"Local immutable estimate smoke",totalMinor:"99000",validDays:14})})).status,200);
@@ -285,5 +287,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Estimate create and idempotent replay", "optimistic draft Estimate edit", "immutable submitted Estimate PDF", "evidenced Estimate approval", "Estimate exact authorization", "Visit-date Job Media selector", "lifecycle-gated private Media upload", "scanner quarantine and trusted release", "private original download", "Media archive without hard delete", "Media exact authorization", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Estimate create and idempotent replay", "optimistic draft Estimate edit", "immutable submitted Estimate PDF", "evidenced Estimate approval", "Estimate exact authorization", "Billing and custody projection", "Billing exact authorization", "Visit-date Job Media selector", "lifecycle-gated private Media upload", "scanner quarantine and trusted release", "private original download", "Media archive without hard delete", "Media exact authorization", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));

@@ -13,6 +13,7 @@ export const PRODUCTION_NAVIGATION: ProductionNavItem[] = [
   { href: "/production/estimates", label: "Estimates", permission: "estimates.page" },
   { href: "/production/tasks", label: "Tasks", permission: "tasks.page" },
   { href: "/production/qc", label: "Quality control", permission: "qc.page" },
+  { href: "/production/billing", label: "Billing and delivery", permission: "billing.page" },
   { href: "/production/data-flow", label: "Data Flow", permission: "data-flow.page" },
   { href: "/production/search", label: "Global search", permission: "global-search.page" },
 ];
