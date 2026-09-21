@@ -1,11 +1,11 @@
 # WorkshopOS UI Recovery Checklist v1.0.0
 
-Current progress: **3%**  
-Last completed slice: **UIR-00**  
-Next slice: **UIR-01**
+Current progress: **8%**
+Last completed slice: **UIR-01**
+Next slice: **UIR-02**
 
 - [x] UIR-00 — Persist programme governance (0–3%)
-- [ ] UIR-01 — Lock the regression baseline (3–8%)
+- [x] UIR-01 — Lock the regression baseline (3–8%)
 - [ ] UIR-02 — Restore the Production Workspace (8–30%)
 - [ ] UIR-03 — Establish the visual system (30–50%)
 - [ ] UIR-04 — Standardize primary production lists (50–60%)

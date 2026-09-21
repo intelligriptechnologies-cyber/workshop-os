@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 3%  
-Completed: UIR-00  
-Next slice: UIR-01
+Progress: 8%
+Completed: UIR-00, UIR-01
+Next slice: UIR-02
 
-Approved governance is under `harness/ui-recovery/`; existing harness histories remain unchanged. Baseline branch is `prem-dev`; production authority is PostgreSQL. Tenant apps currently duplicate session loading and flat navigation. `/demo` is lazy/isolated; `/platform` is separate. Next: add observable failing shell contracts and stable references.
+Approved governance is under `harness/ui-recovery/`; existing harness histories remain unchanged. Production authority is PostgreSQL. The deterministic before screenshot and RED shell contracts are in `tests/ui-recovery/`. Next: implement the shared tenant workspace until both shell tests are green, then migrate every tenant route into it.
