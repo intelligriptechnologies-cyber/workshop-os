@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 8%
-Completed: UIR-00, UIR-01
-Next slice: UIR-02
+Progress: 30%
+Completed: UIR-00, UIR-01, UIR-02
+Next slice: UIR-03
 
-Approved governance is under `harness/ui-recovery/`; existing harness histories remain unchanged. Production authority is PostgreSQL. The deterministic before screenshot and RED shell contracts are in `tests/ui-recovery/`. Next: implement the shared tenant workspace until both shell tests are green, then migrate every tenant route into it.
+The first visible recovery checkpoint is complete. `ProductionWorkspace` wraps every tenant route and excludes demo/platform. The three shell contracts, standard gates, and real PostgreSQL local gate pass. Next: scope production tokens and semantic components, then prove the visual system on Home, Jobs, and Customers.

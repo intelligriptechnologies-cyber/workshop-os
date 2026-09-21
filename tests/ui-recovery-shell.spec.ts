@@ -39,3 +39,18 @@ test("production workspace exposes a mobile navigation drawer without losing Log
   await expect(page.getByRole("navigation", { name: "Workshop navigation" })).toBeHidden();
   await expect(trigger).toBeFocused();
 });
+
+test("collapse preference persists and local Logout ends the visible session", async ({ page }) => {
+  await mockTenantSession(page);
+  await page.goto("/");
+  await page.getByRole("button", { name: "Collapse navigation" }).click();
+  await expect(page.locator("[data-ui-system='workshopos']")).toHaveClass(/is-collapsed/);
+  await page.reload();
+  await expect(page.locator("[data-ui-system='workshopos']")).toHaveClass(/is-collapsed/);
+
+  await page.getByRole("button", { name: "Logout" }).click();
+  await expect(page.getByRole("heading", { name: "Signed out of WorkshopOS" })).toBeVisible();
+  await expect(page.getByRole("navigation", { name: "Workshop navigation" })).toBeHidden();
+  await page.reload();
+  await expect(page.getByRole("heading", { name: "Signed out of WorkshopOS" })).toBeVisible();
+});
