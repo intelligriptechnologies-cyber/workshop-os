@@ -1,7 +1,6 @@
 import { useEffect, useState } from "react";
 
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
-import { ProductionNavigation } from "./ProductionNavigation";
 import {
   createRemainingScreensApi,
   type RemainingAuth,
@@ -59,7 +58,7 @@ export default function ProductionHomeApp() {
           Production workspace. PostgreSQL is authoritative for every route
           below.
         </p>
-        <ProductionNavigation permissions={session.membership.permissions} />
+
       </PageHeader>
       <Surface>
         <h2>Welcome, {session.membership.displayName}</h2>

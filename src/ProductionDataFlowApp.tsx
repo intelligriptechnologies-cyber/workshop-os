@@ -7,7 +7,6 @@ import {
   type JobAuth,
   type JobDataFlow,
 } from "./production-jobs-api";
-import { ProductionNavigation } from "./ProductionNavigation";
 import "./production-work-items.css";
 
 function DataFlowScreen({ auth, session }: { auth: JobAuth; session: any }) {
@@ -74,7 +73,7 @@ function DataFlowScreen({ auth, session }: { auth: JobAuth; session: any }) {
           Explain one selected Job across Visit, work, finance, custody,
           documents, and immutable history.
         </p>
-        <ProductionNavigation permissions={permissions} />
+
       </header>
       {error && <p role="alert">{error}</p>}
       <section aria-labelledby="job-selection">

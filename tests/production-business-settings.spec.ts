@@ -42,8 +42,10 @@ test("Business Settings fails closed without its action permission", async ({ pa
 test("Business Settings persist through HTTP and PostgreSQL", async ({ page }) => {
   test.skip(!process.env.PRODUCTION_E2E_BASE_URL, "requires the production Docker stack");
   await page.goto("/production/settings"); await page.getByLabel("Tenant or branch").selectOption({ label: "Delhi overrides" });
-  await page.getByRole("button", { name: "Reset all to inherited" }).click(); await page.getByRole("button", { name: "Save draft" }).click();
-  await expect(page.getByRole("status")).toContainText("Draft saved"); await page.getByRole("button", { name: "Publish settings" }).click();
+  await page.getByRole("button", { name: "Edit settings" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit Business Settings" });
+  await editor.getByRole("button", { name: "Reset all to inherited" }).click(); await editor.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("status")).toContainText("Draft saved"); await editor.getByRole("button", { name: "Publish settings" }).click();
   await expect(page.getByRole("status")).toContainText("Active work keeps its existing snapshot"); await page.reload();
   await page.getByLabel("Tenant or branch").selectOption({ label: "Delhi overrides" }); await expect(page.getByText(/Published version [1-9]/)).toBeVisible();
 });

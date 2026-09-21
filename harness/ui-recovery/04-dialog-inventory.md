@@ -5,7 +5,7 @@
 | Customers / Vehicles | Dirty create/edit dialog | Retain and restyle |
 | Work Items | Dirty create/edit and reason dialogs | Retain and restyle |
 | Jobs | Reason commands; no general create/edit API | Retain; defer missing CRUD |
-| Media | Upload/edit inline; archive dialog | Move upload/edit to dialog |
+| Media | Upload inline; archive dialog; no metadata-edit API | Move upload to dialog; retain archive dialog; defer absent metadata edit |
 | Estimates / Tasks / QC | Dirty and reason dialogs | Retain and restyle |
 | Billing / delivery | Dirty command dialogs | Retain and restyle |
 | Inventory | Receipt/import dialogs | Retain and restyle |

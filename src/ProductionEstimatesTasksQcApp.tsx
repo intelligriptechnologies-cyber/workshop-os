@@ -6,7 +6,6 @@ import {
   type OpsAuth,
 } from "./production-estimates-tasks-qc-api";
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
-import { ProductionNavigation } from "./ProductionNavigation";
 import "./production-work-items.css";
 
 function save(value: { blob: Blob; filename: string }) {
@@ -154,7 +153,7 @@ function Screen({ auth, session }: { auth: OpsAuth; session: any }) {
           Production PostgreSQL authority with versioned commands and immutable
           evidence.
         </p>
-        <ProductionNavigation permissions={permissions} />
+
       </header>
       {failure && <p role="alert">{failure}</p>}
       {notice && <p role="status">{notice}</p>}

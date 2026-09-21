@@ -10,4 +10,4 @@
 | Platform | `/platform` | `PlatformAdminApp` |
 | Demo | `/demo` | Lazy legacy `App` |
 
-Baseline: tenant routes load sessions independently and render repeated headers plus flat `ProductionNavigation`. The demo local-data shell is not production authority.
+Recovery: every tenant route is surrounded by `ProductionWorkspace`; its grouped permission navigation and account session are shared. `/demo` remains a lazy browser-only reference boundary and is not production authority. `/platform` remains independently authenticated and has no tenant navigation.

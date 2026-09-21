@@ -12,7 +12,6 @@ import {
   jobStageLabel,
   type JobListQuery,
 } from "../production/src/job-list-contract";
-import { ProductionNavigation } from "./ProductionNavigation";
 import { ReasonCommandDialog } from "./dialog-primitives";
 import { ListWorkspace } from "./production-list-workspace";
 import "./production-work-items.css";
@@ -233,7 +232,7 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
           Current workshop Jobs from PostgreSQL. Visit dates use the workshop
           timezone.
         </p>
-        <ProductionNavigation permissions={permissions} />
+
       </header>
       {failure && <p role="alert">{failure}</p>}
       <ReasonCommandDialog

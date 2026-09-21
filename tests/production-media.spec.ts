@@ -138,8 +138,10 @@ test("Media loads through production HTTP and PostgreSQL", async ({ page }) => {
   await expect(
     page.getByRole("heading", { name: "Media", exact: true }),
   ).toBeVisible();
+  await page.getByRole("button", { name: "Upload Job media" }).click();
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Job media" });
   await expect(
-    page
+    uploadDialog
       .getByRole("combobox", { name: /^Job/ })
       .locator(`option[value="${jobId}"]`),
   ).toContainText("JOB-00000000");

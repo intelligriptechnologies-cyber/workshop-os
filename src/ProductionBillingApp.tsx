@@ -2,7 +2,6 @@ import { FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { DirtyFormDialog } from "./dialog-primitives";
-import { ProductionNavigation } from "./ProductionNavigation";
 import { createBillingApi, type BillingJob } from "./production-billing-api";
 
 const message = (error: unknown) => error instanceof Error ? error.message : "Request failed";
@@ -87,7 +86,7 @@ function Screen({ session, auth }: { session: any; auth: any }) {
   const dialogTitle: Record<DialogKind, string> = { ACCEPT: "Record Work Accepted", PAY: "Record payment", DELIVERY: "Record delivery acknowledgement", GATE: "Generate gate pass", INVOICE_CORRECTION: "Request invoice correction", PAYMENT_CORRECTION: "Request payment correction" };
 
   return <>
-    <ProductionNavigation permissions={session.membership.permissions} />
+
     <main>
       <h1>Billing, delivery and closure</h1>
       <p>Final finance and vehicle custody use immutable production records.</p>

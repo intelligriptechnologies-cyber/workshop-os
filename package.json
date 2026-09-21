@@ -9,6 +9,7 @@
     "preview": "vite preview --host 0.0.0.0",
     "start": "npm run local:container",
     "test:harness": "node scripts/verify-harness.mjs",
+    "test:ui-recovery": "node scripts/verify-ui-recovery.mjs",
     "test:ui:v1.2": "node scripts/verify-ui-enhancement-v1.2.mjs",
     "test:production-authority": "node scripts/verify-production-authority.mjs",
     "test:release-assurance": "playwright test tests/v12-release-assurance.spec.ts",

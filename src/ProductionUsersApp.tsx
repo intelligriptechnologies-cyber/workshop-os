@@ -3,7 +3,6 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { createProductionUsersApi, DEFAULT_USER_QUERY, userListSearch, UsersApiError, type ManagedUser, type UserDirectory, type UserQuery, type UsersAuth } from "./production-users-api";
-import { ProductionNavigation } from "./ProductionNavigation";
 import "./production-users.css";
 
 type Draft = { id?: string; name: string; email: string; roleIds: string[]; branchIds: string[]; version?: number };
@@ -65,7 +64,7 @@ function ProductionUsersScreen({ auth, actorId, permissions }: { auth: UsersAuth
 
   if (!directory) return <main className="v12-users"><h1>Tenant User Management</h1>{failure ? <p role="alert">{failure.message}</p> : <p>Loading tenant users…</p>}</main>;
   const dirty = JSON.stringify(draft) !== JSON.stringify(original); const activeFilters = Boolean(query.search || query.status || query.roleId || query.branchId);
-  return <main className="v12-users"><header><a href="/">Back to WorkshopOS</a><h1>Tenant User Management</h1><p>Invite and govern users in the authenticated PostgreSQL tenant.</p><ProductionNavigation permissions={permissions} /></header>
+  return <main className="v12-users"><header><a href="/">Back to WorkshopOS</a><h1>Tenant User Management</h1><p>Invite and govern users in the authenticated PostgreSQL tenant.</p></header>
     {failure && !draft && <div role="alert" className="v12-user-error"><span>{failure.message}</span></div>}{status && <p role="status">{status}</p>}
     <section aria-labelledby="tenant-users"><div className="v12-user-heading"><h2 id="tenant-users">Users</h2><button onClick={openInvite}>Invite user</button><button onClick={() => void refresh()} disabled={busy}>Refresh</button></div>
       <form role="search" className="v12-user-filters" onSubmit={(event) => { event.preventDefault(); navigate({ ...query, search: search.trim(), page: 1 }); }}><label>Search <input value={search} onChange={(event) => setSearch(event.target.value)} /></label>

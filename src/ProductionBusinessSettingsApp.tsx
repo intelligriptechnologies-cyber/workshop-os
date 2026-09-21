@@ -1,7 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
-import { ProductionNavigation } from "./ProductionNavigation";
 import { DirtyFormDialog } from "./dialog-primitives";
 import { createProductionBusinessSettingsApi, SettingsApiError, type BusinessSettings, type SettingsAuth, type SettingsWorkspace } from "./production-business-settings-api";
 import "./production-business-settings.css";
@@ -23,7 +22,7 @@ function SettingsScreen({ auth, session }: { auth: SettingsAuth; session: Awaite
   function reset(key: keyof BusinessSettings) { setValues((current) => { const next = { ...current }; delete next[key]; return next; }); }
   async function save() { if (!workspace) return; setBusy(true); try { const result = await api.save(workspace, values); setWorkspace(result); setValues(result.overrides); setStatus("Draft saved. Review it before publishing."); setFailure(""); } catch (error) { show(error); } finally { setBusy(false); } }
   async function publish() { if (!workspace) return; setBusy(true); try { const result = await api.publish(workspace); setWorkspace(result); setValues(result.overrides); setStatus(`Published version ${result.publishedVersion}. Active work keeps its existing snapshot.`); setFailure(""); } catch (error) { show(error); } finally { setBusy(false); } }
-  return <main className="v12-settings"><header><a href="/">Back to WorkshopOS</a><h1>Business Settings</h1><p>Publish tenant defaults and branch overrides without changing active work.</p><ProductionNavigation permissions={session.membership.permissions} /></header>
+  return <main className="v12-settings"><header><a href="/">Back to WorkshopOS</a><h1>Business Settings</h1><p>Publish tenant defaults and branch overrides without changing active work.</p></header>
     {failure && <p role="alert">{failure}</p>}{status && <p role="status">{status}</p>}
     <section aria-labelledby="settings-scope"><h2 id="settings-scope">Settings scope</h2><label htmlFor="settings-branch">Tenant or branch</label><select id="settings-branch" value={branchId} disabled={busy} onChange={(event) => { setBranchId(event.target.value); void load(event.target.value); }}><option value="">Tenant defaults</option>{session.membership.branches.map((branch) => <option key={branch.id} value={branch.id}>{branch.name} overrides</option>)}</select>
       {workspace && <p>Draft version {workspace.draftVersion} · Published version {workspace.publishedVersion || "None"}</p>}</section>

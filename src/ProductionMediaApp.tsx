@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
-import { ProductionNavigation } from "./ProductionNavigation";
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import {
   createMediaApi,
@@ -182,7 +181,7 @@ function Screen({ auth, session }: { auth: MediaAuth; session: any }) {
           Job-linked evidence from PostgreSQL. Private originals remain
           quarantined until scanning completes.
         </p>
-        <ProductionNavigation permissions={permissions} />
+
       </header>
       {failure && <p role="alert">{failure}</p>}
       {notice && <p role="status">{notice}</p>}

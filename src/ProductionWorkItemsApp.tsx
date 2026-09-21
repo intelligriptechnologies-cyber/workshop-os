@@ -4,7 +4,6 @@ import { loadAuthConfig, loadWorkshopSession, type CognitoConfig, type WorkshopS
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { createWorkItemsApi, DEFAULT_WORK_ITEM_LIST_QUERY, workItemListSearch, WorkItemsApiError, type WorkItem, type WorkItemAuth, type WorkItemListQuery } from "./work-items-api";
 import "./production-work-items.css";
-import { ProductionNavigation } from "./ProductionNavigation";
 import { ListWorkspace } from "./production-list-workspace";
 
 const localIdentities = {
@@ -153,7 +152,7 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
       <p><a href="/">Back to WorkshopOS</a></p>
       <h1>Production work items</h1>
       <p>This tracer reads and writes the authenticated PostgreSQL tenant and branch scope.</p>
-      <ProductionNavigation permissions={identity.permissions} />
+
     </header>
     {error && <p role="alert" style={{ color: "#9b1c1c" }}>{error}</p>}
     <section aria-labelledby="saved-work-items">

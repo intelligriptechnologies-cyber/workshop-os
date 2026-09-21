@@ -2,7 +2,6 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { ModalDialog, ReasonCommandDialog } from "./dialog-primitives";
-import { ProductionNavigation } from "./ProductionNavigation";
 import { ListWorkspace } from "./production-list-workspace";
 import {
   createRemainingScreensApi,
@@ -191,7 +190,7 @@ function Screen({
         <a href="/">WorkshopOS production home</a>
         <h1>{meta.label}</h1>
         <p>Authenticated PostgreSQL records from permitted branches.</p>
-        <ProductionNavigation permissions={permissions} />
+
       </header>
       {failure && <p role="alert">{failure}</p>}
       {status && <p role="status">{status}</p>}

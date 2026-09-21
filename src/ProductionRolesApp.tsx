@@ -2,7 +2,6 @@ import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
-import { ProductionNavigation } from "./ProductionNavigation";
 import {
   createProductionRolesApi, RolesApiError, type ManagedRole, type PermissionGroup, type RoleDraft, type RolesAuth,
 } from "./production-roles-api";
@@ -54,7 +53,7 @@ function RolesScreen({ auth, permissions }: { auth: RolesAuth; permissions: stri
     catch (error) { showFailure(error); } finally { setBusy(false); }
   }
   const dirty = JSON.stringify(draft) !== JSON.stringify(original);
-  return <main className="v12-roles"><header><a href="/">Back to WorkshopOS</a><h1>Roles and Permissions</h1><p>Create versioned tenant roles from the shared page and action permission catalog.</p><ProductionNavigation permissions={permissions} /></header>
+  return <main className="v12-roles"><header><a href="/">Back to WorkshopOS</a><h1>Roles and Permissions</h1><p>Create versioned tenant roles from the shared page and action permission catalog.</p></header>
     {failure && <p role="alert" className="v12-role-error">{failure}</p>}{status && <p role="status">{status}</p>}
     <section aria-labelledby="role-list"><div className="v12-role-heading"><h2 id="role-list">Tenant roles</h2><button type="button" onClick={openCreate}>Create role</button><button type="button" disabled={busy} onClick={() => void refresh("")}>Refresh</button></div>
       <ul className="v12-role-list">{roles.map((role) => <li key={role.id}><div><h3>{role.name} {role.protected && <span className="v12-protected">Protected template</span>}</h3><p>{role.description || "No description"}</p><small>Version {role.version} · {role.permissions.length} grants</small></div><div className="v12-role-actions">{role.protected ? <span>Cannot be changed or archived</span> : <><button type="button" onClick={() => openEdit(role)}>Edit {role.name}</button><button type="button" onClick={() => setArchiveTarget(role)}>Archive {role.name}</button></>}</div></li>)}</ul>
