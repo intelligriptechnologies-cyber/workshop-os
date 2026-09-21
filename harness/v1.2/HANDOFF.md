@@ -1,25 +1,24 @@
 # WorkshopOS v1.2 handoff
 
 Updated: 2026-09-21
-Completed slice: V12-14
-Next slice: V12-15
+Completed slice: V12-15
+Next slice: V12-16
 
 ## Requirement IDs implemented
 
-V12-R001 through V12-R030 are implemented on authenticated production routes backed by PostgreSQL. V12-14 completes V12-R030 and reinforces V12-R001 with a locked production route/surface inventory and a transitive no-sql.js authority gate. V12-00 continues to provide governance coverage for the complete requirement register.
+V12-R001 through V12-R033 are implemented on authenticated production routes backed by PostgreSQL. V12-15 completes V12-R011 and V12-R031 through V12-R033 with a distinct platform identity boundary, explicit tenant scope, protected log retention/recovery, scoped support grants, and approved dual-attributed tenant-user emulation. V12-00 continues to provide governance coverage for the complete requirement register.
 
 ## Changed paths
 
-`package.json`, `playwright.config.ts`, `production/db/migrations/043_remaining_screen_production.sql`, `production/local/database.ts`, `production/local/seed-demo.ts`, `production/local/server.ts`, `production/remaining-screen-inventory.json`, `production/src/remaining-screens.ts`, `production/src/role-permissions.ts`, `production/tests/remaining-screens-postgres.integration.test.ts`, `production/tests/role-permissions.test.ts`, `scripts/test-local.mjs`, `scripts/verify-production-authority.mjs`, `src/main.tsx`, `src/ProductionHomeApp.tsx`, `src/ProductionRemainingScreensApp.tsx`, `src/production-navigation.tsx`, `src/production-remaining-screens-api.ts`, `tests/global-users.spec.ts`, `tests/production-remaining-screens.spec.ts`, `tests/workshopos-demo.spec.ts`, `unit-tests/production-authority.test.ts`, `unit-tests/production-remaining-screens-api.test.ts`, and the v1.2 checklist/issue/traceability/handoff.
+`production/db/migrations/044_platform_admin_workspace.sql`, `production/db/migrations/045_platform_action_audit_hardening.sql`, `production/local/cognito.ts`, `production/local/platform-database.ts`, `production/local/seed-demo.ts`, `production/local/server.ts`, `production/src/platform-admin.ts`, `production/tests/platform-admin-postgres.integration.test.ts`, `scripts/test-local.mjs`, `src/main.tsx`, `src/PlatformAdminApp.tsx`, `src/platform-admin-api.ts`, `src/platform-admin.css`, `src/platform-emulation-fetch.ts`, `tests/platform-admin.spec.ts`, `unit-tests/platform-admin.test.ts`, and the v1.2 checklist/issue/traceability/handoff.
 
 ## Focused and regression evidence
 
-- `npm run test:production-authority` passes with 26 static production modules, 22 locked routes, all 34 historical role-menu surfaces mapped, and the dynamic-only `/demo` authority isolated from production imports, links, and navigation.
-- A fresh database applied all 43 migrations; focused PostgreSQL acceptance passed 1/1. Coverage includes tenant/branch/warehouse RLS, six list sources, follow-up and action-inbox reasoned commands and idempotent replay, persisted presentation preferences, complete filtered export, and private artifact download.
-- `npm run local:up` rebuilt the final image and `npm run local:test` passed 54 checks against the 43-migration HTTP/PostgreSQL runtime. The additive protected-template migration is versioned and grants the new operational permissions only to the Business Owner/Admin, not the User Administrator.
-- Focused Playwright passed 3/3 against the real HTTP/PostgreSQL stack. Full Playwright passed 60/70 with ten configured real-stack skips. The user-owned historical demo test remains unchanged and runs through the test-only `/demo` wrapper.
-- `npm run build` passed with the existing non-blocking bundle-size warning; unit passed 28/28; production passed 241/254 with 13 expected opt-in PostgreSQL skips; production typecheck and `git diff --check` passed.
-- Both harness verifiers pass and identify V12-15 as the next contiguous slice.
+- A fresh database applied all 45 migrations and focused platform PostgreSQL acceptance passed 1/1. It covers recent MFA, distinct approval, exact scope, branch/warehouse/effective-permission resolution, exact expiry, immutable log recovery, and request/result dual attribution.
+- `npm run local:up` rebuilt the final image and `npm run local:test` passed 63 checks against the 45-migration HTTP/PostgreSQL runtime, including independent grant/emulation approval, denied effective-user action audit, protected log download, and exercised offline recovery.
+- Focused Playwright passed 2/2 against the real runtime and proves the complete platform-to-ordinary-workspace emulation bridge. Full real-stack Playwright passed 72/72; the user-owned historical demo test remains unchanged and executes through the isolated wrapper.
+- `npm run build` passed with the existing non-blocking bundle-size warning; unit passed 30/30; production passed 241/255 with 14 expected opt-in PostgreSQL skips; production typecheck, the locked production-authority gate, and `git diff --check` passed.
+- Both harness verifiers pass and identify V12-16 as the next contiguous slice.
 
 ## Preserved pre-existing changes
 
@@ -27,7 +26,7 @@ Unstaged user-owned changes in `src/App.tsx`, `src/styles.css`, `tests/workshopo
 
 ## Risks and blockers
 
-- V12-15 owns the separate Platform Super Admin workspace, platform-only authorization, tenant selection, daily log retention/download/recovery controls, support grants, and 15-minute approved tenant-user emulation with dual attribution.
+- V12-16 owns final automated accessibility/responsive/security cleanup, release documentation, traceability closure, and the complete release-command matrix.
 - Production object storage, trusted malware scanning, Cognito/MFA, deployed log/archive services, payment-provider/tax certification, deployment, and manual certification remain external evidence; local Docker proves only the in-scope runtime boundaries.
 - The legacy sql.js reference app remains available only by direct `/demo` URL as a separately generated dynamic chunk. It is not a production authority, route fallback, production link, or navigation item.
 - The existing production bundle-size warning remains for V12-16 cleanup; the demo chunk is separate from the production entry graph.
@@ -35,4 +34,4 @@ Unstaged user-owned changes in `src/App.tsx`, `src/styles.css`, `tests/workshopo
 
 ## Next-slice dependencies
 
-V12-15 implements V12-R011 and V12-R031 through V12-R033. Start from the historical platform lifecycle, observability, and identity contracts, but expose them through a separate platform-authenticated workspace and PostgreSQL repositories. Tenant users must never acquire ambient platform access; support grants and emulation must preserve exact scope, distinct approval, recent MFA/re-authentication, 15-minute expiry, ordinary user permissions/approval rules, and both platform-actor and effective-user attribution.
+V12-16 implements V12-R034 through V12-R036. Audit every migrated screen at phone/tablet/desktop breakpoints and automated keyboard/focus/contrast/error/target-size/reduced-motion/screen-reader-oriented checks; clean security and migration residue; make traceability/checklist/handoff release-complete; run the entire release gate; and explicitly preserve the distinction between locally verified implementation and outstanding deployment/provider/penetration/finance-tax/manual-device/accessibility/recovery-migration/pilot certification.

@@ -1,4 +1,5 @@
 import { Client } from "pg";
+import { createHash, randomUUID } from "node:crypto";
 
 if (process.env.ALLOW_DEMO_LOGIN !== "true") {
   console.log("local demo seed skipped");
@@ -104,6 +105,23 @@ try {
     VALUES('00000000-0000-4000-8000-000000000001','00000000-0000-4000-8000-000000000011','00000000-0000-4000-8000-000000000908',decode('255044462d312e340a','hex'),'application/pdf','receipt-RCPT-LOCAL-001.pdf')
     ON CONFLICT DO NOTHING;
   `);
+  const currentLog=Buffer.from(JSON.stringify({event:"local.platform.ready",severity:"INFO"})+"\n");
+  const recoverableLog=Buffer.from(JSON.stringify({event:"local.recovery.fixture",severity:"INFO"})+"\n");
+  const recoverableLogId=randomUUID();
+  await client.query(`
+    INSERT INTO workshopos.platform_identity(identity_id,display_name,permissions) VALUES
+      ('platform-admin','Platform Operations Admin',ARRAY['platform.tenants.read','platform.support.grant','platform.logs.read','platform.logs.download','platform.logs.recover']),
+      ('platform-approver','Platform Independent Approver',ARRAY['platform.tenants.read','platform.support.approve','platform.emulation.approve','platform.logs.read']),
+      ('support-agent','Support Agent',ARRAY['platform.tenants.read','platform.emulation.request','platform.emulation.use'])
+    ON CONFLICT(identity_id) DO UPDATE SET display_name=EXCLUDED.display_name,permissions=EXCLUDED.permissions,active=true;
+  `);
+  await client.query(`
+    INSERT INTO workshopos.platform_daily_log(log_id,log_date,object_key,content,checksum_sha256,online_until,recoverable_until)
+    VALUES
+      ('00000000-0000-4000-8000-000000001501',current_date,'private/platform/logs/local-current.ndjson',$1,$2,current_date+interval '30 days',current_date+interval '90 days'),
+      ($5,current_date-45,$6,$3,$4,current_date-15+interval '0 days',current_date+45)
+    ON CONFLICT(log_id) DO NOTHING;
+  `,[currentLog,createHash("sha256").update(currentLog).digest("hex"),recoverableLog,createHash("sha256").update(recoverableLog).digest("hex"),recoverableLogId,`private/platform/logs/local-recoverable-${recoverableLogId}.ndjson`]);
   await client.query("COMMIT");
   console.log("local demo tenant administrator ready");
 } catch (error) {

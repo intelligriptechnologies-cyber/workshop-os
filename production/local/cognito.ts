@@ -41,6 +41,17 @@ export class CognitoGateway implements CognitoAdminPort {
     }
   }
 
+  async verifyPlatformAccessToken(token: string): Promise<{ subject:string; authenticatedAt:string; mfa:boolean }> {
+    try {
+      const payload = await this.verifier.verify(token);
+      if (!payload.sub || typeof payload.auth_time !== "number") throw new Error("missing platform authentication claims");
+      const methods=Array.isArray(payload.amr)?payload.amr.map(String):[];
+      return {subject:payload.sub,authenticatedAt:new Date(payload.auth_time*1000).toISOString(),mfa:methods.some(value=>["mfa","sms_mfa","software_token_mfa"].includes(value.toLowerCase()))};
+    } catch {
+      throw new ApiError(401, "PLATFORM_TOKEN_INVALID");
+    }
+  }
+
   async ensureUser(input: { email: string; name: string; tenantId: string }) {
     const existing = await this.getUser(input.email);
     if (existing) {

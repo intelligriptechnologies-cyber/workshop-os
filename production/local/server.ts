@@ -7,6 +7,7 @@ import { createServer, type IncomingMessage, type ServerResponse } from "node:ht
 import path from "node:path";
 
 import { memberships, PostgresVertical } from "./database.js";
+import { PlatformDatabase } from "./platform-database.js";
 import { CognitoGateway, LocalIdentityGateway } from "./cognito.js";
 import { AdminUserService, ApiError, type AuthenticatedMembership } from "../src/admin-users.js";
 import { publicApiError } from "../src/http-errors.js";
@@ -23,15 +24,20 @@ import { createJobCardPdf, createJobListExportArtifact } from "../src/job-export
 import { parseMediaListQuery, type MediaCategory } from "../src/job-media.js";
 import { createEstimateDocument } from "../src/estimate-task-qc.js";
 import { createRemainingScreenExportArtifact, isRemainingScreenKey, REMAINING_SCREEN_META, type RemainingScreenKey } from "../src/remaining-screens.js";
+import { requirePlatformPermission, type EmulationContext, type PlatformPrincipal } from "../src/platform-admin.js";
 
 const host = process.env.HOST ?? "127.0.0.1";
 const port = Number(process.env.PORT ?? 4173);
 const dist = path.resolve("dist");
 const database = new PostgresVertical();
+const platformDatabase = new PlatformDatabase();
 const identityMode = process.env.IDENTITY_MODE ?? (process.env.COGNITO_USER_POOL_ID ? "cognito" : "local");
 const cognitoDomain = process.env.COGNITO_DOMAIN?.replace(/\/$/, "");
 const cognito = identityMode === "cognito" ? new CognitoGateway(
   required("COGNITO_USER_POOL_ID"), required("COGNITO_APP_CLIENT_ID"), required("AWS_REGION"),
+) : undefined;
+const platformCognito = identityMode === "cognito" ? new CognitoGateway(
+  required("COGNITO_USER_POOL_ID"), required("COGNITO_PLATFORM_APP_CLIENT_ID"), required("AWS_REGION"),
 ) : undefined;
 const localIdentity = !cognito && process.env.ALLOW_DEMO_LOGIN === "true" ? new LocalIdentityGateway() : undefined;
 const adminUsers = cognito || localIdentity ? new AdminUserService(database, cognito ?? localIdentity!) : undefined;
@@ -73,6 +79,15 @@ async function body(request: IncomingMessage, maximumBytes = 1024 * 1024): Promi
 }
 
 async function membershipFor(request: IncomingMessage) {
+  const emulationId = request.headers["x-workshopos-emulation-id"];
+  if (typeof emulationId === "string") {
+    const principal = await platformPrincipalFor(request);
+    if (!principal) return undefined;
+    requirePlatformPermission(principal, "platform.emulation.use");
+    const resolved = await platformDatabase.resolveEmulation(principal, emulationId);
+    if (!resolved) return undefined;
+    return Object.assign(resolved.membership, { platformPrincipal: principal, platformContext: resolved.context });
+  }
   if (cognito) {
     const authorization = request.headers.authorization;
     if (!authorization?.startsWith("Bearer ")) return undefined;
@@ -84,6 +99,32 @@ async function membershipFor(request: IncomingMessage) {
   if (identity === "north-admin") return database.resolveMembership("local-north-admin");
   if (identity === "north-users-admin") return database.resolveMembership("local-north-users-admin");
   return typeof identity === "string" ? memberships[identity] : undefined;
+}
+
+async function platformPrincipalFor(request: IncomingMessage): Promise<PlatformPrincipal | undefined> {
+  if (platformCognito) {
+    const authorization = request.headers["x-workshopos-platform-authorization"];
+    if (typeof authorization !== "string" || !authorization.startsWith("Bearer ")) return undefined;
+    const verified = await platformCognito.verifyPlatformAccessToken(authorization.slice(7));
+    if(!verified.mfa)throw new ApiError(401,"PLATFORM_MFA_REQUIRED");
+    return platformDatabase.principal(verified.subject, verified.authenticatedAt);
+  }
+  if (process.env.ALLOW_DEMO_LOGIN !== "true") return undefined;
+  const mfaAuthenticatedAt = request.headers["x-workshopos-platform-mfa-at"];
+  if (typeof mfaAuthenticatedAt !== "string") return undefined;
+  const parsedMfaAt = Date.parse(mfaAuthenticatedAt);
+  if (!Number.isFinite(parsedMfaAt)) return undefined;
+  const identity = request.headers["x-workshopos-platform-identity"];
+  // The demo client and container can differ by a few milliseconds. Never pass
+  // a future client timestamp into the freshness check; production Cognito uses
+  // the signed, server-verified auth_time claim above.
+  const normalizedMfaAt = new Date(Math.min(parsedMfaAt, Date.now())).toISOString();
+  return typeof identity === "string" ? platformDatabase.principal(identity, normalizedMfaAt) : undefined;
+}
+
+function emulationMetadata(value: unknown): { principal: PlatformPrincipal; context: EmulationContext } | undefined {
+  if (!value || typeof value !== "object" || !("platformPrincipal" in value) || !("platformContext" in value)) return undefined;
+  return { principal:(value as any).platformPrincipal,context:(value as any).platformContext };
 }
 
 function isGlobalMembership(value: unknown): value is AuthenticatedMembership {
@@ -189,6 +230,38 @@ const server = createServer(async (request, response) => {
       }
       return;
     }
+    if (url.pathname === "/api/v1/platform/auth/config" && request.method === "GET") {
+      if (!cognito) json(response,200,{mode:"local",allowDemo:process.env.ALLOW_DEMO_LOGIN==="true"});
+      else {
+        if(!cognitoDomain)throw new Error("COGNITO_DOMAIN is required when IDENTITY_MODE=cognito");
+        json(response,200,{mode:"cognito",clientId:required("COGNITO_PLATFORM_APP_CLIENT_ID"),authorizationEndpoint:`${cognitoDomain}/oauth2/authorize`,tokenEndpoint:`${cognitoDomain}/oauth2/token`,logoutEndpoint:`${cognitoDomain}/logout`,callbackUri:process.env.COGNITO_PLATFORM_CALLBACK_URL??`${url.origin}/platform`,logoutUri:process.env.COGNITO_PLATFORM_LOGOUT_URL??`${url.origin}/platform`,scopes:["openid","email","profile"]});
+      }
+      return;
+    }
+    if (url.pathname.startsWith("/api/v1/platform/")) {
+      const principal=await platformPrincipalFor(request);
+      if(!principal){const failure=publicApiError(new ApiError(401,"PLATFORM_CREDENTIAL_REQUIRED"),traceId);json(response,failure.status,failure.body,traceId);return;}
+      if(url.pathname==="/api/v1/platform/session"&&request.method==="GET"){requirePlatformPermission(principal,"platform.tenants.read");json(response,200,await platformDatabase.session(principal),traceId);return;}
+      const tenantScopeRoute=url.pathname.match(/^\/api\/v1\/platform\/tenants\/([0-9a-f-]+)$/i);
+      if(tenantScopeRoute&&request.method==="GET"){requirePlatformPermission(principal,"platform.tenants.read");json(response,200,await platformDatabase.tenantScope(principal,tenantScopeRoute[1]),traceId);return;}
+      if(url.pathname==="/api/v1/platform/support-grants"&&request.method==="GET"){if(!principal.permissions.some(value=>["platform.support.grant","platform.support.approve","platform.emulation.use"].includes(value)))throw new ApiError(403,"PLATFORM_PERMISSION_DENIED");json(response,200,await platformDatabase.listSupportGrants(principal,url.searchParams.get("tenantId")??""),traceId);return;}
+      if(url.pathname==="/api/v1/platform/support-grants"&&request.method==="POST"){requirePlatformPermission(principal,"platform.support.grant");json(response,201,await platformDatabase.requestSupportGrant(principal,await body(request)),traceId);return;}
+      const approveGrantRoute=url.pathname.match(/^\/api\/v1\/platform\/support-grants\/([0-9a-f-]+)\/approve$/i);
+      if(approveGrantRoute&&request.method==="POST"){requirePlatformPermission(principal,"platform.support.approve");json(response,200,await platformDatabase.approveSupportGrant(principal,approveGrantRoute[1],await body(request)),traceId);return;}
+      if(url.pathname==="/api/v1/platform/emulations"&&request.method==="GET"){if(!principal.permissions.some(value=>["platform.emulation.request","platform.emulation.approve","platform.emulation.use"].includes(value)))throw new ApiError(403,"PLATFORM_PERMISSION_DENIED");json(response,200,await platformDatabase.listEmulations(principal,url.searchParams.get("tenantId")??""),traceId);return;}
+      if(url.pathname==="/api/v1/platform/emulations"&&request.method==="POST"){requirePlatformPermission(principal,"platform.emulation.request");json(response,201,await platformDatabase.requestEmulation(principal,await body(request)),traceId);return;}
+      const approveEmulationRoute=url.pathname.match(/^\/api\/v1\/platform\/emulations\/([0-9a-f-]+)\/approve$/i);
+      if(approveEmulationRoute&&request.method==="POST"){requirePlatformPermission(principal,"platform.emulation.approve");json(response,200,await platformDatabase.approveEmulation(principal,approveEmulationRoute[1],await body(request)),traceId);return;}
+      const startEmulationRoute=url.pathname.match(/^\/api\/v1\/platform\/emulations\/([0-9a-f-]+)\/start$/i);
+      if(startEmulationRoute&&request.method==="POST"){requirePlatformPermission(principal,"platform.emulation.use");json(response,200,await platformDatabase.startEmulation(principal,startEmulationRoute[1]),traceId);return;}
+      if(url.pathname==="/api/v1/platform/logs"&&request.method==="GET"){requirePlatformPermission(principal,"platform.logs.read");json(response,200,await platformDatabase.logs(principal),traceId);return;}
+      const logDownloadRoute=url.pathname.match(/^\/api\/v1\/platform\/logs\/([0-9a-f-]+)\/download$/i);
+      if(logDownloadRoute&&request.method==="GET"){requirePlatformPermission(principal,"platform.logs.download");const artifact=await platformDatabase.downloadLog(principal,logDownloadRoute[1],url.searchParams.get("reason"),traceId);const denied="deniedCode" in artifact?artifact.deniedCode:undefined;if(denied)throw new ApiError(409,denied);response.writeHead(200,{"content-type":artifact.mimeType,"content-disposition":`attachment; filename="${artifact.filename}"`,"cache-control":"private, no-store"});response.end(artifact.content);return;}
+      const logRecoveryRoute=url.pathname.match(/^\/api\/v1\/platform\/logs\/([0-9a-f-]+)\/recover$/i);
+      if(logRecoveryRoute&&request.method==="POST"){requirePlatformPermission(principal,"platform.logs.recover");const input=await body(request);json(response,201,await platformDatabase.recoverLog(principal,logRecoveryRoute[1],input.reason,traceId),traceId);return;}
+      if(url.pathname==="/api/v1/platform/audit"&&request.method==="GET"){requirePlatformPermission(principal,"platform.logs.read");json(response,200,await platformDatabase.audit(principal),traceId);return;}
+      throw new ApiError(404,"NOT_FOUND");
+    }
     if (url.pathname.startsWith("/api/")) {
       const membership = await membershipFor(request);
       if (!membership) {
@@ -196,11 +269,8 @@ const server = createServer(async (request, response) => {
         json(response, failure.status, failure.body, traceId);
         return;
       }
-      if (url.pathname.startsWith("/api/platform/")) {
-        const failure = publicApiError(new ApiError(403, "PLATFORM_CREDENTIAL_REQUIRED"), traceId);
-        json(response, failure.status, failure.body, traceId);
-        return;
-      }
+      const emulation=emulationMetadata(membership);
+      if(emulation&&url.pathname.startsWith("/api/v1/")){await platformDatabase.recordEmulatedAction(emulation.principal,emulation.context,request.method??"GET",url.pathname,undefined,traceId);response.once("finish",()=>{void platformDatabase.recordEmulatedAction(emulation.principal,emulation.context,request.method??"GET",url.pathname,response.statusCode,traceId).catch(error=>console.error(JSON.stringify({event:"platform.emulation.audit.failed",traceId,error:String(error)})));});}
       if (url.pathname === "/api/v1/session" && request.method === "GET") {
         if (isGlobalMembership(membership)) {
           json(response, 200, { membership, tenant: await database.tenantSummary(membership) });
@@ -487,6 +557,7 @@ server.listen(port, host, () => console.log(`WorkshopOS local stack listening on
 async function shutdown() {
   server.close();
   await database.close();
+  await platformDatabase.close();
 }
 process.on("SIGTERM", shutdown);
 process.on("SIGINT", shutdown);

@@ -14,11 +14,15 @@ import ProductionMediaApp from "./ProductionMediaApp";
 import ProductionEstimatesTasksQcApp from "./ProductionEstimatesTasksQcApp";
 import ProductionBillingApp from "./ProductionBillingApp";
 import ProductionRemainingScreensApp from "./ProductionRemainingScreensApp";
+import PlatformAdminApp from "./PlatformAdminApp";
+import { installPlatformEmulationFetch } from "./platform-emulation-fetch";
 import "./styles.css";
+
+installPlatformEmulationFetch();
 
 const LegacyDemoApp = lazy(() => import("./App"));
 const remainingRoutes = ["/production/appointments","/production/follow-ups","/production/action-inbox","/production/materials","/production/reports","/production/masters"];
-const RootApp = location.pathname === "/demo" ? LegacyDemoApp : location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : location.pathname === "/production/settings" ? ProductionBusinessSettingsApp : ["/production/customers", "/production/vehicles"].includes(location.pathname) ? ProductionCustomersVehiclesApp : location.pathname === "/production/inventory" ? ProductionInventoryApp : location.pathname === "/production/jobs" ? ProductionJobsApp : location.pathname === "/production/data-flow" ? ProductionDataFlowApp : location.pathname === "/production/media" ? ProductionMediaApp : ["/production/estimates","/production/tasks","/production/qc"].includes(location.pathname) ? ProductionEstimatesTasksQcApp : location.pathname === "/production/billing" ? ProductionBillingApp : remainingRoutes.includes(location.pathname) ? ProductionRemainingScreensApp : ProductionHomeApp;
+const RootApp = location.pathname === "/demo" ? LegacyDemoApp : location.pathname === "/platform" ? PlatformAdminApp : location.pathname === "/production/work-items" ? ProductionWorkItemsApp : location.pathname === "/production/users" ? ProductionUsersApp : location.pathname === "/production/roles" ? ProductionRolesApp : location.pathname === "/production/search" ? ProductionSearchApp : location.pathname === "/production/settings" ? ProductionBusinessSettingsApp : ["/production/customers", "/production/vehicles"].includes(location.pathname) ? ProductionCustomersVehiclesApp : location.pathname === "/production/inventory" ? ProductionInventoryApp : location.pathname === "/production/jobs" ? ProductionJobsApp : location.pathname === "/production/data-flow" ? ProductionDataFlowApp : location.pathname === "/production/media" ? ProductionMediaApp : ["/production/estimates","/production/tasks","/production/qc"].includes(location.pathname) ? ProductionEstimatesTasksQcApp : location.pathname === "/production/billing" ? ProductionBillingApp : remainingRoutes.includes(location.pathname) ? ProductionRemainingScreensApp : ProductionHomeApp;
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
