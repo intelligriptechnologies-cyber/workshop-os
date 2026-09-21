@@ -1,0 +1,7 @@
+.platform-heading,
+.platform-account { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.platform-account span,
+.platform-account small { display: block; }
+.platform-account small { color: #526078; }
+.platform-signed-out { min-height: 100vh; display: grid; align-content: center; justify-items: center; text-align: center; }
+@media (max-width: 600px) { .platform-heading { align-items: flex-start; } .platform-account { display: grid; justify-items: end; } }

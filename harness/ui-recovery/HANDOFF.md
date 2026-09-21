@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 85%
-Completed: UIR-00 through UIR-07
-Next slice: UIR-08
+Progress: 90%
+Completed: UIR-00 through UIR-08
+Next slice: UIR-09
 
-Administration routes share the recovered visual/dialog conventions. Business Settings editing is now a wide accessible dialog while draft versioning, publication, inheritance, user/role protections, reports, masters, search, and Data Flow behavior remain green. Next: repair the independent Platform Administration header, Logout, and creation dialogs.
+Platform Administration remains independent and now has principal presentation, local/Cognito Logout, and validated grant/emulation dialogs. Tenant navigation and ambient tenant access remain absent. Next: complete responsive/accessibility/visual assurance across every route family and record deferred CRUD truthfully.

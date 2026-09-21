@@ -66,6 +66,11 @@ test("platform workspace is isolated, tenant-scoped, and uses independent approv
   await expect(page.getByRole("navigation")).toHaveCount(0);
   await expect(page.getByLabel("Selected tenant")).toHaveValue(tenantId);
   await expect(page.getByRole("heading", { name: "Protected daily logs" })).toBeVisible();
+  await expect(page.locator(".platform-account")).toContainText("platform-admin");
+  await expect(page.getByRole("button", { name: "Logout" })).toBeVisible();
+  await page.getByRole("button", { name: "Request support grant" }).click();
+  await expect(page.getByRole("dialog", { name: "Request support grant" })).toBeVisible();
+  await page.getByRole("dialog", { name: "Request support grant" }).getByRole("button", { name: "Cancel" }).click();
 
   await page.getByLabel("Platform identity").selectOption("platform-approver");
   await expect(page.getByRole("heading", { name: "Pending support grants" })).toBeVisible();
@@ -73,9 +78,12 @@ test("platform workspace is isolated, tenant-scoped, and uses independent approv
   await expect(page.getByRole("status")).toContainText("Support grant approved");
 
   await page.getByLabel("Platform identity").selectOption("support-agent");
-  await expect(page.getByRole("heading", { name: "Request tenant-user emulation" })).toBeVisible();
-  await page.getByLabel("Approved support grant").selectOption("grant-1");
-  await expect(page.getByLabel("Effective tenant user")).toHaveValue(membershipId);
+  await page.getByRole("button", { name: "Request tenant-user emulation" }).click();
+  const emulationDialog = page.getByRole("dialog", { name: "Request tenant-user emulation" });
+  await expect(emulationDialog).toBeVisible();
+  await emulationDialog.getByLabel("Approved support grant").selectOption("grant-1");
+  await expect(emulationDialog.getByLabel("Effective tenant user")).toHaveValue(membershipId);
+  await emulationDialog.getByRole("button", { name: "Cancel" }).click();
 
   await page.getByLabel("Platform identity").selectOption("platform-approver");
   await page.getByRole("button", { name: "Approve emulation" }).click();
@@ -98,5 +106,13 @@ test("platform workspace renders against the real PostgreSQL stack", async ({ pa
   await expect(page.getByRole("heading", { name: "Platform Super Admin" })).toBeVisible();
   await expect(page.getByLabel("Selected tenant")).not.toHaveValue("");
   await expect(page.getByRole("heading", { name: "Protected daily logs" })).toBeVisible();
+  await expect(page.getByRole("navigation")).toHaveCount(0);
+});
+
+test("local platform Logout ends the isolated session", async ({ page }) => {
+  await mockPlatform(page);
+  await page.goto("/platform");
+  await page.getByRole("button", { name: "Logout" }).click();
+  await expect(page.getByRole("heading", { name: "Signed out of Platform Administration" })).toBeVisible();
   await expect(page.getByRole("navigation")).toHaveCount(0);
 });
