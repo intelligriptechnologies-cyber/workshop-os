@@ -14,6 +14,12 @@ export const PRODUCTION_NAVIGATION: ProductionNavItem[] = [
   { href: "/production/tasks", label: "Tasks", permission: "tasks.page" },
   { href: "/production/qc", label: "Quality control", permission: "qc.page" },
   { href: "/production/billing", label: "Billing and delivery", permission: "billing.page" },
+  { href: "/production/appointments", label: "Appointments", permission: "appointments.page" },
+  { href: "/production/follow-ups", label: "Follow-ups", permission: "follow-ups.page" },
+  { href: "/production/action-inbox", label: "Action inbox", permission: "action-inbox.page" },
+  { href: "/production/materials", label: "Materials", permission: "materials.page" },
+  { href: "/production/reports", label: "Reports", permission: "reports.page" },
+  { href: "/production/masters", label: "Operational masters", permission: "masters.page" },
   { href: "/production/data-flow", label: "Data Flow", permission: "data-flow.page" },
   { href: "/production/search", label: "Global search", permission: "global-search.page" },
 ];

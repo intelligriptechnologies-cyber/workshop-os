@@ -50,7 +50,10 @@ test("authorized administrators create custom roles from the hierarchical permis
   const store = repository();
   const service = new RolePermissionService(store);
   const directory = await service.list(actor, "export");
-  assert.deepEqual(directory.catalog.flatMap((group) => group.pages).flatMap((page) => page.actions).map((item) => item.key), ["membership.manage", "job.export", "inventory.export", "customer.export", "vehicle.export", "work-item.export"]);
+  assert.deepEqual(directory.catalog.flatMap((group) => group.pages).flatMap((page) => page.actions).map((item) => item.key), [
+    "membership.manage", "job.export", "inventory.export", "customer.export", "vehicle.export", "work-item.export",
+    "appointments.export", "follow-ups.export", "action-inbox.export", "materials.export", "reports.export", "masters.export",
+  ]);
 
   const created = await service.create(actor, {
     name: "Workshop Reporter", description: "Can view and export work items",

@@ -88,6 +88,24 @@ export const DEFAULT_PERMISSION_CATALOG: PermissionGroup[] = [
       { key: "work-item.manage", label: "Manage work items", description: "Create, edit, and archive work items." },
       { key: "work-item.export", label: "Export work items", description: "Create and download complete private work-item exports." },
     ] },
+    { key: "appointments.page", label: "Appointments", description: "Open the production appointment schedule.", actions: [
+      { key: "appointment.read", label: "View appointments", description: "Read appointments in permitted branches." }, { key: "appointment.manage", label: "Manage appointments", description: "Run authorized appointment commands." }, { key: "appointments.export", label: "Export appointments", description: "Export every filtered appointment." },
+    ] },
+    { key: "follow-ups.page", label: "Follow-ups", description: "Open advisor follow-ups.", actions: [
+      { key: "follow-up.read", label: "View follow-ups", description: "Read permitted follow-ups." }, { key: "follow-up.manage", label: "Manage follow-ups", description: "Complete follow-ups with attributed outcomes." }, { key: "follow-ups.export", label: "Export follow-ups", description: "Export every filtered follow-up." },
+    ] },
+    { key: "action-inbox.page", label: "Action inbox", description: "Open the role-filtered action inbox.", actions: [
+      { key: "action-inbox.read", label: "View action inbox", description: "Read permitted operational actions." }, { key: "action-inbox.manage", label: "Complete inbox actions", description: "Complete authorized inbox actions." }, { key: "action-inbox.export", label: "Export action inbox", description: "Export every filtered action." },
+    ] },
+    { key: "materials.page", label: "Materials", description: "Open Job material issue and reconciliation.", actions: [
+      { key: "material.read", label: "View materials", description: "Read permitted Job material controls." }, { key: "material.manage", label: "Manage materials", description: "Run authorized material commands." }, { key: "materials.export", label: "Export materials", description: "Export every filtered material record." },
+    ] },
+    { key: "reports.page", label: "Reports", description: "Open ledger-derived production reports.", actions: [
+      { key: "report.read", label: "View reports", description: "Read permitted report facts." }, { key: "reports.export", label: "Export reports", description: "Export every filtered report fact." },
+    ] },
+    { key: "masters.page", label: "Operational masters", description: "Open remaining production master data.", actions: [
+      { key: "masters.read", label: "View masters", description: "Read warehouses, items, suppliers, configurations, and capacity resources." }, { key: "masters.export", label: "Export masters", description: "Export every filtered master record." },
+    ] },
   ] },
   { key: "discovery", label: "Discovery", pages: [
     { key: "global-search.page", label: "Global record search", description: "Open permission-filtered global record search.", actions: [

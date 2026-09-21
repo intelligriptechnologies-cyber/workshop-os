@@ -10,6 +10,7 @@
     "start": "npm run local:container",
     "test:harness": "node scripts/verify-harness.mjs",
     "test:ui:v1.2": "node scripts/verify-ui-enhancement-v1.2.mjs",
+    "test:production-authority": "node scripts/verify-production-authority.mjs",
     "test:e2e": "playwright test",
     "test:unit": "tsx --test unit-tests/*.test.ts",
     "test:production": "tsx --test production/tests/**/*.test.ts",

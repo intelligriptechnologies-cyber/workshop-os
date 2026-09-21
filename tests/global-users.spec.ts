@@ -49,7 +49,7 @@ async function mockAuthenticatedApp(page: Page) {
 test("Cognito login uses authorization-code PKCE and never renders the demo selector", async ({ page }) => {
   await page.route("**/api/v1/auth/config", (route) => route.fulfill({ json: config }));
   await page.route("https://tenant.auth.example.com/**", (route) => route.abort());
-  await page.goto("/");
+  await page.goto("/demo");
   await expect(page.getByLabel("Emulate User:")).toHaveCount(0);
   const request = page.waitForRequest((item) => item.url().startsWith(config.authorizationEndpoint));
   await page.getByRole("button", { name: "Continue with Cognito" }).click();
@@ -62,7 +62,7 @@ test("Cognito login uses authorization-code PKCE and never renders the demo sele
 test("global User Management invites without passwords, persists, polls, edits, resends, and archives", async ({ page }) => {
   await page.clock.install();
   const state = await mockAuthenticatedApp(page);
-  await page.goto("/");
+  await page.goto("/demo");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await expect(page.locator(".managed-record").filter({ hasText: "admin@example.com" })).toBeVisible();
   await page.getByRole("button", { name: "Add User" }).click();

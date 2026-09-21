@@ -15,7 +15,7 @@ async function api(path, identity, init = {}) {
 const health = await fetch(`${baseUrl}/health`).then((response) => response.json());
 assert.equal(health.status, "ok");
 assert.equal(health.database, expectedDatabase);
-assert.equal(health.migrations, 42);
+assert.equal(health.migrations, 43);
 
 const adminSessionResponse = await api("/api/v1/session", "north-admin");
 assert.equal(adminSessionResponse.status, 200);
@@ -38,6 +38,41 @@ assert.ok(adminSession.membership.permissions.includes("estimate.approve"));
 assert.ok(adminSession.membership.permissions.includes("task.execute"));
 assert.ok(adminSession.membership.permissions.includes("qc.inspect"));
 assert.ok(adminSession.membership.permissions.includes("billing.read"));
+assert.ok(adminSession.membership.permissions.includes("appointments.page"));
+assert.ok(adminSession.membership.permissions.includes("follow-ups.page"));
+assert.ok(adminSession.membership.permissions.includes("action-inbox.page"));
+assert.ok(adminSession.membership.permissions.includes("materials.page"));
+assert.ok(adminSession.membership.permissions.includes("reports.page"));
+assert.ok(adminSession.membership.permissions.includes("masters.page"));
+for (const screen of ["appointments", "follow-ups", "action-inbox", "materials", "reports", "masters"]) {
+  const response = await api(`/api/v1/operations/${screen}?pageSize=25&sort=updatedAt.desc`, "north-admin");
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(payload.page.pageSize, 25);
+  assert.ok(Array.isArray(payload.rows));
+}
+const masterPreference = await api("/api/v1/list-preferences/masters", "north-admin", {
+  method: "PUT", body: JSON.stringify({ viewMode: "grid" }),
+}).then((response) => response.json());
+assert.equal(masterPreference.preference.viewMode, "grid");
+const masterList = await api("/api/v1/operations/masters?search=MAIN", "north-admin").then((response) => response.json());
+assert.ok(masterList.rows.some((row) => row.title === "MAIN"));
+const masterExportResponse = await api("/api/v1/operation-exports", "north-admin", {
+  method: "POST", headers: { "idempotency-key": `${key}-masters-export` },
+  body: JSON.stringify({ screen: "masters", format: "XLSX", query: { search: "MAIN", branchId: "", sort: "summary.asc", page: 1, pageSize: 25 } }),
+});
+assert.equal(masterExportResponse.status, 202);
+let masterExport = (await masterExportResponse.json()).export;
+for (let attempt = 0; masterExport.status === "PENDING" && attempt < 30; attempt += 1) {
+  await new Promise((resolve) => setTimeout(resolve, 100));
+  masterExport = await api(`/api/v1/operation-exports/${masterExport.id}`, "north-admin").then((response) => response.json()).then((payload) => payload.export);
+}
+assert.equal(masterExport.status, "READY");
+assert.equal(masterExport.rowCount, masterList.page.totalCount);
+const masterDownload = await api(`/api/v1/operation-exports/${masterExport.id}/download`, "north-admin");
+assert.equal(masterDownload.status, 200);
+assert.match(masterDownload.headers.get("cache-control") ?? "", /private/);
+assert.equal((await api("/api/v1/operations/masters", "north-users-admin")).status, 403);
 const jobsTodayResponse = await api("/api/v1/jobs", "north-admin");
 assert.equal(jobsTodayResponse.status, 200);
 const jobsToday = await jobsTodayResponse.json();
@@ -287,5 +322,5 @@ console.log(JSON.stringify({
   result: "PASS",
   migrations: health.migrations,
   workItemId: created.workItem.id,
-  checks: ["database health", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Estimate create and idempotent replay", "optimistic draft Estimate edit", "immutable submitted Estimate PDF", "evidenced Estimate approval", "Estimate exact authorization", "Billing and custody projection", "Billing exact authorization", "Visit-date Job Media selector", "lifecycle-gated private Media upload", "scanner quarantine and trusted release", "private original download", "Media archive without hard delete", "Media exact authorization", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
+  checks: ["database health", "remaining-screen production lists", "remaining-screen exact authorization", "remaining-screen private view preference", "remaining-screen complete private export", "Job List branch-local Visit date", "canonical In Progress presentation", "immutable Job settings snapshot", "conditional Job document discovery", "authorized Job Card PDF", "Estimate create and idempotent replay", "optimistic draft Estimate edit", "immutable submitted Estimate PDF", "evidenced Estimate approval", "Estimate exact authorization", "Billing and custody projection", "Billing exact authorization", "Visit-date Job Media selector", "lifecycle-gated private Media upload", "scanner quarantine and trusted release", "private original download", "Media archive without hard delete", "Media exact authorization", "Hold overlay and same-stage resume", "lifecycle command idempotency", "record-specific Job Data Flow", "Data Flow permission", "inventory analytics", "inventory staged dry run", "inventory idempotent commit reconciliation", "customer duplicate control", "vehicle owner association", "customer and vehicle server lists", "versioned Business Settings publication", "production tenant-admin session", "protected and versioned roles", "exact role API authorization", "permission-filtered global search", "authorized user directory", "denied user-management controls", "tenant spoof rejected", "idempotent replay", "idempotency payload binding", "optimistic version conflict", "trace-correlated readable errors", "concurrent retry serialization", "cross-tenant RLS", "cross-branch RLS", "server list query", "private view preference", "complete asynchronous private export", "export permission", "reason-required archive", "archive replay and audit"],
 }, null, 2));
