@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 69%
-Completed: UIR-00 through UIR-05
-Next slice: UIR-06
+Progress: 77%
+Completed: UIR-00 through UIR-06
+Next slice: UIR-07
 
-Workshop execution routes use the shared visual and dialog conventions. Media upload is now an accessible dirty form dialog; existing archive, Estimate, Task, QC, Billing, lifecycle, and financial command behavior remains green. Next: migrate Inventory, Materials, Appointments, Follow-ups, and Action Inbox.
+Inventory and operational routes now share list/detail/dialog conventions while preserving analytics, receiving, staged import, exports, preferences, and reasoned completion behavior. Next: migrate Users, Roles, Business Settings, Reports, Masters, Search, and Data Flow; move settings editing into a wide dialog.

@@ -3,6 +3,7 @@ import { type FormEvent, useEffect, useMemo, useState } from "react";
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { ModalDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { ProductionNavigation } from "./ProductionNavigation";
+import { ListWorkspace } from "./production-list-workspace";
 import {
   createRemainingScreensApi,
   RemainingScreenApiError,
@@ -185,7 +186,7 @@ function Screen({
   );
 
   return (
-    <main className="v12-work-items">
+    <ListWorkspace className="v12-work-items">
       <header>
         <a href="/">WorkshopOS production home</a>
         <h1>{meta.label}</h1>
@@ -411,7 +412,7 @@ function Screen({
         onConfirm={(reason) => void complete(reason)}
         onClose={() => setTarget(undefined)}
       />
-    </main>
+    </ListWorkspace>
   );
 }
 

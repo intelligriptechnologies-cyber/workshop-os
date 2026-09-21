@@ -74,3 +74,11 @@ test("primary record routes opt into the shared list-workspace contract", async 
     await expect(page.getByRole("navigation", { name: "Workshop navigation" })).toBeVisible();
   }
 });
+
+test("operational routes opt into the shared list-workspace contract", async ({ page }) => {
+  await mockTenantSession(page);
+  for (const route of ["/production/inventory", "/production/materials", "/production/appointments", "/production/follow-ups", "/production/action-inbox"]) {
+    await page.goto(route);
+    await expect(page.locator("[data-list-workspace='true']")).toBeVisible();
+  }
+});

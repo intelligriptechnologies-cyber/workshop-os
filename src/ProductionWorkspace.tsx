@@ -11,7 +11,7 @@ const groups = [
   { label: "Administration", icon: <Settings size={17}/>, routes: ["/production/users","/production/roles","/production/settings","/production/reports","/production/masters","/production/data-flow","/production/search"] },
 ];
 const COLLAPSE_KEY = "workshopos.production.sidebar-collapsed.v1";
-const listRoutes = new Set(["/production/jobs", "/production/customers", "/production/vehicles", "/production/work-items"]);
+const listRoutes = new Set(["/production/jobs", "/production/customers", "/production/vehicles", "/production/work-items", "/production/inventory", "/production/materials", "/production/appointments", "/production/follow-ups", "/production/action-inbox"]);
 
 export function ProductionWorkspace({ children }: { children: ReactNode }) {
   const [production,setProduction]=useState<ProductionSession>(),[error,setError]=useState(""),[signedOut,setSignedOut]=useState(hasLocalSignedOut),[collapsed,setCollapsed]=useState(()=>localStorage.getItem(COLLAPSE_KEY)==="true"),[drawerOpen,setDrawerOpen]=useState(false);
