@@ -1238,8 +1238,8 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user
     return (
       <section className="workspace single-panel">
         <div className="desk-panel data-flow">
-          <PanelTitle icon={<ClipboardCheck />} title="Data Flow" subtitle={selected?.job.job_no ?? "Select a job"} />
-          {selected && <DataFlow view={selected} />}
+          <PanelTitle icon={<ClipboardCheck />} title="Data Flow" subtitle="Trace one Job Card across the complete workshop workflow" />
+          <DataFlowWorkspace jobs={state.jobs} selected={selected} onSelect={setSelectedJobId} />
         </div>
       </section>
     );
@@ -1842,6 +1842,86 @@ function InvoiceSummary({ view }: { view: JobView }) {
       <Info label="Generated Total" value={money(view.invoice?.total ?? 0)} />
     </div>
   );
+}
+
+function DataFlowWorkspace({ jobs, selected, onSelect }: { jobs: JobView[]; selected?: JobView; onSelect: (id: number) => void }) {
+  const [query, setQuery] = useState("");
+  const deferredQuery = useDeferredValue(query);
+  const normalizedQuery = normalizeSearch(deferredQuery);
+  const matchingJobs = useMemo(() => jobs.filter((view) => normalizeSearch([
+    view.job.job_no,
+    view.vehicle.number,
+    view.vehicle.make,
+    view.vehicle.model,
+    view.customer.name,
+    view.customer.mobile,
+    view.visit.received_at,
+  ].join(" ")).includes(normalizedQuery)), [jobs, normalizedQuery]);
+  const selectedIsVisible = Boolean(selected && matchingJobs.some((view) => view.job.id === selected.job.id));
+
+  return (
+    <>
+      <section className="data-flow-selector" aria-labelledby="data-flow-selector-title">
+        <div>
+          <h3 id="data-flow-selector-title">Choose a Job Card</h3>
+          <p>Search by Job Card, vehicle, customer, mobile, or visit date.</p>
+        </div>
+        <div className="data-flow-selector-controls">
+          <label>
+            Search Job Cards
+            <div className="search-box">
+              <Search size={17} aria-hidden="true" />
+              <input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="e.g. JC-2026-001246 or OD02CD5678" />
+            </div>
+          </label>
+          <label>
+            Job Card
+            <select aria-label="Selected Job Card" value={selected?.job.id ?? ""} onChange={(event) => onSelect(Number(event.target.value))}>
+              {!selectedIsVisible && selected && <option value={selected.job.id}>{jobSelectorLabel(selected)}</option>}
+              {matchingJobs.map((view) => <option key={view.job.id} value={view.job.id}>{jobSelectorLabel(view)}</option>)}
+            </select>
+          </label>
+        </div>
+        <p className="data-flow-match-count" aria-live="polite">
+          {matchingJobs.length === 0 ? "No matching Job Cards. The current record remains selected." : `${matchingJobs.length} matching Job Card${matchingJobs.length === 1 ? "" : "s"}`}
+        </p>
+      </section>
+      {selected ? (
+        <>
+          <DataFlowRecordHeader view={selected} />
+          <DataFlow view={selected} />
+        </>
+      ) : <p className="empty-state">No Job Cards are available.</p>}
+    </>
+  );
+}
+
+function jobSelectorLabel(view: JobView) {
+  return `${view.job.job_no} — ${view.vehicle.number} — ${view.customer.name}`;
+}
+
+function DataFlowRecordHeader({ view }: { view: JobView }) {
+  return (
+    <section className="data-flow-record" aria-label="Selected Job Card details">
+      <div className="data-flow-record-title">
+        <span>Currently viewing</span>
+        <strong>{view.job.job_no}</strong>
+      </div>
+      <div className="data-flow-record-facts">
+        <div><span>Vehicle</span><strong>{view.vehicle.number}</strong><small>{view.vehicle.make} {view.vehicle.model}</small></div>
+        <div><span>Customer</span><strong>{view.customer.name}</strong><small>{view.customer.mobile}</small></div>
+        <div><span>Visit date</span><strong>{formatVisitDate(view.visit.received_at)}</strong><small>{view.visit.received_at}</small></div>
+      </div>
+    </section>
+  );
+}
+
+function formatVisitDate(value: string) {
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})/);
+  if (!match) return value || "—";
+  const [, year, month, day] = match;
+  const monthName = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"][Number(month) - 1];
+  return `${day} ${monthName} ${year}`;
 }
 
 function DataFlow({ view }: { view: JobView }) {

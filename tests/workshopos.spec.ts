@@ -84,6 +84,24 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await expect(page.getByText("INV-08947")).toBeVisible();
 });
 
+test("Data Flow explicitly selects and identifies the current Job Card", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Data Flow", exact: true }).click();
+
+  await expect(page.getByRole("heading", { name: "Choose a Job Card" })).toBeVisible();
+  await expect(page.getByLabel("Search Job Cards")).toBeVisible();
+  await expect(page.getByLabel("Selected Job Card", { exact: true })).not.toHaveValue("");
+  await expect(page.getByLabel("Selected Job Card details", { exact: true })).toContainText(/JC-2026-/);
+  await expect(page.getByLabel("Selected Job Card details", { exact: true }).getByText("Visit date")).toBeVisible();
+
+  await page.getByLabel("Search Job Cards").fill("OD02CD5678");
+  await expect(page.getByText("1 matching Job Card", { exact: true })).toBeVisible();
+  await page.getByLabel("Selected Job Card", { exact: true }).selectOption({ label: "JC-2026-001246 — OD02CD5678 — Datya Motors" });
+  await expect(page.getByLabel("Selected Job Card details", { exact: true })).toContainText("JC-2026-001246");
+  await expect(page.getByLabel("Selected Job Card details", { exact: true })).toContainText("OD02CD5678");
+  await expect(page.getByLabel("Selected Job Card details", { exact: true })).toContainText("Datya Motors");
+});
+
 test("admin loads the deterministic large dataset and paginates core lists", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();

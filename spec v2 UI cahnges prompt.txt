@@ -1,0 +1,108 @@
+
+
+We need CRUD operations in all sections to use 
+separate dialog/popup to take user inputs and save update to add/edit row items...add new records.
+
+this has to be same for all sections in the App..
+
+We will need to add pagination to all list pages, and use
+ select quick search filter/status filter etc...where ever we have grid data
+
+Download PDF/Excel shall also be added to all screens where we have list grid data.
+
+For Individual Job rows...on the grid table view we can have quick pdf.
+
+Also on card view (grid view) we can have quick pdf download button....On details page as well..
+we will have download pdf feature... 
+
+
+
+---------------
+
+Job list can have Grid icon and Table icon in the palce to switch/toggle grid-table we have...
+
+Job List needs to have date filter, and default to current date..
+
+
+
+Job Card details will also have image uplading...and those also can be checked here...linked to job card.
+
+Image uplaod has to be mandaotory to have a linked job card...
+
+there should be option to upload Before service starts,, image can be uploaded....
+
+Once Job Card goes to Completed status or higher..Image upload Before section cannot be uplod....
+
+only Image upload Before section will work upto COmeleted Status....
+
+Once job card reaches completed status...then only then 
+
+
+--------------------------
+
+Not understanding Search page now...
+
+Job List...
+
+In progress  state badge us currently  mint greeen color and highlighted...we neeed orange color for inprogress..
+
+
+While viewing Job Card details...we can see linked Invoice (download)...linked gate pass (download)...
+
+
+Once a Job Card is in progress....it can be then moved into Completed / Hold status...
+
+
+We need to ensure,, we have required status flow buttons to transition a new fresh added Job card to 
+
+New --> In Progress  or Cancelled    (inprogress can generate estimate bill (download pdf)
+
+In Progress -->  Completed / Hold
+
+Cancelled --> Can be Deleted or reopened.  (status cycle ends)
+
+Completed --> can be generated final invoice.....(download Inpovoice)
+
+Hold ---> can generate estimate.....Can move into In progress or Cancelled
+
+Completed  -->  can move into Approved...(after getting confirmation from customer and service advisor
+ about service work clarity and verification)
+
+Once Invoice payment is recorded...accounts person can change status to Approved...
+
+ 
+Completed  --> can move into Approved / Hold
+
+Approved --> can move into Closed/Hold              ((Only Shop owner or Accounts person can close a job card....(after confrimation about payment rcv)
+
+Closed status...can generate gatepass (download pdf)
+
+
+Role based flow.....(planning and mapping)
+
+
+-------------------------------------------------
+
+Media Screen...can have date filter...then Job cards of the selected date will be cascaded in the dropdown....
+Search (typable dropdown control)
+Add image, Upload image flow....save image into db (process it into bytes and save)
+
+--------------------------
+
+
+Need to know....
+
+What does Data Flow says....and for which record it shows the Visit, estimate etc details...
+What is the relevance of it...
+what is status history...
+
+
+
+
+
+
+
+
+
+
+
