@@ -20,6 +20,9 @@ test("Business Settings shows tabs, inheritance, reset, draft save, and publicat
   const state = await mock(page); await page.goto("/production/settings");
   await expect(page.getByRole("heading", { name: "Business Settings" })).toBeVisible();
   await page.getByLabel("Tenant or branch").selectOption("branch-1");
+  await page.getByRole("button", { name: "Edit settings" }).click();
+  const editor = page.getByRole("dialog", { name: "Edit Business Settings" });
+  await expect(editor).toBeVisible();
   await expect(page.getByText("Inherited tenant value: 175000 (effective)")).toBeVisible();
   await expect(page.getByRole("spinbutton", { name: "Default Job duration (minutes)" })).toHaveValue("90");
   await page.getByRole("button", { name: "Reset all to inherited" }).click();

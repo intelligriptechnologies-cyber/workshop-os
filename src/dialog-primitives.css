@@ -11,6 +11,7 @@
 }
 
 .ws-dialog::backdrop { background: rgb(15 23 42 / 55%); }
+.ws-dialog-wide { width: min(64rem, calc(100vw - 2rem)); }
 .ws-dialog h2 { margin-top: 0; }
 .ws-dialog-fields { display: grid; gap: 0.5rem; }
 .ws-dialog-fields input,

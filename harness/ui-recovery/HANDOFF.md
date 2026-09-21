@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 77%
-Completed: UIR-00 through UIR-06
-Next slice: UIR-07
+Progress: 85%
+Completed: UIR-00 through UIR-07
+Next slice: UIR-08
 
-Inventory and operational routes now share list/detail/dialog conventions while preserving analytics, receiving, staged import, exports, preferences, and reasoned completion behavior. Next: migrate Users, Roles, Business Settings, Reports, Masters, Search, and Data Flow; move settings editing into a wide dialog.
+Administration routes share the recovered visual/dialog conventions. Business Settings editing is now a wide accessible dialog while draft versioning, publication, inheritance, user/role protections, reports, masters, search, and Data Flow behavior remain green. Next: repair the independent Platform Administration header, Logout, and creation dialogs.

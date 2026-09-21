@@ -8,6 +8,7 @@ type ModalDialogProps = {
   children: ReactNode;
   initialFocusRef?: RefObject<HTMLElement | null>;
   onRequestClose: () => void;
+  size?: "default" | "wide";
 };
 
 function focusableElements(dialog: HTMLDialogElement): HTMLElement[] {
@@ -16,7 +17,7 @@ function focusableElements(dialog: HTMLDialogElement): HTMLElement[] {
   )).filter((element) => !element.hidden && element.getAttribute("aria-hidden") !== "true");
 }
 
-export function ModalDialog({ open, title, children, initialFocusRef, onRequestClose }: ModalDialogProps) {
+export function ModalDialog({ open, title, children, initialFocusRef, onRequestClose, size = "default" }: ModalDialogProps) {
   const dialogRef = useRef<HTMLDialogElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
   const titleId = useId();
@@ -62,7 +63,7 @@ export function ModalDialog({ open, title, children, initialFocusRef, onRequestC
 
   return <dialog
     ref={dialogRef}
-    className="ws-dialog"
+    className={`ws-dialog${size === "wide" ? " ws-dialog-wide" : ""}`}
     aria-labelledby={titleId}
     onCancel={(event) => { event.preventDefault(); onRequestClose(); }}
     onKeyDown={trapFocus}
@@ -83,9 +84,10 @@ type DirtyFormDialogProps = {
   onSubmit: (event: FormEvent<HTMLFormElement>) => void;
   onClose: () => void;
   children: ReactNode;
+  size?: "default" | "wide";
 };
 
-export function DirtyFormDialog({ open, title, dirty, errors, busy = false, initialFocusRef, submitLabel, onSubmit, onClose, children }: DirtyFormDialogProps) {
+export function DirtyFormDialog({ open, title, dirty, errors, busy = false, initialFocusRef, submitLabel, onSubmit, onClose, children, size = "default" }: DirtyFormDialogProps) {
   const [confirmDiscard, setConfirmDiscard] = useState(false);
   const keepEditingRef = useRef<HTMLButtonElement>(null);
   const validationId = useId();
@@ -104,6 +106,7 @@ export function DirtyFormDialog({ open, title, dirty, errors, busy = false, init
     title={confirmDiscard ? "Discard unsaved changes?" : title}
     initialFocusRef={confirmDiscard ? keepEditingRef : initialFocusRef}
     onRequestClose={() => confirmDiscard ? setConfirmDiscard(false) : requestClose()}
+    size={size}
   >
     {confirmDiscard ? <div role="alertdialog" aria-label="Discard unsaved changes">
       <p>Your unsaved changes will be lost.</p>
