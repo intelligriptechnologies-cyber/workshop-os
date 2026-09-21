@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
+import { writeXlsx } from "../shared/xlsx-writer";
 
 export interface ExportColumn<T> {
   header: string;
@@ -31,13 +31,14 @@ function fileStem(title: string) {
 
 export function downloadExcel<T>(report: ExportReport<T>) {
   const matrix = buildExportMatrix(report);
-  const sheet = XLSX.utils.aoa_to_sheet(matrix);
-  sheet["!cols"] = report.columns.map((column, index) => ({
-    wch: Math.min(42, Math.max(column.header.length, ...matrix.slice(5).map((row) => String(row[index] ?? "").length)) + 2),
-  }));
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, sheet, "Report");
-  XLSX.writeFile(workbook, `${fileStem(report.title)}.xlsx`, { compression: true });
+  const widths = report.columns.map((column, index) => Math.min(42, Math.max(column.header.length, ...matrix.slice(5).map((row) => String(row[index] ?? "").length)) + 2));
+  const blob = new Blob([writeXlsx(matrix, "Report", widths)], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+  const url = URL.createObjectURL(blob);
+  const anchor = document.createElement("a");
+  anchor.href = url;
+  anchor.download = `${fileStem(report.title)}.xlsx`;
+  anchor.click();
+  URL.revokeObjectURL(url);
 }
 
 export function downloadPdf<T>(report: ExportReport<T>) {

@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
+import { writeObjectXlsx } from "../../shared/xlsx-writer.js";
 
 import type { ManagedUser } from "./admin-users.js";
 
@@ -11,9 +11,7 @@ export function createUserExportArtifact(format: "PDF" | "XLSX", rows: ManagedUs
     Version: user.version, Updated: user.updatedAt,
   }));
   if (format === "XLSX") {
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(exportRows), "Users");
-    return { content: Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer", compression: true })), rowCount: rows.length,
+    return { content: Buffer.from(writeObjectXlsx(exportRows, "Users")), rowCount: rows.length,
       filename: `users-${stamp}.xlsx`, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
   }
   const document = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });

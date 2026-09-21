@@ -11,6 +11,9 @@
     "test:harness": "node scripts/verify-harness.mjs",
     "test:ui:v1.2": "node scripts/verify-ui-enhancement-v1.2.mjs",
     "test:production-authority": "node scripts/verify-production-authority.mjs",
+    "test:release-assurance": "playwright test tests/v12-release-assurance.spec.ts",
+    "test:release-evidence": "node scripts/verify-release-evidence-v1.2.mjs",
+    "audit:production": "npm audit --omit=dev --audit-level=high",
     "test:e2e": "playwright test",
     "test:unit": "tsx --test unit-tests/*.test.ts",
     "test:production": "tsx --test production/tests/**/*.test.ts",
@@ -29,6 +32,7 @@
     "@aws-sdk/client-cognito-identity-provider": "^3.1131.0",
     "@vitejs/plugin-react": "^5.0.1",
     "aws-jwt-verify": "^5.2.1",
+    "fflate": "^0.8.3",
     "jspdf": "^4.2.1",
     "lucide-react": "^0.542.0",
     "pg": "^8.16.3",
@@ -36,10 +40,10 @@
     "react-dom": "^19.1.1",
     "sql.js": "^1.14.2",
     "typescript": "^5.9.2",
-    "vite": "^7.1.4",
-    "xlsx": "^0.18.5"
+    "vite": "^7.1.4"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.63.0",
     "@types/node": "^24.3.0",
     "@types/pg": "^8.15.5",
@@ -47,6 +51,7 @@
     "@types/react-dom": "^19.2.7",
     "@types/sql.js": "^1.4.11",
     "playwright": "^1.63.0",
-    "tsx": "^4.20.5"
+    "tsx": "^4.20.5",
+    "xlsx": "^0.18.5"
   }
 }

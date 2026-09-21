@@ -1,18 +1,16 @@
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
+import { writeObjectXlsx } from "../../shared/xlsx-writer.js";
 
 export type ExportableWorkItem = { id: string; branchId: string; summary: string; version: number; updatedAt: string };
 
 export function createWorkItemExportArtifact(format: "PDF" | "XLSX", rows: ExportableWorkItem[]) {
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   if (format === "XLSX") {
-    const sheet = XLSX.utils.json_to_sheet(rows.map((row) => ({
+    const table = rows.map((row) => ({
       Summary: row.summary, Branch: row.branchId, Version: row.version, Updated: row.updatedAt, Reference: row.id,
-    })));
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, sheet, "Work items");
+    }));
     return {
-      content: Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer", compression: true })),
+      content: Buffer.from(writeObjectXlsx(table, "Work items")),
       rowCount: rows.length, filename: `work-items-${stamp}.xlsx`,
       mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
     };

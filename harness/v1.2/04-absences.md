@@ -13,7 +13,6 @@ This pass asks only what the approved discussion had not explicitly covered. It 
 | What happens to uploads awaiting scan | They are not available for view/download until the scan reaches an allowed result; provider failure remains recoverable and auditable (V12-R024, D-023). |
 | Whether Platform Super Admin automatically receives tenant permissions | Explicitly no ambient tenant access; approved support scope/emulation is required (V12-R031, V12-R033). |
 | Cross-tenant identity/email semantics | Inherit the existing v1.1 identity model until the user-management slice proves and documents its PostgreSQL behavior (D-023); do not silently loosen uniqueness. |
-| How external/manual gates affect local completion | Local implementation may reach a release-candidate state, but the programme goal remains incomplete while required external evidence is absent (V12-R036, D-021). |
+| How external/manual gates affect local completion | The local v1.2 implementation programme may complete as a release candidate, but production certification, deployment, migration, pilot, and cutover remain blocked while required external evidence is absent (V12-R036, D-021). |
 
 No new requirement or slice is needed. All findings map to an existing frozen requirement or explicit deferred default.
-

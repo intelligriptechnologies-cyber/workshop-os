@@ -1,0 +1,58 @@
+html[data-workspace="tenant"] main,
+html[data-workspace="platform"] main {
+  box-sizing: border-box;
+  max-width: 100%;
+  overflow-wrap: anywhere;
+}
+
+html[data-workspace="tenant"] :where(button, input:not([type="hidden"]), select, textarea, a[href]),
+html[data-workspace="platform"] :where(button, input:not([type="hidden"]), select, textarea, a[href]) {
+  box-sizing: border-box;
+  min-block-size: 44px;
+  min-inline-size: 44px;
+}
+
+html[data-workspace="tenant"] a[href],
+html[data-workspace="platform"] a[href] {
+  display: inline-flex;
+  align-items: center;
+}
+
+html[data-workspace="tenant"] :where(button, input, select, textarea, a[href]):focus-visible,
+html[data-workspace="platform"] :where(button, input, select, textarea, a[href]):focus-visible {
+  outline: 3px solid #075985;
+  outline-offset: 3px;
+}
+
+html[data-workspace="tenant"] :where(img, svg, canvas),
+html[data-workspace="platform"] :where(img, svg, canvas) {
+  max-inline-size: 100%;
+}
+
+@media (max-width: 320px) {
+  html[data-workspace="tenant"] main,
+  html[data-workspace="platform"] main {
+    padding-inline: 0.5rem;
+  }
+
+  html[data-workspace="tenant"] :where(form, fieldset, section, article, header, nav, div),
+  html[data-workspace="platform"] :where(form, fieldset, section, article, header, nav, div) {
+    min-inline-size: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html[data-workspace="tenant"] *,
+  html[data-workspace="tenant"] *::before,
+  html[data-workspace="tenant"] *::after,
+  html[data-workspace="platform"] *,
+  html[data-workspace="platform"] *::before,
+  html[data-workspace="platform"] *::after {
+    scroll-behavior: auto !important;
+    animation-delay: 0s !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-delay: 0s !important;
+    transition-duration: 0.01ms !important;
+  }
+}

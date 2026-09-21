@@ -17,8 +17,11 @@ import ProductionRemainingScreensApp from "./ProductionRemainingScreensApp";
 import PlatformAdminApp from "./PlatformAdminApp";
 import { installPlatformEmulationFetch } from "./platform-emulation-fetch";
 import "./styles.css";
+import "./release-assurance.css";
 
 installPlatformEmulationFetch();
+
+document.documentElement.dataset.workspace = location.pathname === "/demo" ? "demo" : location.pathname === "/platform" ? "platform" : "tenant";
 
 const LegacyDemoApp = lazy(() => import("./App"));
 const remainingRoutes = ["/production/appointments","/production/follow-ups","/production/action-inbox","/production/materials","/production/reports","/production/masters"];

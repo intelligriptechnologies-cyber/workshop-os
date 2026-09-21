@@ -50,6 +50,8 @@ None. Re-run the v1.2 verifier after any PRD, slice, checklist, traceability, or
 
 - V12-R001 through V12-R033 have passing implementation evidence in their owning completed slice files.
 - V12-R031 through V12-R033 are evidenced by V12-15's fresh 45-migration PostgreSQL acceptance, 63-check Docker runtime, separate platform-auth browser workspace, protected checksum/audit/recovery controls, exact approved emulation, live effective-user ceiling, ordinary-handler reuse, and durable request/result dual attribution.
-- V12-R034 through V12-R036 remain assigned to V12-16 and are not yet claimed complete.
+- V12-R034 is evidenced by axe and screen-reader-oriented checks plus keyboard focus, visible focus, contrast, error, 44px target, reduced-motion, reflow, and desktop-action parity across all 23 production/platform routes at 320px, 768px, and 1280px. Manual assistive-technology and real-device certification remains explicitly external.
+- V12-R035 is evidenced by 36 requirements mapped to 17 non-orphan slices, 17 contiguous checklist completions, CLEAN bidirectional traceability, release-evidence verification, and a current `Next slice: NONE` handoff.
+- V12-R036 is evidenced by the complete green local release matrix and `RELEASE_CANDIDATE_EVIDENCE_v1.2.0.md`, which keeps nine external/manual evidence classes release-blocking and forbids a production-certification claim.
 
 TRACEABILITY: CLEAN

@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
+import { writeObjectXlsx } from "../../shared/xlsx-writer.js";
 import type { JobRecord } from "../local/database.js";
 export function createJobListExportArtifact(
   format: "PDF" | "XLSX",
@@ -16,12 +16,8 @@ export function createJobListExportArtifact(
     Reference: r.id,
   }));
   if (format === "XLSX") {
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, XLSX.utils.json_to_sheet(table), "Jobs");
     return {
-      content: Buffer.from(
-        XLSX.write(wb, { bookType: "xlsx", type: "buffer", compression: true }),
-      ),
+      content: Buffer.from(writeObjectXlsx(table, "Jobs")),
       rowCount: rows.length,
       filename: `jobs-${stamp}.xlsx`,
       mimeType:

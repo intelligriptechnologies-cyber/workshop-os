@@ -1,5 +1,5 @@
 import { jsPDF } from "jspdf";
-import * as XLSX from "xlsx";
+import { writeObjectXlsx } from "../../shared/xlsx-writer.js";
 
 export const REMAINING_SCREEN_KEYS = ["appointments", "follow-ups", "action-inbox", "materials", "reports", "masters"] as const;
 export type RemainingScreenKey = (typeof REMAINING_SCREEN_KEYS)[number];
@@ -31,9 +31,7 @@ export function createRemainingScreenExportArtifact(screen: RemainingScreenKey, 
   const stamp = new Date().toISOString().replace(/[:.]/g, "-");
   const table = rows.map((row) => ({ Reference: row.id, Branch: row.branchId, Title: row.title, Detail: row.subtitle, Status: row.status, Updated: row.updatedAt, Version: row.version }));
   if (format === "XLSX") {
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(table), screen.slice(0, 31));
-    return { content: Buffer.from(XLSX.write(workbook, { bookType: "xlsx", type: "buffer", compression: true })), rowCount: rows.length, filename: `${screen}-${stamp}.xlsx`, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
+    return { content: Buffer.from(writeObjectXlsx(table, screen)), rowCount: rows.length, filename: `${screen}-${stamp}.xlsx`, mimeType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" };
   }
   const document = new jsPDF({ orientation: "landscape", unit: "pt", format: "a4" });
   document.setFontSize(16); document.text(`WorkshopOS ${REMAINING_SCREEN_META[screen].label}`, 36, 38); document.setFontSize(9);
