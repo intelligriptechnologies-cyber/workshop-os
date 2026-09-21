@@ -7,6 +7,7 @@ import {
   type RemainingAuth,
 } from "./production-remaining-screens-api";
 import "./production-work-items.css";
+import { PageHeader, Surface } from "./production-ui";
 
 export default function ProductionHomeApp() {
   const [session, setSession] = useState<any>();
@@ -52,22 +53,22 @@ export default function ProductionHomeApp() {
 
   return (
     <main className="v12-work-items">
-      <header>
+      <PageHeader>
         <h1>WorkshopOS</h1>
         <p>
           Production workspace. PostgreSQL is authoritative for every route
           below.
         </p>
         <ProductionNavigation permissions={session.membership.permissions} />
-      </header>
-      <section>
+      </PageHeader>
+      <Surface>
         <h2>Welcome, {session.membership.displayName}</h2>
         <p>
           Select an authorized production workspace. The browser-only reference
           demo is isolated from this route graph and is not linked from
           production navigation.
         </p>
-      </section>
+      </Surface>
     </main>
   );
 }

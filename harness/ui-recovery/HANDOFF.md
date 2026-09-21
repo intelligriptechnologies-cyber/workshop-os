@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 30%
-Completed: UIR-00, UIR-01, UIR-02
-Next slice: UIR-03
+Progress: 50%
+Completed: UIR-00 through UIR-03
+Next slice: UIR-04
 
-The first visible recovery checkpoint is complete. `ProductionWorkspace` wraps every tenant route and excludes demo/platform. The three shell contracts, standard gates, and real PostgreSQL local gate pass. Next: scope production tokens and semantic components, then prove the visual system on Home, Jobs, and Customers.
+The shared shell and scoped visual system are complete. Demo CSS is lazy-isolated; production exposes semantic page, surface, button, badge, and empty-state primitives. Home/Jobs/Customers focused browser tests and the real PostgreSQL gate pass. Next: introduce the shared list-workspace interface and migrate Jobs, Customers, Vehicles, and Work Items without behavior loss.

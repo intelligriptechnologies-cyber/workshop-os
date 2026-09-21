@@ -93,6 +93,7 @@ import { activeFilterSummary, normalizeSearch, pageNumbers, paginate } from "./l
 import { downloadExcel, downloadPdf, type ExportColumn } from "./export-utils";
 import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
 import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
+import "./styles.css";
 
 const roleLabels: Record<Role, string> = {
   admin: "Owner/Admin",

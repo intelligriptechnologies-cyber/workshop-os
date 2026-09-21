@@ -54,3 +54,14 @@ test("collapse preference persists and local Logout ends the visible session", a
   await page.reload();
   await expect(page.getByRole("heading", { name: "Signed out of WorkshopOS" })).toBeVisible();
 });
+
+test("production content exposes the scoped visual-system surfaces at supported widths", async ({ page }) => {
+  await mockTenantSession(page);
+  for (const width of [1280, 768, 320]) {
+    await page.setViewportSize({ width, height: 900 });
+    await page.goto("/");
+    await expect(page.locator(".ws-page-header")).toBeVisible();
+    await expect(page.locator(".ws-surface")).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
+  }
+});

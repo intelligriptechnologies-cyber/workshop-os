@@ -17,7 +17,6 @@ import ProductionRemainingScreensApp from "./ProductionRemainingScreensApp";
 import PlatformAdminApp from "./PlatformAdminApp";
 import { installPlatformEmulationFetch } from "./platform-emulation-fetch";
 import { ProductionWorkspace } from "./ProductionWorkspace";
-import "./styles.css";
 import "./release-assurance.css";
 
 installPlatformEmulationFetch();
