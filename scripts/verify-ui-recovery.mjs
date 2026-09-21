@@ -8,10 +8,18 @@ const required = [
   "harness/ui-recovery/00-intake.md", "harness/ui-recovery/01-decisions.md",
   "harness/ui-recovery/02-requirements.md", "harness/ui-recovery/04-dialog-inventory.md",
   "harness/ui-recovery/05-route-inventory.md", "harness/ui-recovery/06-traceability.md",
+  "harness/ui-recovery/07-deferred-crud.md",
   "harness/ui-recovery/HANDOFF.md",
   ...Array.from({ length: 11 }, (_, i) => `harness/ui-recovery/03-slices/UIR-${String(i).padStart(2, "0")}.md`),
 ];
 for (const file of required) if (!fs.existsSync(path.join(root, file))) failures.push(`Missing ${file}`);
+const reviewedImages = ["home", "standard-list", "jobs", "media", "settings", "roles", "billing", "platform"]
+  .map((name) => `tests/ui-recovery/reviewed/${name}-1280.png`);
+for (const file of reviewedImages) {
+  const absolute = path.join(root, file);
+  if (!fs.existsSync(absolute)) failures.push(`Missing reviewed image ${file}`);
+  else if (fs.statSync(absolute).size < 10_000) failures.push(`Reviewed image is unexpectedly small: ${file}`);
+}
 const spec = fs.readFileSync(path.join(root, required[0]), "utf8");
 const trace = fs.readFileSync(path.join(root, "harness/ui-recovery/06-traceability.md"), "utf8");
 for (let i = 1; i <= 18; i += 1) if (!spec.includes(`UIR-R${String(i).padStart(3, "0")}`)) failures.push(`Spec omits UIR-R${String(i).padStart(3, "0")}`);

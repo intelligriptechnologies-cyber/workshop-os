@@ -13,3 +13,9 @@
 - UIR-R015, UIR-R017, UIR-R018 → UIR-10
 
 Every requirement and slice is mapped. `TRACEABILITY: CLEAN`
+
+## UIR-09 evidence
+
+- UIR-R008: three-viewport overflow, target-size, focus, and action-parity assertions across every production route.
+- UIR-R016: executable shell/accessibility assurance plus eight inspected page-family screenshots.
+- UIR-R017: `07-deferred-crud.md` explicitly separates absent server mutations from recovered existing behavior.

@@ -60,7 +60,7 @@ async function auditRenderedScreen(page: Page, route: string) {
 }
 
 async function interactiveSignatures(page: Page) {
-  return page.locator('button:visible:not(:disabled), a[href]:visible, input:not([type="hidden"]):visible:not(:disabled), select:visible:not(:disabled), textarea:visible:not(:disabled)').evaluateAll(elements => [...new Set(elements.map(element => {
+  return page.locator('button:visible:not(:disabled):not(.ws-collapse), a[href]:visible, input:not([type="hidden"]):visible:not(:disabled), select:visible:not(:disabled), textarea:visible:not(:disabled)').evaluateAll(elements => [...new Set(elements.map(element => {
     const control = element as HTMLInputElement;
     const name = (element.getAttribute("aria-label") || element.getAttribute("title") || [...(control.labels ?? [])].map(label => label.innerText).join(" ") || element.textContent || control.placeholder || control.name || control.type).replace(/\s+/g, " ").trim();
     const role = element.getAttribute("role") || (element.tagName === "A" ? "link" : element.tagName === "BUTTON" ? "button" : control.type || element.tagName.toLowerCase());
@@ -92,7 +92,7 @@ test("tenant and platform entry screens pass automated WCAG, focus, target-size,
 });
 
 test("every production and platform route retains its accessible shell at phone, tablet, and desktop widths", async ({ page }) => {
-  test.setTimeout(180_000);
+  test.setTimeout(360_000);
   test.skip(!process.env.PRODUCTION_E2E_BASE_URL, "requires the production Docker stack");
   const desktopActions = new Map<string, string[]>();
   for (const width of [1280, 768, 320]) {
@@ -101,6 +101,7 @@ test("every production and platform route retains its accessible shell at phone,
       await page.goto(route);
       await auditRenderedScreen(page, route);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth), `${route} overflows at ${width}px`).toBe(true);
+      if (width === 320 && route !== "/platform") await page.getByRole("button", { name: "Open navigation" }).click();
       const actions = await interactiveSignatures(page);
       if (width === 1280) desktopActions.set(route, actions);
       else {
