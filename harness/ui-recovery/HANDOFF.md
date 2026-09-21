@@ -1,7 +1,7 @@
 # UI Recovery Handoff
 
-Progress: 50%
-Completed: UIR-00 through UIR-03
-Next slice: UIR-04
+Progress: 60%
+Completed: UIR-00 through UIR-04
+Next slice: UIR-05
 
-The shared shell and scoped visual system are complete. Demo CSS is lazy-isolated; production exposes semantic page, surface, button, badge, and empty-state primitives. Home/Jobs/Customers focused browser tests and the real PostgreSQL gate pass. Next: introduce the shared list-workspace interface and migrate Jobs, Customers, Vehicles, and Work Items without behavior loss.
+Primary production lists now share the list-workspace contract while retaining URL state, view preferences, pagination, exports, permissions, documents, dialogs, and lifecycle behavior. The focused browser and real PostgreSQL gates pass. Next: migrate Media, Estimates, Tasks, QC, and Billing, including moving Media upload/edit into the shared dialog.

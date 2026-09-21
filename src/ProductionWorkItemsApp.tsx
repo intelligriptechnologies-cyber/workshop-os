@@ -5,6 +5,7 @@ import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import { createWorkItemsApi, DEFAULT_WORK_ITEM_LIST_QUERY, workItemListSearch, WorkItemsApiError, type WorkItem, type WorkItemAuth, type WorkItemListQuery } from "./work-items-api";
 import "./production-work-items.css";
 import { ProductionNavigation } from "./ProductionNavigation";
+import { ListWorkspace } from "./production-list-workspace";
 
 const localIdentities = {
   "north-reception": "00000000-0000-4000-8000-000000000011",
@@ -147,7 +148,7 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
   }
 
   const activeFilters = Boolean(query.search || query.branchId);
-  return <main className="v12-work-items">
+  return <ListWorkspace className="v12-work-items">
     <header>
       <p><a href="/">Back to WorkshopOS</a></p>
       <h1>Production work items</h1>
@@ -223,7 +224,7 @@ export function ProductionWorkItemsScreen({ identity }: { identity: ReadyIdentit
       onConfirm={(reason) => void archive(reason)}
       onClose={() => setArchiveTarget(undefined)}
     />
-  </main>;
+  </ListWorkspace>;
 }
 
 function ItemActions({ item, onEdit, onArchive }: { item: WorkItem; onEdit: () => void; onArchive: () => void }) {

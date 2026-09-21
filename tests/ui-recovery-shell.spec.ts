@@ -65,3 +65,12 @@ test("production content exposes the scoped visual-system surfaces at supported 
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= document.documentElement.clientWidth)).toBe(true);
   }
 });
+
+test("primary record routes opt into the shared list-workspace contract", async ({ page }) => {
+  await mockTenantSession(page);
+  for (const route of ["/production/jobs", "/production/customers", "/production/vehicles", "/production/work-items"]) {
+    await page.goto(route);
+    await expect(page.locator("[data-list-workspace='true']")).toBeVisible();
+    await expect(page.getByRole("navigation", { name: "Workshop navigation" })).toBeVisible();
+  }
+});

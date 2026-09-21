@@ -14,6 +14,7 @@ import {
 } from "../production/src/job-list-contract";
 import { ProductionNavigation } from "./ProductionNavigation";
 import { ReasonCommandDialog } from "./dialog-primitives";
+import { ListWorkspace } from "./production-list-workspace";
 import "./production-work-items.css";
 const blank: JobListQuery = {
   search: "",
@@ -224,7 +225,7 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
     </>
   );
   return (
-    <main className="v12-work-items">
+    <ListWorkspace className="v12-work-items">
       <header>
         <a href="/">Back to WorkshopOS</a>
         <h1>Jobs</h1>
@@ -577,7 +578,7 @@ function Screen({ auth, session }: { auth: JobAuth; session: any }) {
           </select>
         </nav>
       </section>
-    </main>
+    </ListWorkspace>
   );
 }
 export default function ProductionJobsApp() {

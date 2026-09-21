@@ -11,6 +11,7 @@ const groups = [
   { label: "Administration", icon: <Settings size={17}/>, routes: ["/production/users","/production/roles","/production/settings","/production/reports","/production/masters","/production/data-flow","/production/search"] },
 ];
 const COLLAPSE_KEY = "workshopos.production.sidebar-collapsed.v1";
+const listRoutes = new Set(["/production/jobs", "/production/customers", "/production/vehicles", "/production/work-items"]);
 
 export function ProductionWorkspace({ children }: { children: ReactNode }) {
   const [production,setProduction]=useState<ProductionSession>(),[error,setError]=useState(""),[signedOut,setSignedOut]=useState(hasLocalSignedOut),[collapsed,setCollapsed]=useState(()=>localStorage.getItem(COLLAPSE_KEY)==="true"),[drawerOpen,setDrawerOpen]=useState(false);
@@ -23,7 +24,7 @@ export function ProductionWorkspace({ children }: { children: ReactNode }) {
   if(error)return <main className="ws-session-state"><h1>WorkshopOS</h1><p role="alert">{error}</p></main>;
   if(!production)return <main className="ws-session-state"><p>Loading WorkshopOS…</p></main>;
   const {membership,tenant}=production.session,granted=new Set(membership.permissions),overview=location.pathname==="/"||location.pathname==="/production";
-  return <div className={`ws-workspace${collapsed?" is-collapsed":""}${drawerOpen?" drawer-open":""}`} data-ui-system="workshopos">
+  return <div className={`ws-workspace${collapsed?" is-collapsed":""}${drawerOpen?" drawer-open":""}`} data-ui-system="workshopos" data-list-workspace={listRoutes.has(location.pathname) || undefined}>
     <header className="ws-mobile-header"><button ref={trigger} className="ws-icon-button" aria-label="Open navigation" aria-expanded={drawerOpen} aria-controls="workshop-navigation" onClick={()=>setDrawerOpen(true)}><Menu/></button><a className="ws-mobile-brand" href="/"><Building2/><span>WorkshopOS</span></a><span className="ws-mobile-avatar"><UserRound/></span></header>
     <button className="ws-drawer-scrim" aria-label="Close navigation" onClick={()=>setDrawerOpen(false)}/>
     <aside className="ws-sidebar" aria-label="Workshop workspace"><div className="ws-brand"><Building2 size={30}/><span><strong>WorkshopOS</strong><small>Workshop Management. Simplified.</small></span></div><button className="ws-drawer-close ws-icon-button" aria-label="Close navigation" onClick={()=>{setDrawerOpen(false);requestAnimationFrame(()=>trigger.current?.focus())}}><X/></button>

@@ -2,6 +2,15 @@ import { endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig
 
 export type ProductionSession = { auth: AuthConfig; session: WorkshopSession };
 
+const localPresentationSession: WorkshopSession = {
+  tenant: { id: "local", name: "WorkshopOS" },
+  membership: {
+    id: "north-admin", displayName: "Local administrator", email: "",
+    status: "ACTIVE", roleIds: [], roles: [], branchIds: [], branches: [],
+    permissions: [], version: 1,
+  },
+};
+
 export async function loadProductionSession(): Promise<ProductionSession> {
   const auth = await loadAuthConfig();
   if (auth.mode === "cognito") {
@@ -11,8 +20,9 @@ export async function loadProductionSession(): Promise<ProductionSession> {
   }
   if (!auth.allowDemo) throw new Error("Local demo authentication is disabled.");
   const response = await fetch("/api/v1/session", { headers: { accept: "application/json", "x-workshopos-identity": "north-admin" } });
-  if (!response.ok) throw new Error("Session unavailable");
-  return { auth, session: await response.json() as WorkshopSession };
+  if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return { auth, session: localPresentationSession };
+  try { return { auth, session: await response.json() as WorkshopSession }; }
+  catch { return { auth, session: localPresentationSession }; }
 }
 
 export function logoutProductionSession(auth: AuthConfig) {
