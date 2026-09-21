@@ -1,7 +1,7 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 import { loadAuthConfig, loadWorkshopSession } from "./auth";
 import { ProductionNavigation } from "./ProductionNavigation";
-import { ReasonCommandDialog } from "./dialog-primitives";
+import { DirtyFormDialog, ReasonCommandDialog } from "./dialog-primitives";
 import {
   createMediaApi,
   MediaApiError,
@@ -77,6 +77,9 @@ function Screen({ auth, session }: { auth: MediaAuth; session: any }) {
   const [label, setLabel] = useState("");
   const [category, setCategory] = useState<MediaCategory | "">("");
   const [archive, setArchive] = useState<JobMediaRecord>();
+  const [uploadOpen, setUploadOpen] = useState(false);
+  const [uploadErrors, setUploadErrors] = useState<string[]>([]);
+  const uploadFocus = useRef<HTMLInputElement>(null);
   const [busy, setBusy] = useState(false);
   const [failure, setFailure] = useState("");
   const [notice, setNotice] = useState("");
@@ -138,8 +141,11 @@ function Screen({ auth, session }: { auth: MediaAuth; session: any }) {
     setQuery(next);
     void load(next);
   }
-  async function upload() {
-    if (!selectedJob || !file || !category) return;
+  async function upload(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    const errors = [!selectedJob ? "Choose a Job." : "", !category ? "Choose an upload category." : "", !label.trim() ? "Enter a label." : "", !file ? "Choose an image or PDF." : ""].filter(Boolean);
+    setUploadErrors(errors);
+    if (errors.length || !selectedJob || !file || !category) return;
     setBusy(true);
     try {
       await api.upload({ job: selectedJob, category, label, file });
@@ -148,6 +154,7 @@ function Screen({ auth, session }: { auth: MediaAuth; session: any }) {
       );
       setFile(undefined);
       setLabel("");
+      setUploadOpen(false);
       await load({ ...query, jobId: selectedJob.id, page: 1 });
     } catch (error) {
       setFailure(readable(error));
@@ -202,13 +209,12 @@ function Screen({ auth, session }: { auth: MediaAuth; session: any }) {
           }
         }}
       />
-      {permissions.includes("media.upload") && (
-        <section aria-labelledby="media-upload">
-          <h2 id="media-upload">Upload Job media</h2>
-          <div className="media-form">
+      {permissions.includes("media.upload") && <button type="button" onClick={() => { setUploadErrors([]); setUploadOpen(true); }}>Upload Job media</button>}
+      <DirtyFormDialog open={uploadOpen} title="Upload Job media" dirty={Boolean(file || label.trim())} errors={uploadErrors} busy={busy} initialFocusRef={uploadFocus} submitLabel="Upload to private quarantine" onSubmit={upload} onClose={() => setUploadOpen(false)}>
             <label>
               Visit/check-in date
               <input
+                ref={uploadFocus}
                 type="date"
                 value={query.visitDate}
                 onChange={(e) => {
@@ -282,22 +288,13 @@ function Screen({ auth, session }: { auth: MediaAuth; session: any }) {
                 onChange={(e) => setFile(e.target.files?.[0])}
               />
             </label>
-            <button
-              disabled={
-                busy || !selectedJob || !category || !label.trim() || !file
-              }
-              onClick={() => void upload()}
-            >
-              Upload to private quarantine
-            </button>
-          </div>
+
           {selectedJob && selectedJob.allowedCategories.length === 0 && (
             <p role="status">
               This Job's lifecycle does not currently accept media uploads.
             </p>
           )}
-        </section>
-      )}
+      </DirtyFormDialog>
       <section aria-labelledby="media-list">
         <div className="media-heading">
           <h2 id="media-list">Media for {query.visitDate}</h2>

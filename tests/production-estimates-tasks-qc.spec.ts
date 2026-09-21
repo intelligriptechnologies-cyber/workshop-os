@@ -74,7 +74,7 @@ test("production Tasks and QC are HTTP-backed navigable screens", async ({
   ).toBeVisible();
   await expect(
     page
-      .getByRole("navigation", { name: "Production navigation" })
+      .getByRole("navigation", { name: "Workshop navigation" })
       .getByRole("link", { name: "Estimates" }),
   ).toBeVisible();
 });

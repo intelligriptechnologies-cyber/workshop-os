@@ -91,13 +91,16 @@ test("Media cascades Visit date to searchable Jobs and only offers lifecycle-val
 }) => {
   await mock(page);
   await page.goto(`/production/media?visitDate=2026-09-15&jobId=${jobId}`);
-  await expect(page.getByLabel("Visit/check-in date")).toHaveValue(
+  await page.getByRole("button", { name: "Upload Job media" }).click();
+  const uploadDialog = page.getByRole("dialog", { name: "Upload Job media" });
+  await expect(uploadDialog.getByLabel("Visit/check-in date")).toHaveValue(
     "2026-09-15",
   );
-  await expect(page.getByRole("combobox", { name: /^Job/ })).toHaveValue(jobId);
+  await expect(uploadDialog.getByRole("combobox", { name: /^Job/ })).toHaveValue(jobId);
   await expect(
-    page.getByRole("combobox", { name: /^Upload category/ }).locator("option"),
+    uploadDialog.getByRole("combobox", { name: /^Upload category/ }).locator("option"),
   ).toHaveText(["Choose category", "PROGRESS"]);
+  await uploadDialog.getByRole("button", { name: "Cancel" }).click();
   await expect(page.getByText(/PENDING/)).toBeVisible();
   await expect(page.getByRole("button", { name: "View original" })).toHaveCount(
     0,
