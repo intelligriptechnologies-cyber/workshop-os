@@ -14,14 +14,13 @@ Included:
 - a production static build of the current Vite/React PWA;
 - an isolated Docker Compose project named `workshopos-staging`;
 - HTTPS routing through the existing Caddy container;
-- a manually invoked GitHub Actions workflow with `deploy`, `start`, and
-  `stop` operations;
+- automatic staging deployment for every push to `Prem-dev-fbb`;
+- manual GitHub Actions controls to start or stop the staging frontend;
 - health and browser verification instructions.
 
 Excluded:
 
 - Railway, Vercel, a database container, database volumes, and data migration;
-- automatic deployment on push;
 - the PostgreSQL-backed API, Cognito production configuration, and the rich
   screens' browser-local-to-server data migration.
 
@@ -82,20 +81,31 @@ The Barstock Compose configuration is updated to declare the external
 Barstock is recreated. Caddy is reloaded only after validating the edited
 configuration; this does not replace Barstock's app or database containers.
 
-## Manual Deployment Control
+## CI/CD and Operational Control
 
-GitHub Actions provides a `workflow_dispatch` workflow with one `operation`
-choice:
+Use three workflows, matching the established Nexio Stock pattern:
 
-- `deploy`: SSH to the server, fast-forward the configured branch, build the
-  frontend image, and run `docker compose up -d`;
-- `start`: start the existing WorkshopOS frontend service without rebuilding;
-- `stop`: stop only the `workshopos-staging` Compose project. Caddy and
-  Barstock remain running; requests to the staging hostname receive an
-  upstream-unavailable response until the service is started again.
+- `deploy-staging.yml` runs automatically on every push to `Prem-dev-fbb` and
+  can also be started manually. It checks out that exact revision, runs the
+  frontend verification and build, SSHes to the server with the deployment
+  key, fast-forwards `/opt/workshop/staging/source`, then runs
+  `docker compose --project-name workshopos-staging up -d --build`.
+- `start-staging.yml` is manual only. It runs `docker compose start` for the
+  WorkshopOS staging project without rebuilding it.
+- `stop-staging.yml` is manual only. It runs `docker compose stop` for only
+  the WorkshopOS staging project. Caddy and every Barstock container remain
+  running; requests to the staging hostname receive an upstream-unavailable
+  response until the frontend is started again.
 
-There is no `push` trigger. Later automatic staging deployment can be added
-behind a GitHub repository variable, but it is intentionally off initially.
+All three workflows use the same `HETZNER_HOST`, `HETZNER_USER`, and
+`HETZNER_DEPLOY_KEY` repository secrets, enforce SSH host-key verification,
+and use the same concurrency group (`workshopos-staging`) so a deploy cannot
+race a start or stop operation.
+
+Stopping staging is a runtime control, not a permanent deployment lock: the
+next push to `Prem-dev-fbb` will deploy and start it again. To suspend automatic
+updates, disable `deploy-staging.yml` in the GitHub Actions UI; re-enable it
+when automatic deployment should resume.
 
 ## Verification and Rollback
 
