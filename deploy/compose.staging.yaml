@@ -1,0 +1,17 @@
+name: workshopos-staging
+
+services:
+  frontend:
+    build:
+      context: ..
+      dockerfile: deploy/Dockerfile.staging
+    restart: unless-stopped
+    networks:
+      workshopos-staging-proxy:
+        aliases:
+          - workshopos-frontend
+
+networks:
+  workshopos-staging-proxy:
+    external: true
+    name: workshopos-staging-proxy
