@@ -88,7 +88,7 @@ import {
   voidInvoice,
   voidPayment,
 } from "./db";
-import type { Customer, EstimateItem, Followup, InventoryItem, JobView, MainStatus, MaterialRequest, Photo, QcCheck, Role, SearchCriteria, SubStatus, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
+import type { Customer, EstimateItem, Followup, InventoryItem, JobView, MainStatus, MaterialMovement, MaterialRequest, Photo, QcCheck, Role, SearchCriteria, SubStatus, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
 import { activeFilterSummary, normalizeSearch, pageNumbers, paginate } from "./list-utils";
 import { downloadExcel, downloadPdf, type ExportColumn } from "./export-utils";
 import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
@@ -919,12 +919,27 @@ function ServiceAdvisor({
 }
 
 function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { activeMenuItem: string; state: WorkshopState; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
+  const [stockTab, setStockTab] = useState<"Inventory List" | "Low Stock" | "Stock Movements">("Inventory List");
   const requests = state.jobs.flatMap((view) => view.material_requests.map((request) => ({ view, request, item: state.inventory.find((item) => item.id === request.item_id) })));
   if (activeMenuItem === "Stock") {
+    const lowStock = state.inventory.filter((item) => item.stock_qty < item.low_stock_qty);
     return (
-      <section className="workspace two-panel">
-        <StoreList key="stock" kind="stock" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} />
-        <InventoryEditor state={state} mutate={mutate} />
+      <section className="workspace single-panel stock-workspace">
+        <div className="desk-panel stock-overview">
+          <PanelTitle icon={<Boxes />} title="Stock" subtitle="Inventory levels, low-stock attention and movement history" />
+          <div className="sub-tabs" role="tablist" aria-label="Stock views">
+            {(["Inventory List", "Low Stock", "Stock Movements"] as const).map((tab) => <button key={tab} role="tab" aria-selected={stockTab === tab} className={stockTab === tab ? "active" : ""} onClick={() => setStockTab(tab)}>{tab}</button>)}
+          </div>
+          <div className="stock-kpis">
+            <Kpi icon={<Boxes />} label="Total SKUs" value={state.inventory.length} />
+            <Kpi icon={<Package />} label="Total Units" value={state.inventory.reduce((sum, item) => sum + item.stock_qty, 0)} />
+            <Kpi icon={<ClipboardCheck />} label="Low Stock" value={lowStock.length} />
+            <Kpi icon={<ShieldCheck />} label="Out of Stock" value={state.inventory.filter((item) => item.stock_qty <= 0).length} />
+          </div>
+        </div>
+        {stockTab === "Inventory List" && <div className="workspace two-panel embedded-workspace"><StoreList key="stock" kind="stock" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} /><InventoryEditor state={state} mutate={mutate} /></div>}
+        {stockTab === "Low Stock" && <StoreList key="low-stock" kind="stock" inventory={lowStock} requests={requests} onOpenJob={setSelectedJobId} />}
+        {stockTab === "Stock Movements" && <StockMovementHistory state={state} />}
       </section>
     );
   }
@@ -942,6 +957,37 @@ function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { active
       {activeMenuItem === "Issue Material" ? <IssueMaterialEditor requests={requests} mutate={mutate} /> : <ReconcileEditor requests={requests} mutate={mutate} />}
     </section>
   );
+}
+
+function StockMovementHistory({ state }: { state: WorkshopState }) {
+  const [search, setSearch] = useState("");
+  const [direction, setDirection] = useState("ALL");
+  const [month, setMonth] = useState("");
+  const uniqueMovements = Array.from(new Map(state.jobs.flatMap((view) => view.material_movements).map((movement) => [movement.id, movement])).values());
+  const filtered = uniqueMovements.filter((movement) => {
+    const item = state.inventory.find((row) => row.id === movement.item_id);
+    const job = state.jobs.find((view) => view.job.id === movement.job_card_id);
+    const matchesSearch = !normalizeSearch(search) || normalizeSearch(`${item?.sku ?? ""} ${item?.name ?? ""} ${job?.job.job_no ?? ""} ${movement.note}`).includes(normalizeSearch(search));
+    return matchesSearch && (direction === "ALL" || movement.direction === direction) && (!month || movement.created_at.slice(0, 7) === month);
+  });
+  const columns: ExportColumn<MaterialMovement>[] = [
+    { header: "Date", value: (row) => row.created_at },
+    { header: "Item", value: (row) => state.inventory.find((item) => item.id === row.item_id)?.name ?? `Item ${row.item_id}` },
+    { header: "Job", value: (row) => state.jobs.find((view) => view.job.id === row.job_card_id)?.job.job_no ?? "General stock" },
+    { header: "Direction", value: (row) => row.direction },
+    { header: "Quantity", value: (row) => row.qty },
+    { header: "Note", value: (row) => row.note },
+  ];
+  return <div className="desk-panel store-list-page" role="tabpanel">
+    <div className="store-filter-grid contextual-filter-bar">
+      <label className="list-search">Quick search<input aria-label="Search stock movements" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Item, SKU, job or note" /></label>
+      <label>Month-Year<input aria-label="Stock movement month" type="month" value={month} onChange={(event) => setMonth(event.target.value)} /></label>
+      <label>Direction<select aria-label="Stock movement direction" value={direction} onChange={(event) => setDirection(event.target.value)}><option value="ALL">All movements</option>{Array.from(new Set(uniqueMovements.map((row) => row.direction))).sort().map((value) => <option key={value}>{value}</option>)}</select></label>
+      <button onClick={() => { setSearch(""); setMonth(""); setDirection("ALL"); }}>Clear Filters</button>
+    </div>
+    <div className="list-result-controls"><ListExportControls report={{ title: "Stock Movements", filters: activeFilterSummary({ Search: search.trim(), Month: month, Direction: direction }), columns, rows: filtered }} /><span className="result-summary">{filtered.length} movement{filtered.length === 1 ? "" : "s"}</span></div>
+    {filtered.length ? <div className="table-wrap"><table aria-label="Stock movement results"><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}</tr></thead><tbody>{filtered.map((row) => <tr key={row.id}>{columns.map((column) => <td key={column.header}>{column.value(row)}</td>)}</tr>)}</tbody></table></div> : <div className="list-empty"><h3>No matching movements</h3><button onClick={() => { setSearch(""); setMonth(""); setDirection("ALL"); }}>Clear filters</button></div>}
+  </div>;
 }
 
 type StoreListKind = "stock" | "requests" | "issue" | "reconcile";

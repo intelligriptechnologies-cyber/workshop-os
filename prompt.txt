@@ -41,19 +41,51 @@ current i reviewed this App....but not very impreseed, it looks like stale data.
   have multiple set of logins here...please use sql litle other wise.....use demo login
   creds...like admin@example.com  (owner)....service@example.com (service
   adisor)...reception@example.com (reception guy)...accounts@example.com.....for now use
-  pwd: admin123 for all users....Also plan each login visuals accordingly...The data should
+  pwd: admin123 for all users....Also plan each login visuals accordingly...
+  
+  
+  
+  The data should
   be linked we can show a data flow ...like reception can enter or rcv a vehicle so
   initially... they should have relevant screens to add/update a record....(pre existing
-  records can be planned and already added....) like wise the service guy logs in...he sees
+  records can be planned and already added....) like wise the service guy logs in...
+  he sees
   the queue of vehicles...we can visit each of them, and can update details, make
-  entries ..., generate invoice once job card status moves from NEW --> Inprogress -->
-  Completed ---> Closed......so sub status can be help for each Steps here for JoB Card life
-  cycle.........Gather Rquirements, Create estimate, Get confirmation....move to In
-  progress...any communication / followup needed, share pictures etc....Washing needed
-  etc...---> then move to Completed...once customer checks, verifies, confirms ---invoice is
-  generated...payment is received...then Job card  can be closed,, on closure we can prepare
-  gate pass, and payment recipts....on in progress...we can be estiamtes...on compelted we
-  can geenrate invoice.....add/edit is possible untill closed.........Apart from that every
+  entries ..., generate invoice once 
+  
+  JOB CARD FLOW->
+  
+  job card status moves from NEW --> Inprogress -->
+  Completed ---> Closed......
+  
+  so sub status can be help for each Steps here for JoB Card life cycle.........
+  
+  NEW -->  Gather Rquirements, Create estimate, Get confirmation....move to In progress -->
+  
+  ...any communication / followup needed, share pictures etc....Washing needed etc...---> then move to 
+  Completed...once customer checks, verifies, 
+  confirms ---invoice is  generated...payment is received...
+  then Job card  can be closed,, 
+  on closure we can prepare gate pass, and payment recipts....
+  
+  
+ On NEW--> vehicle and customer addition, complain/issue reported,
+ 
+  on in progress...we can create estiamtes, download pdf and share...
+  
+  on completed we can geenrate invoice.....add/edit is possible untill closed.........
+  from completed it can go to HOLD OR CLOSED ....
+  from HOLD it can move to Inprogress..OR CANCELLED
+  from CANCELLED it can be REOPEN --> and then it can go to INPROGRESS
+ ON CLOSED...we can generate gate Pass for the vehicle....
+
+
+SAVE NOTES for each steps, comments or line note items can be added for each status change
+and supprting comment...  
+  
+  
+  
+  Apart from that every
   user will have  an access to common search portal where they can search vehicle
   number...or customer number....on of visits will be redcorded...last job card details,
   invoice...dates work list...service advisor worked etc......Customer list can be
