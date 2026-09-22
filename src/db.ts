@@ -157,7 +157,14 @@ export function loadLargeDemoDataset(db: Database) {
       const customerId = ((vehicleId - 1) % 120) + 1;
       const subIndex = (i - 1) % subStatuses.length;
       const sub = subStatuses[subIndex];
-      const main: MainStatus = subIndex <= 2 ? "NEW" : subIndex <= 9 ? "IN_PROGRESS" : subIndex <= 12 ? "COMPLETED" : "CLOSED";
+      let main: MainStatus = subIndex <= 2 ? "NEW" : subIndex <= 9 ? "IN_PROGRESS" : subIndex <= 12 ? "COMPLETED" : "CLOSED";
+      // Deterministic, small, fixed overrides so the large demo dataset also exercises HOLD/CANCELLED
+      // (3 jobs each out of 144) without disturbing the otherwise-even sub_status distribution above.
+      // Picked at subIndex 10/11 (Customer Verification / Invoice Ready) so the flipped rows still
+      // carry a COMPLETED-stage sub_status, consistent with HOLD/CANCELLED only being reachable from
+      // COMPLETED/HOLD in the transition graph (COMPLETED retains plenty of unflipped members).
+      if (i % 48 === 11) main = "HOLD";
+      else if (i % 48 === 12) main = "CANCELLED";
       const date = `2026-${String(((i - 1) % 8) + 1).padStart(2, "0")}-${String(((i * 5) % 27) + 1).padStart(2, "0")}T${String(8 + (i % 9)).padStart(2, "0")}:00:00.000Z`;
       const work = ["Full body PPF", "Ceramic coating", "Paint correction", "Interior detailing"][i % 4];
       const visitId = insert(db, "insert into visits(customer_id,vehicle_id,advisor_id,received_by,received_at,fuel,keys,accessories,requested_work,photos_note,created_at,updated_at) values(?,?,?,?,?,'Half','2 keys','Mats',?,'Offline demo media',?,?)", [customerId, vehicleId, 2, 3, date, work, date, date]);
@@ -210,7 +217,7 @@ function validateLargeDemoDataset(db: Database) {
     not exists(select 1 from payments p where p.job_card_id=j.id and p.voided_at is null) or
     not exists(select 1 from receipts r where r.job_card_id=j.id) or
     not exists(select 1 from gate_passes g where g.job_card_id=j.id))`);
-  if (incompleteClosures !== 0 || scalar<number>(db, "select count(distinct main_status) from job_cards") !== 4 || scalar<number>(db, "select count(distinct sub_status) from job_cards") !== 16) {
+  if (incompleteClosures !== 0 || scalar<number>(db, "select count(distinct main_status) from job_cards") !== 6 || scalar<number>(db, "select count(distinct sub_status) from job_cards") !== 16) {
     throw new Error("Large demo lifecycle records are incomplete.");
   }
 }
@@ -394,14 +401,37 @@ export function receiveVehicle(
   }
 }
 
+// Job status lifecycle (UI_BRD_v1.3.md §3/§4):
+//   NEW -> IN_PROGRESS -> COMPLETED -> {HOLD, CLOSED}
+//   HOLD -> {IN_PROGRESS, CANCELLED}
+//   CANCELLED -> (reopen) -> IN_PROGRESS
+// CLOSED is terminal. Any transition not listed here is rejected.
+export const MAIN_STATUS_TRANSITIONS: Record<MainStatus, MainStatus[]> = {
+  NEW: ["IN_PROGRESS"],
+  IN_PROGRESS: ["COMPLETED"],
+  COMPLETED: ["HOLD", "CLOSED"],
+  HOLD: ["IN_PROGRESS", "CANCELLED"],
+  CANCELLED: ["IN_PROGRESS"],
+  CLOSED: [],
+};
+
+function assertValidMainStatusTransition(from: MainStatus, to: MainStatus) {
+  if (from === to) return;
+  if (!MAIN_STATUS_TRANSITIONS[from].includes(to)) {
+    throw new Error(`Cannot move a job card from ${from} to ${to}.`);
+  }
+}
+
 export function updateJobCard(
   db: Database,
   jobId: number,
   payload: Partial<Pick<JobCard, "advisor_id" | "technician_id" | "main_status" | "sub_status" | "work_list" | "promised_at" | "advisor_notes" | "customer_instructions" | "internal_instructions">>,
+  note?: string,
 ) {
   const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
   const main = payload.main_status ?? job.main_status;
   const sub = payload.sub_status ?? job.sub_status;
+  if (main !== job.main_status) assertValidMainStatusTransition(job.main_status, main);
   db.run(
     "update job_cards set advisor_id=?, technician_id=?, main_status=?, sub_status=?, work_list=?, promised_at=?, advisor_notes=?, customer_instructions=?, internal_instructions=?, updated_at=datetime('now') where id=?",
     [
@@ -417,14 +447,51 @@ export function updateJobCard(
       jobId,
     ],
   );
-  if (main !== job.main_status || sub !== job.sub_status) history(db, jobId, main, sub, "Job card updated");
+  if (main !== job.main_status || sub !== job.sub_status) history(db, jobId, main, sub, note?.trim() || "Job card updated");
 }
 
+// True archive / soft-delete: removes the job from active views. Used by admin "Archive" actions
+// throughout the app. Distinct from the CANCELLED main-status transition below, which keeps the
+// job visible and reopenable (UI_BRD_v1.3.md §3 item 2).
 export function cancelJobCard(db: Database, jobId: number, reason: string) {
   const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
   archive(db, "job_cards", jobId, reason || "Cancelled");
   archive(db, "visits", job.visit_id, reason || "Cancelled");
   history(db, jobId, job.main_status, job.sub_status, `Cancelled: ${reason || "No reason"}`);
+}
+
+// Status-based lifecycle transitions (UI_BRD_v1.3.md §4). Each requires a free-text note and is
+// captured in job history via history()/setJobStatus() so it is visible in the History tab and in
+// other roles' equivalent queues.
+
+export function holdJobCard(db: Database, jobId: number, note: string) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (!note.trim()) throw new Error("A note is required to place a job on hold.");
+  assertValidMainStatusTransition(job.main_status, "HOLD");
+  setJobStatus(db, jobId, "HOLD", job.sub_status, note.trim());
+}
+
+export function cancelJobCardStatus(db: Database, jobId: number, note: string) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (!note.trim()) throw new Error("A note is required to cancel a job.");
+  assertValidMainStatusTransition(job.main_status, "CANCELLED");
+  setJobStatus(db, jobId, "CANCELLED", job.sub_status, note.trim());
+}
+
+export function reopenJobCard(db: Database, jobId: number, note: string) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (job.main_status !== "CANCELLED") throw new Error("Only a cancelled job can be reopened.");
+  if (!note.trim()) throw new Error("A note is required to reopen a job.");
+  assertValidMainStatusTransition(job.main_status, "IN_PROGRESS");
+  setJobStatus(db, jobId, "IN_PROGRESS", job.sub_status, note.trim());
+}
+
+export function resumeJobCard(db: Database, jobId: number, note: string) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (job.main_status !== "HOLD") throw new Error("Only a job on hold can be resumed.");
+  if (!note.trim()) throw new Error("A note is required to resume a job.");
+  assertValidMainStatusTransition(job.main_status, "IN_PROGRESS");
+  setJobStatus(db, jobId, "IN_PROGRESS", job.sub_status, note.trim());
 }
 
 export function createEstimate(db: Database, jobId: number) {

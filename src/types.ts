@@ -1,6 +1,6 @@
 export type Role = "admin" | "service" | "reception" | "accounts" | "store" | "tech";
 
-export type MainStatus = "NEW" | "IN_PROGRESS" | "COMPLETED" | "CLOSED";
+export type MainStatus = "NEW" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "HOLD" | "CANCELLED";
 
 export type SubStatus =
   | "Gather Requirements"

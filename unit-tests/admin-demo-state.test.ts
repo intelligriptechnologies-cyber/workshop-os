@@ -7,6 +7,7 @@ import {
   appendDemoLog,
   archiveDemoRole,
   clearDemoLogs,
+  confirmInventoryImport,
   createDefaultAdminDemoState,
   enforceLogRetention,
   filterDemoLogs,
@@ -119,4 +120,40 @@ test("logs append, filter, clear and enforce per-stream retention", () => {
   const retained = enforceLogRetention(shortRetention, NOW);
   assert.equal(retained.logs.some((log) => log.stream === "operational"), true);
   assert.equal(retained.logs.some((log) => log.stream === "feature"), false);
+});
+
+test("confirmInventoryImport merges valid rows into session inventory only", () => {
+  const original = createDefaultAdminDemoState(NOW);
+  const imported = confirmInventoryImport(original, {
+    fileName: "opening-stock.xlsx",
+    columnMapping: { sku: "SKU", name: "Item Name", category: "Category", unit: "Unit", stock_qty: "Opening Quantity", low_stock_qty: "Low Stock Threshold" },
+    totalRows: 3,
+    rejectedRows: 1,
+    validRows: [
+      { sku: "PPF-001", name: "Paint Protection Film", category: "Film", unit: "roll", stockQty: 10, lowStockQty: 2 },
+      { sku: "OIL-005", name: "Engine Oil 5W-30", category: "Fluids", unit: "litre", stockQty: 40, lowStockQty: 8 },
+    ],
+  }, NOW);
+
+  assert.equal(original.sessionInventory.length, 0);
+  assert.equal(imported.sessionInventory.length, 2);
+  assert.deepEqual(imported.sessionInventory.map((item) => item.sku), ["PPF-001", "OIL-005"]);
+  assert.equal(imported.importBatches.length, 1);
+  assert.equal(imported.importBatches[0].id, "import-1");
+  assert.equal(imported.importBatches[0].status, "imported");
+  assert.equal(imported.importBatches[0].acceptedRows, 2);
+  assert.equal(imported.importBatches[0].rejectedRows, 1);
+  assert.equal(imported.sessionInventory.every((item) => item.importBatchId === "import-1"), true);
+
+  const importedAgain = confirmInventoryImport(imported, {
+    fileName: "second-batch.xlsx",
+    columnMapping: {},
+    totalRows: 1,
+    rejectedRows: 0,
+    validRows: [{ sku: "BRK-010", name: "Brake Pad Set", category: "Brakes", unit: "set", stockQty: 5, lowStockQty: 1 }],
+  }, NOW);
+  assert.equal(importedAgain.importBatches.length, 2);
+  assert.equal(importedAgain.importBatches[1].id, "import-2");
+  assert.equal(importedAgain.sessionInventory.length, 3);
+  assert.equal(new Set(importedAgain.sessionInventory.map((item) => item.id)).size, 3);
 });

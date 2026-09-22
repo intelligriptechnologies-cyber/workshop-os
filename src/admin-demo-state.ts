@@ -580,6 +580,82 @@ export function clearDemoLogs(state: AdminDemoState, stream: DemoLogStream | "al
   return { ...state, logs: stream === "all" ? [] : state.logs.filter((log) => log.stream !== stream) };
 }
 
+export interface InventoryImportRowInput {
+  sku: string;
+  name: string;
+  category: string;
+  unit: string;
+  stockQty: number;
+  lowStockQty: number;
+}
+
+function nextImportBatchId(batches: readonly DemoImportBatch[]): string {
+  const next = batches.reduce((max, batch) => {
+    const match = /^import-(\d+)$/.exec(batch.id);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `import-${next}`;
+}
+
+function nextSessionInventoryId(items: readonly SessionInventoryItem[]): string {
+  const next = items.reduce((max, item) => {
+    const match = /^session-inv-(\d+)$/.exec(item.id);
+    return match ? Math.max(max, Number(match[1])) : max;
+  }, 0) + 1;
+  return `session-inv-${next}`;
+}
+
+/**
+ * Merges validated inventory-import rows into the session-only inventory and records the
+ * import batch. Never touches the sql.js-backed inventory — session presentation data only.
+ */
+export function confirmInventoryImport(
+  state: AdminDemoState,
+  input: {
+    fileName: string;
+    columnMapping: Record<string, string>;
+    totalRows: number;
+    validRows: readonly InventoryImportRowInput[];
+    rejectedRows: number;
+  },
+  now: Date | string = new Date(),
+): AdminDemoState {
+  const timestamp = new Date(now).toISOString();
+  const batchId = nextImportBatchId(state.importBatches);
+  const created: SessionInventoryItem[] = [];
+  for (const row of input.validRows) {
+    const id = nextSessionInventoryId([...state.sessionInventory, ...created]);
+    created.push({
+      id,
+      importBatchId: batchId,
+      sku: row.sku,
+      name: row.name,
+      category: row.category,
+      unit: row.unit,
+      stockQty: row.stockQty,
+      lowStockQty: row.lowStockQty,
+      importedAt: timestamp,
+    });
+  }
+  const batch: DemoImportBatch = {
+    id: batchId,
+    fileName: input.fileName,
+    status: "imported",
+    createdAt: timestamp,
+    importedAt: timestamp,
+    totalRows: input.totalRows,
+    acceptedRows: created.length,
+    rejectedRows: input.rejectedRows,
+    columnMapping: input.columnMapping,
+    errors: [],
+  };
+  return {
+    ...state,
+    importBatches: [...state.importBatches, batch],
+    sessionInventory: [...state.sessionInventory, ...created],
+  };
+}
+
 export function enforceLogRetention(state: AdminDemoState, now: Date | string = new Date()): AdminDemoState {
   const nowMs = new Date(now).getTime();
   const { operationalDays, featureDays } = state.businessSettings.logRetention;
