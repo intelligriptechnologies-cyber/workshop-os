@@ -1,136 +1,67 @@
-export type CognitoConfig = {
-  mode: "cognito";
-  clientId: string;
-  authorizationEndpoint: string;
-  tokenEndpoint: string;
-  logoutEndpoint: string;
-  callbackUri: string;
-  logoutUri: string;
-  scopes: string[];
-};
+export type AuthConfig = { mode: "frappe" } | { mode: "local"; allowDemo: boolean };
 
-export type AuthConfig = CognitoConfig | { mode: "local"; allowDemo: boolean };
+export type WorkshopSession = { email: string; fullName: string; roles: string[] };
 
-export type SessionMembership = {
-  id: string;
-  displayName: string;
-  email: string;
-  status: "INVITED" | "ACTIVE" | "ARCHIVED";
-  roleIds: string[];
-  roles: Array<{ id: string; name: string; permissions: string[] }>;
-  branchIds: string[];
-  branches: Array<{ id: string; name: string }>;
-  permissions: string[];
-  version: number;
-};
-
-export type WorkshopSession = { membership: SessionMembership; tenant: { id: string; name: string } };
-
-type Tokens = { accessToken: string; refreshToken?: string; expiresAt: number };
-const TOKEN_KEY = "workshopos.cognito.tokens.v1";
-const OAUTH_KEY = "workshopos.cognito.oauth.v1";
-
-const base64Url = (bytes: Uint8Array) =>
-  btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
-
-async function sha256(value: string) {
-  return new Uint8Array(await crypto.subtle.digest("SHA-256", new TextEncoder().encode(value)));
-}
-
-function randomValue() {
-  const bytes = new Uint8Array(32);
-  crypto.getRandomValues(bytes);
-  return base64Url(bytes);
-}
+// Fixed dev constant: Task 1's bench serves exactly one site (workshop_os.localhost) on this
+// origin, and its CORS + session cookie are scoped to the Vite dev server's default origin.
+const FRAPPE_BASE_URL = "http://localhost:8000";
 
 export async function loadAuthConfig(): Promise<AuthConfig> {
-  const localDemo = import.meta.env.DEV || location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  try {
-    const response = await fetch("/api/v1/auth/config", { headers: { accept: "application/json" } });
-    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return { mode: "local", allowDemo: localDemo };
-    return await response.json() as AuthConfig;
-  } catch {
+  if (import.meta.env.VITE_AUTH_MODE === "local") {
+    const localDemo = import.meta.env.DEV || location.hostname === "localhost" || location.hostname === "127.0.0.1";
     return { mode: "local", allowDemo: localDemo };
   }
+  return { mode: "frappe" };
 }
 
-export async function beginCognitoLogin(config: CognitoConfig) {
-  const verifier = randomValue();
-  const state = randomValue();
-  sessionStorage.setItem(OAUTH_KEY, JSON.stringify({ verifier, state }));
-  const url = new URL(config.authorizationEndpoint);
-  url.search = new URLSearchParams({
-    client_id: config.clientId,
-    response_type: "code",
-    redirect_uri: config.callbackUri,
-    scope: config.scopes.join(" "),
-    state,
-    code_challenge_method: "S256",
-    code_challenge: base64Url(await sha256(verifier)),
-  }).toString();
-  location.assign(url);
+export async function frappeFetch(path: string, init: RequestInit = {}): Promise<Response> {
+  // Headers (not a plain object spread) so a caller-supplied "Accept"/"Content-Type" in any
+  // casing correctly overrides the default instead of coexisting as a second, ignored key.
+  const headers = new Headers(init.headers);
+  if (!headers.has("accept")) headers.set("accept", "application/json");
+  return fetch(`${FRAPPE_BASE_URL}${path}`, { ...init, credentials: "include", headers });
 }
 
-async function exchange(config: CognitoConfig, values: URLSearchParams): Promise<Tokens> {
-  const response = await fetch(config.tokenEndpoint, {
+const INVALID_CREDENTIALS = "Invalid email or password.";
+
+export async function frappeLogin(email: string, password: string): Promise<WorkshopSession> {
+  const response = await frappeFetch("/api/method/login", {
     method: "POST",
-    headers: { "content-type": "application/x-www-form-urlencoded" },
-    body: values,
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ usr: email, pwd: password }),
   });
-  if (!response.ok) throw new Error("Cognito sign-in could not be completed.");
-  const payload = await response.json() as { access_token: string; refresh_token?: string; expires_in: number };
-  return { accessToken: payload.access_token, refreshToken: payload.refresh_token, expiresAt: Date.now() + payload.expires_in * 1000 };
+  if (!response.ok) throw new Error(INVALID_CREDENTIALS);
+  const session = await loadFrappeSession();
+  if (!session) throw new Error(INVALID_CREDENTIALS);
+  return session;
 }
 
-async function tokens(config: CognitoConfig): Promise<Tokens | undefined> {
-  const saved = sessionStorage.getItem(TOKEN_KEY);
-  if (!saved) return undefined;
-  const current = JSON.parse(saved) as Tokens;
-  if (current.expiresAt > Date.now() + 30_000) return current;
-  if (!current.refreshToken) return undefined;
-  const refreshed = await exchange(config, new URLSearchParams({
-    grant_type: "refresh_token", client_id: config.clientId, refresh_token: current.refreshToken,
-  }));
-  refreshed.refreshToken = current.refreshToken;
-  sessionStorage.setItem(TOKEN_KEY, JSON.stringify(refreshed));
-  return refreshed;
+export async function frappeLogout(): Promise<void> {
+  await frappeFetch("/api/method/logout", { method: "POST" });
 }
 
-export async function completeCognitoCallback(config: CognitoConfig) {
-  const params = new URLSearchParams(location.search);
-  const code = params.get("code");
-  if (!code) return;
-  const saved = sessionStorage.getItem(OAUTH_KEY);
-  const oauth = saved ? JSON.parse(saved) as { verifier: string; state: string } : undefined;
-  if (!oauth || params.get("state") !== oauth.state) throw new Error("Cognito sign-in state was invalid.");
-  const result = await exchange(config, new URLSearchParams({
-    grant_type: "authorization_code", client_id: config.clientId, code,
-    redirect_uri: config.callbackUri, code_verifier: oauth.verifier,
-  }));
-  sessionStorage.setItem(TOKEN_KEY, JSON.stringify(result));
-  sessionStorage.removeItem(OAUTH_KEY);
-  history.replaceState({}, document.title, `${location.pathname}${location.hash}`);
-}
+export async function loadFrappeSession(): Promise<WorkshopSession | undefined> {
+  const whoami = await frappeFetch("/api/method/frappe.auth.get_logged_user");
+  if (!whoami.ok) return undefined;
+  const { message: email } = await whoami.json() as { message?: string };
+  if (!email || email === "Guest") return undefined;
 
-export async function authenticatedFetch(config: CognitoConfig, path: string, init: RequestInit = {}) {
-  const current = await tokens(config);
-  if (!current) throw new Error("AUTHENTICATION_REQUIRED");
-  return fetch(path, { ...init, headers: { ...init.headers, authorization: `Bearer ${current.accessToken}`, accept: "application/json" } });
-}
-
-export async function loadWorkshopSession(config: CognitoConfig): Promise<WorkshopSession | undefined> {
-  await completeCognitoCallback(config);
-  const current = await tokens(config);
-  if (!current) return undefined;
-  const response = await authenticatedFetch(config, "/api/v1/session");
-  if (response.status === 401) { sessionStorage.removeItem(TOKEN_KEY); return undefined; }
-  if (!response.ok) throw new Error((await response.json() as { code?: string }).code ?? "SESSION_FAILED");
-  return response.json() as Promise<WorkshopSession>;
-}
-
-export function endCognitoSession(config: CognitoConfig) {
-  sessionStorage.removeItem(TOKEN_KEY);
-  const url = new URL(config.logoutEndpoint);
-  url.search = new URLSearchParams({ client_id: config.clientId, logout_uri: config.logoutUri }).toString();
-  location.assign(url);
+  const [nameResponse, rolesResponse] = await Promise.all([
+    frappeFetch(`/api/method/frappe.client.get_value?${new URLSearchParams({
+      doctype: "User", filters: JSON.stringify({ name: email }), fieldname: "full_name",
+    })}`),
+    frappeFetch(`/api/method/frappe.client.get_list?${new URLSearchParams({
+      doctype: "Has Role", parent: "User", limit_page_length: "0",
+      filters: JSON.stringify([["parent", "=", email], ["parenttype", "=", "User"]]),
+      fields: JSON.stringify(["role"]),
+    })}`),
+  ]);
+  if (!nameResponse.ok || !rolesResponse.ok) return undefined;
+  const namePayload = await nameResponse.json() as { message?: { full_name?: string } };
+  const rolesPayload = await rolesResponse.json() as { message?: Array<{ role: string }> };
+  return {
+    email,
+    fullName: namePayload.message?.full_name ?? email,
+    roles: (rolesPayload.message ?? []).map((item) => item.role),
+  };
 }

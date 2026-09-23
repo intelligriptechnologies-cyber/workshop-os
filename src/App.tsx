@@ -97,8 +97,7 @@ import {
 import type { Customer, EstimateItem, Followup, InventoryItem, JobView, MainStatus, MaterialMovement, MaterialRequest, Photo, QcCheck, Role, SearchCriteria, SubStatus, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
 import { activeFilterSummary, normalizeSearch, pageNumbers, paginate } from "./list-utils";
 import type { ExportColumn } from "./export-utils";
-import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
-import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
+import { frappeLogin, frappeLogout, loadAuthConfig, loadFrappeSession, type AuthConfig } from "./auth";
 import { Dialog, DownloadMenu } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
 import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey } from "./admin-demo-state";
@@ -198,14 +197,11 @@ function findMenuLabelForPage(role: Role, key: AdminPageKey): string | undefined
   return roleMenus[role].find((item) => PAGE_KEY_BY_MENU_LABEL[item.label] === key)?.label;
 }
 
-function workshopRole(names: string[]): Role {
-  const value = names.join(" ").toLowerCase();
-  if (value.includes("admin") || value.includes("owner")) return "admin";
-  if (value.includes("reception")) return "reception";
-  if (value.includes("technician")) return "tech";
-  if (value.includes("store")) return "store";
-  if (value.includes("accounts") || value.includes("cashier")) return "accounts";
-  return "service";
+// Frappe roles are assigned as exactly one of these six lowercase names (see Task 1's role
+// provisioning); a user can hold more than one, so pick deterministically by priority.
+const ROLE_PRIORITY: Role[] = ["admin", "service", "reception", "accounts", "store", "tech"];
+function workshopRole(names: string[]): Role | undefined {
+  return ROLE_PRIORITY.find((role) => names.includes(role));
 }
 
 const apiErrors: Record<string, string> = {
@@ -221,7 +217,7 @@ const apiErrors: Record<string, string> = {
 };
 
 function apiErrorMessage(error: unknown) {
-  const code = error instanceof AdminApiError ? error.code : error instanceof Error ? error.message : "API_FAILED";
+  const code = error instanceof Error ? error.message : "API_FAILED";
   return apiErrors[code] ?? "WorkshopOS could not complete the request. Try again.";
 }
 
@@ -258,14 +254,14 @@ function App() {
   useEffect(() => {
     loadAuthConfig().then(async (config) => {
       setAuthConfig(config);
-      if (config.mode === "cognito") {
+      if (config.mode === "frappe") {
         try {
-          const session = await loadWorkshopSession(config);
-          if (session) {
-            const role = workshopRole(session.membership.roles.map((item) => item.name));
+          const session = await loadFrappeSession();
+          const role = session && workshopRole(session.roles);
+          if (session && role) {
             const authenticatedUser: User = {
-              id: -1, name: session.membership.displayName, email: session.membership.email,
-              role, password: "", externalAuth: true, externalId: session.membership.id,
+              id: -1, name: session.fullName, email: session.email,
+              role, password: "", externalAuth: true, externalId: session.email,
             };
             setUser(authenticatedUser);
             setActiveMenuItem(roleMenus[role][0].label);
@@ -329,7 +325,7 @@ function App() {
   );
   const selected = state?.jobs.find((item) => item.job.id === selectedJobId) ?? state?.jobs[0];
 
-  const mutate = (action: (database: Database) => void) => {
+  const mutate = async (action: (database: Database) => void) => {
     if (!db) return false;
     try {
       action(db);
@@ -344,7 +340,23 @@ function App() {
     return true;
   };
 
-  const handleLogin = (email: string, password: string) => {
+  const handleLogin = async (email: string, password: string) => {
+    if (authConfig?.mode === "frappe") {
+      try {
+        const session = await frappeLogin(email, password);
+        const role = workshopRole(session.roles);
+        if (!role) {
+          setLoginError("Invalid email or password.");
+          return;
+        }
+        setUser({ id: -1, name: session.fullName, email: session.email, role, password: "", externalAuth: true, externalId: session.email });
+        setActiveMenuItem(roleMenus[role][0].label);
+        setLoginError("");
+      } catch {
+        setLoginError("Invalid email or password.");
+      }
+      return;
+    }
     if (!state) return;
     const found = login(state, email, password);
     if (!found) {
@@ -356,10 +368,9 @@ function App() {
     setLoginError("");
   };
 
-  const handleLogout = () => {
-    if (authConfig?.mode === "cognito") {
-      endCognitoSession(authConfig);
-      return;
+  const handleLogout = async () => {
+    if (authConfig?.mode === "frappe") {
+      await frappeLogout();
     }
     setUser(undefined);
     setActiveMenuItem("");
@@ -392,7 +403,7 @@ function App() {
   };
 
   if (!state || authLoading) return <div className="loading">Loading WorkshopOS...</div>;
-  if (!user) return <LoginScreen onLogin={handleLogin} onCognitoLogin={() => authConfig?.mode === "cognito" && beginCognitoLogin(authConfig)} config={authConfig} error={loginError} />;
+  if (!user) return <LoginScreen onLogin={handleLogin} config={authConfig} error={loginError} />;
 
   // Reads the (session-storage backed) Admin Console role/page-access state fresh on every
   // render so a role's permitted pages here reflect the latest Roles & Page Access save made
@@ -499,14 +510,13 @@ function App() {
           onSearchNavigateConsumed={() => setSearchNavigate(undefined)}
           state={state}
           user={user}
-          cognitoConfig={authConfig?.mode === "cognito" ? authConfig : undefined}
         />
       </main>
     </div>
   );
 }
 
-function LoginScreen({ onLogin, onCognitoLogin, config, error }: { onLogin: (email: string, password: string) => void; onCognitoLogin: () => void; config?: AuthConfig; error: string }) {
+function LoginScreen({ onLogin, config, error }: { onLogin: (email: string, password: string) => void; config?: AuthConfig; error: string }) {
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("admin123");
   return (
@@ -520,13 +530,7 @@ function LoginScreen({ onLogin, onCognitoLogin, config, error }: { onLogin: (ema
           </div>
         </div>
         <h1>Sign in to your workshop desk</h1>
-        {config?.mode === "cognito" ? (
-          <div className="cognito-login">
-            <p>Use your business account to continue. New invitations require a password change at first sign-in.</p>
-            {error && <p className="error-text">{error}</p>}
-            <button className="primary-action" onClick={onCognitoLogin}>Continue with Cognito</button>
-          </div>
-        ) : config?.mode === "local" && !config.allowDemo ? (
+        {config?.mode === "local" && !config.allowDemo ? (
           <div className="cognito-login"><p className="error-text">Authentication is not configured for this deployment. Contact your WorkshopOS administrator.</p></div>
         ) : <form
           onSubmit={(event) => {
@@ -584,7 +588,6 @@ function RoleWorkspace({
   onSearchNavigateConsumed,
   state,
   user,
-  cognitoConfig,
 }: {
   activeMenuItem: string;
   jobs: JobView[];
@@ -608,7 +611,6 @@ function RoleWorkspace({
   onSearchNavigateConsumed: () => void;
   state: WorkshopState;
   user: User;
-  cognitoConfig?: CognitoConfig;
 }) {
   if (activeMenuItem === "Search") {
     return (
@@ -641,7 +643,7 @@ function RoleWorkspace({
   if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "tech") return <Technician activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "accounts") return <Accounts activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
-  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} />;
+  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} />;
 }
 
 const SEARCH_STATUS_OPTIONS: (MainStatus | "ALL")[] = ["ALL", "NEW", "IN_PROGRESS", "COMPLETED", "HOLD", "CANCELLED", "CLOSED"];
@@ -873,13 +875,13 @@ function Reception({
       km: vehicle.km,
     });
   };
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!form.customerName.trim() || !form.mobile.trim() || !form.vehicleNo.trim() || !form.requestedWork.trim()) {
       window.alert("Customer, mobile, vehicle number and requested work are required.");
       return;
     }
-    if (mutate((db) => receiveVehicle(db, { ...form, receptionId: user.id }))) onCreated?.();
+    if (await mutate((db) => receiveVehicle(db, { ...form, receptionId: user.id }))) onCreated?.();
   };
   if (activeMenuItem === "Today Queue") {
     return (
@@ -1411,7 +1413,7 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId }: { a
   );
 }
 
-function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User; cognitoConfig?: CognitoConfig }) {
+function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User }) {
   const funnel = ["NEW", "IN_PROGRESS", "COMPLETED", "CLOSED"].map((status) => ({
     status,
     count: state.jobs.filter((view) => view.job.main_status === status).length,
@@ -1464,10 +1466,10 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user
     );
   }
   if (activeMenuItem === "Manage") {
-    return <ManagementHub state={state} mutate={mutate} actingUser={user} selected={selected} setSelectedJobId={setSelectedJobId} cognitoConfig={cognitoConfig} />;
+    return <ManagementHub state={state} mutate={mutate} actingUser={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
   }
   if (activeMenuItem === "Admin Console") {
-    return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} />;
+    return <AdminConsole state={state} mutate={mutate} actingUser={user} />;
   }
   return (
     <section className="workspace admin-room">
@@ -1495,7 +1497,7 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user
 const managementAreas = ["Users", "Customers", "Vehicles", "Visits / Jobs", "Estimates", "Tasks / QC", "Inventory / Materials", "Billing / Delivery"] as const;
 type ManagementArea = (typeof managementAreas)[number];
 
-function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId, cognitoConfig }: { state: WorkshopState; mutate: Mutate; actingUser: User; selected?: JobView; setSelectedJobId: (id: number) => void; cognitoConfig?: CognitoConfig }) {
+function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId }: { state: WorkshopState; mutate: Mutate; actingUser: User; selected?: JobView; setSelectedJobId: (id: number) => void }) {
   const [area, setArea] = useState<ManagementArea>("Users");
   return (
     <section className="workspace single-panel management-hub">
@@ -1510,7 +1512,7 @@ function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId, 
         <div className="management-tabs" role="tablist" aria-label="Management areas">
           {managementAreas.map((item) => <button key={item} role="tab" aria-selected={area === item} className={area === item ? "active" : ""} onClick={() => setArea(item)}>{item}</button>)}
         </div>
-        {area === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
+        {area === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} />}
         {area === "Customers" && <CustomerManager customers={state.customers} mutate={mutate} />}
         {area === "Vehicles" && <VehicleManager state={state} mutate={mutate} />}
         {area === "Visits / Jobs" && <VisitJobManager state={state} mutate={mutate} actingUser={actingUser} selected={selected} setSelectedJobId={setSelectedJobId} />}
@@ -1629,8 +1631,7 @@ function BillingDeliveryManager({ state, view, mutate, setSelectedJobId }: { sta
   return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Billing / Delivery</h3><span className="override-badge">Reasoned voids preserve financial history</span></div><div className="sub-tabs" aria-label="Billing actions">{(["Invoice", "Payment", "Delivery"] as const).map((item) => <button key={item} className={mode === item ? "active" : ""} onClick={() => setMode(item)}>{item}</button>)}</div>{view ? <Accounts activeMenuItem={mode} state={state} view={view} mutate={mutate} setSelectedJobId={setSelectedJobId} /> : <p className="empty-state">Select a job first.</p>}</div>;
 }
 
-export function UserManager({ users, mutate, actingUser, cognitoConfig }: { users: User[]; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig }) {
-  if (cognitoConfig) return <RemoteUserManager config={cognitoConfig} actorId={actingUser.externalId} />;
+export function UserManager({ users, mutate, actingUser }: { users: User[]; mutate: Mutate; actingUser: User }) {
   const empty: User = { id: 0, name: "", email: "", role: "service", password: "" };
   const [draft, setDraft] = useState<User>(empty);
   const [editing, setEditing] = useState(false);
@@ -1655,9 +1656,9 @@ export function UserManager({ users, mutate, actingUser, cognitoConfig }: { user
         <button className="primary-action" onClick={() => { setDraft(empty); setEditing(true); }}>Add User</button>
       </div>
       {editing && (
-        <form onSubmit={(event) => {
+        <form onSubmit={async (event) => {
           event.preventDefault();
-          if (mutate((db) => draft.id ? updateUser(db, draft.id, draft) : createUser(db, draft))) setEditing(false);
+          if (await mutate((db) => draft.id ? updateUser(db, draft.id, draft) : createUser(db, draft))) setEditing(false);
         }}>
           <div className="form-grid">
             <label>User name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
@@ -1687,90 +1688,9 @@ export function UserManager({ users, mutate, actingUser, cognitoConfig }: { user
   );
 }
 
-type RemoteDraft = Pick<AdminUser, "id" | "name" | "email" | "roleIds" | "branchIds" | "version">;
-
-function RemoteUserManager({ config, actorId }: { config: CognitoConfig; actorId?: string }) {
-  const [directory, setDirectory] = useState<AdminDirectory>({ users: [], roles: [], branches: [] });
-  const [loading, setLoading] = useState(true);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState("");
-  const [editing, setEditing] = useState(false);
-  const [draft, setDraft] = useState<RemoteDraft>({ id: "", name: "", email: "", roleIds: [], branchIds: [], version: 0 });
-
-  const refresh = async (quiet = false) => {
-    if (!quiet) setLoading(true);
-    try {
-      setDirectory(await adminUsersApi.list(config));
-      setError("");
-    } catch (nextError) {
-      setError(apiErrorMessage(nextError));
-    } finally {
-      if (!quiet) setLoading(false);
-    }
-  };
-
-  useEffect(() => {
-    void refresh();
-    const interval = window.setInterval(() => void refresh(true), 30_000);
-    const onFocus = () => void refresh(true);
-    window.addEventListener("focus", onFocus);
-    return () => { window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
-  }, [config]);
-
-  const run = async (action: () => Promise<unknown>, closeEditor = false) => {
-    setBusy(true);
-    setError("");
-    try {
-      await action();
-      if (closeEditor) setEditing(false);
-      await refresh(true);
-    } catch (nextError) {
-      setError(apiErrorMessage(nextError));
-      if (nextError instanceof AdminApiError && nextError.code === "VERSION_CONFLICT") await refresh(true);
-    } finally { setBusy(false); }
-  };
-
-  const toggle = (kind: "roleIds" | "branchIds", id: string) => {
-    const current = draft[kind];
-    setDraft({ ...draft, [kind]: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
-  };
-
-  const startNew = () => {
-    setDraft({ id: "", name: "", email: "", roleIds: directory.roles[0] ? [directory.roles[0].id] : [], branchIds: directory.branches[0] ? [directory.branches[0].id] : [], version: 0 });
-    setEditing(true);
-    setError("");
-  };
-
-  return <div className="manager-panel" role="tabpanel">
-    <div className="panel-actions"><div><h3>Users</h3><span>Accounts are tenant-scoped and invitations are sent by Cognito.</span></div><button className="primary-action" onClick={startNew}>Add User</button></div>
-    {error && <div className="api-error" role="alert">{error}<button onClick={() => void refresh()}>Retry</button></div>}
-    {editing && <form onSubmit={(event) => {
-      event.preventDefault();
-      if (draft.id) void run(() => adminUsersApi.update(config, draft as AdminUser), true);
-      else void run(() => adminUsersApi.create(config, { name: draft.name, email: draft.email, roleIds: draft.roleIds, branchIds: draft.branchIds }), true);
-    }}>
-      <div className="form-grid">
-        <label>User name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
-        <label>User email<input required type="email" disabled={Boolean(draft.id)} value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /><small>{draft.id ? "Email cannot be changed after invitation." : "Cognito will email a temporary password."}</small></label>
-      </div>
-      <fieldset className="assignment-fieldset"><legend>Roles</legend>{directory.roles.map((role) => <label key={role.id}><input type="checkbox" checked={draft.roleIds.includes(role.id)} onChange={() => toggle("roleIds", role.id)} />{role.name}</label>)}</fieldset>
-      <fieldset className="assignment-fieldset"><legend>Permitted branches</legend>{directory.branches.map((branch) => <label key={branch.id}><input type="checkbox" checked={draft.branchIds.includes(branch.id)} onChange={() => toggle("branchIds", branch.id)} />{branch.name}</label>)}</fieldset>
-      <div className="action-row"><button className="primary-action" disabled={busy}>{draft.id ? "Save Changes" : "Invite User"}</button><button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button></div>
-    </form>}
-    {loading ? <p className="empty-state">Loading users…</p> : <div className="record-list">{directory.users.map((item) => <div className="managed-record" key={item.id}>
-      <div><strong>{item.name}</strong><span>{item.email} · {item.roles.map((role) => role.name).join(", ")}</span><span>{item.branches.map((branch) => branch.name).join(", ")} · <b className={`membership-status ${item.status.toLowerCase()}`}>{item.status === "INVITED" ? "Invitation pending" : item.status}</b></span></div>
-      <div className="action-row">
-        {item.status === "INVITED" && <button disabled={busy} onClick={() => void run(() => adminUsersApi.resend(config, item.id))}>Resend invite</button>}
-        <button disabled={busy} onClick={() => { setDraft({ id: item.id, name: item.name, email: item.email, roleIds: item.roleIds, branchIds: item.branchIds, version: item.version }); setEditing(true); }}>Edit</button>
-        <button className="danger-action" disabled={busy || item.id === actorId} title={item.id === actorId ? "You cannot archive your own signed-in account" : undefined} onClick={() => {
-          const reason = window.prompt("Why is this user being archived?");
-          if (reason?.trim()) void run(() => adminUsersApi.archive(config, item.id, reason));
-        }}>Archive</button>
-      </div>
-    </div>)}</div>}
-    {!loading && directory.users.length === 0 && <p className="empty-state">No users found for this business.</p>}
-  </div>;
-}
+// RemoteUserManager (Cognito-backed remote admin UI) was removed with the Cognito auth flow.
+// Task 3 will add a Frappe-backed equivalent against real endpoints when it rewrites
+// admin-users-api.ts; until then, UserManager always renders the local sql.js manager above.
 
 function DuplicateJobSnapshot({ view }: { view: JobView }) {
   return (
@@ -1804,9 +1724,9 @@ function LinkedRecords({ view }: { view: JobView }) {
 
 function CustomerEditor({ value, setValue, mutate, embedded = false, onSaved }: { value: Customer; setValue: (value: Customer) => void; mutate: Mutate; embedded?: boolean; onSaved?: () => void }) {
   return (
-    <form className={embedded ? "" : "desk-panel"} onSubmit={(event) => {
+    <form className={embedded ? "" : "desk-panel"} onSubmit={async (event) => {
       event.preventDefault();
-      if (mutate((db) => (value.id ? updateCustomer(db, value.id, value) : createCustomer(db, value)))) onSaved?.();
+      if (await mutate((db) => (value.id ? updateCustomer(db, value.id, value) : createCustomer(db, value)))) onSaved?.();
     }}>
       {!embedded && <PanelTitle icon={<UserRound />} title="Customer Form" subtitle={value.id ? "Edit selected customer" : "Add customer"} />}
       <label>Customer name<input aria-label="Customer name" required value={value.name} onChange={(event) => setValue({ ...value, name: event.target.value })} /></label>
@@ -1824,9 +1744,9 @@ function CustomerEditor({ value, setValue, mutate, embedded = false, onSaved }: 
 function VehicleMasterPanel({ state, value, setValue, mutate, embedded = false, onSaved }: { state: WorkshopState; value: Vehicle; setValue: (value: Vehicle) => void; mutate: Mutate; embedded?: boolean; onSaved?: () => void }) {
   const [draft, setDraft] = useState<Vehicle>(value);
   return (
-    <form className={embedded ? "" : "desk-panel"} onSubmit={(event) => {
+    <form className={embedded ? "" : "desk-panel"} onSubmit={async (event) => {
       event.preventDefault();
-      if (mutate((db) => (draft.id ? updateVehicle(db, draft.id, draft) : createVehicle(db, draft)))) onSaved?.();
+      if (await mutate((db) => (draft.id ? updateVehicle(db, draft.id, draft) : createVehicle(db, draft)))) onSaved?.();
     }}>
       {!embedded && <PanelTitle icon={<Car />} title="Vehicle Form" subtitle="Vehicle master CRUD" />}
       <select value={draft.id} onChange={(event) => {
@@ -1893,8 +1813,8 @@ function JobEditor({ view, users, mutate, allowStatus }: { view: JobView; users:
   const [statusNote, setStatusNote] = useState("");
   const [lifecycleNote, setLifecycleNote] = useState("");
   const status = view.job.main_status;
-  const runLifecycle = (action: (db: Database, jobId: number, note: string) => void) => {
-    const ok = mutate((db) => action(db, view.job.id, lifecycleNote));
+  const runLifecycle = async (action: (db: Database, jobId: number, note: string) => void) => {
+    const ok = await mutate((db) => action(db, view.job.id, lifecycleNote));
     if (ok) setLifecycleNote("");
   };
   return (
@@ -2096,7 +2016,7 @@ function TaskCreator({ view, users, mutate, onCreated }: { view: JobView; users:
   const [title, setTitle] = useState("");
   const [notes, setNotes] = useState("");
   const technicianId = users.find((item) => item.role === "tech")?.id ?? view.job.technician_id;
-  return <form onSubmit={(event) => { event.preventDefault(); if (mutate((db) => createTask(db, { job_card_id: view.job.id, technician_id: technicianId, title, status: "Pending", notes }))) { setTitle(""); setNotes(""); onCreated?.(); } }}><label>New Task<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Notes<input value={notes} onChange={(event) => setNotes(event.target.value)} /></label><button>Add Task</button></form>;
+  return <form onSubmit={async (event) => { event.preventDefault(); if (await mutate((db) => createTask(db, { job_card_id: view.job.id, technician_id: technicianId, title, status: "Pending", notes }))) { setTitle(""); setNotes(""); onCreated?.(); } }}><label>New Task<input value={title} onChange={(event) => setTitle(event.target.value)} /></label><label>Notes<input value={notes} onChange={(event) => setNotes(event.target.value)} /></label><button>Add Task</button></form>;
 }
 
 function QcEditor({ view, technicianId, mutate }: { view: JobView; technicianId: number; mutate: Mutate }) {
@@ -2751,6 +2671,6 @@ export function money(value: number) {
   return `Rs ${Math.round(value).toLocaleString("en-IN")}`;
 }
 
-export type Mutate = (action: (database: Database) => void) => boolean;
+export type Mutate = (action: (database: Database) => void) => Promise<boolean>;
 
 export default App;

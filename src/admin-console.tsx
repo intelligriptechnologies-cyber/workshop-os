@@ -5,7 +5,6 @@ import { Dialog, DownloadMenu } from "./ui-kit";
 import type { ExportColumn } from "./export-utils";
 import { activeFilterSummary, normalizeSearch, paginate } from "./list-utils";
 import { Info, PanelTitle, ResultPagination, UserManager, roleLabels, type Mutate } from "./App";
-import type { CognitoConfig } from "./auth";
 import {
   ADMIN_PAGE_GROUPS,
   addDemoRole,
@@ -46,7 +45,7 @@ type AdminTab = (typeof ADMIN_TABS)[number];
 
 type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
 
-export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { state: WorkshopState; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig }) {
+export function AdminConsole({ state, mutate, actingUser }: { state: WorkshopState; mutate: Mutate; actingUser: User }) {
   const [tab, setTab] = useState<AdminTab>("Users");
   const [adminState, setAdminState] = useState<AdminDemoState>(() => loadAdminDemoState());
 
@@ -72,7 +71,7 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { sta
             </button>
           ))}
         </div>
-        {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
+        {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} />}
         {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Business Settings" && <BusinessSettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Inventory Import" && <InventoryImportTab adminState={adminState} commit={commit} actingUser={actingUser} state={state} />}
