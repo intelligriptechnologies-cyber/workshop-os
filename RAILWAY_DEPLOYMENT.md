@@ -8,7 +8,7 @@ rewritten for Frappe — it is kept only as a record of the Railway/Postgres dep
 existed while the retired backend was in use. Everything below refers to that retired backend
 and is no longer accurate for the current app.
 
-## Current deployment
+## Deployment as it stood (retired)
 
 - Project: `WorkshopOS`
 - Environment: `Prem-Dev`

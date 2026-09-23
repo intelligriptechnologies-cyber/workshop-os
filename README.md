@@ -41,7 +41,15 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:5173](http://localhost:5173). The frontend talks to the Frappe site over `http://localhost:8000` (see `src/auth.ts`'s `frappeFetch`), using cookie-based sessions — the Frappe site's `allow_cors` config must include `http://localhost:5173` (already configured on `workshop_os.localhost`, see `docs/adr/0004-session-cookie-auth.md`).
+Open [http://localhost:5173](http://localhost:5173). The frontend talks to the Frappe site over `http://localhost:8000` (see `src/auth.ts`'s `frappeFetch`), using cookie-based sessions — the Frappe site's `allow_cors` config must include `http://localhost:5173` (already configured on `workshop_os.localhost`; see Task 1's setup and `docs/adr/0004-session-cookie-auth.md` for why session cookies over Cognito).
+
+`npm run dev` builds against Frappe (`mode: "frappe"`) by default and needs the bench above running. To run the browser-local demo PWA instead (`sql.js` data, no bench required — see "Current PWA management and search" below), build with `VITE_AUTH_MODE=local` set (it's read at build time, not serve time):
+
+```powershell
+$env:VITE_AUTH_MODE = "local"
+npm run build
+npm run preview
+```
 
 Other useful commands:
 
