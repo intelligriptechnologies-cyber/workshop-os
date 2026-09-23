@@ -263,6 +263,12 @@ function App() {
             };
             setUser(authenticatedUser);
             setActiveMenuItem(roleMenus[role][0].label);
+          } else if (session) {
+            // A live Frappe session cookie exists but carries no recognized WorkshopOS role —
+            // same bug handleLogin's frappe branch was fixed for above: don't leave the session
+            // dangling server-side while the UI just shows a bare login screen with no explanation.
+            await frappeLogout();
+            setLoginError("Invalid email or password.");
           }
         } catch (error) {
           setLoginError(apiErrorMessage(error));
