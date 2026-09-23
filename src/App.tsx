@@ -205,8 +205,9 @@ function workshopRole(names: string[]): Role | undefined {
   return ROLE_PRIORITY.find((role) => names.includes(role));
 }
 
-// Codes are Frappe's `exc_type` (see admin-users-api.ts's `call` helper) for the admin console's
-// Frappe-backed user directory (Task 3), not the old Cognito-backed codes this replaced.
+// Codes are Frappe's `exc_type` (see admin-users-api.ts's `call` helper) for the admin
+// console's Frappe-backed user directory (Task 3) — a different error-code namespace than
+// the retired transport this replaced.
 const apiErrors: Record<string, string> = {
   PermissionError: "You do not have permission to manage users.",
   DuplicateEntryError: "That email already belongs to a WorkshopOS account.",

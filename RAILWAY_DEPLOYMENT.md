@@ -1,4 +1,12 @@
-# Railway deployment notes
+# Railway deployment notes (historical)
+
+**This document is historical.** It describes the Postgres/Node/Cognito backend that has been
+retired — see `docs/adr/0001-frappe-replaces-custom-backend.md`. WorkshopOS's backend is now
+Frappe, running on a local WSL2/Docker Desktop bench; see `README.md`'s "Run the Frappe backend"
+section. No Frappe-backed deployment target has been decided yet, so this file is not being
+rewritten for Frappe — it is kept only as a record of the Railway/Postgres deployment that
+existed while the retired backend was in use. Everything below refers to that retired backend
+and is no longer accurate for the current app.
 
 ## Current deployment
 

@@ -3,61 +3,61 @@
 WorkshopOS currently contains two local surfaces:
 
 - The existing React PWA demonstrates the complete role-based workshop journey with browser-local `sql.js` data.
-- The production foundation exposes a real PostgreSQL-backed `/api/v1` vertical with forced tenant/branch row-level security, idempotency, audit, and outbox persistence.
+- Login and user management are wired to a real Frappe backend (a `workshop_os` app forked from `hyperflow_forge`, running on the same Frappe bench). See `docs/adr/0001-frappe-replaces-custom-backend.md` for why Frappe replaced the earlier custom Postgres/Node backend.
 
-## Run locally with Docker
+## Run the Frappe backend (WSL2 + Docker Desktop)
 
-Prerequisite: Docker Desktop with the Linux engine running.
+Prerequisite: Docker Desktop with WSL2 integration enabled for your Ubuntu distro, and the `hyperflow-forge/frappe_docker` bench already cloned inside WSL (`~/hyperflow-forge/frappe_docker`).
+
+Bring up the bench containers and start the dev webserver scoped to the `workshop_os.localhost` site:
+
+```bash
+wsl -d Ubuntu -- bash -lc 'cd ~/hyperflow-forge/frappe_docker && docker compose -f docker-compose.dev.yml up -d'
+
+wsl -d Ubuntu -- bash -lc 'cd ~/hyperflow-forge/frappe_docker && docker compose -f docker-compose.dev.yml exec -d -e FRAPPE_SITE=workshop_os.localhost frappe bash -lc "cd /workspace/development/frappe-bench && nohup bench start > /tmp/bench-start.log 2>&1 &"'
+```
+
+Wait ~10-15s for `bench start` to finish booting, then verify:
+
+```bash
+curl -i -X POST -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "usr=Administrator&pwd=<admin password>" http://localhost:8000/api/method/login
+```
+
+A `200 OK` with a `Set-Cookie: sid=...` header confirms the site is up and reachable at `http://localhost:8000`.
+
+**Important**: this webserver is a backgrounded process with no supervisor — it does not survive a container restart, `docker compose down`, or a Docker Desktop restart. Re-run the start command above whenever the bench comes back up. The bench's dev server can only serve one site's HTTP traffic at a time (`FRAPPE_SITE` picks it); restarting without that variable falls back to `development.localhost` (`hyperflow_forge`'s own site) instead of `workshop_os.localhost`.
+
+To stop the webserver:
+
+```bash
+wsl -d Ubuntu -- bash -lc 'cd ~/hyperflow-forge/frappe_docker && docker compose -f docker-compose.dev.yml exec frappe bash -lc "pkill -f honcho"'
+```
+
+## Run the frontend dev server
 
 ```powershell
 npm install
-npm run local:up
-npm run local:test
+npm run dev
 ```
 
-Open [http://localhost:4173](http://localhost:4173). The same container serves:
+Open [http://localhost:5173](http://localhost:5173). The frontend talks to the Frappe site over `http://localhost:8000` (see `src/auth.ts`'s `frappeFetch`), using cookie-based sessions — the Frappe site's `allow_cors` config must include `http://localhost:5173` (already configured on `workshop_os.localhost`, see `docs/adr/0004-session-cookie-auth.md`).
 
-- PWA: `http://localhost:4173/`
-- Database health: `http://localhost:4173/health`
-- Local API: `http://localhost:4173/api/v1`
-- PostgreSQL: `localhost:5432`
-
-The migration runner applies all files in `production/db/migrations` in filename order, records SHA-256 checksums in `public.schema_migrations`, rejects changed applied migrations, and grants runtime access to a non-superuser, non-`BYPASSRLS` role.
-
-Useful commands:
+Other useful commands:
 
 ```powershell
-npm run local:logs       # follow API/migration logs
-npm run local:test       # real DB/API isolation smoke test
-npm run test:production  # deterministic production contract suite
-npm run test:e2e         # browser journey tests
-npm run local:down       # stop containers; preserve DB volume
+npm run build      # typecheck + production build
+npm run preview    # serve the built bundle
+npm run test:e2e   # Playwright suite (excludes tests/frappe-auth.spec.ts by default — see below)
+npm run test:unit  # unit tests
 ```
 
-To intentionally delete all local PostgreSQL data and rerun from an empty database:
+To run the real-Frappe auth/role suite against a live bench (all six roles' menus), start the bench per the section above, then:
 
 ```powershell
-docker compose down -v
-npm run local:up
+$env:FRAPPE_TEST=1
+npx playwright test tests/frappe-auth.spec.ts
 ```
-
-The Compose passwords and demo identity header are development-only credentials. They must not be reused outside this local stack.
-
-## Local API example
-
-```powershell
-$headers = @{
-  "x-workshopos-identity" = "north-reception"
-  "idempotency-key" = "intake-001"
-  "content-type" = "application/json"
-}
-$body = '{"branchId":"00000000-0000-4000-8000-000000000011","summary":"Inspect incoming vehicle"}'
-Invoke-RestMethod -Method Post -Uri http://localhost:4173/api/v1/work-items -Headers $headers -Body $body
-```
-
-The API derives tenant and branch scope from the authenticated PostgreSQL membership; client-supplied tenant IDs and editable Cognito claims are never authorization inputs. In Cognito mode, login and User Management are global/server-backed while the other rich journey screens remain browser-local for this phase. Connecting those remaining screens to PostgreSQL is incremental application-runtime work.
-
-Production authentication uses Cognito managed login with authorization-code/PKCE. The Node API verifies access-token signature, expiry, user-pool ID, app-client ID, and `token_use` with `aws-jwt-verify`, then resolves roles, branches, and permissions from PostgreSQL. See `RAILWAY_DEPLOYMENT.md` for pool, IAM, initial-Admin, and rollout configuration.
 
 ## Current PWA management and search
 
@@ -65,6 +65,10 @@ The browser-local PWA now includes an Admin **Manage** hub for users, customers,
 
 Shared Jobs, Customers, Vehicles, and Media list pages provide search, filters, grid/table views, result ranges, and responsive pagination. The global Search screen supports entity category and job-status filters, a result count, Clear, and an explicit no-results state.
 
-The rich screens and their new management/search features still persist only in browser-local `sql.js`. They are not evidence that the PWA has been migrated to PostgreSQL.
+The rich screens and their new management/search features still persist only in browser-local `sql.js`. Only login and user management are backed by Frappe today; migrating the remaining modules is incremental application-runtime work.
 
 UI programme details and verification evidence are recorded in `UI_ENHANCEMENT_PLAN_v1.0.0.md` and `UI_ENHANCEMENT_CHECKLIST_v1.0.0.md`.
+
+## Deployment
+
+There is no decided Frappe-backed deployment target yet — the bench above is a local dev environment only. The earlier Railway/Postgres deployment (`RAILWAY_DEPLOYMENT.md`) is retired along with the backend it deployed; see that file's historical note and `docs/adr/0001-frappe-replaces-custom-backend.md`.
