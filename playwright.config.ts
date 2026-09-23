@@ -10,6 +10,12 @@ const host = isFrappeAuthRun ? "localhost" : "127.0.0.1";
 
 export default defineConfig({
   testDir: "./tests",
+  // A bare `npx playwright test` (no FRAPPE_TEST=1) must stay green: it serves the mocked/local
+  // suite's build (VITE_AUTH_MODE=local), so tests/frappe-auth.spec.ts — which logs in with real
+  // Frappe emails against a real backend — would fail there for a build-mismatch reason, not a
+  // real one. Excluded from the default run and only collected when FRAPPE_TEST=1.
+  testIgnore: isFrappeAuthRun ? undefined : "**/frappe-auth.spec.ts",
+  testMatch: isFrappeAuthRun ? "**/frappe-auth.spec.ts" : undefined,
   use: {
     baseURL: `http://${host}:${port}`,
     trace: "on-first-retry",

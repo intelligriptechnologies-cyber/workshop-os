@@ -346,6 +346,10 @@ function App() {
         const session = await frappeLogin(email, password);
         const role = workshopRole(session.roles);
         if (!role) {
+          // frappeLogin already succeeded (a live sid cookie exists) before this check — an
+          // unrecognized-role login must not leave a dangling authenticated Frappe session while
+          // the UI claims "invalid credentials", so log the session back out before returning.
+          await frappeLogout();
           setLoginError("Invalid email or password.");
           return;
         }
