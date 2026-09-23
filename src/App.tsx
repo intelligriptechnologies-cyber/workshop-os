@@ -100,6 +100,7 @@ import type { ExportColumn } from "./export-utils";
 import { frappeLogin, frappeLogout, loadAuthConfig, loadFrappeSession, type AuthConfig } from "./auth";
 import { Dialog, DownloadMenu } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
+import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
 import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey } from "./admin-demo-state";
 
 export const roleLabels: Record<Role, string> = {
@@ -204,16 +205,12 @@ function workshopRole(names: string[]): Role | undefined {
   return ROLE_PRIORITY.find((role) => names.includes(role));
 }
 
+// Codes are Frappe's `exc_type` (see admin-users-api.ts's `call` helper) for the admin console's
+// Frappe-backed user directory (Task 3), not the old Cognito-backed codes this replaced.
 const apiErrors: Record<string, string> = {
-  EMAIL_EXISTS: "That email already belongs to a WorkshopOS account.",
-  ROLE_NOT_FOUND: "One of the selected roles is no longer available.",
-  BRANCH_FORBIDDEN: "You cannot assign one of the selected branches.",
-  FINAL_ADMIN_REQUIRED: "The final active Admin must remain assigned.",
-  SELF_ARCHIVE_FORBIDDEN: "You cannot archive your own signed-in account.",
-  QUOTA_EXCEEDED: "This business has reached its user quota.",
-  VERSION_CONFLICT: "This user changed elsewhere. The latest details have been loaded.",
-  IDENTITY_PROVIDER_ERROR: "Cognito could not complete the request. Try again.",
-  MEMBERSHIP_REQUIRED: "Your account does not have an active WorkshopOS membership.",
+  PermissionError: "You do not have permission to manage users.",
+  DuplicateEntryError: "That email already belongs to a WorkshopOS account.",
+  ValidationError: "One of the selected roles is no longer available.",
 };
 
 function apiErrorMessage(error: unknown) {
@@ -1636,6 +1633,12 @@ function BillingDeliveryManager({ state, view, mutate, setSelectedJobId }: { sta
 }
 
 export function UserManager({ users, mutate, actingUser }: { users: User[]; mutate: Mutate; actingUser: User }) {
+  // `externalAuth` is set exactly when this session authenticated against the real Frappe
+  // backend (Task 2's frappeLogin/loadFrappeSession), as opposed to the local sql.js demo login -
+  // that's the signal for which user directory is "real" here, without threading AuthConfig
+  // through Admin/ManagementHub/AdminConsole just for this one panel.
+  if (actingUser.externalAuth) return <FrappeUserManager actorEmail={actingUser.externalId ?? actingUser.email} />;
+
   const empty: User = { id: 0, name: "", email: "", role: "service", password: "" };
   const [draft, setDraft] = useState<User>(empty);
   const [editing, setEditing] = useState(false);
@@ -1692,9 +1695,88 @@ export function UserManager({ users, mutate, actingUser }: { users: User[]; muta
   );
 }
 
-// RemoteUserManager (Cognito-backed remote admin UI) was removed with the Cognito auth flow.
-// Task 3 will add a Frappe-backed equivalent against real endpoints when it rewrites
-// admin-users-api.ts; until then, UserManager always renders the local sql.js manager above.
+type FrappeUserDraft = Pick<AdminUser, "id" | "name" | "email" | "roleIds" | "branchIds" | "version">;
+
+function FrappeUserManager({ actorEmail }: { actorEmail: string }) {
+  const [directory, setDirectory] = useState<AdminDirectory>({ users: [], roles: [], branches: [] });
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState<FrappeUserDraft>({ id: "", name: "", email: "", roleIds: [], branchIds: [], version: 0 });
+
+  const refresh = async (quiet = false) => {
+    if (!quiet) setLoading(true);
+    try {
+      setDirectory(await adminUsersApi.list());
+      setError("");
+    } catch (nextError) {
+      setError(apiErrorMessage(nextError));
+    } finally {
+      if (!quiet) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    const interval = window.setInterval(() => void refresh(true), 30_000);
+    const onFocus = () => void refresh(true);
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, []);
+
+  const run = async (action: () => Promise<unknown>, closeEditor = false) => {
+    setBusy(true);
+    setError("");
+    try {
+      await action();
+      if (closeEditor) setEditing(false);
+      await refresh(true);
+    } catch (nextError) {
+      setError(apiErrorMessage(nextError));
+    } finally { setBusy(false); }
+  };
+
+  const toggle = (kind: "roleIds" | "branchIds", id: string) => {
+    const current = draft[kind];
+    setDraft({ ...draft, [kind]: current.includes(id) ? current.filter((item) => item !== id) : [...current, id] });
+  };
+
+  const startNew = () => {
+    setDraft({ id: "", name: "", email: "", roleIds: directory.roles[0] ? [directory.roles[0].id] : [], branchIds: [], version: 0 });
+    setEditing(true);
+    setError("");
+  };
+
+  return <div className="manager-panel" role="tabpanel">
+    <div className="panel-actions"><div><h3>Users</h3><span>Accounts are managed directly against the Frappe backend.</span></div><button className="primary-action" onClick={startNew}>Add User</button></div>
+    {error && <div className="api-error" role="alert">{error}<button onClick={() => void refresh()}>Retry</button></div>}
+    {editing && <form onSubmit={(event) => {
+      event.preventDefault();
+      if (draft.id) void run(() => adminUsersApi.update(draft as AdminUser), true);
+      else void run(() => adminUsersApi.create({ name: draft.name, email: draft.email, roleIds: draft.roleIds, branchIds: draft.branchIds }), true);
+    }}>
+      <div className="form-grid">
+        <label>User name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+        <label>User email<input required type="email" disabled={Boolean(draft.id)} value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /><small>{draft.id ? "Email cannot be changed after creation." : "A default WorkshopOS password is set; share it with the new user directly."}</small></label>
+      </div>
+      <fieldset className="assignment-fieldset"><legend>Roles</legend>{directory.roles.map((role) => <label key={role.id}><input type="checkbox" checked={draft.roleIds.includes(role.id)} onChange={() => toggle("roleIds", role.id)} />{roleLabels[role.id as Role] ?? role.name}</label>)}</fieldset>
+      <fieldset className="assignment-fieldset"><legend>Branch assignment</legend>{directory.branches.map((branch) => <label key={branch.id}><input type="checkbox" checked={draft.branchIds.includes(branch.id)} onChange={() => toggle("branchIds", branch.id)} />{branch.name}</label>)}</fieldset>
+      <div className="action-row"><button className="primary-action" disabled={busy}>{draft.id ? "Save Changes" : "Create User"}</button><button type="button" disabled={busy} onClick={() => setEditing(false)}>Cancel</button></div>
+    </form>}
+    {loading ? <p className="empty-state">Loading users…</p> : <div className="record-list">{directory.users.map((item) => <div className="managed-record" key={item.id}>
+      <div><strong>{item.name}</strong><span>{item.email} · {item.roles.map((role) => roleLabels[role.id as Role] ?? role.name).join(", ")}</span><span>{item.branches.map((branch) => branch.name).join(", ") || "No branch assigned"} · <b className={`membership-status ${item.status.toLowerCase()}`}>{item.status}</b></span></div>
+      <div className="action-row">
+        <button disabled={busy} onClick={() => { setDraft({ id: item.id, name: item.name, email: item.email, roleIds: item.roleIds, branchIds: item.branchIds, version: item.version }); setEditing(true); }}>Edit</button>
+        <button className="danger-action" disabled={busy || item.id === actorEmail || item.status === "ARCHIVED"} title={item.id === actorEmail ? "You cannot archive your own signed-in account" : undefined} onClick={() => {
+          const reason = window.prompt("Why is this user being archived?");
+          if (reason?.trim()) void run(() => adminUsersApi.archive(item.id, reason));
+        }}>Archive</button>
+      </div>
+    </div>)}</div>}
+    {!loading && directory.users.length === 0 && <p className="empty-state">No users found.</p>}
+  </div>;
+}
 
 function DuplicateJobSnapshot({ view }: { view: JobView }) {
   return (

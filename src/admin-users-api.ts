@@ -13,28 +13,27 @@ export class AdminApiError extends Error {
   constructor(readonly code: string) { super(code); }
 }
 
-// NOTE: these `/api/v1/admin/users*` paths are the old Cognito-era backend and do not exist on
-// the Frappe site yet. Task 3 rewrites this module's endpoints against Frappe; this task only
-// keeps the transport (frappeFetch, session-cookie based, no per-call config) compiling.
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const response = await frappeFetch(path, init);
-  const payload = await response.json() as T & { code?: string };
-  if (!response.ok) throw new AdminApiError(payload.code ?? "API_FAILED");
-  return payload;
+// Calls Frappe's whitelisted `workshop_os.workshopos.api_users.*` controller methods (Task 3),
+// not raw `/api/resource/User` writes: the six custom Roles from Task 1 carry no Frappe doctype
+// permissions of their own, so those methods self-check the caller holds the `admin` Role and
+// perform the write with ignore_permissions=True server-side. See that module's docstring.
+async function call<T>(method: string, args?: Record<string, unknown>): Promise<T> {
+  const response = await frappeFetch(`/api/method/workshop_os.workshopos.api_users.${method}`, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify(args ?? {}),
+  });
+  const payload = await response.json().catch(() => ({})) as { message?: T; exc_type?: string };
+  if (!response.ok) throw new AdminApiError(payload.exc_type ?? "API_FAILED");
+  return payload.message as T;
 }
 
 export const adminUsersApi = {
-  list: () => request<AdminDirectory>("/api/v1/admin/users"),
+  list: () => call<AdminDirectory>("list_users"),
   create: (input: { name: string; email: string; roleIds: string[]; branchIds: string[] }) =>
-    request<{ user: AdminUser }>("/api/v1/admin/users", {
-      method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify(input),
-    }),
-  update: (user: AdminUser) => request<{ user: AdminUser }>(`/api/v1/admin/users/${user.id}`, {
-    method: "PATCH", headers: { "content-type": "application/json" },
-    body: JSON.stringify({ name: user.name, roleIds: user.roleIds, branchIds: user.branchIds, version: user.version }),
+    call<{ user: AdminUser }>("create_user", input),
+  update: (user: AdminUser) => call<{ user: AdminUser }>("update_user", {
+    id: user.id, name: user.name, roleIds: user.roleIds, branchIds: user.branchIds,
   }),
-  archive: (id: string, reason: string) => request<{ user: AdminUser }>(`/api/v1/admin/users/${id}/archive`, {
-    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason }),
-  }),
-  resend: (id: string) => request<{ user: AdminUser }>(`/api/v1/admin/users/${id}/resend-invite`, { method: "POST" }),
+  archive: (id: string, reason: string) => call<{ user: AdminUser }>("archive_user", { id, reason }),
 };
