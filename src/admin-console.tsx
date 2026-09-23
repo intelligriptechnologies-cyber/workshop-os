@@ -4,7 +4,7 @@ import type { User, WorkshopState } from "./types";
 import { Dialog, DownloadMenu } from "./ui-kit";
 import type { ExportColumn } from "./export-utils";
 import { activeFilterSummary, normalizeSearch, paginate } from "./list-utils";
-import { Info, PanelTitle, ResultPagination, UserManager, roleLabels, type Mutate } from "./App";
+import { Info, PanelTitle, ResultPagination, UsersPanel, roleLabels, type Mutate } from "./App";
 import {
   ADMIN_PAGE_GROUPS,
   addDemoRole,
@@ -71,7 +71,7 @@ export function AdminConsole({ state, mutate, actingUser }: { state: WorkshopSta
             </button>
           ))}
         </div>
-        {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} />}
+        {tab === "Users" && <UsersPanel users={state.users} mutate={mutate} actingUser={actingUser} />}
         {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Business Settings" && <BusinessSettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Inventory Import" && <InventoryImportTab adminState={adminState} commit={commit} actingUser={actingUser} state={state} />}

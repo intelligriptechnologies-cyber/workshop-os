@@ -1513,7 +1513,7 @@ function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId }
         <div className="management-tabs" role="tablist" aria-label="Management areas">
           {managementAreas.map((item) => <button key={item} role="tab" aria-selected={area === item} className={area === item ? "active" : ""} onClick={() => setArea(item)}>{item}</button>)}
         </div>
-        {area === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} />}
+        {area === "Users" && <UsersPanel users={state.users} mutate={mutate} actingUser={actingUser} />}
         {area === "Customers" && <CustomerManager customers={state.customers} mutate={mutate} />}
         {area === "Vehicles" && <VehicleManager state={state} mutate={mutate} />}
         {area === "Visits / Jobs" && <VisitJobManager state={state} mutate={mutate} actingUser={actingUser} selected={selected} setSelectedJobId={setSelectedJobId} />}
@@ -1632,13 +1632,19 @@ function BillingDeliveryManager({ state, view, mutate, setSelectedJobId }: { sta
   return <div className="manager-panel" role="tabpanel"><div className="panel-actions"><h3>Billing / Delivery</h3><span className="override-badge">Reasoned voids preserve financial history</span></div><div className="sub-tabs" aria-label="Billing actions">{(["Invoice", "Payment", "Delivery"] as const).map((item) => <button key={item} className={mode === item ? "active" : ""} onClick={() => setMode(item)}>{item}</button>)}</div>{view ? <Accounts activeMenuItem={mode} state={state} view={view} mutate={mutate} setSelectedJobId={setSelectedJobId} /> : <p className="empty-state">Select a job first.</p>}</div>;
 }
 
-export function UserManager({ users, mutate, actingUser }: { users: User[]; mutate: Mutate; actingUser: User }) {
-  // `externalAuth` is set exactly when this session authenticated against the real Frappe
-  // backend (Task 2's frappeLogin/loadFrappeSession), as opposed to the local sql.js demo login -
-  // that's the signal for which user directory is "real" here, without threading AuthConfig
-  // through Admin/ManagementHub/AdminConsole just for this one panel.
+// `externalAuth` is set exactly when this session authenticated against the real Frappe backend
+// (Task 2's frappeLogin/loadFrappeSession), as opposed to the local sql.js demo login - that's
+// the signal for which user directory is "real" here, without threading AuthConfig through
+// Admin/ManagementHub/AdminConsole just for this one panel. The branch lives in this wrapper
+// (not inside UserManager's own body) because UserManager calls useState/etc. unconditionally;
+// an early return before those hooks would violate the Rules of Hooks if actingUser.externalAuth
+// ever changed while the component stayed mounted.
+export function UsersPanel({ users, mutate, actingUser }: { users: User[]; mutate: Mutate; actingUser: User }) {
   if (actingUser.externalAuth) return <FrappeUserManager actorEmail={actingUser.externalId ?? actingUser.email} />;
+  return <UserManager users={users} mutate={mutate} actingUser={actingUser} />;
+}
 
+function UserManager({ users, mutate, actingUser }: { users: User[]; mutate: Mutate; actingUser: User }) {
   const empty: User = { id: 0, name: "", email: "", role: "service", password: "" };
   const [draft, setDraft] = useState<User>(empty);
   const [editing, setEditing] = useState(false);
