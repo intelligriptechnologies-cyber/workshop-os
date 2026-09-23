@@ -1,4 +1,48 @@
-# WorkshopOS — reference-based list-view notes
+# WorkshopOS
+
+A role-based management system for a car-repair/service workshop, modeling the job-card lifecycle from vehicle intake to delivery and payment.
+
+## Language
+
+**JobCard**:
+The central unit of work: one vehicle's visit through the workshop, from intake to delivery. Carries `main_status` (the coarse lifecycle stage) and `sub_status` (the granular shop-floor step within that stage).
+_Avoid_: Ticket, Work Order, Service Card (the last is hyperflow_forge's term for its own, differently-shaped entity — see the note under Estimate below).
+
+**Visit**:
+The record of a vehicle's physical check-in at reception — fuel level, keys, accessories, requested work — created once per JobCard at intake.
+_Avoid_: Intake, Check-in (used as verbs for the *action*; Visit is the noun for the record it produces).
+
+**main_status**:
+The coarse JobCard lifecycle stage: NEW → IN_PROGRESS → COMPLETED → {HOLD, CLOSED}, with HOLD ↔ {IN_PROGRESS, CANCELLED} and CANCELLED → (reopen) → IN_PROGRESS. CLOSED is terminal. Transitions outside this graph are rejected.
+_Avoid_: Status (too vague — always qualify as main_status or sub_status).
+
+**sub_status**:
+The fine-grained shop-floor step within a main_status (e.g. "Material Issued", "QC Pending", "Gate Pass Generated") — mirrors the actual physical process a JobCard moves through.
+_Avoid_: Stage, Phase.
+
+**Estimate**:
+The advisor-drafted, customer-approved cost breakdown that gates a JobCard's progress from diagnosis into material/work phases. Distinct from hyperflow_forge's `Quotation` (an ERPNext-native sales document its own `WorkshopServiceCard` links to for the equivalent approval gate) — WorkshopOS's Estimate is its own doctype, not a reuse of Quotation.
+_Avoid_: Quotation (reserved for hyperflow_forge's ERPNext entity), Quote.
+
+**MaterialRequest**:
+A request for parts against a JobCard, tracked through request → issue → reconcile, where reconcile splits issued quantity into used/returned/wasted. Logged via MaterialMovement entries.
+_Avoid_: Parts Request, Material Issue (issue is a state MaterialRequest passes through, not its name).
+
+**MaterialMovement**:
+An audit-log entry for any stock quantity change (issue, return, waste, stock-in, adjustment) tied to an InventoryItem and, where applicable, a JobCard.
+_Avoid_: Stock Entry (ERPNext's term — WorkshopOS's model is deliberately lighter-weight).
+
+**StatusHistory**:
+The append-only audit trail of every main_status/sub_status transition a JobCard has been through — also the source data for turnaround-time (TAT) metrics.
+_Avoid_: Status Log, Audit Trail (StatusHistory is the canonical name; hyperflow_forge's equivalent field is literally named `status_log`, a naming collision to keep in mind when cross-referencing the two systems).
+
+**Reception intake**:
+The atomic operation that finds-or-creates a Customer and Vehicle, opens a Visit, and creates the JobCard in one transaction — nothing partially commits.
+_Avoid_: Check-in (a UI label for this operation, not the domain term).
+
+**closureBlockers**:
+The set of unmet conditions (e.g. unpaid balance, open QC failures) that prevent a JobCard from being closed. Computed, not stored.
+_Avoid_: Validation errors (closureBlockers are domain-level gating conditions, not form validation).
 
 ## Purpose and constraints
 
