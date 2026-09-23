@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
 // Exercises the real Task 1 Frappe site (http://localhost:8000, workshop_os.localhost) — no
-// route mocking. Requires the bench webserver to be running (see task-2-brief.md) and the six
+// route mocking. Requires the bench webserver to be running (see task-2-brief.md) and the seven
 // throwaway test users below to exist, created via `bench --site workshop_os.localhost console`:
 //
 //   import frappe
@@ -14,7 +14,10 @@ import { expect, test, type Page } from "@playwright/test";
 //           u.add_roles(role)
 //   frappe.db.commit()
 //
-// and tech@workshop-os.local archived (User.enabled = 0) for the archived-user-rejection test.
+// tech@workshop-os.local is archived (User.enabled = 0) for the archived-user-rejection test, so
+// tech-active@workshop-os.local (same "tech" role, enabled=1, identical creation snippet with a
+// different email) exists purely so roleMenus.tech is covered by a committed test too, not just
+// a one-off manual check.
 //
 // Run with: FRAPPE_TEST=1 npx playwright test tests/frappe-auth.spec.ts
 
@@ -26,6 +29,7 @@ const roles = [
   ["reception@workshop-os.local", ["Receive Vehicle", "Today Queue", "Customers", "Vehicles", "Search"]],
   ["accounts@workshop-os.local", ["Ready To Invoice", "Invoice", "Payment", "Delivery", "Search"]],
   ["store@workshop-os.local", ["Material Requests", "Issue Material", "Reconcile", "Stock", "Search"]],
+  ["tech-active@workshop-os.local", ["My Tasks", "Work Update", "QC Prep", "Search"]],
 ] as const;
 
 async function login(page: Page, email: string, password: string) {
