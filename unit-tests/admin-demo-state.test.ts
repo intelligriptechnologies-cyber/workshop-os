@@ -12,12 +12,14 @@ import {
   enforceLogRetention,
   filterDemoLogs,
   loadAdminDemoState,
+  normalizeBusinessSettings,
   resetAdminDemoState,
   resolvePermittedPages,
   saveAdminDemoState,
   updateBusinessSettings,
   updateDemoRole,
   updateRolePageAccess,
+  validateBusinessSettings,
   type SessionStorageLike,
 } from "../src/admin-demo-state";
 
@@ -43,6 +45,7 @@ test("defaults represent all six WorkshopOS roles and current menu pages", () =>
   const state = createDefaultAdminDemoState(NOW);
   assert.deepEqual(state.roles.map((role) => role.id), ["admin", "service", "reception", "accounts", "store", "tech"]);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Admin Console"), true);
+  assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).find((page) => page.key === "jobs")?.label, "Job Cards");
   assert.deepEqual(resolvePermittedPages(state, "store"), ["material-requests", "issue-material", "reconcile", "stock", "search"]);
   assert.equal(resolvePermittedPages(state, "admin").includes("admin-console"), true);
 });
@@ -58,6 +61,55 @@ test("session persistence is versioned, recoverable and resettable", () => {
   assert.equal(loadAdminDemoState(storage, NOW).roles.length, 6);
   resetAdminDemoState(storage, NOW);
   assert.equal(storage.values.has(ADMIN_DEMO_STORAGE_KEY), false);
+});
+
+test("fresh billing settings contain valid tax and payment instructions", () => {
+  const settings = createDefaultAdminDemoState(NOW).businessSettings;
+  assert.equal(validateBusinessSettings(settings).length, 0);
+  assert.equal(settings.billing.gstin, "21ABCDE1234F1Z5");
+  assert.equal(settings.billing.bankAccountNumber.startsWith("00"), true);
+  assert.match(settings.billing.upiId, /@/);
+  assert.equal("gstin" in settings.profile, false);
+});
+
+test("older session GSTIN migrates to billing without replacing custom state", () => {
+  const storage = new MemorySessionStorage();
+  const old = createDefaultAdminDemoState(NOW) as unknown as Record<string, unknown>;
+  const businessSettings = old.businessSettings as Record<string, Record<string, unknown>>;
+  businessSettings.profile.gstin = "29ABCDE1234F1Z7";
+  delete businessSettings.billing.gstin;
+  businessSettings.billing.bankName = "Existing Bank";
+  const templates = old.reportTemplates as Array<{ html: string }>;
+  templates[0].html = "<h1>Custom {{report.number}}</h1>";
+  storage.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(old));
+
+  const hydrated = loadAdminDemoState(storage, NOW);
+  assert.equal(hydrated.businessSettings.billing.gstin, "29ABCDE1234F1Z7");
+  assert.equal(hydrated.businessSettings.billing.bankName, "Existing Bank");
+  assert.equal("gstin" in hydrated.businessSettings.profile, false);
+  assert.equal(hydrated.reportTemplates[0].html, "<h1>Custom {{report.number}}</h1>");
+});
+
+test("business settings normalization trims values, preserves account zeros and uppercases identifiers", () => {
+  const original = createDefaultAdminDemoState(NOW).businessSettings;
+  const normalized = normalizeBusinessSettings({
+    ...original,
+    profile: { ...original.profile, businessName: "  Apex Auto  " },
+    billing: { ...original.billing, gstin: " 21abcde1234f1z5 ", bankIfsc: " sbin0001234 ", bankAccountNumber: " 001234 " },
+  });
+  assert.equal(normalized.profile.businessName, "Apex Auto");
+  assert.equal(normalized.billing.gstin, "21ABCDE1234F1Z5");
+  assert.equal(normalized.billing.bankIfsc, "SBIN0001234");
+  assert.equal(normalized.billing.bankAccountNumber, "001234");
+});
+
+test("billing validation reports GSTIN, IFSC and UPI errors independently", () => {
+  const settings = createDefaultAdminDemoState(NOW).businessSettings;
+  const errors = validateBusinessSettings({ ...settings, billing: { ...settings.billing, gstin: "bad", bankIfsc: "bad", upiId: "bad" } });
+  assert.equal(errors.some((error) => error.startsWith("GSTIN")), true);
+  assert.equal(errors.some((error) => error.startsWith("IFSC")), true);
+  assert.equal(errors.some((error) => error.startsWith("UPI ID")), true);
+  assert.equal(validateBusinessSettings({ ...settings, billing: { ...settings.billing, gstin: "", bankIfsc: "", upiId: "" } }).length, 0);
 });
 
 test("custom role helpers are immutable and preserve role mappings", () => {

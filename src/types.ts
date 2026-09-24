@@ -1,6 +1,8 @@
 export type Role = "admin" | "service" | "reception" | "accounts" | "store" | "tech";
 
-export type MainStatus = "NEW" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "HOLD" | "CANCELLED";
+export type MainStatus = "NEW" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "CANCELLED";
+
+export type ChecklistStage = Exclude<MainStatus, "CANCELLED">;
 
 export type SubStatus =
   | "Gather Requirements"
@@ -23,6 +25,7 @@ export type SubStatus =
 export type TaskStatus = "Pending" | "Started" | "Paused" | "Completed";
 export type QcStatus = "Pending" | "Pass" | "Fail";
 export type PaymentStatus = "Pending" | "Partial" | "Paid";
+export type PaymentMode = "UPI" | "Cash" | "Card" | "Other";
 export type ViewMode = "grid" | "table";
 
 export interface ListQuery {
@@ -259,10 +262,30 @@ export interface Invoice {
   job_card_id: number;
   invoice_no: string;
   tally_invoice_no: string;
+  discount: number;
+  gst_rate: number;
+  subtotal: number;
+  gst_amount: number;
   total: number;
-  status: "Draft" | "Generated";
+  status: "Open" | "Partial" | "Cleared";
+  notes: string;
+  document_available: number;
+  document_generated_at?: string;
   voided_at?: string;
   void_reason?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface InvoiceItem {
+  id: number;
+  invoice_id: number;
+  kind: "Service" | "Material";
+  description: string;
+  qty: number;
+  rate: number;
+  archived_at?: string;
+  archived_reason?: string;
   created_at?: string;
   updated_at?: string;
 }
@@ -270,9 +293,12 @@ export interface Invoice {
 export interface Payment {
   id: number;
   job_card_id: number;
+  invoice_id: number;
   amount: number;
-  mode: string;
+  mode: PaymentMode;
   reference: string;
+  notes: string;
+  other_detail: string;
   voided_at?: string;
   void_reason?: string;
   created_at?: string;
@@ -283,12 +309,20 @@ export interface Receipt {
   id: number;
   job_card_id: number;
   receipt_no: string;
+  invoice_id: number;
+  voided_at?: string;
+  void_reason?: string;
+  created_at?: string;
 }
 
 export interface GatePass {
   id: number;
   job_card_id: number;
   gate_pass_no: string;
+  invoice_id: number;
+  voided_at?: string;
+  void_reason?: string;
+  created_at?: string;
 }
 
 export interface Photo {
@@ -297,6 +331,11 @@ export interface Photo {
   label: string;
   src: string;
   category?: string;
+  mime_type?: string;
+  byte_size?: number;
+  original_name?: string;
+  width?: number;
+  height?: number;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;
@@ -334,6 +373,30 @@ export interface StatusHistory {
   created_at: string;
 }
 
+export interface ChecklistCycle {
+  id: number;
+  job_card_id: number;
+  stage: ChecklistStage;
+  cycle_number: number;
+  started_at: string;
+  completed_at: string | null;
+}
+
+export interface ChecklistItem {
+  id: number;
+  checklist_cycle_id: number;
+  job_card_id: number;
+  stage: ChecklistStage;
+  cycle_number: number;
+  item_key: string;
+  label: SubStatus;
+  sort_order: number;
+  checked_by: number | null;
+  checked_at: string | null;
+  started_at: string | null;
+  completed_at: string | null;
+}
+
 export interface MaterialMovement {
   id: number;
   job_card_id: number;
@@ -357,6 +420,7 @@ export interface JobView {
   inventory: InventoryItem[];
   tasks: Task[];
   invoice?: Invoice;
+  invoice_items: InvoiceItem[];
   payments: Payment[];
   receipt?: Receipt;
   gate_pass?: GatePass;
@@ -364,7 +428,16 @@ export interface JobView {
   followups: Followup[];
   qc_checks: QcCheck[];
   status_history: StatusHistory[];
+  checklist_cycles: ChecklistCycle[];
+  checklist_items: ChecklistItem[];
   material_movements: MaterialMovement[];
+  /** All records, including superseded/voided rows, for the read-only Data Flow audit trail. */
+  estimate_history?: Estimate[];
+  invoice_history?: Invoice[];
+  payment_history?: Payment[];
+  receipt_history?: Receipt[];
+  gate_pass_history?: GatePass[];
+  photo_history?: Photo[];
 }
 
 export interface WorkshopState {

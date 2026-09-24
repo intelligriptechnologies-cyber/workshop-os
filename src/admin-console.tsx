@@ -1,31 +1,38 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, ShieldCheck, Sliders } from "lucide-react";
 import type { User, WorkshopState } from "./types";
-import { Dialog, DownloadMenu } from "./ui-kit";
+import { Dialog, DownloadMenu, ListSearchActions, PageSizeSelect } from "./ui-kit";
 import type { ExportColumn } from "./export-utils";
-import { activeFilterSummary, normalizeSearch, paginate } from "./list-utils";
+import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } from "./list-utils";
 import { Info, PanelTitle, ResultPagination, UserManager, roleLabels, type Mutate } from "./App";
 import type { CognitoConfig } from "./auth";
 import {
   ADMIN_PAGE_GROUPS,
   addDemoRole,
+  createReportTemplate,
   appendDemoLog,
   archiveDemoRole,
   clearDemoLogs,
   confirmInventoryImport,
   filterDemoLogs,
   loadAdminDemoState,
+  normalizeBusinessSettings,
   resolvePermittedPages,
   saveAdminDemoState,
+  saveCompanyIdentity,
   updateBusinessSettings,
+  updateReportTemplate,
   updateDemoRole,
   updateRolePageAccess,
+  validateBusinessSettings,
   type AdminDemoState,
   type AdminPageKey,
   type DemoLogEntry,
   type DemoLogStream,
   type DemoRole,
   type WorkshopBusinessSettings,
+  type CompanyAssets,
+  type ReportCategory,
 } from "./admin-demo-state";
 import {
   buildInventoryImportPreview,
@@ -40,8 +47,9 @@ import {
   type ParsedInventoryWorkbook,
   type RejectedInventoryImportRow,
 } from "./inventory-import";
+import { REPORT_CATEGORY_LABELS, REPORT_PLACEHOLDERS, findUnsupportedPlaceholders, renderReportTemplate, sampleReportValues } from "./report-templates";
 
-const ADMIN_TABS = ["Users", "Roles & Page Access", "Business Settings", "Inventory Import", "Support & Logs"] as const;
+const ADMIN_TABS = ["Users", "Roles & Page Access", "Business Settings", "Build Company Settings", "Report Templates", "Inventory Import", "Support & Logs"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
@@ -49,14 +57,22 @@ type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
 export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { state: WorkshopState; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig }) {
   const [tab, setTab] = useState<AdminTab>("Users");
   const [adminState, setAdminState] = useState<AdminDemoState>(() => loadAdminDemoState());
+  const [templateDirty, setTemplateDirty] = useState(false);
+  const [storageError, setStorageError] = useState("");
 
   /** Applies a pure admin-state change, optionally appends a log entry, then persists to sessionStorage. */
   const commit = (mutator: (current: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => {
-    setAdminState((current) => {
-      let next = mutator(current);
+    try {
+      let next = mutator(adminState);
       if (entry) next = appendDemoLog(next, entry);
-      return saveAdminDemoState(next);
-    });
+      const saved = saveAdminDemoState(next);
+      setAdminState(saved);
+      setStorageError("");
+      return true;
+    } catch (error) {
+      setStorageError(error instanceof Error ? error.message : "Unable to save this session. Your previous settings are unchanged.");
+      return false;
+    }
   };
 
   const refresh = () => setAdminState(loadAdminDemoState());
@@ -67,14 +83,22 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { sta
         <PanelTitle icon={<ShieldCheck />} title="Admin Console" subtitle="Owner/Admin configuration for this demo session" />
         <div className="management-tabs" role="tablist" aria-label="Admin Console tabs">
           {ADMIN_TABS.map((item) => (
-            <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>
+            <button key={item} role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => {
+              if (item === tab) return;
+              if (tab === "Report Templates" && templateDirty && !window.confirm("Discard unsaved template changes?")) return;
+              setTemplateDirty(false);
+              setTab(item);
+            }}>
               {item}
             </button>
           ))}
         </div>
+        {storageError && <div className="api-error" role="alert"><p>{storageError}</p></div>}
         {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
         {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Business Settings" && <BusinessSettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
+        {tab === "Build Company Settings" && <CompanySettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
+        {tab === "Report Templates" && <ReportTemplatesTab adminState={adminState} commit={commit} actingUser={actingUser} onDirtyChange={setTemplateDirty} />}
         {tab === "Inventory Import" && <InventoryImportTab adminState={adminState} commit={commit} actingUser={actingUser} state={state} />}
         {tab === "Support & Logs" && <SupportLogsTab adminState={adminState} commit={commit} refresh={refresh} actingUser={actingUser} />}
       </div>
@@ -88,7 +112,11 @@ const ALL_PAGE_KEYS: AdminPageKey[] = ADMIN_PAGE_GROUPS.flatMap((group) => group
 
 function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void; actingUser: User }) {
   const [search, setSearch] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "active" | "archived">("ALL");
+  const [statusDraft, setStatusDraft] = useState<"ALL" | "active" | "archived">("ALL");
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedRoleId, setSelectedRoleId] = useState<string | undefined>(adminState.roles[0]?.id);
   const [creating, setCreating] = useState(false);
   const [newRole, setNewRole] = useState({ label: "", description: "" });
@@ -100,6 +128,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
 
   const needle = normalizeSearch(search);
   const roles = adminState.roles.filter((role) => (!needle || normalizeSearch(`${role.label} ${role.description}`).includes(needle)) && (statusFilter === "ALL" || role.status === statusFilter));
+  const pagedRoles = paginate(roles, page, pageSize);
   const selectedRole = adminState.roles.find((role) => role.id === selectedRoleId);
   const savedPages = selectedRoleId ? resolvePermittedPages(adminState, selectedRoleId) : [];
   const isOwnerRole = selectedRoleId === "admin";
@@ -164,15 +193,18 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
         </Dialog>
       )}
 
-      <div className="store-filter-grid">
-        <label className="list-search">Search<input aria-label="Search roles" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Role name or description" /></label>
-        <label>Status<select aria-label="Filter roles by status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value as typeof statusFilter)}><option value="ALL">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
+      <div className="store-filter-grid" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setSearch(searchDraft); setStatusFilter(statusDraft); setPage(1); } }}>
+        <label className="list-search">Search<input aria-label="Search roles" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Role name or description" /></label>
+        <label>Status<select aria-label="Filter roles by status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value as typeof statusDraft)}><option value="ALL">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
+        <ListSearchActions onClear={() => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatusFilter("ALL"); setPage(1); }} onSearch={() => { setSearch(searchDraft); setStatusFilter(statusDraft); setPage(1); }} />
         <DownloadMenu report={{ title: "Roles", filters: activeFilterSummary({ Search: search.trim(), Status: statusFilter }), columns: roleColumns, rows: roles }} />
       </div>
+      <div className="list-result-controls"><span className="result-summary">Showing {pagedRoles.from} to {pagedRoles.to} of {pagedRoles.totalCount}</span><PageSizeSelect ariaLabel="Role records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
+      <ResultPagination page={pagedRoles.page} pageCount={pagedRoles.pageCount} onChange={setPage} />
 
       <div className="role-access-layout">
         <div className="record-list role-list">
-          {roles.map((role) => (
+          {pagedRoles.items.map((role) => (
             <div className={`managed-record${selectedRoleId === role.id ? " active-record" : ""}`} key={role.id}>
               {editingRoleId === role.id ? (
                 <form className="inline-edit" onSubmit={(event) => {
@@ -210,7 +242,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
               )}
             </div>
           ))}
-          {roles.length === 0 && <div className="list-empty"><h3>No matching roles</h3><button onClick={() => { setSearch(""); setStatusFilter("ALL"); }}>Clear filters</button></div>}
+          {roles.length === 0 && <div className="list-empty"><h3>No matching roles</h3><button onClick={() => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatusFilter("ALL"); setPage(1); }}>Clear filters</button></div>}
         </div>
 
         <div className="desk-panel page-access-panel">
@@ -246,6 +278,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
           )}
         </div>
       </div>
+      <ResultPagination page={pagedRoles.page} pageCount={pagedRoles.pageCount} onChange={setPage} />
     </div>
   );
 }
@@ -299,19 +332,7 @@ const WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Satur
 const PAYMENT_MODE_OPTIONS = ["Cash", "Card", "UPI", "Bank Transfer", "Cheque"];
 const NOTIFICATION_CHANNEL_OPTIONS = ["sms", "email", "whatsapp"] as const;
 
-function validateSettings(draft: WorkshopBusinessSettings): string[] {
-  const errors: string[] = [];
-  if (!draft.profile.businessName.trim()) errors.push("Business name is required.");
-  if (!/^\S+@\S+\.\S+$/.test(draft.profile.email.trim())) errors.push("Enter a valid business email.");
-  if (!draft.branch.name.trim()) errors.push("Branch name is required.");
-  if (draft.jobs.defaultPromisedHours <= 0) errors.push("Default promised hours must be greater than zero.");
-  if (draft.pricing.estimateValidityDays <= 0) errors.push("Estimate validity must be at least 1 day.");
-  if (draft.pricing.defaultLabourRate < 0) errors.push("Default labour rate cannot be negative.");
-  if (draft.billing.defaultGstPercent < 0 || draft.billing.defaultGstPercent > 100) errors.push("GST percent must be between 0 and 100.");
-  return errors;
-}
-
-function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void; actingUser: User }) {
+function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => boolean; actingUser: User }) {
   const [subTab, setSubTab] = useState<SettingsGroupKey>("profile");
   const [draft, setDraft] = useState<WorkshopBusinessSettings>(adminState.businessSettings);
   const [errors, setErrors] = useState<string[]>([]);
@@ -339,13 +360,16 @@ function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: A
   };
 
   const save = () => {
-    const validationErrors = validateSettings(draft);
+    const normalized = normalizeBusinessSettings(draft);
+    const validationErrors = validateBusinessSettings(normalized);
     setErrors(validationErrors);
     if (validationErrors.length > 0) return;
-    commit((current) => updateBusinessSettings(current, draft), {
+    const saved = commit((current) => updateBusinessSettings(current, normalized), {
       stream: "feature", level: "info", area: "Administration", feature: "Business Settings",
       message: "Business settings saved", userId: String(actingUser.id), userName: actingUser.name,
     });
+    if (!saved) return;
+    setDraft(normalized);
     setJustSaved(true);
   };
   const reset = () => {
@@ -378,7 +402,6 @@ function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: A
           <label>Phone<input value={draft.profile.phone} onChange={(event) => setField("profile", "phone", event.target.value)} /></label>
           <label>Email<input type="email" value={draft.profile.email} onChange={(event) => setField("profile", "email", event.target.value)} /></label>
           <label>Address<input value={draft.profile.address} onChange={(event) => setField("profile", "address", event.target.value)} /></label>
-          <label>GSTIN<input value={draft.profile.gstin} onChange={(event) => setField("profile", "gstin", event.target.value)} /></label>
           <label>Timezone<input value={draft.profile.timezone} onChange={(event) => setField("profile", "timezone", event.target.value)} /></label>
           <label>Currency<input value={draft.profile.currency} onChange={(event) => setField("profile", "currency", event.target.value)} /></label>
         </div>
@@ -414,6 +437,13 @@ function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: A
       {subTab === "billing" && (
         <>
           <div className="form-grid">
+            <label>GSTIN<input aria-label="GSTIN" value={draft.billing.gstin} onChange={(event) => setField("billing", "gstin", event.target.value)} /></label>
+            <label>Account holder<input aria-label="Account holder" value={draft.billing.bankAccountHolder} onChange={(event) => setField("billing", "bankAccountHolder", event.target.value)} /></label>
+            <label>Bank name<input aria-label="Bank name" value={draft.billing.bankName} onChange={(event) => setField("billing", "bankName", event.target.value)} /></label>
+            <label>Account number<input aria-label="Account number" inputMode="numeric" value={draft.billing.bankAccountNumber} onChange={(event) => setField("billing", "bankAccountNumber", event.target.value)} /></label>
+            <label>IFSC<input aria-label="IFSC" value={draft.billing.bankIfsc} onChange={(event) => setField("billing", "bankIfsc", event.target.value)} /></label>
+            <label>Branch<input aria-label="Bank branch" value={draft.billing.bankBranch} onChange={(event) => setField("billing", "bankBranch", event.target.value)} /></label>
+            <label>UPI ID<input aria-label="UPI ID" value={draft.billing.upiId} onChange={(event) => setField("billing", "upiId", event.target.value)} /></label>
             <label>Default GST %<input type="number" min={0} max={100} value={draft.billing.defaultGstPercent} onChange={(event) => setField("billing", "defaultGstPercent", Number(event.target.value))} /></label>
             <label>Invoice prefix<input value={draft.billing.invoicePrefix} onChange={(event) => setField("billing", "invoicePrefix", event.target.value)} /></label>
             <label>Receipt prefix<input value={draft.billing.receiptPrefix} onChange={(event) => setField("billing", "receiptPrefix", event.target.value)} /></label>
@@ -441,6 +471,134 @@ function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: A
       )}
     </div>
   );
+}
+
+/* ----------------------------------------------------------- Company identity ---- */
+
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
+const MAX_COMPANY_IMAGE_BYTES = 1024 * 1024;
+
+function CompanyImageField({ label, value, onChange, onError }: { label: string; value: string | null; onChange: (value: string | null) => void; onError: (message: string) => void }) {
+  const inputRef = useRef<HTMLInputElement>(null);
+  const choose = (file?: File) => {
+    if (!file) return;
+    if (!IMAGE_TYPES.has(file.type)) { onError(`${label} must be a PNG, JPEG, or WebP image.`); if (inputRef.current) inputRef.current.value = ""; return; }
+    if (file.size > MAX_COMPANY_IMAGE_BYTES) { onError(`${label} must be 1 MB or smaller.`); if (inputRef.current) inputRef.current.value = ""; return; }
+    const reader = new FileReader();
+    reader.onerror = () => onError(`${label} could not be read.`);
+    reader.onload = () => { if (typeof reader.result === "string") { onError(""); onChange(reader.result); } };
+    reader.readAsDataURL(file);
+  };
+  return <div className="company-image-field"><strong>{label}</strong><div className="company-image-preview">{value ? <img src={value} alt={`${label} preview`} /> : <span>No image configured</span>}</div><div className="action-row"><label className="file-upload-button">Choose image<input ref={inputRef} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => choose(event.target.files?.[0])} /></label><button type="button" disabled={!value} onClick={() => { onError(""); onChange(null); if (inputRef.current) inputRef.current.value = ""; }}>Clear</button></div><small>PNG, JPEG, or WebP · maximum 1 MB</small></div>;
+}
+
+function CompanySettingsTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => boolean; actingUser: User }) {
+  const saved = { companyName: adminState.businessSettings.profile.businessName, assets: adminState.companyAssets };
+  const [companyName, setCompanyName] = useState(saved.companyName);
+  const [assets, setAssets] = useState<CompanyAssets>(saved.assets);
+  const [error, setError] = useState("");
+  const [savedMessage, setSavedMessage] = useState(false);
+  const dirty = companyName !== saved.companyName || JSON.stringify(assets) !== JSON.stringify(saved.assets);
+
+  useEffect(() => { setCompanyName(saved.companyName); setAssets(saved.assets); }, [saved.companyName, saved.assets]);
+  const changeAsset = (key: keyof CompanyAssets, next: string | null) => { setSavedMessage(false); setAssets((current) => ({ ...current, [key]: next })); };
+  const save = () => {
+    if (!companyName.trim()) { setError("Company name is required."); return; }
+    const ok = commit((current) => saveCompanyIdentity(current, companyName, assets), { stream: "feature", level: "info", area: "Administration", feature: "Company Settings", message: "Company identity and report assets saved", userId: String(actingUser.id), userName: actingUser.name });
+    if (ok) { setError(""); setSavedMessage(true); }
+  };
+  const reset = () => {
+    if (dirty && !window.confirm("Reset unsaved company settings?")) return;
+    setCompanyName(saved.companyName); setAssets(saved.assets); setError(""); setSavedMessage(false);
+  };
+  return <div className="manager-panel" role="tabpanel">
+    <div className="panel-actions"><div><h3>Build Company Settings</h3><p>Canonical identity and images used by report templates.</p></div><div className="action-row"><button type="button" disabled={!dirty} onClick={reset}>Reset to Saved</button><button type="button" className="primary-action" disabled={!dirty} onClick={save}>Save Company Settings</button></div></div>
+    {error && <div className="api-error" role="alert"><p>{error}</p></div>}
+    {savedMessage && !dirty && <p className="save-confirmation">Company settings saved for this session.</p>}
+    {dirty && <p className="unsaved-note">Unsaved changes.</p>}
+    <label>Company name<input value={companyName} onChange={(event) => { setCompanyName(event.target.value); setSavedMessage(false); }} /></label>
+    <div className="company-assets-grid">
+      <CompanyImageField label="Company logo" value={assets.logo} onChange={(next) => changeAsset("logo", next)} onError={setError} />
+      <CompanyImageField label="Company stamp" value={assets.stamp} onChange={(next) => changeAsset("stamp", next)} onError={setError} />
+      <CompanyImageField label="Authorized signature" value={assets.authorizedSignature} onChange={(next) => changeAsset("authorizedSignature", next)} onError={setError} />
+    </div>
+  </div>;
+}
+
+/* ------------------------------------------------------------ Report templates ---- */
+
+const REPORT_CATEGORIES = Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[];
+
+function ReportTemplatesTab({ adminState, commit, actingUser, onDirtyChange }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => boolean; actingUser: User; onDirtyChange: (dirty: boolean) => void }) {
+  const [category, setCategory] = useState<ReportCategory>("invoice");
+  const categoryTemplates = adminState.reportTemplates.filter((template) => template.category === category);
+  const initial = categoryTemplates.find((template) => template.active) ?? categoryTemplates[0];
+  const [selectedId, setSelectedId] = useState<string | null>(initial?.id ?? null);
+  const selected = adminState.reportTemplates.find((template) => template.id === selectedId);
+  const [draft, setDraft] = useState({ name: initial?.name ?? "", html: initial?.html ?? "", active: initial?.active ?? false });
+  const [mode, setMode] = useState<"type" | "preview">("type");
+  const [errors, setErrors] = useState<string[]>([]);
+  const [justSaved, setJustSaved] = useState(false);
+  const dirty = selected ? draft.name !== selected.name || draft.html !== selected.html || draft.active !== selected.active : Boolean(draft.name || draft.html || draft.active);
+  const unsupported = findUnsupportedPlaceholders(draft.html, category);
+
+  useEffect(() => { onDirtyChange(dirty); return () => onDirtyChange(false); }, [dirty, onDirtyChange]);
+  useEffect(() => {
+    const guard = (event: BeforeUnloadEvent) => { if (dirty) event.preventDefault(); };
+    window.addEventListener("beforeunload", guard); return () => window.removeEventListener("beforeunload", guard);
+  }, [dirty]);
+
+  const load = (id: string | null, nextCategory = category) => {
+    const template = id ? adminState.reportTemplates.find((item) => item.id === id) : undefined;
+    setSelectedId(id); setDraft({ name: template?.name ?? "", html: template?.html ?? "", active: template?.active ?? false });
+    setErrors([]); setJustSaved(false); setMode("type"); setCategory(nextCategory);
+  };
+  const confirmDiscard = () => !dirty || window.confirm("Discard unsaved template changes?");
+  const changeCategory = (next: ReportCategory) => {
+    if (!confirmDiscard()) return;
+    const templates = adminState.reportTemplates.filter((item) => item.category === next);
+    const template = templates.find((item) => item.active) ?? templates[0];
+    setCategory(next); load(template?.id ?? null, next);
+  };
+  const save = () => {
+    const validation: string[] = [];
+    if (!draft.name.trim()) validation.push("Template name is required.");
+    if (!draft.html.trim()) validation.push("Template HTML is required.");
+    if (unsupported.length) validation.push(`Unsupported placeholders: ${unsupported.join(", ")}`);
+    if (validation.length) { setErrors(validation); return; }
+    let nextId = selectedId;
+    const ok = commit((current) => {
+      const next = selectedId
+        ? updateReportTemplate(current, selectedId, draft)
+        : createReportTemplate(current, { category, ...draft });
+      if (!selectedId) nextId = next.reportTemplates.at(-1)?.id ?? null;
+      return next;
+    }, { stream: "feature", level: "info", area: "Administration", feature: "Report Templates", message: `${REPORT_CATEGORY_LABELS[category]} template ${selectedId ? "updated" : "created"}`, userId: String(actingUser.id), userName: actingUser.name });
+    if (ok) { setSelectedId(nextId); setErrors([]); setJustSaved(true); }
+  };
+  let preview = "";
+  if (!unsupported.length && draft.html.trim()) {
+    try { preview = renderReportTemplate({ category, html: draft.html }, sampleReportValues(category)); } catch { preview = ""; }
+  }
+  return <div className="manager-panel report-template-panel" role="tabpanel">
+    <div className="panel-actions"><div><h3>Report Templates</h3><p>Design sanitized print layouts using the supported placeholders.</p></div><div className="action-row"><button type="button" onClick={() => { if (confirmDiscard()) load(null); }}>New Template</button><button type="button" className="primary-action" disabled={!dirty} onClick={save}>{selectedId ? "Update Template" : "Create Template"}</button></div></div>
+    {errors.length > 0 && <div className="api-error" role="alert">{errors.map((message) => <p key={message}>{message}</p>)}</div>}
+    {justSaved && !dirty && <p className="save-confirmation">Template saved for this session.</p>}
+    {dirty && <p className="unsaved-note">Unsaved changes.</p>}
+    <div className="template-selectors form-grid">
+      <label>Report category<select aria-label="Report category" value={category} onChange={(event) => changeCategory(event.target.value as ReportCategory)}>{REPORT_CATEGORIES.map((item) => <option key={item} value={item}>{REPORT_CATEGORY_LABELS[item]}</option>)}</select></label>
+      <label>Template<select aria-label="Report template" value={selectedId ?? ""} onChange={(event) => { if (confirmDiscard()) load(event.target.value || null); }}><option value="">New unsaved template</option>{categoryTemplates.map((template) => <option key={template.id} value={template.id}>{template.name}{template.active ? " (Active)" : ""}</option>)}</select></label>
+      <label>Template name<input aria-label="Template name" value={draft.name} onChange={(event) => { setDraft({ ...draft, name: event.target.value }); setJustSaved(false); }} /></label>
+      <label className="template-active"><input type="checkbox" checked={draft.active} onChange={(event) => { if (draft.active && !event.target.checked) { setErrors(["Activate another template before deactivating the current template."]); return; } setDraft({ ...draft, active: event.target.checked }); setErrors([]); setJustSaved(false); }} /> Active template</label>
+    </div>
+    <div className="template-workspace">
+      <div className="template-editor-column">
+        <div className="sub-tabs" role="tablist" aria-label="Template editor mode"><button role="tab" aria-selected={mode === "type"} className={mode === "type" ? "active" : ""} onClick={() => setMode("type")}>Type</button><button role="tab" aria-selected={mode === "preview"} className={mode === "preview" ? "active" : ""} onClick={() => setMode("preview")}>Preview</button></div>
+        {mode === "type" ? <label>Template HTML<textarea aria-label="Template HTML" className="template-html-editor" spellCheck={false} value={draft.html} onChange={(event) => { setDraft({ ...draft, html: event.target.value }); setJustSaved(false); }} /></label> : unsupported.length ? <div className="api-error" role="alert"><p>Preview unavailable until unsupported placeholders are removed.</p></div> : <iframe className="template-preview" title={`${REPORT_CATEGORY_LABELS[category]} template preview`} sandbox="" srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}*{box-sizing:border-box}</style></head><body>${preview}</body></html>`} />}
+      </div>
+      <aside className="placeholder-registry"><h4>Allowed placeholders</h4><p>Insert a placeholder exactly as shown. Blocks generate safe report tables or configured images.</p>{REPORT_PLACEHOLDERS[category].map((name) => <code key={name}>{`{{${name}}}`}</code>)}{unsupported.length > 0 && <div className="api-error" role="alert"><strong>Unsupported</strong>{unsupported.map((name) => <p key={name}>{name}</p>)}</div>}</aside>
+    </div>
+  </div>;
 }
 
 /* --------------------------------------------------------------------------- Inventory Import */
@@ -643,11 +801,18 @@ function LogTable({ logs, onSelect }: { logs: DemoLogEntry[]; onSelect: (log: De
 
 function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState; stream: DemoLogStream; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void }) {
   const [search, setSearch] = useState("");
+  const [searchDraft, setSearchDraft] = useState("");
   const [dateFrom, setDateFrom] = useState("");
+  const [dateFromDraft, setDateFromDraft] = useState("");
   const [dateTo, setDateTo] = useState("");
+  const [dateToDraft, setDateToDraft] = useState("");
   const [level, setLevel] = useState("ALL");
+  const [levelDraft, setLevelDraft] = useState("ALL");
   const [area, setArea] = useState("ALL");
+  const [areaDraft, setAreaDraft] = useState("ALL");
   const [selected, setSelected] = useState<DemoLogEntry>();
+  const [page, setPage] = useState(1);
+  const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
 
   const streamLogs = adminState.logs.filter((log) => log.stream === stream);
   const areas = Array.from(new Set(streamLogs.map((log) => log.area))).sort();
@@ -656,6 +821,9 @@ function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState;
     levels: level === "ALL" ? undefined : [level as (typeof LOG_LEVELS)[number]],
     area: area === "ALL" ? undefined : area,
   });
+  const paged = paginate(filtered, page, pageSize);
+  const applyFilters = () => { setSearch(searchDraft); setDateFrom(dateFromDraft); setDateTo(dateToDraft); setLevel(levelDraft); setArea(areaDraft); setPage(1); };
+  const clearFilters = () => { setSearchDraft(""); setSearch(""); setDateFromDraft(""); setDateFrom(""); setDateToDraft(""); setDateTo(""); setLevelDraft("ALL"); setLevel("ALL"); setAreaDraft("ALL"); setArea("ALL"); setPage(1); };
   const columns: ExportColumn<DemoLogEntry>[] = [
     { header: "Timestamp", value: (row) => new Date(row.timestamp).toLocaleString("en-IN") },
     { header: "Level", value: (row) => row.level }, { header: "Area", value: (row) => row.area }, { header: "Feature", value: (row) => row.feature },
@@ -668,20 +836,23 @@ function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState;
 
   return (
     <div className="manager-panel" role="tabpanel">
-      <div className="store-filter-grid">
-        <label className="list-search">Search<input value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Message, area, feature, user or reference" /></label>
-        <label>Date from<input type="date" value={dateFrom} onChange={(event) => setDateFrom(event.target.value)} /></label>
-        <label>Date to<input type="date" value={dateTo} onChange={(event) => setDateTo(event.target.value)} /></label>
-        <label>Level<select value={level} onChange={(event) => setLevel(event.target.value)}><option value="ALL">All levels</option>{LOG_LEVELS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label>Area<select value={area} onChange={(event) => setArea(event.target.value)}><option value="ALL">All areas</option>{areas.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <button onClick={() => { setSearch(""); setDateFrom(""); setDateTo(""); setLevel("ALL"); setArea("ALL"); }}>Clear filters</button>
+      <div className="store-filter-grid" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyFilters(); } }}>
+        <label className="list-search">Search<input aria-label="Search logs" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Message, area, feature, user or reference" /></label>
+        <label>Date from<input type="date" value={dateFromDraft} onChange={(event) => setDateFromDraft(event.target.value)} /></label>
+        <label>Date to<input type="date" value={dateToDraft} onChange={(event) => setDateToDraft(event.target.value)} /></label>
+        <label>Level<select value={levelDraft} onChange={(event) => setLevelDraft(event.target.value)}><option value="ALL">All levels</option>{LOG_LEVELS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label>Area<select value={areaDraft} onChange={(event) => setAreaDraft(event.target.value)}><option value="ALL">All areas</option>{areas.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <ListSearchActions onClear={clearFilters} onSearch={applyFilters} />
       </div>
       <div className="list-result-controls">
         <DownloadMenu report={{ title: stream === "operational" ? "Daily Operational Logs" : "Feature Activity", filters: activeFilterSummary({ Search: search.trim(), Level: level, Area: area, "Date from": dateFrom, "Date to": dateTo }), columns, rows: filtered }} />
-        <span className="result-summary">{filtered.length} of {streamLogs.length} entries</span>
+        <span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span>
+        <PageSizeSelect ariaLabel="Log records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
         <button className="danger-action" onClick={clear} disabled={streamLogs.length === 0}>Clear Logs</button>
       </div>
-      <LogTable logs={filtered} onSelect={setSelected} />
+      <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
+      <LogTable logs={paged.items} onSelect={setSelected} />
+      <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       {selected && (
         <Dialog title="Log detail" subtitle={new Date(selected.timestamp).toLocaleString("en-IN")} onClose={() => setSelected(undefined)}>
           <div className="linked-grid">

@@ -1,4 +1,7 @@
 import type { Role } from "./types";
+import { findUnsupportedPlaceholders, seedReportTemplates, type CompanyAssets, type ReportCategory, type ReportTemplate } from "./report-templates";
+
+export type { CompanyAssets, ReportCategory, ReportTemplate } from "./report-templates";
 
 export const ADMIN_DEMO_STATE_VERSION = 1;
 export const ADMIN_DEMO_STORAGE_KEY = `workshopos.admin-demo.v${ADMIN_DEMO_STATE_VERSION}`;
@@ -104,7 +107,7 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
     pages: [
       { key: "dashboard", label: "Dashboard" },
       { key: "data-flow", label: "Data Flow" },
-      { key: "jobs", label: "Jobs" },
+      { key: "jobs", label: "Job Cards" },
       { key: "masters", label: "Masters" },
       { key: "manage", label: "Manage" },
       { key: "admin-console", label: "Admin Console" },
@@ -137,7 +140,6 @@ export interface WorkshopBusinessSettings {
     phone: string;
     email: string;
     address: string;
-    gstin: string;
     timezone: string;
     currency: string;
   };
@@ -162,6 +164,13 @@ export interface WorkshopBusinessSettings {
     requireEstimateApproval: boolean;
   };
   billing: {
+    gstin: string;
+    bankAccountHolder: string;
+    bankName: string;
+    bankAccountNumber: string;
+    bankIfsc: string;
+    bankBranch: string;
+    upiId: string;
     defaultGstPercent: number;
     invoicePrefix: string;
     receiptPrefix: string;
@@ -252,6 +261,8 @@ export interface AdminDemoState {
   logs: DemoLogEntry[];
   importBatches: DemoImportBatch[];
   sessionInventory: SessionInventoryItem[];
+  reportTemplates: ReportTemplate[];
+  companyAssets: CompanyAssets;
 }
 
 export interface SessionStorageLike {
@@ -284,7 +295,6 @@ const DEFAULT_SETTINGS: WorkshopBusinessSettings = {
     phone: "+91 98765 43210",
     email: "hello@workshopos.demo",
     address: "Bhubaneswar, Odisha",
-    gstin: "21ABCDE1234F1Z5",
     timezone: "Asia/Kolkata",
     currency: "INR",
   },
@@ -309,6 +319,13 @@ const DEFAULT_SETTINGS: WorkshopBusinessSettings = {
     requireEstimateApproval: true,
   },
   billing: {
+    gstin: "21ABCDE1234F1Z5",
+    bankAccountHolder: "WorkshopOS Automotive Services",
+    bankName: "State Bank of India",
+    bankAccountNumber: "001234567890",
+    bankIfsc: "SBIN0001234",
+    bankBranch: "Bhubaneswar Main Branch",
+    upiId: "workshopos@sbi",
     defaultGstPercent: 18,
     invoicePrefix: "INV",
     receiptPrefix: "REC",
@@ -370,6 +387,8 @@ export function createDefaultAdminDemoState(now: Date | string = DEFAULT_TIMESTA
     logs: defaultLogs(timestamp),
     importBatches: [],
     sessionInventory: [],
+    reportTemplates: seedReportTemplates(timestamp),
+    companyAssets: { logo: null, stamp: null, authorizedSignature: null },
   };
 }
 
@@ -384,12 +403,17 @@ function mergeSettings(
   base: WorkshopBusinessSettings = DEFAULT_SETTINGS,
 ): WorkshopBusinessSettings {
   if (!saved) return clone(base);
+  const legacy = saved as DeepPartial<WorkshopBusinessSettings> & { profile?: { gstin?: string } };
+  const { gstin: _legacyGstin, ...savedProfile } = legacy.profile ?? {};
+  const migratedGstin = saved.billing?.gstin === undefined && legacy.profile?.gstin !== undefined
+    ? legacy.profile.gstin
+    : saved.billing?.gstin;
   return {
-    profile: { ...base.profile, ...saved.profile },
+    profile: { ...base.profile, ...savedProfile },
     branch: { ...base.branch, ...saved.branch },
     jobs: { ...base.jobs, ...saved.jobs },
     pricing: { ...base.pricing, ...saved.pricing },
-    billing: { ...base.billing, ...saved.billing },
+    billing: { ...base.billing, ...saved.billing, ...(migratedGstin === undefined ? {} : { gstin: migratedGstin }) },
     inventory: { ...base.inventory, ...saved.inventory },
     notifications: { ...base.notifications, ...saved.notifications },
     logRetention: { ...base.logRetention, ...saved.logRetention },
@@ -403,6 +427,14 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
   const base = createDefaultAdminDemoState();
   const access = Object.fromEntries(Object.entries(saved.rolePageAccess).map(([roleId, pages]) => [roleId, sanitizePages(pages)]));
   access[OWNER_ROLE_ID] = protectOwnerAccess(access[OWNER_ROLE_ID] ?? []);
+  const categories: ReportCategory[] = ["invoice", "gate-pass", "job-card", "payment-receipt"];
+  const storedTemplates = Array.isArray(saved.reportTemplates) ? saved.reportTemplates : [];
+  const reportTemplates = categories.flatMap((category) => {
+    const candidates = storedTemplates.filter((template): template is ReportTemplate => Boolean(template && typeof template === "object" && template.category === category && template.id && template.name && template.html));
+    const templates = candidates.length ? candidates : base.reportTemplates.filter((template) => template.category === category);
+    const activeId = templates.find((template) => template.active)?.id ?? templates[0].id;
+    return templates.map((template) => ({ ...template, active: template.id === activeId }));
+  });
   return {
     version: ADMIN_DEMO_STATE_VERSION,
     roles: saved.roles,
@@ -411,6 +443,8 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
     logs: saved.logs,
     importBatches: Array.isArray(saved.importBatches) ? saved.importBatches : base.importBatches,
     sessionInventory: Array.isArray(saved.sessionInventory) ? saved.sessionInventory : base.sessionInventory,
+    reportTemplates,
+    companyAssets: saved.companyAssets && typeof saved.companyAssets === "object" ? { ...base.companyAssets, ...saved.companyAssets } : base.companyAssets,
   };
 }
 
@@ -531,7 +565,131 @@ export function resolvePermittedPages(state: AdminDemoState, roleId: string): Ad
 }
 
 export function updateBusinessSettings(state: AdminDemoState, updates: DeepPartial<WorkshopBusinessSettings>): AdminDemoState {
-  return { ...state, businessSettings: mergeSettings(updates, state.businessSettings) };
+  return { ...state, businessSettings: normalizeBusinessSettings(mergeSettings(updates, state.businessSettings)) };
+}
+
+export function normalizeBusinessSettings(settings: WorkshopBusinessSettings): WorkshopBusinessSettings {
+  const trim = (value: string) => value.trim();
+  return {
+    profile: {
+      businessName: trim(settings.profile.businessName),
+      legalName: trim(settings.profile.legalName),
+      phone: trim(settings.profile.phone),
+      email: trim(settings.profile.email),
+      address: trim(settings.profile.address),
+      timezone: trim(settings.profile.timezone),
+      currency: trim(settings.profile.currency),
+    },
+    branch: { ...settings.branch, name: trim(settings.branch.name), openingTime: trim(settings.branch.openingTime), closingTime: trim(settings.branch.closingTime), workingDays: settings.branch.workingDays.map(trim) },
+    jobs: { ...settings.jobs, jobNumberPrefix: trim(settings.jobs.jobNumberPrefix) },
+    pricing: { ...settings.pricing },
+    billing: {
+      ...settings.billing,
+      gstin: trim(settings.billing.gstin).toUpperCase(),
+      bankAccountHolder: trim(settings.billing.bankAccountHolder),
+      bankName: trim(settings.billing.bankName),
+      bankAccountNumber: trim(settings.billing.bankAccountNumber),
+      bankIfsc: trim(settings.billing.bankIfsc).toUpperCase(),
+      bankBranch: trim(settings.billing.bankBranch),
+      upiId: trim(settings.billing.upiId),
+      invoicePrefix: trim(settings.billing.invoicePrefix),
+      receiptPrefix: trim(settings.billing.receiptPrefix),
+      gatePassPrefix: trim(settings.billing.gatePassPrefix),
+      paymentModes: settings.billing.paymentModes.map(trim),
+    },
+    inventory: { ...settings.inventory, defaultUnit: trim(settings.inventory.defaultUnit) },
+    notifications: {
+      ...settings.notifications,
+      customerChannels: [...settings.notifications.customerChannels],
+      documentHeader: trim(settings.notifications.documentHeader),
+      estimateTemplate: trim(settings.notifications.estimateTemplate),
+      invoiceTemplate: trim(settings.notifications.invoiceTemplate),
+    },
+    logRetention: { ...settings.logRetention },
+  };
+}
+
+export function validateBusinessSettings(settings: WorkshopBusinessSettings): string[] {
+  const errors: string[] = [];
+  if (!settings.profile.businessName.trim()) errors.push("Business name is required.");
+  if (!/^\S+@\S+\.\S+$/.test(settings.profile.email.trim())) errors.push("Enter a valid business email.");
+  if (!settings.branch.name.trim()) errors.push("Branch name is required.");
+  if (settings.jobs.defaultPromisedHours <= 0) errors.push("Default promised hours must be greater than zero.");
+  if (settings.pricing.estimateValidityDays <= 0) errors.push("Estimate validity must be at least 1 day.");
+  if (settings.pricing.defaultLabourRate < 0) errors.push("Default labour rate cannot be negative.");
+  if (settings.billing.defaultGstPercent < 0 || settings.billing.defaultGstPercent > 100) errors.push("GST percent must be between 0 and 100.");
+  if (settings.billing.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(settings.billing.gstin)) errors.push("GSTIN must be a valid 15-character Indian GSTIN.");
+  if (settings.billing.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(settings.billing.bankIfsc)) errors.push("IFSC must contain four letters, 0, then six letters or digits.");
+  if (settings.billing.upiId && !/^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$/.test(settings.billing.upiId)) errors.push("UPI ID must use a valid handle@provider format.");
+  return errors;
+}
+
+const normalizeTemplateName = (name: string) => name.trim().toLocaleLowerCase();
+
+function assertTemplateInput(state: AdminDemoState, category: ReportCategory, name: string, html: string, exceptId?: string) {
+  if (!name.trim()) throw new Error("Template name is required.");
+  if (!html.trim()) throw new Error("Template HTML is required.");
+  const unsupported = findUnsupportedPlaceholders(html, category);
+  if (unsupported.length) throw new Error(`Unsupported placeholders: ${unsupported.join(", ")}`);
+  if (state.reportTemplates.some((template) => template.category === category && template.id !== exceptId && normalizeTemplateName(template.name) === normalizeTemplateName(name))) {
+    throw new Error("Template names must be unique within a category.");
+  }
+}
+
+function nextTemplateId(state: AdminDemoState, category: ReportCategory) {
+  const prefix = `template-${category}-`;
+  const next = state.reportTemplates.reduce((highest, template) => {
+    const match = template.id.startsWith(prefix) ? /([0-9]+)$/.exec(template.id) : null;
+    return match ? Math.max(highest, Number(match[1])) : highest;
+  }, 0) + 1;
+  return `${prefix}${next}`;
+}
+
+export function createReportTemplate(
+  state: AdminDemoState,
+  input: { category: ReportCategory; name: string; html: string; active?: boolean },
+  now: Date | string = new Date(),
+): AdminDemoState {
+  assertTemplateInput(state, input.category, input.name, input.html);
+  const timestamp = new Date(now).toISOString();
+  const template: ReportTemplate = { id: nextTemplateId(state, input.category), category: input.category, name: input.name.trim(), html: input.html.trim(), active: Boolean(input.active), createdAt: timestamp, updatedAt: timestamp };
+  const existing = input.active ? state.reportTemplates.map((item) => item.category === input.category ? { ...item, active: false, updatedAt: timestamp } : item) : state.reportTemplates;
+  return { ...state, reportTemplates: [...existing, template] };
+}
+
+export function updateReportTemplate(
+  state: AdminDemoState,
+  templateId: string,
+  updates: { name?: string; html?: string; active?: boolean },
+  now: Date | string = new Date(),
+): AdminDemoState {
+  const current = state.reportTemplates.find((template) => template.id === templateId);
+  if (!current) throw new Error("Template not found.");
+  const name = updates.name ?? current.name;
+  const html = updates.html ?? current.html;
+  assertTemplateInput(state, current.category, name, html, templateId);
+  if (current.active && updates.active === false) throw new Error("Activate another template before deactivating the current template.");
+  const timestamp = new Date(now).toISOString();
+  return {
+    ...state,
+    reportTemplates: state.reportTemplates.map((template) => {
+      if (updates.active && template.category === current.category && template.id !== templateId) return { ...template, active: false, updatedAt: timestamp };
+      return template.id === templateId ? { ...template, name: name.trim(), html: html.trim(), active: updates.active ?? template.active, updatedAt: timestamp } : template;
+    }),
+  };
+}
+
+export function activateReportTemplate(state: AdminDemoState, templateId: string, now: Date | string = new Date()): AdminDemoState {
+  return updateReportTemplate(state, templateId, { active: true }, now);
+}
+
+export function saveCompanyIdentity(state: AdminDemoState, companyName: string, assets: CompanyAssets): AdminDemoState {
+  if (!companyName.trim()) throw new Error("Company name is required.");
+  return {
+    ...state,
+    businessSettings: mergeSettings({ profile: { businessName: companyName.trim() } }, state.businessSettings),
+    companyAssets: { ...assets },
+  };
 }
 
 function nextLogId(logs: readonly DemoLogEntry[]): string {

@@ -1,6 +1,8 @@
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
-import wasmUrl from "sql.js/dist/sql-wasm.wasm?url";
 import type {
+  ChecklistCycle,
+  ChecklistItem,
+  ChecklistStage,
   Customer,
   Estimate,
   EstimateItem,
@@ -8,12 +10,14 @@ import type {
   GatePass,
   InventoryItem,
   Invoice,
+  InvoiceItem,
   JobCard,
   JobView,
   MainStatus,
   MaterialMovement,
   MaterialRequest,
   Payment,
+  PaymentMode,
   PaymentStatus,
   Photo,
   QcCheck,
@@ -30,9 +34,29 @@ import type {
   Visit,
   WorkshopState,
 } from "./types";
+import { validateMediaDataUrl, type JobMediaCategory } from "./job-media";
 
 const STORAGE_KEY = "workshopos.sqlite.v2";
+const wasmUrl = new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url).href;
 type DbValue = number | string | Uint8Array | null;
+
+export const LIFECYCLE_CHECKLIST: Record<ChecklistStage, readonly SubStatus[]> = {
+  NEW: ["Gather Requirements", "Create Estimate", "Get Confirmation"],
+  IN_PROGRESS: ["Material Requested", "Material Issued", "Washing Needed", "Work Started", "Follow-up Needed", "Photos Shared", "QC Pending"],
+  COMPLETED: ["Customer Verification", "Invoice Ready", "Payment Received"],
+  CLOSED: ["Receipt Generated", "Gate Pass Generated", "Delivered"],
+};
+
+export function deriveChecklistSubStatus(items: readonly Pick<ChecklistItem, "label" | "sort_order" | "checked_at">[]): SubStatus {
+  const ordered = [...items].sort((left, right) => left.sort_order - right.sort_order);
+  if (ordered.length === 0) return "Gather Requirements";
+  return (ordered.find((item) => !item.checked_at) ?? ordered.at(-1)!).label;
+}
+
+function checklistStageForSubStatus(subStatus: SubStatus): ChecklistStage {
+  return (Object.entries(LIFECYCLE_CHECKLIST) as [ChecklistStage, readonly SubStatus[]][])
+    .find(([, labels]) => labels.includes(subStatus))?.[0] ?? "NEW";
+}
 
 let SQL: SqlJsStatic | undefined;
 
@@ -48,12 +72,26 @@ export async function openWorkshopDb() {
 }
 
 export function persist(db: Database) {
-  const binary = db.export();
+  if (!SQL) throw new Error("SQL.js is not initialized.");
+  const binary = exportPersistableDatabase(db, (bytes) => new SQL!.Database(bytes));
   let encoded = "";
   binary.forEach((byte: number) => {
     encoded += String.fromCharCode(byte);
   });
   localStorage.setItem(STORAGE_KEY, btoa(encoded));
+}
+
+export function exportPersistableDatabase(db: Database, cloneDatabase: (bytes: Uint8Array) => Database) {
+  const clone = cloneDatabase(db.export());
+  try {
+    // Image payloads deliberately live only in the active SQL.js session database.
+    clone.run("delete from photos where trim(coalesce(mime_type,''))<>'' or src like 'data:image/%'");
+    resetMissingPhotoEvidence(clone);
+    clone.run("vacuum");
+    return clone.export();
+  } finally {
+    clone.close();
+  }
 }
 
 export function readState(db: Database): WorkshopState {
@@ -74,19 +112,34 @@ export function readState(db: Database): WorkshopState {
   const allVehicles = byId(all<Vehicle>(db, "select * from vehicles"));
   const allVisits = byId(all<Visit>(db, "select * from visits"));
   const allInventory = byId(all<InventoryItem>(db, "select * from inventory"));
-  const estimates = all<Estimate>(db, "select * from estimates where archived_at is null order by id");
+  const allEstimates = all<Estimate>(db, "select * from estimates order by id");
+  const estimates = allEstimates.filter((row) => !row.archived_at);
   const estimatesByJob = groupBy(estimates, (row) => row.job_card_id);
   const estimateItemsByEstimate = groupBy(all<EstimateItem>(db, "select * from estimate_items where archived_at is null"), (row) => row.estimate_id);
   const materialByJob = groupBy(all<MaterialRequest>(db, "select * from material_requests where archived_at is null"), (row) => row.job_card_id);
   const tasksByJob = groupBy(all<Task>(db, "select * from tasks where archived_at is null"), (row) => row.job_card_id);
-  const invoicesByJob = groupBy(all<Invoice>(db, "select * from invoices where voided_at is null order by id"), (row) => row.job_card_id);
-  const paymentsByJob = groupBy(all<Payment>(db, "select * from payments where voided_at is null order by id"), (row) => row.job_card_id);
-  const receiptsByJob = groupBy(all<Receipt>(db, "select * from receipts order by id"), (row) => row.job_card_id);
-  const passesByJob = groupBy(all<GatePass>(db, "select * from gate_passes order by id"), (row) => row.job_card_id);
-  const photosByJob = groupBy(all<Photo>(db, "select * from photos where archived_at is null"), (row) => row.job_card_id);
+  const allInvoices = all<Invoice>(db, "select * from invoices order by id");
+  const invoicesByJob = groupBy(allInvoices.filter((row) => !row.voided_at), (row) => row.job_card_id);
+  const invoiceItemsByInvoice = groupBy(all<InvoiceItem>(db, "select * from invoice_items where archived_at is null order by id"), (row) => row.invoice_id);
+  const allPayments = all<Payment>(db, "select * from payments order by id");
+  const allReceipts = all<Receipt>(db, "select * from receipts order by id");
+  const allPasses = all<GatePass>(db, "select * from gate_passes order by id");
+  const allPhotos = all<Photo>(db, "select * from photos order by id");
+  const paymentsByJob = groupBy(allPayments.filter((row) => !row.voided_at), (row) => row.job_card_id);
+  const receiptsByJob = groupBy(allReceipts.filter((row) => !row.voided_at), (row) => row.job_card_id);
+  const passesByJob = groupBy(allPasses.filter((row) => !row.voided_at), (row) => row.job_card_id);
+  const photosByJob = groupBy(allPhotos.filter((row) => !row.archived_at), (row) => row.job_card_id);
+  const estimateHistoryByJob = groupBy(allEstimates, (row) => row.job_card_id);
+  const invoiceHistoryByJob = groupBy(allInvoices, (row) => row.job_card_id);
+  const paymentHistoryByJob = groupBy(allPayments, (row) => row.job_card_id);
+  const receiptHistoryByJob = groupBy(allReceipts, (row) => row.job_card_id);
+  const passHistoryByJob = groupBy(allPasses, (row) => row.job_card_id);
+  const photoHistoryByJob = groupBy(allPhotos, (row) => row.job_card_id);
   const followupsByJob = groupBy(all<Followup>(db, "select * from followups where archived_at is null"), (row) => row.job_card_id);
   const qcByJob = groupBy(all<QcCheck>(db, "select * from qc_checks where archived_at is null"), (row) => row.job_card_id);
   const historyByJob = groupBy(all<StatusHistory>(db, "select * from status_history order by id desc"), (row) => row.job_card_id);
+  const cyclesByJob = groupBy(all<ChecklistCycle>(db, "select * from checklist_cycles order by cycle_number, id"), (row) => row.job_card_id);
+  const checklistByJob = groupBy(all<ChecklistItem>(db, "select * from checklist_items order by cycle_number, sort_order, id"), (row) => row.job_card_id);
   const movements = all<MaterialMovement>(db, "select * from material_movements order by id desc");
   const movementsByJob = groupBy(movements, (row) => row.job_card_id);
   const globalMovements = movementsByJob.get(0) ?? [];
@@ -102,6 +155,7 @@ export function readState(db: Database): WorkshopState {
     const material_requests = materialByJob.get(job.id) ?? [];
     const materialInventory = material_requests.map((request) => allInventory.get(request.item_id))
       .filter(Boolean) as InventoryItem[];
+    const invoice = (invoicesByJob.get(job.id) ?? []).at(-1);
     return {
       job,
       visit,
@@ -114,7 +168,8 @@ export function readState(db: Database): WorkshopState {
       material_requests,
       inventory: materialInventory,
       tasks: tasksByJob.get(job.id) ?? [],
-      invoice: (invoicesByJob.get(job.id) ?? []).at(-1),
+      invoice,
+      invoice_items: invoice ? invoiceItemsByInvoice.get(invoice.id) ?? [] : [],
       payments: paymentsByJob.get(job.id) ?? [],
       receipt: (receiptsByJob.get(job.id) ?? []).at(-1),
       gate_pass: (passesByJob.get(job.id) ?? []).at(-1),
@@ -122,7 +177,15 @@ export function readState(db: Database): WorkshopState {
       followups: followupsByJob.get(job.id) ?? [],
       qc_checks: qcByJob.get(job.id) ?? [],
       status_history: historyByJob.get(job.id) ?? [],
+      checklist_cycles: cyclesByJob.get(job.id) ?? [],
+      checklist_items: checklistByJob.get(job.id) ?? [],
       material_movements: [...(movementsByJob.get(job.id) ?? []), ...globalMovements],
+      estimate_history: estimateHistoryByJob.get(job.id) ?? [],
+      invoice_history: invoiceHistoryByJob.get(job.id) ?? [],
+      payment_history: paymentHistoryByJob.get(job.id) ?? [],
+      receipt_history: receiptHistoryByJob.get(job.id) ?? [],
+      gate_pass_history: passHistoryByJob.get(job.id) ?? [],
+      photo_history: photoHistoryByJob.get(job.id) ?? [],
     };
   });
   return { users, customers, vehicles, visits, jobs, inventory };
@@ -133,7 +196,7 @@ export function loadLargeDemoDataset(db: Database) {
   const makes = [["Hyundai", "Creta"], ["Mahindra", "Thar"], ["Tata", "Nexon"], ["Maruti", "Brezza"], ["Honda", "City"], ["Toyota", "Fortuner"], ["Kia", "Seltos"], ["BMW", "X1"]];
   const colors = ["White", "Black", "Silver", "Blue", "Red", "Grey"];
   const categories = ["Before", "After", "Inspection", "Progress", "Job Sheet"];
-  const tables = ["approvals", "material_movements", "material_requests", "inventory", "gate_passes", "receipts", "payments", "invoices", "qc_checks", "tasks", "estimate_items", "estimates", "status_history", "photos", "followups", "job_cards", "visits", "vehicles", "customers"];
+  const tables = ["approvals", "material_movements", "material_requests", "inventory", "gate_passes", "receipts", "payments", "invoices", "qc_checks", "tasks", "estimate_items", "estimates", "status_history", "checklist_items", "checklist_cycles", "photos", "followups", "job_cards", "visits", "vehicles", "customers"];
   db.run("begin transaction");
   try {
     tables.forEach((table) => db.run(`delete from ${table}`));
@@ -158,17 +221,13 @@ export function loadLargeDemoDataset(db: Database) {
       const subIndex = (i - 1) % subStatuses.length;
       const sub = subStatuses[subIndex];
       let main: MainStatus = subIndex <= 2 ? "NEW" : subIndex <= 9 ? "IN_PROGRESS" : subIndex <= 12 ? "COMPLETED" : "CLOSED";
-      // Deterministic, small, fixed overrides so the large demo dataset also exercises HOLD/CANCELLED
-      // (3 jobs each out of 144) without disturbing the otherwise-even sub_status distribution above.
-      // Picked at subIndex 10/11 (Customer Verification / Invoice Ready) so the flipped rows still
-      // carry a COMPLETED-stage sub_status, consistent with HOLD/CANCELLED only being reachable from
-      // COMPLETED/HOLD in the transition graph (COMPLETED retains plenty of unflipped members).
-      if (i % 48 === 11) main = "HOLD";
-      else if (i % 48 === 12) main = "CANCELLED";
+      // Fixed overrides keep cancellation coverage deterministic without adding a sixth lifecycle status.
+      if (i % 48 === 12) main = "CANCELLED";
       const date = `2026-${String(((i - 1) % 8) + 1).padStart(2, "0")}-${String(((i * 5) % 27) + 1).padStart(2, "0")}T${String(8 + (i % 9)).padStart(2, "0")}:00:00.000Z`;
       const work = ["Full body PPF", "Ceramic coating", "Paint correction", "Interior detailing"][i % 4];
       const visitId = insert(db, "insert into visits(customer_id,vehicle_id,advisor_id,received_by,received_at,fuel,keys,accessories,requested_work,photos_note,created_at,updated_at) values(?,?,?,?,?,'Half','2 keys','Mats',?,'Offline demo media',?,?)", [customerId, vehicleId, 2, 3, date, work, date, date]);
       const jobId = insert(db, "insert into job_cards(job_no,visit_id,advisor_id,technician_id,main_status,sub_status,work_list,promised_at,qc_status,washing_needed,closed_at,advisor_notes,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [`JC-2026-${String(2000 + i).padStart(6, "0")}`, visitId, 2, 6, main, sub, work, "Next business day", main === "NEW" || main === "IN_PROGRESS" ? "Pending" : "Pass", i % 3 === 0 ? 1 : 0, main === "CLOSED" ? date : "", "Deterministic large demo", date, date]);
+      ensureLifecycleChecklist(db, jobId, main, sub, date);
       const estimateId = insert(db, "insert into estimates(job_card_id,status,discount,gst_rate,approval_note,created_at,updated_at) values(?,?,?,?,?,?,?)", [jobId, subIndex < 2 ? "Draft" : "Approved", i % 4 === 0 ? 500 : 0, 18, subIndex < 2 ? "Awaiting approval" : "Approved for demo", date, date]);
       const rate = 3500 + (i % 12) * 750;
       insert(db, "insert into estimate_items(estimate_id,kind,description,qty,rate,created_at,updated_at) values(?,'Service',?,1,?,?,?)", [estimateId, work, rate, date, date]);
@@ -176,11 +235,20 @@ export function loadLargeDemoDataset(db: Database) {
       insert(db, "insert into tasks(job_card_id,technician_id,title,status,notes,created_at,updated_at,started_at,completed_at) values(?,?,?,?,?,?,?,?,?)", [jobId, 6, work, main === "NEW" ? "Pending" : main === "IN_PROGRESS" ? "Started" : "Completed", "Generated demo task", date, date, main === "NEW" ? null : date, main === "COMPLETED" || main === "CLOSED" ? date : null]);
       ["Edges checked", "Surface cleaned", "Customer items verified"].forEach((label) => insert(db, "insert into qc_checks(job_card_id,label,passed) values(?,?,?)", [jobId, label, main === "COMPLETED" || main === "CLOSED" ? 1 : 0]));
       if (main !== "NEW") insert(db, "insert into followups(job_card_id,note,due_at,done,outcome,created_at,updated_at) values(?,?,?,?,?,?,?)", [jobId, "Customer progress update", date.slice(0, 10), main === "CLOSED" ? 1 : 0, main === "CLOSED" ? "Delivered" : "", date, date]);
-      if (main === "COMPLETED" || main === "CLOSED") insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,total,status,created_at,updated_at) values(?,?,?,?, 'Generated',?,?)", [jobId, `INV-2026-${String(i).padStart(5, "0")}`, `TLY-${String(5000 + i)}`, Math.round(rate * 1.18), date, date]);
+      let invoiceId = 0;
+      if (main === "COMPLETED" || main === "CLOSED") {
+        const invoiceDiscount = i % 4 === 0 ? 500 : 0;
+        const taxable = Math.max(0, rate - invoiceDiscount);
+        const gstAmount = Math.round(taxable * 18) / 100;
+        const demoTotal = Math.round((taxable + gstAmount) * 100) / 100;
+        invoiceId = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?)", [jobId, `INV-2026-${String(i).padStart(5, "0")}`, `TLY-${String(5000 + i)}`, invoiceDiscount, 18, rate, gstAmount, demoTotal, main === "CLOSED" ? "Cleared" : "Open", "Generated demo invoice", 1, date, date]);
+        insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,'Service',?,1,?,?,?)", [invoiceId, work, rate, date, date]);
+      }
       if (main === "CLOSED") {
-        insert(db, "insert into payments(job_card_id,amount,mode,reference,created_at,updated_at) values(?,?,?,?,?,?)", [jobId, Math.round(rate * 1.18), "UPI", `PAY-${String(i).padStart(5, "0")}`, date, date]);
-        insert(db, "insert into receipts(job_card_id,receipt_no) values(?,?)", [jobId, `REC-2026-${String(i).padStart(5, "0")}`]);
-        insert(db, "insert into gate_passes(job_card_id,gate_pass_no) values(?,?)", [jobId, `GP-2026-${String(i).padStart(5, "0")}`]);
+        const demoTotal = one<Invoice>(db, "select * from invoices where id=?", [invoiceId]).total;
+        insert(db, "insert into payments(job_card_id,invoice_id,amount,mode,other_detail,reference,notes,created_at,updated_at) values(?,?,?,?,?,?,?,?,?)", [jobId, invoiceId, demoTotal, "UPI", "", `PAY-${String(i).padStart(5, "0")}`, "Generated demo payment", date, date]);
+        insert(db, "insert into receipts(job_card_id,invoice_id,receipt_no,created_at) values(?,?,?,?)", [jobId, invoiceId, `REC-2026-${String(i).padStart(5, "0")}`, date]);
+        insert(db, "insert into gate_passes(job_card_id,invoice_id,gate_pass_no,created_at) values(?,?,?,?)", [jobId, invoiceId, `GP-2026-${String(i).padStart(5, "0")}`, date]);
       }
       const photoCount = 2;
       for (let p = 0; p < photoCount; p += 1) insert(db, "insert into photos(job_card_id,label,src,category,created_at,updated_at) values(?,?,?,?,?,?)", [jobId, `${categories[(i + p) % categories.length]} documentation`, "/media-placeholder.svg", categories[(i + p) % categories.length], date, date]);
@@ -217,7 +285,7 @@ function validateLargeDemoDataset(db: Database) {
     not exists(select 1 from payments p where p.job_card_id=j.id and p.voided_at is null) or
     not exists(select 1 from receipts r where r.job_card_id=j.id) or
     not exists(select 1 from gate_passes g where g.job_card_id=j.id))`);
-  if (incompleteClosures !== 0 || scalar<number>(db, "select count(distinct main_status) from job_cards") !== 6 || scalar<number>(db, "select count(distinct sub_status) from job_cards") !== 16) {
+  if (incompleteClosures !== 0 || scalar<number>(db, "select count(distinct main_status) from job_cards") !== 5 || scalar<number>(db, "select count(distinct sub_status) from job_cards") !== 16) {
     throw new Error("Large demo lifecycle records are incomplete.");
   }
 }
@@ -382,6 +450,7 @@ export function receiveVehicle(
     "insert into job_cards(job_no, visit_id, advisor_id, technician_id, main_status, sub_status, work_list, promised_at, qc_status, washing_needed, closed_at, advisor_notes, customer_instructions, internal_instructions, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     [`JC-${new Date().getFullYear()}-${String(1247 + visitId).padStart(6, "0")}`, visitId, payload.advisorId, 6, "NEW", "Gather Requirements", payload.requestedWork, "Tomorrow 6:00 PM", "Pending", 0, "", "", payload.requestedWork, ""],
   );
+  ensureLifecycleChecklist(db, jobId, "NEW", "Gather Requirements");
   insert(db, "insert into tasks(job_card_id, technician_id, title, status, notes, created_at, updated_at) values (?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
     jobId,
     6,
@@ -402,18 +471,75 @@ export function receiveVehicle(
 }
 
 // Job status lifecycle (UI_BRD_v1.3.md §3/§4):
-//   NEW -> IN_PROGRESS -> COMPLETED -> {HOLD, CLOSED}
-//   HOLD -> {IN_PROGRESS, CANCELLED}
+//   NEW -> IN_PROGRESS -> COMPLETED -> CLOSED; COMPLETED -> IN_PROGRESS starts rework
 //   CANCELLED -> (reopen) -> IN_PROGRESS
 // CLOSED is terminal. Any transition not listed here is rejected.
 export const MAIN_STATUS_TRANSITIONS: Record<MainStatus, MainStatus[]> = {
-  NEW: ["IN_PROGRESS"],
-  IN_PROGRESS: ["COMPLETED"],
-  COMPLETED: ["HOLD", "CLOSED"],
-  HOLD: ["IN_PROGRESS", "CANCELLED"],
+  NEW: ["IN_PROGRESS", "CANCELLED"],
+  IN_PROGRESS: ["COMPLETED", "CANCELLED"],
+  COMPLETED: ["CLOSED", "CANCELLED", "IN_PROGRESS"],
   CANCELLED: ["IN_PROGRESS"],
   CLOSED: [],
 };
+
+export function canMutateJobLifecycle(actor: Pick<User, "id" | "role">, job: Pick<JobCard, "advisor_id">) {
+  return actor.role === "admin" || (actor.role === "service" && actor.id === job.advisor_id);
+}
+
+export function assertJobLifecycleMutationAccess(db: Database, jobId: number, actorId: number) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (!canMutateJobLifecycle(actor, job)) {
+    throw new Error("Only the Owner or the linked Service Advisor can change this job lifecycle or estimate.");
+  }
+}
+
+export function transitionJobStatusForActor(db: Database, jobId: number, actorId: number, to: MainStatus, note: string, timestamp = new Date().toISOString()) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  transitionJobStatus(db, jobId, to, note, timestamp);
+}
+
+export function setChecklistItemCheckedForActor(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString()) {
+  const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
+  assertJobLifecycleMutationAccess(db, item.job_card_id, actorId);
+  setChecklistItemChecked(db, itemId, actorId, checked, timestamp);
+}
+
+export interface EstimateDraftInput {
+  discount: number;
+  gst_rate: number;
+  notes: string;
+  items: Array<Pick<EstimateItem, "kind" | "description" | "qty" | "rate">>;
+}
+
+export function saveEstimateForActor(db: Database, jobId: number, actorId: number, draft: EstimateDraftInput) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  if (!Number.isFinite(draft.discount) || draft.discount < 0) throw new Error("Discount must be zero or greater.");
+  if (!Number.isFinite(draft.gst_rate) || draft.gst_rate < 0) throw new Error("GST must be zero or greater.");
+  if (draft.items.length === 0) throw new Error("Add at least one estimate item.");
+  draft.items.forEach((item) => {
+    if (!item.description.trim()) throw new Error("Every estimate item needs a description.");
+    if (!Number.isFinite(item.qty) || item.qty <= 0) throw new Error("Item quantity must be greater than zero.");
+    if (!Number.isFinite(item.rate) || item.rate < 0) throw new Error("Item rate must be zero or greater.");
+  });
+  db.run("savepoint save_estimate");
+  try {
+    const existing = maybe<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [jobId]);
+    const estimateId = existing?.id ?? insert(db, "insert into estimates(job_card_id,status,discount,gst_rate,approval_note,created_at,updated_at) values (?,'Draft',?,?,?,datetime('now'),datetime('now'))", [jobId, draft.discount, draft.gst_rate, draft.notes.trim()]);
+    if (existing) {
+      db.run("update estimates set discount=?,gst_rate=?,approval_note=?,updated_at=datetime('now') where id=?", [draft.discount, draft.gst_rate, draft.notes.trim(), estimateId]);
+      db.run("update estimate_items set archived_at=datetime('now'),archived_reason='Replaced by estimate edit',updated_at=datetime('now') where estimate_id=? and archived_at is null", [estimateId]);
+    }
+    draft.items.forEach((item) => createEstimateItem(db, { estimate_id: estimateId, kind: item.kind, description: item.description.trim(), qty: item.qty, rate: item.rate }));
+    reconcileArtifactChecklist(db, jobId, actorId);
+    db.run("release savepoint save_estimate");
+    return estimateId;
+  } catch (error) {
+    db.run("rollback to savepoint save_estimate");
+    db.run("release savepoint save_estimate");
+    throw error;
+  }
+}
 
 function assertValidMainStatusTransition(from: MainStatus, to: MainStatus) {
   if (from === to) return;
@@ -428,16 +554,17 @@ export function updateJobCard(
   payload: Partial<Pick<JobCard, "advisor_id" | "technician_id" | "main_status" | "sub_status" | "work_list" | "promised_at" | "advisor_notes" | "customer_instructions" | "internal_instructions">>,
   note?: string,
 ) {
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  const main = payload.main_status ?? job.main_status;
-  const sub = payload.sub_status ?? job.sub_status;
-  if (main !== job.main_status) assertValidMainStatusTransition(job.main_status, main);
+  let job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (payload.main_status && payload.main_status !== job.main_status) {
+    transitionJobStatus(db, jobId, payload.main_status, note ?? "");
+    job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  }
+  const sub = checklistSubStatus(db, jobId, job.sub_status);
   db.run(
-    "update job_cards set advisor_id=?, technician_id=?, main_status=?, sub_status=?, work_list=?, promised_at=?, advisor_notes=?, customer_instructions=?, internal_instructions=?, updated_at=datetime('now') where id=?",
+    "update job_cards set advisor_id=?, technician_id=?, sub_status=?, work_list=?, promised_at=?, advisor_notes=?, customer_instructions=?, internal_instructions=?, updated_at=datetime('now') where id=?",
     [
       payload.advisor_id ?? job.advisor_id,
       payload.technician_id ?? job.technician_id,
-      main,
       sub,
       payload.work_list ?? job.work_list,
       payload.promised_at ?? job.promised_at,
@@ -447,7 +574,17 @@ export function updateJobCard(
       jobId,
     ],
   );
-  if (main !== job.main_status || sub !== job.sub_status) history(db, jobId, main, sub, note?.trim() || "Job card updated");
+  if (sub !== job.sub_status) history(db, jobId, job.main_status, sub, note?.trim() || "Job card updated");
+}
+
+export function updateJobCardForActor(
+  db: Database,
+  jobId: number,
+  actorId: number,
+  payload: Partial<Pick<JobCard, "advisor_id" | "technician_id" | "work_list" | "promised_at" | "advisor_notes" | "customer_instructions" | "internal_instructions">>,
+) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  updateJobCard(db, jobId, payload);
 }
 
 // True archive / soft-delete: removes the job from active views. Used by admin "Archive" actions
@@ -460,38 +597,24 @@ export function cancelJobCard(db: Database, jobId: number, reason: string) {
   history(db, jobId, job.main_status, job.sub_status, `Cancelled: ${reason || "No reason"}`);
 }
 
-// Status-based lifecycle transitions (UI_BRD_v1.3.md §4). Each requires a free-text note and is
-// captured in job history via history()/setJobStatus() so it is visible in the History tab and in
-// other roles' equivalent queues.
-
-export function holdJobCard(db: Database, jobId: number, note: string) {
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  if (!note.trim()) throw new Error("A note is required to place a job on hold.");
-  assertValidMainStatusTransition(job.main_status, "HOLD");
-  setJobStatus(db, jobId, "HOLD", job.sub_status, note.trim());
+export function archiveJobCardForActor(db: Database, jobId: number, actorId: number, reason: string) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  if (!reason.trim()) throw new Error("An archive reason is required.");
+  cancelJobCard(db, jobId, reason.trim());
 }
 
+// Status-based lifecycle transitions (UI_BRD_v1.3.md §4). Each requires a free-text note and is
+// captured in job history by the central transition service so it is visible in the History tab and in
+// other roles' equivalent queues.
+
 export function cancelJobCardStatus(db: Database, jobId: number, note: string) {
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  if (!note.trim()) throw new Error("A note is required to cancel a job.");
-  assertValidMainStatusTransition(job.main_status, "CANCELLED");
-  setJobStatus(db, jobId, "CANCELLED", job.sub_status, note.trim());
+  transitionJobStatus(db, jobId, "CANCELLED", note);
 }
 
 export function reopenJobCard(db: Database, jobId: number, note: string) {
   const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
   if (job.main_status !== "CANCELLED") throw new Error("Only a cancelled job can be reopened.");
-  if (!note.trim()) throw new Error("A note is required to reopen a job.");
-  assertValidMainStatusTransition(job.main_status, "IN_PROGRESS");
-  setJobStatus(db, jobId, "IN_PROGRESS", job.sub_status, note.trim());
-}
-
-export function resumeJobCard(db: Database, jobId: number, note: string) {
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  if (job.main_status !== "HOLD") throw new Error("Only a job on hold can be resumed.");
-  if (!note.trim()) throw new Error("A note is required to resume a job.");
-  assertValidMainStatusTransition(job.main_status, "IN_PROGRESS");
-  setJobStatus(db, jobId, "IN_PROGRESS", job.sub_status, note.trim());
+  transitionJobStatus(db, jobId, "IN_PROGRESS", note);
 }
 
 export function createEstimate(db: Database, jobId: number) {
@@ -508,7 +631,7 @@ export function createEstimate(db: Database, jobId: number) {
   if (scalar<number>(db, "select count(*) from estimate_items where estimate_id=? and archived_at is null", [estimateId]) === 0) {
     createEstimateItem(db, { estimate_id: estimateId, kind: "Service", description: "Workshop labour", qty: 1, rate: 5000 });
   }
-  setJobStatus(db, jobId, "NEW", "Create Estimate", "Estimate drafted");
+  reconcileArtifactChecklist(db, jobId);
   return estimateId;
 }
 
@@ -521,7 +644,7 @@ export function updateEstimate(db: Database, id: number, payload: Partial<Pick<E
     payload.approval_note ?? estimate.approval_note,
     id,
   ]);
-  history(db, estimate.job_card_id, payload.status === "Approved" ? "IN_PROGRESS" : "NEW", payload.status === "Approved" ? "Get Confirmation" : "Create Estimate", `Estimate ${payload.status ?? "updated"}`);
+  reconcileArtifactChecklist(db, estimate.job_card_id);
 }
 
 export function createEstimateItem(db: Database, payload: Omit<EstimateItem, "id">) {
@@ -548,15 +671,17 @@ export function approveEstimate(db: Database, jobId: number, note = "Customer ap
   if (scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null", [jobId]) === 0) {
     createMaterialRequest(db, { job_card_id: jobId, item_id: 1, requested_qty: 6, issued_qty: 0, used_qty: 0, returned_qty: 0, wasted_qty: 0 });
   }
-  setJobStatus(db, jobId, "IN_PROGRESS", "Material Requested", "Estimate approved; material requested");
+  reconcileArtifactChecklist(db, jobId);
 }
 
 export function createMaterialRequest(db: Database, payload: Omit<MaterialRequest, "id">) {
-  return insert(
+  const id = insert(
     db,
     "insert into material_requests(job_card_id, item_id, requested_qty, issued_qty, used_qty, returned_qty, wasted_qty, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     [payload.job_card_id, payload.item_id, payload.requested_qty, payload.issued_qty, payload.used_qty, payload.returned_qty, payload.wasted_qty],
   );
+  reconcileArtifactChecklist(db, payload.job_card_id);
+  return id;
 }
 
 export function updateMaterialRequest(db: Database, id: number, payload: Omit<MaterialRequest, "id">) {
@@ -582,7 +707,7 @@ export function issueMaterialQty(db: Database, requestId: number, qty: number) {
   db.run("update material_requests set issued_qty=issued_qty + ?, updated_at=datetime('now') where id=?", [qty, requestId]);
   db.run("update inventory set stock_qty=stock_qty - ?, updated_at=datetime('now') where id=?", [qty, request.item_id]);
   movement(db, request.job_card_id, request.item_id, "ISSUE", qty, "Issued to job");
-  setJobStatus(db, request.job_card_id, "IN_PROGRESS", "Material Issued", "Material issued from store");
+  reconcileArtifactChecklist(db, request.job_card_id);
 }
 
 export function issueMaterial(db: Database, requestId: number) {
@@ -600,7 +725,7 @@ export function reconcileMaterialQty(db: Database, requestId: number, used: numb
   }
   const wasteDelta = wasted - request.wasted_qty;
   if (wasteDelta > 0) movement(db, request.job_card_id, request.item_id, "WASTAGE", wasteDelta, "Recorded wastage");
-  history(db, request.job_card_id, "IN_PROGRESS", "Material Issued", "Material reconciled");
+  auditEvidence(db, request.job_card_id, "Material reconciled");
 }
 
 export function reconcileMaterial(db: Database, requestId: number, used: number, returned: number, wasted: number) {
@@ -658,11 +783,8 @@ export function updateTask(db: Database, taskId: number, status: TaskStatus, not
   const task = one<Task>(db, "select * from tasks where id=?", [taskId]);
   const timeColumn = status === "Started" ? "started_at" : status === "Paused" ? "paused_at" : status === "Completed" ? "completed_at" : "";
   db.run(`update tasks set status=?, notes=?, updated_at=datetime('now')${timeColumn ? `, ${timeColumn}=coalesce(${timeColumn}, datetime('now'))` : ""} where id=?`, [status, notes, taskId]);
-  if (status === "Started") setJobStatus(db, task.job_card_id, "IN_PROGRESS", "Work Started", "Task started");
-  if (status === "Paused") history(db, task.job_card_id, "IN_PROGRESS", "Work Started", "Task paused");
-  if (status === "Completed" && scalar<number>(db, "select count(*) from tasks where job_card_id=? and id<>? and status<>'Completed' and archived_at is null", [task.job_card_id, taskId]) === 0) {
-    setJobStatus(db, task.job_card_id, "IN_PROGRESS", "QC Pending", "All tasks completed; QC pending");
-  }
+  if (status === "Paused") auditEvidence(db, task.job_card_id, "Task paused");
+  reconcileArtifactChecklist(db, task.job_card_id);
 }
 
 export function archiveTask(db: Database, id: number, reason: string) {
@@ -671,14 +793,15 @@ export function archiveTask(db: Database, id: number, reason: string) {
 
 export function markWashingNeeded(db: Database, jobId: number) {
   db.run("update job_cards set washing_needed=1, updated_at=datetime('now') where id=?", [jobId]);
-  setJobStatus(db, jobId, "IN_PROGRESS", "Washing Needed", "Washing required before delivery");
+  reconcileArtifactChecklist(db, jobId);
 }
 
 export function updateQcCheck(db: Database, id: number, passed: boolean, failReason = "") {
   const check = one<QcCheck>(db, "select * from qc_checks where id=?", [id]);
   db.run("update qc_checks set passed=?, fail_reason=? where id=?", [passed ? 1 : 0, failReason, id]);
   db.run("update job_cards set qc_status=? where id=?", [passed ? "Pass" : "Fail", check.job_card_id]);
-  history(db, check.job_card_id, "IN_PROGRESS", passed ? "QC Pending" : "Work Started", passed ? `QC passed: ${check.label}` : `QC failed: ${failReason || check.label}`);
+  auditEvidence(db, check.job_card_id, passed ? `QC passed: ${check.label}` : `QC failed: ${failReason || check.label}`);
+  reconcileArtifactChecklist(db, check.job_card_id);
 }
 
 export function failQcWithRework(db: Database, checkId: number, technicianId: number, reason: string) {
@@ -690,63 +813,348 @@ export function failQcWithRework(db: Database, checkId: number, technicianId: nu
 export function passQc(db: Database, jobId: number) {
   db.run("update qc_checks set passed=1 where job_card_id=? and archived_at is null", [jobId]);
   db.run("update job_cards set qc_status='Pass', updated_at=datetime('now') where id=?", [jobId]);
-  setJobStatus(db, jobId, "COMPLETED", "Customer Verification", "QC passed; ready for customer verification");
+  reconcileArtifactChecklist(db, jobId);
 }
 
 export function generateInvoice(db: Database, jobId: number, tally: string) {
-  const total = invoiceTotal(db, jobId);
-  const existing = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null", [jobId]);
-  if (existing) {
-    db.run("update invoices set tally_invoice_no=?, total=?, status=?, updated_at=datetime('now') where id=?", [tally, total, "Generated", existing.id]);
-  } else {
-    insert(db, "insert into invoices(job_card_id, invoice_no, tally_invoice_no, total, status, created_at, updated_at) values (?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
-      jobId,
-      `INV-${String(8900 + jobId).padStart(5, "0")}`,
-      tally,
-      total,
-      "Generated",
-    ]);
+  createInvoiceFromEstimate(db, jobId, { tallyInvoiceNo: tally, notes: "", documentAvailable: true });
+  reconcileArtifactChecklist(db, jobId);
+}
+
+export interface CreateInvoiceInput { tallyInvoiceNo: string; notes: string; documentAvailable: boolean }
+export interface InvoiceItemInput { kind: "Service" | "Material"; description: string; qty: number; rate: number }
+export interface InvoiceFieldsInput { tallyInvoiceNo: string; discount: number; gstRate: number; notes: string; documentAvailable: boolean }
+
+export function canMutateBilling(actor: Pick<User, "role">) {
+  return actor.role === "admin" || actor.role === "accounts";
+}
+
+function assertBillingMutationAccess(db: Database, actorId: number) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  if (!canMutateBilling(actor)) throw new Error("Only Owner/Admin and Accounts may change billing or delivery records.");
+}
+
+function assertInvoiceFinancialsEditable(db: Database, invoiceId: number) {
+  if (scalar<number>(db, "select count(*) from payments where invoice_id=? and voided_at is null", [invoiceId]) > 0) {
+    throw new Error("Invoice financial fields are locked after the first active payment.");
   }
-  setJobStatus(db, jobId, "COMPLETED", "Invoice Ready", "Invoice generated");
+}
+
+function validateInvoiceItem(input: InvoiceItemInput) {
+  if (!input.description.trim()) throw new Error("Invoice item description is required.");
+  if (!Number.isFinite(input.qty) || input.qty <= 0) throw new Error("Invoice item quantity must be greater than zero.");
+  if (!Number.isFinite(input.rate) || input.rate < 0) throw new Error("Invoice item rate cannot be negative.");
+}
+
+function recalculateInvoice(db: Database, invoiceId: number) {
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  const subtotal = scalar<number>(db, "select coalesce(sum(qty*rate),0) from invoice_items where invoice_id=? and archived_at is null", [invoiceId]);
+  if (subtotal <= 0) throw new Error("An invoice requires at least one item with a positive total.");
+  const taxable = Math.max(0, subtotal - invoice.discount);
+  const gstAmount = Math.round(taxable * invoice.gst_rate) / 100;
+  const total = Math.round((taxable + gstAmount) * 100) / 100;
+  db.run("update invoices set subtotal=?,gst_amount=?,total=?,updated_at=datetime('now') where id=?", [subtotal, gstAmount, total, invoiceId]);
+}
+
+export function updateInvoiceFields(db: Database, invoiceId: number, input: InvoiceFieldsInput) {
+  const current = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  const changesFinancials = input.tallyInvoiceNo.trim() !== current.tally_invoice_no || input.discount !== current.discount || input.gstRate !== current.gst_rate;
+  if (changesFinancials) assertInvoiceFinancialsEditable(db, invoiceId);
+  if (!Number.isFinite(input.discount) || input.discount < 0) throw new Error("Invoice discount cannot be negative.");
+  if (!Number.isFinite(input.gstRate) || input.gstRate < 0 || input.gstRate > 100) throw new Error("Invoice GST must be between 0 and 100.");
+  db.run("savepoint update_invoice_fields");
+  try {
+    db.run("update invoices set tally_invoice_no=?,discount=?,gst_rate=?,notes=?,document_available=?,document_generated_at=case when ?=1 then coalesce(document_generated_at,datetime('now')) else document_generated_at end,updated_at=datetime('now') where id=? and voided_at is null", [input.tallyInvoiceNo.trim(), input.discount, input.gstRate, input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0, invoiceId]);
+    recalculateInvoice(db, invoiceId);
+    reconcileArtifactChecklist(db, current.job_card_id);
+    db.run("release savepoint update_invoice_fields");
+  } catch (error) {
+    db.run("rollback to savepoint update_invoice_fields");
+    db.run("release savepoint update_invoice_fields");
+    throw error;
+  }
+}
+
+export function createInvoiceItem(db: Database, invoiceId: number, input: InvoiceItemInput) {
+  assertInvoiceFinancialsEditable(db, invoiceId);
+  validateInvoiceItem(input);
+  const id = insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,?,?,?,?,datetime('now'),datetime('now'))", [invoiceId, input.kind, input.description.trim(), input.qty, input.rate]);
+  recalculateInvoice(db, invoiceId);
+  return id;
+}
+
+export function updateInvoiceItem(db: Database, itemId: number, input: InvoiceItemInput) {
+  const item = one<InvoiceItem>(db, "select * from invoice_items where id=? and archived_at is null", [itemId]);
+  assertInvoiceFinancialsEditable(db, item.invoice_id);
+  validateInvoiceItem(input);
+  db.run("update invoice_items set kind=?,description=?,qty=?,rate=?,updated_at=datetime('now') where id=?", [input.kind, input.description.trim(), input.qty, input.rate, itemId]);
+  recalculateInvoice(db, item.invoice_id);
+}
+
+export function archiveInvoiceItem(db: Database, itemId: number, reason: string) {
+  const item = one<InvoiceItem>(db, "select * from invoice_items where id=? and archived_at is null", [itemId]);
+  assertInvoiceFinancialsEditable(db, item.invoice_id);
+  if (!reason.trim()) throw new Error("An invoice item archive reason is required.");
+  db.run("savepoint archive_invoice_item");
+  try {
+    archive(db, "invoice_items", itemId, reason.trim());
+    recalculateInvoice(db, item.invoice_id);
+    db.run("release savepoint archive_invoice_item");
+  } catch (error) {
+    db.run("rollback to savepoint archive_invoice_item");
+    db.run("release savepoint archive_invoice_item");
+    throw error;
+  }
+}
+
+export function createInvoiceFromEstimate(db: Database, jobId: number, input: CreateInvoiceInput) {
+  const existing = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
+  if (existing) return existing.id;
+  const estimate = one<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [jobId]);
+  const items = all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id]);
+  if (items.length === 0) throw new Error("An invoice requires at least one estimate item.");
+  db.run("savepoint create_invoice");
+  try {
+    const subtotal = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
+    const taxable = Math.max(0, subtotal - estimate.discount);
+    const gstAmount = Math.round(taxable * estimate.gst_rate) / 100;
+    const total = Math.round((taxable + gstAmount) * 100) / 100;
+    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, `INV-${String(8900 + jobId).padStart(5, "0")}`, input.tallyInvoiceNo.trim(), estimate.discount, estimate.gst_rate, subtotal, gstAmount, total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
+    for (const item of items) insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description, item.qty, item.rate]);
+    reconcileArtifactChecklist(db, jobId);
+    db.run("release savepoint create_invoice");
+    return id;
+  } catch (error) {
+    db.run("rollback to savepoint create_invoice");
+    db.run("release savepoint create_invoice");
+    throw error;
+  }
+}
+
+export function createInvoiceForActor(db: Database, jobId: number, actorId: number, input: CreateInvoiceInput) {
+  assertBillingMutationAccess(db, actorId);
+  return createInvoiceFromEstimate(db, jobId, input);
+}
+
+export function updateInvoiceForActor(db: Database, invoiceId: number, actorId: number, input: InvoiceFieldsInput) {
+  assertBillingMutationAccess(db, actorId);
+  updateInvoiceFields(db, invoiceId, input);
+}
+
+export interface InvoiceEditorInput extends InvoiceFieldsInput { items: Array<InvoiceItemInput & { id?: number }> }
+
+export function saveInvoiceForActor(db: Database, invoiceId: number, actorId: number, input: InvoiceEditorInput) {
+  assertBillingMutationAccess(db, actorId);
+  if (input.items.length === 0) throw new Error("An invoice requires at least one item.");
+  const existing = all<InvoiceItem>(db, "select * from invoice_items where invoice_id=? and archived_at is null order by id", [invoiceId]);
+  const existingIds = new Set(existing.map((item) => item.id));
+  if (input.items.some((item) => item.id && !existingIds.has(item.id))) throw new Error("Invoice item does not belong to this invoice.");
+  db.run("savepoint save_invoice_editor");
+  try {
+    updateInvoiceFields(db, invoiceId, input);
+    for (const item of input.items) {
+      if (item.id) updateInvoiceItem(db, item.id, item);
+      else createInvoiceItem(db, invoiceId, item);
+    }
+    const retained = new Set(input.items.flatMap((item) => item.id ? [item.id] : []));
+    for (const item of existing) if (!retained.has(item.id)) archiveInvoiceItem(db, item.id, "Removed in invoice editor");
+    db.run("release savepoint save_invoice_editor");
+  } catch (error) {
+    db.run("rollback to savepoint save_invoice_editor");
+    db.run("release savepoint save_invoice_editor");
+    throw error;
+  }
 }
 
 export function voidInvoice(db: Database, invoiceId: number, reason: string) {
+  if (!reason.trim()) throw new Error("An invoice void reason is required.");
+  if (scalar<number>(db, "select count(*) from payments where invoice_id=? and voided_at is null", [invoiceId]) > 0) throw new Error("An invoice with active payments cannot be voided.");
   db.run("update invoices set voided_at=datetime('now'), void_reason=?, updated_at=datetime('now') where id=?", [reason, invoiceId]);
 }
 
-export function addPayment(db: Database, jobId: number, amount: number, mode: string, reference: string) {
-  insert(db, "insert into payments(job_card_id, amount, mode, reference, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), datetime('now'))", [jobId, amount, mode, reference]);
-  const total = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null", [jobId])?.total ?? 0;
-  const paid = scalar<number>(db, "select coalesce(sum(amount),0) from payments where job_card_id=? and voided_at is null", [jobId]);
-  if (paid >= total && total > 0) setJobStatus(db, jobId, "CLOSED", "Payment Received", "Payment received");
+export function voidInvoiceForActor(db: Database, invoiceId: number, actorId: number, reason: string) {
+  assertBillingMutationAccess(db, actorId);
+  voidInvoice(db, invoiceId, reason);
 }
 
-export function updatePayment(db: Database, id: number, amount: number, mode: string, reference: string) {
-  db.run("update payments set amount=?, mode=?, reference=?, updated_at=datetime('now') where id=?", [amount, mode, reference, id]);
+export interface PaymentInput { amount: number; mode: PaymentMode; otherDetail: string; reference: string; notes: string }
+const PAYMENT_MODES: readonly PaymentMode[] = ["UPI", "Cash", "Card", "Other"];
+
+function validatePaymentInput(input: PaymentInput) {
+  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("Payment amount must be greater than zero.");
+  if (!PAYMENT_MODES.includes(input.mode)) throw new Error("Payment mode must be UPI, Cash, Card, or Other.");
+  if (input.mode === "Other" && !input.otherDetail.trim()) throw new Error("Other payment detail is required.");
+}
+
+function activePaidAmount(db: Database, invoiceId: number, excludingPaymentId = 0) {
+  return scalar<number>(db, "select coalesce(sum(amount),0) from payments where invoice_id=? and voided_at is null and id<>?", [invoiceId, excludingPaymentId]);
+}
+
+function syncInvoicePaymentStatus(db: Database, invoiceId: number) {
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  const paid = activePaidAmount(db, invoiceId);
+  const status = paid <= 0 ? "Open" : paid + 0.001 < invoice.total ? "Partial" : "Cleared";
+  db.run("update invoices set status=?,updated_at=datetime('now') where id=?", [status, invoiceId]);
+  reconcileArtifactChecklist(db, invoice.job_card_id);
+}
+
+function transitionJobStatusForBillingCorrection(db: Database, jobId: number, note: string, timestamp = new Date().toISOString()) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (job.main_status !== "CLOSED") throw new Error("A billing correction system transition requires a CLOSED job.");
+  db.run("update job_cards set main_status='COMPLETED',sub_status='Customer Verification',closed_at=null,updated_at=? where id=?", [timestamp, jobId]);
+  createLifecycleCycle(db, jobId, "COMPLETED", timestamp);
+  history(db, jobId, "COMPLETED", "Customer Verification", note, timestamp);
+  reconcileArtifactChecklist(db, jobId, 0, timestamp);
+}
+
+function reopenClearedInvoiceIfUnderpaid(db: Database, invoiceId: number, wasCleared: boolean) {
+  if (!wasCleared) return;
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
+  if (invoice.status === "Cleared" || job.main_status !== "CLOSED") return;
+  const reason = "Billing correction: cleared invoice became underpaid";
+  db.run("update receipts set voided_at=datetime('now'),void_reason=? where invoice_id=? and voided_at is null", [reason, invoiceId]);
+  db.run("update gate_passes set voided_at=datetime('now'),void_reason=? where invoice_id=? and voided_at is null", [reason, invoiceId]);
+  transitionJobStatusForBillingCorrection(db, invoice.job_card_id, "System billing correction: cleared invoice became underpaid; stale receipt and gate pass voided");
+}
+
+function closeJobForClearedInvoice(db: Database, invoiceId: number) {
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  if (invoice.status !== "Cleared") return;
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
+  if (job.main_status !== "COMPLETED") return;
+  generateReceiptAndGatePass(db, invoice.job_card_id);
+  transitionJobStatus(db, invoice.job_card_id, "CLOSED", "System: invoice cleared by cumulative active payments");
+}
+
+export function recordPayment(db: Database, invoiceId: number, input: PaymentInput) {
+  validatePaymentInput(input);
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  if (activePaidAmount(db, invoiceId) + input.amount > invoice.total + 0.001) throw new Error("Payment would create an overpayment.");
+  db.run("savepoint record_payment");
+  try {
+    const id = insert(db, "insert into payments(job_card_id,invoice_id,amount,mode,other_detail,reference,notes,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [invoice.job_card_id, invoiceId, input.amount, input.mode, input.otherDetail.trim(), input.reference.trim(), input.notes.trim()]);
+    syncInvoicePaymentStatus(db, invoiceId);
+    closeJobForClearedInvoice(db, invoiceId);
+    db.run("release savepoint record_payment");
+    return id;
+  } catch (error) {
+    db.run("rollback to savepoint record_payment");
+    db.run("release savepoint record_payment");
+    throw error;
+  }
+}
+
+export function recordPaymentForActor(db: Database, invoiceId: number, actorId: number, input: PaymentInput) {
+  assertBillingMutationAccess(db, actorId);
+  return recordPayment(db, invoiceId, input);
+}
+
+export function editPayment(db: Database, id: number, input: PaymentInput) {
+  validatePaymentInput(input);
+  const payment = one<Payment>(db, "select * from payments where id=? and voided_at is null", [id]);
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [payment.invoice_id]);
+  if (activePaidAmount(db, payment.invoice_id, id) + input.amount > invoice.total + 0.001) throw new Error("Payment would create an overpayment.");
+  db.run("savepoint edit_payment");
+  try {
+    db.run("update payments set amount=?,mode=?,other_detail=?,reference=?,notes=?,updated_at=datetime('now') where id=?", [input.amount, input.mode, input.otherDetail.trim(), input.reference.trim(), input.notes.trim(), id]);
+    syncInvoicePaymentStatus(db, payment.invoice_id);
+    reopenClearedInvoiceIfUnderpaid(db, payment.invoice_id, invoice.status === "Cleared");
+    closeJobForClearedInvoice(db, payment.invoice_id);
+    db.run("release savepoint edit_payment");
+  } catch (error) {
+    db.run("rollback to savepoint edit_payment");
+    db.run("release savepoint edit_payment");
+    throw error;
+  }
+}
+
+export function editPaymentForActor(db: Database, id: number, actorId: number, input: PaymentInput) {
+  assertBillingMutationAccess(db, actorId);
+  editPayment(db, id, input);
 }
 
 export function voidPayment(db: Database, id: number, reason: string) {
-  db.run("update payments set voided_at=datetime('now'), void_reason=?, updated_at=datetime('now') where id=?", [reason, id]);
+  if (!reason.trim()) throw new Error("A payment void reason is required.");
+  const payment = one<Payment>(db, "select * from payments where id=? and voided_at is null", [id]);
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [payment.invoice_id]);
+  db.run("savepoint void_payment");
+  try {
+    db.run("update payments set voided_at=datetime('now'),void_reason=?,updated_at=datetime('now') where id=?", [reason.trim(), id]);
+    syncInvoicePaymentStatus(db, payment.invoice_id);
+    reopenClearedInvoiceIfUnderpaid(db, payment.invoice_id, invoice.status === "Cleared");
+    db.run("release savepoint void_payment");
+  } catch (error) {
+    db.run("rollback to savepoint void_payment");
+    db.run("release savepoint void_payment");
+    throw error;
+  }
+}
+
+export function voidPaymentForActor(db: Database, id: number, actorId: number, reason: string) {
+  assertBillingMutationAccess(db, actorId);
+  voidPayment(db, id, reason);
+}
+
+export function addPayment(db: Database, jobId: number, amount: number, mode: string, reference: string) {
+  const invoice = one<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
+  const normalizedMode: PaymentMode = PAYMENT_MODES.includes(mode as PaymentMode) ? mode as PaymentMode : mode.toLowerCase().startsWith("upi") ? "UPI" : "Other";
+  return recordPayment(db, invoice.id, { amount, mode: normalizedMode, otherDetail: normalizedMode === "Other" ? mode : "", reference, notes: "" });
+}
+
+export function updatePayment(db: Database, id: number, amount: number, mode: string, reference: string) {
+  const normalizedMode: PaymentMode = PAYMENT_MODES.includes(mode as PaymentMode) ? mode as PaymentMode : "Other";
+  editPayment(db, id, { amount, mode: normalizedMode, otherDetail: normalizedMode === "Other" ? mode : "", reference, notes: "" });
 }
 
 export function generateReceiptAndGatePass(db: Database, jobId: number) {
-  if (!maybe<Receipt>(db, "select * from receipts where job_card_id=?", [jobId])) {
-    insert(db, "insert into receipts(job_card_id, receipt_no) values (?, ?)", [jobId, `RCT-${String(4500 + jobId).padStart(5, "0")}`]);
+  const invoice = one<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
+  if (invoice.status !== "Cleared") throw new Error("Receipt and gate pass require a cleared invoice.");
+  if (!maybe<Receipt>(db, "select * from receipts where invoice_id=? and voided_at is null", [invoice.id])) {
+    insert(db, "insert into receipts(job_card_id,invoice_id,receipt_no,created_at) values (?,?,?,datetime('now'))", [jobId, invoice.id, `RCT-${String(4500 + invoice.id).padStart(5, "0")}`]);
   }
-  if (!maybe<GatePass>(db, "select * from gate_passes where job_card_id=?", [jobId])) {
-    insert(db, "insert into gate_passes(job_card_id, gate_pass_no) values (?, ?)", [jobId, `GP-${String(3100 + jobId).padStart(5, "0")}`]);
+  if (!maybe<GatePass>(db, "select * from gate_passes where invoice_id=? and voided_at is null", [invoice.id])) {
+    insert(db, "insert into gate_passes(job_card_id,invoice_id,gate_pass_no,created_at) values (?,?,?,datetime('now'))", [jobId, invoice.id, `GP-${String(3100 + invoice.id).padStart(5, "0")}`]);
   }
-  setJobStatus(db, jobId, "CLOSED", "Gate Pass Generated", "Receipt and gate pass generated");
+  reconcileArtifactChecklist(db, jobId);
 }
 
 export function updateDeliveryDetails(db: Database, jobId: number, deliveredBy: string, finalKm: number, acknowledgement: string) {
   db.run("update job_cards set delivery_by=?, final_km=?, acknowledgement=?, updated_at=datetime('now') where id=?", [deliveredBy, finalKm, acknowledgement, jobId]);
 }
 
+export function updateDeliveryForActor(db: Database, jobId: number, actorId: number, deliveredBy: string, finalKm: number, acknowledgement: string) {
+  assertBillingMutationAccess(db, actorId);
+  if (!deliveredBy.trim()) throw new Error("Delivered by is required.");
+  if (!Number.isFinite(finalKm) || finalKm < 0) throw new Error("Final KM cannot be negative.");
+  updateDeliveryDetails(db, jobId, deliveredBy.trim(), finalKm, acknowledgement.trim());
+}
+
+export function markJobDeliveredForActor(db: Database, jobId: number, actorId: number, deliveredBy: string, finalKm: number, acknowledgement: string, timestamp = new Date().toISOString()) {
+  assertBillingMutationAccess(db, actorId);
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  if (job.main_status !== "CLOSED") throw new Error("Only a closed job can be marked Delivered.");
+  if (!maybe<GatePass>(db, "select * from gate_passes where job_card_id=? and voided_at is null", [jobId])) throw new Error("A current gate pass is required before delivery.");
+  const item = one<ChecklistItem>(db, "select * from checklist_items where job_card_id=? and stage='CLOSED' and label='Delivered' order by cycle_number desc,id desc limit 1", [jobId]);
+  if (item.checked_at) throw new Error("This job is already marked Delivered.");
+  db.run("savepoint mark_delivered");
+  try {
+    updateDeliveryForActor(db, jobId, actorId, deliveredBy, finalKm, acknowledgement);
+    setChecklistItemChecked(db, item.id, actorId, true, timestamp);
+    db.run("update job_cards set closed_at=coalesce(nullif(closed_at,''),?),updated_at=? where id=?", [timestamp, timestamp, jobId]);
+    db.run("release savepoint mark_delivered");
+  } catch (error) {
+    db.run("rollback to savepoint mark_delivered");
+    db.run("release savepoint mark_delivered");
+    throw error;
+  }
+}
+
 export function closeJob(db: Database, jobId: number) {
   if (closureBlockers(readState(db).jobs.find((job) => job.job.id === jobId) ?? undefined).length > 0) return false;
-  setJobStatus(db, jobId, "CLOSED", "Delivered", "Vehicle delivered and job closed");
+  transitionJobStatus(db, jobId, "CLOSED", "Vehicle delivered and job closed");
   db.run("update job_cards set closed_at=datetime('now'), updated_at=datetime('now') where id=?", [jobId]);
+  reconcileArtifactChecklist(db, jobId);
   return true;
 }
 
@@ -758,7 +1166,7 @@ export function createFollowup(db: Database, payload: Omit<Followup, "id">) {
     payload.done,
     payload.outcome ?? "",
   ]);
-  setJobStatus(db, payload.job_card_id, "IN_PROGRESS", "Follow-up Needed", "Follow-up added");
+  reconcileArtifactChecklist(db, payload.job_card_id);
   return id;
 }
 
@@ -785,7 +1193,7 @@ export function createPhoto(db: Database, payload: Omit<Photo, "id">) {
     payload.src,
     payload.category ?? "General",
   ]);
-  setJobStatus(db, payload.job_card_id, "IN_PROGRESS", "Photos Shared", "Photo added");
+  reconcileArtifactChecklist(db, payload.job_card_id);
   return id;
 }
 
@@ -794,7 +1202,57 @@ export function updatePhoto(db: Database, id: number, payload: Omit<Photo, "id">
 }
 
 export function archivePhoto(db: Database, id: number, reason: string) {
+  const photo = one<Photo>(db, "select * from photos where id=?", [id]);
   archive(db, "photos", id, reason);
+  resetMissingPhotoEvidence(db, photo.job_card_id);
+}
+
+export interface JobPhotoInput {
+  label: string;
+  category: JobMediaCategory;
+  src: string;
+  originalName: string;
+  width: number;
+  height: number;
+}
+
+function assertJobMediaMutationAccess(db: Database, jobId: number, actorId: number) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (!canMutateJobLifecycle(actor, job)) throw new Error("Only the Owner or the linked Service Advisor can change job media.");
+}
+
+function validatePhotoMetadata(label: string, category: string) {
+  const cleanLabel = label.trim();
+  if (!cleanLabel) throw new Error("Photo label is required.");
+  if (category !== "Before Work" && category !== "After Work") throw new Error("Choose Before Work or After Work.");
+  return { label: cleanLabel, category: category as JobMediaCategory };
+}
+
+export function saveJobPhotoForActor(db: Database, jobId: number, actorId: number, input: JobPhotoInput) {
+  assertJobMediaMutationAccess(db, jobId, actorId);
+  const metadata = validatePhotoMetadata(input.label, input.category);
+  const image = validateMediaDataUrl(input.src);
+  if (!Number.isFinite(input.width) || input.width < 1 || !Number.isFinite(input.height) || input.height < 1) throw new Error("Image dimensions are invalid.");
+  const id = insert(db, "insert into photos(job_card_id,label,src,category,mime_type,byte_size,original_name,width,height,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [
+    jobId, metadata.label, input.src, metadata.category, image.mimeType, image.byteSize, input.originalName.trim(), Math.round(input.width), Math.round(input.height),
+  ]);
+  reconcileArtifactChecklist(db, jobId, actorId);
+  return id;
+}
+
+export function updateJobPhotoForActor(db: Database, id: number, actorId: number, input: Pick<JobPhotoInput, "label" | "category">) {
+  const photo = one<Photo>(db, "select * from photos where id=? and archived_at is null", [id]);
+  assertJobMediaMutationAccess(db, photo.job_card_id, actorId);
+  const metadata = validatePhotoMetadata(input.label, input.category);
+  db.run("update photos set label=?,category=?,updated_at=datetime('now') where id=?", [metadata.label, metadata.category, id]);
+}
+
+export function archiveJobPhotoForActor(db: Database, id: number, actorId: number, reason: string) {
+  const photo = one<Photo>(db, "select * from photos where id=? and archived_at is null", [id]);
+  assertJobMediaMutationAccess(db, photo.job_card_id, actorId);
+  if (!reason.trim()) throw new Error("An archive reason is required.");
+  archivePhoto(db, id, reason.trim());
 }
 
 export function addPhoto(db: Database, jobId: number, label: string) {
@@ -843,7 +1301,7 @@ export function closureBlockers(view?: JobView) {
   const blockers: string[] = [];
   if (view.job.qc_status !== "Pass") blockers.push("QC pass required");
   if (view.material_requests.some((request) => Math.abs(request.issued_qty - request.used_qty - request.returned_qty - request.wasted_qty) > 0.001)) blockers.push("Material reconciliation required");
-  if (!view.invoice || view.invoice.status !== "Generated" || !view.invoice.tally_invoice_no) blockers.push("Generated Tally invoice required");
+  if (!view.invoice || !view.invoice.document_available || !view.invoice.tally_invoice_no) blockers.push("Available Tally invoice required");
   const paid = view.payments.reduce((sum, payment) => sum + payment.amount, 0);
   if (!view.invoice || paid < view.invoice.total) blockers.push("Full payment required");
   if (!view.receipt) blockers.push("Receipt required");
@@ -866,7 +1324,7 @@ export function invoiceItemsTotal(items: EstimateItem[], estimate?: Estimate) {
   return Math.round(Math.max(0, subtotal - discount) * (1 + gst / 100));
 }
 
-function createSchema(db: Database) {
+export function createSchema(db: Database) {
   db.run(`
     create table if not exists users(id integer primary key, email text unique, name text, role text, password text);
     create table if not exists customers(id integer primary key, name text, mobile text unique, type text);
@@ -874,15 +1332,18 @@ function createSchema(db: Database) {
     create table if not exists visits(id integer primary key, customer_id integer, vehicle_id integer, advisor_id integer, received_by integer, received_at text, fuel text, keys text, accessories text, requested_work text, photos_note text);
     create table if not exists job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text);
     create table if not exists status_history(id integer primary key, job_card_id integer, main_status text, sub_status text, note text, created_at text);
+    create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
+    create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
     create table if not exists estimates(id integer primary key, job_card_id integer, status text, discount real, gst_rate real, approval_note text);
     create table if not exists estimate_items(id integer primary key, estimate_id integer, kind text, description text, qty real, rate real);
     create table if not exists approvals(id integer primary key, job_card_id integer, approved_by text, note text, created_at text);
     create table if not exists tasks(id integer primary key, job_card_id integer, technician_id integer, title text, status text, notes text);
     create table if not exists qc_checks(id integer primary key, job_card_id integer, label text, passed integer);
-    create table if not exists invoices(id integer primary key, job_card_id integer, invoice_no text, tally_invoice_no text, total real, status text);
-    create table if not exists payments(id integer primary key, job_card_id integer, amount real, mode text, reference text);
-    create table if not exists receipts(id integer primary key, job_card_id integer, receipt_no text);
-    create table if not exists gate_passes(id integer primary key, job_card_id integer, gate_pass_no text);
+    create table if not exists invoices(id integer primary key, job_card_id integer, invoice_no text, tally_invoice_no text, discount real default 0, gst_rate real default 18, subtotal real default 0, gst_amount real default 0, total real, status text, notes text default '', document_available integer default 1, document_generated_at text);
+    create table if not exists invoice_items(id integer primary key, invoice_id integer, kind text, description text, qty real, rate real);
+    create table if not exists payments(id integer primary key, job_card_id integer, invoice_id integer, amount real, mode text, other_detail text default '', reference text, notes text default '');
+    create table if not exists receipts(id integer primary key, job_card_id integer, invoice_id integer, receipt_no text, voided_at text, void_reason text, created_at text);
+    create table if not exists gate_passes(id integer primary key, job_card_id integer, invoice_id integer, gate_pass_no text, voided_at text, void_reason text, created_at text);
     create table if not exists inventory(id integer primary key, sku text, category text, name text, unit text, stock_qty real, low_stock_qty real);
     create table if not exists material_requests(id integer primary key, job_card_id integer, item_id integer, requested_qty real, issued_qty real, used_qty real, returned_qty real, wasted_qty real);
     create table if not exists material_movements(id integer primary key, job_card_id integer, item_id integer, direction text, qty real, note text, created_at text);
@@ -891,8 +1352,8 @@ function createSchema(db: Database) {
   `);
 }
 
-function migrateSchema(db: Database) {
-  ["users", "customers", "vehicles", "visits", "job_cards", "estimates", "estimate_items", "tasks", "inventory", "material_requests", "photos", "followups"].forEach((table) => {
+export function migrateSchema(db: Database) {
+  ["users", "customers", "vehicles", "visits", "job_cards", "estimates", "estimate_items", "invoice_items", "tasks", "inventory", "material_requests", "photos", "followups"].forEach((table) => {
     ensureColumn(db, table, "archived_at", "text");
     ensureColumn(db, table, "archived_reason", "text");
     ensureColumn(db, table, "created_at", "text");
@@ -904,6 +1365,40 @@ function migrateSchema(db: Database) {
     ensureColumn(db, table, "created_at", "text");
     ensureColumn(db, table, "updated_at", "text");
   });
+  ensureColumn(db, "invoices", "discount", "real default 0");
+  ensureColumn(db, "invoices", "gst_rate", "real default 18");
+  ensureColumn(db, "invoices", "subtotal", "real default 0");
+  ensureColumn(db, "invoices", "gst_amount", "real default 0");
+  ensureColumn(db, "invoices", "notes", "text default ''");
+  ensureColumn(db, "invoices", "document_available", "integer default 1");
+  ensureColumn(db, "invoices", "document_generated_at", "text");
+  db.run("update invoices set document_generated_at=created_at where document_generated_at is null and document_available=1 and created_at is not null");
+  ensureColumn(db, "payments", "invoice_id", "integer");
+  ensureColumn(db, "payments", "other_detail", "text default ''");
+  ensureColumn(db, "payments", "notes", "text default ''");
+  for (const table of ["receipts", "gate_passes"]) {
+    ensureColumn(db, table, "invoice_id", "integer");
+    ensureColumn(db, table, "voided_at", "text");
+    ensureColumn(db, table, "void_reason", "text");
+    ensureColumn(db, table, "created_at", "text");
+  }
+  db.run("update invoices set status=case when status in ('Draft','Generated') then 'Open' else status end");
+  db.run("update payments set invoice_id=(select id from invoices where invoices.job_card_id=payments.job_card_id and invoices.voided_at is null order by id desc limit 1) where invoice_id is null");
+  db.run("update receipts set invoice_id=(select id from invoices where invoices.job_card_id=receipts.job_card_id and invoices.voided_at is null order by id desc limit 1) where invoice_id is null");
+  db.run("update gate_passes set invoice_id=(select id from invoices where invoices.job_card_id=gate_passes.job_card_id and invoices.voided_at is null order by id desc limit 1) where invoice_id is null");
+  for (const invoice of all<Invoice>(db, "select * from invoices where voided_at is null order by id")) {
+    if (scalar<number>(db, "select count(*) from invoice_items where invoice_id=?", [invoice.id]) === 0) {
+      const estimate = maybe<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [invoice.job_card_id]);
+      if (estimate) {
+        for (const item of all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id])) {
+          insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,?,?,?,?,datetime('now'),datetime('now'))", [invoice.id, item.kind, item.description, item.qty, item.rate]);
+        }
+        db.run("update invoices set discount=?,gst_rate=? where id=?", [estimate.discount, estimate.gst_rate, invoice.id]);
+        if (scalar<number>(db, "select count(*) from invoice_items where invoice_id=?", [invoice.id]) > 0) recalculateInvoice(db, invoice.id);
+      }
+    }
+    syncInvoicePaymentStatus(db, invoice.id);
+  }
   ensureColumn(db, "job_cards", "advisor_notes", "text");
   ensureColumn(db, "job_cards", "customer_instructions", "text");
   ensureColumn(db, "job_cards", "internal_instructions", "text");
@@ -916,7 +1411,87 @@ function migrateSchema(db: Database) {
   ensureColumn(db, "qc_checks", "fail_reason", "text");
   ensureColumn(db, "qc_checks", "archived_at", "text");
   ensureColumn(db, "photos", "category", "text");
+  ensureColumn(db, "photos", "mime_type", "text");
+  ensureColumn(db, "photos", "byte_size", "integer");
+  ensureColumn(db, "photos", "original_name", "text");
+  ensureColumn(db, "photos", "width", "integer");
+  ensureColumn(db, "photos", "height", "integer");
   ensureColumn(db, "followups", "outcome", "text");
+  migrateLifecycleStorage(db);
+}
+
+const HOLD_MIGRATION_NOTE = "Migration: HOLD normalized to IN_PROGRESS";
+
+export function migrateLifecycleStorage(db: Database) {
+  db.run(`
+    create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
+    create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
+  `);
+  const heldJobs = all<{ id: number; sub_status: SubStatus }>(db, "select id, sub_status from job_cards where main_status='HOLD'");
+  heldJobs.forEach((job) => {
+    db.run("update job_cards set main_status='IN_PROGRESS', updated_at=coalesce(updated_at, datetime('now')) where id=?", [job.id]);
+    if (!maybe<{ id: number }>(db, "select id from status_history where job_card_id=? and note=?", [job.id, HOLD_MIGRATION_NOTE])) {
+      history(db, job.id, "IN_PROGRESS", job.sub_status, HOLD_MIGRATION_NOTE);
+    }
+  });
+  db.run("update status_history set main_status='IN_PROGRESS' where main_status='HOLD'");
+  all<{ id: number; main_status: MainStatus; sub_status: SubStatus; created_at: string | null }>(db, "select id, main_status, sub_status, created_at from job_cards").forEach((job) => {
+    ensureLifecycleChecklist(db, job.id, job.main_status, job.sub_status, job.created_at ?? undefined);
+    syncSubStatusFromChecklist(db, job.id);
+  });
+}
+
+export function ensureLifecycleChecklist(
+  db: Database,
+  jobId: number,
+  mainStatus: MainStatus,
+  currentSubStatus: SubStatus,
+  timestamp?: string,
+) {
+  const existing = maybe<{ id: number }>(db, "select id from checklist_cycles where job_card_id=? limit 1", [jobId]);
+  if (existing) return existing.id;
+  const stage = checklistStageForSubStatus(currentSubStatus);
+  const stamp = timestamp || new Date().toISOString();
+  const cycleComplete = mainStatus === "CLOSED" && stage === "CLOSED" && currentSubStatus === "Delivered";
+  return createLifecycleCycle(db, jobId, stage, stamp, currentSubStatus, cycleComplete);
+}
+
+function createLifecycleCycle(db: Database, jobId: number, stage: ChecklistStage, timestamp: string, through?: SubStatus, completeThrough = false) {
+  const cycleNumber = (scalar<number>(db, "select coalesce(max(cycle_number), 0) from checklist_cycles where job_card_id=? and stage=?", [jobId, stage]) ?? 0) + 1;
+  const labels = LIFECYCLE_CHECKLIST[stage];
+  const throughIndex = through && labels.includes(through) ? labels.indexOf(through) : -1;
+  const cycleId = insert(db, "insert into checklist_cycles(job_card_id,stage,cycle_number,started_at,completed_at) values(?,?,?,?,?)", [jobId, stage, cycleNumber, timestamp, completeThrough ? timestamp : null]);
+  labels.forEach((label, index) => {
+    const checked = index < throughIndex || (completeThrough && index === throughIndex);
+    const started = index === 0 || index <= throughIndex;
+    insert(db, "insert into checklist_items(checklist_cycle_id,job_card_id,stage,cycle_number,item_key,label,sort_order,checked_by,checked_at,started_at,completed_at) values(?,?,?,?,?,?,?,?,?,?,?)", [
+      cycleId, jobId, stage, cycleNumber, `${stage.toLowerCase()}.${index + 1}`, label, index + 1, null, checked ? timestamp : null, started ? timestamp : null, checked ? timestamp : null,
+    ]);
+  });
+  return cycleId;
+}
+
+export function syncSubStatusFromChecklist(db: Database, jobId: number) {
+  const cycle = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? order by id desc limit 1", [jobId]);
+  if (!cycle) return;
+  const items = all<ChecklistItem>(db, "select * from checklist_items where checklist_cycle_id=? order by sort_order", [cycle.id]);
+  if (items.length === 0) return;
+  db.run("update job_cards set sub_status=? where id=?", [deriveChecklistSubStatus(items), jobId]);
+}
+
+export function setChecklistItemChecked(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString()) {
+  const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
+  if (checked && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order<? and checked_at is null", [item.checklist_cycle_id, item.sort_order]) > 0) {
+    throw new Error("Checklist items must be completed in order.");
+  }
+  if (!checked && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order>? and checked_at is not null", [item.checklist_cycle_id, item.sort_order]) > 0) {
+    throw new Error("Later checklist items must be reopened first.");
+  }
+  db.run("update checklist_items set checked_by=?, checked_at=?, started_at=coalesce(started_at, ?), completed_at=? where id=?", [checked ? actorId : null, checked ? timestamp : null, timestamp, checked ? timestamp : null, itemId]);
+  const remaining = scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and checked_at is null", [item.checklist_cycle_id]);
+  db.run("update checklist_cycles set completed_at=? where id=?", [remaining === 0 ? timestamp : null, item.checklist_cycle_id]);
+  if (checked) db.run("update checklist_items set started_at=coalesce(started_at, ?) where checklist_cycle_id=? and sort_order=?", [timestamp, item.checklist_cycle_id, item.sort_order + 1]);
+  syncSubStatusFromChecklist(db, item.job_card_id);
 }
 
 function ensureColumn(db: Database, table: string, column: string, definition: string) {
@@ -960,6 +1535,7 @@ function makeSeedJob(db: Database, customerId: number, vehicleId: number, jobNo:
     "insert into job_cards(job_no, visit_id, advisor_id, technician_id, main_status, sub_status, work_list, promised_at, qc_status, washing_needed, closed_at, advisor_notes, customer_instructions, internal_instructions, created_at, updated_at) values (?, ?, 2, 6, ?, ?, ?, 'Today 6:00 PM', ?, 0, '', 'Seed advisor note', ?, '', datetime('now'), datetime('now'))",
     [jobNo, visitId, main, sub, work, main === "COMPLETED" ? "Pass" : "Pending", work],
   );
+  ensureLifecycleChecklist(db, jobId, main, sub, "2026-01-01T08:00:00.000Z");
   const estimateId = insert(db, "insert into estimates(job_card_id, status, discount, gst_rate, approval_note, created_at, updated_at) values (?, 'Approved', 1000, 18, 'Seed approval', datetime('now'), datetime('now'))", [jobId]);
   insert(db, "insert into estimate_items(estimate_id, kind, description, qty, rate, created_at, updated_at) values (?, 'Service', ?, 1, ?, datetime('now'), datetime('now'))", [estimateId, work, Math.round(total / 1.18)]);
   const itemId = jobNo.endsWith("1246") ? 3 : 1;
@@ -968,19 +1544,122 @@ function makeSeedJob(db: Database, customerId: number, vehicleId: number, jobNo:
   if (issued > 0) movement(db, jobId, itemId, "ISSUE", issued, "Seed issue");
   createTask(db, { job_card_id: jobId, technician_id: 6, title: work.split(",")[0], status: main === "COMPLETED" ? "Completed" : "Started", notes: "Seed task from workbook flow." });
   ["Edges checked", "Surface cleaned", "Customer items verified"].forEach((label) => insert(db, "insert into qc_checks(job_card_id, label, passed) values (?, ?, ?)", [jobId, label, main === "COMPLETED" ? 1 : 0]));
-  if (main === "COMPLETED") insert(db, "insert into invoices(job_card_id, invoice_no, tally_invoice_no, total, status, created_at, updated_at) values (?, 'INV-08947', 'TLY-4451', ?, 'Generated', datetime('now'), datetime('now'))", [jobId, total]);
-  if (paid > 0) insert(db, "insert into payments(job_card_id, amount, mode, reference, created_at, updated_at) values (?, ?, 'UPI advance', 'ADV-SEED', datetime('now'), datetime('now'))", [jobId, paid]);
+  let invoiceId = 0;
+  if (main === "COMPLETED") {
+    const seedRate = Math.round(total / 1.18);
+    const taxable = Math.max(0, seedRate - 1000);
+    const gstAmount = Math.round(taxable * 18) / 100;
+    const invoiceTotal = Math.round((taxable + gstAmount) * 100) / 100;
+    invoiceId = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,created_at,updated_at) values(?,'INV-08947','TLY-4451',1000,18,?,?,?,'Open','Seed invoice',1,datetime('now'),datetime('now'))", [jobId, seedRate, gstAmount, invoiceTotal]);
+    insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,'Service',?,1,?,datetime('now'),datetime('now'))", [invoiceId, work, seedRate]);
+  }
+  if (paid > 0 && invoiceId) {
+    insert(db, "insert into payments(job_card_id,invoice_id,amount,mode,other_detail,reference,notes,created_at,updated_at) values(?,?,?,'UPI','','ADV-SEED','Seed advance',datetime('now'),datetime('now'))", [jobId, invoiceId, paid]);
+    syncInvoicePaymentStatus(db, invoiceId);
+  }
   createPhoto(db, { job_card_id: jobId, label: "Job sheet placeholder", src: "", category: "Job Sheet" });
   history(db, jobId, main, sub, "Seeded demo workflow");
 }
 
-function setJobStatus(db: Database, jobId: number, main: MainStatus, sub: SubStatus, note: string) {
-  db.run("update job_cards set main_status=?, sub_status=?, updated_at=datetime('now') where id=?", [main, sub, jobId]);
-  history(db, jobId, main, sub, note);
+export function transitionJobStatus(db: Database, jobId: number, to: MainStatus, note: string, timestamp = new Date().toISOString()) {
+  const confirmation = note.trim();
+  if (!confirmation) throw new Error("A confirmation note is required for every status transition.");
+  db.run("savepoint job_status_transition");
+  try {
+    const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+    if (job.main_status === to) throw new Error(`Job card is already ${to}.`);
+    assertValidMainStatusTransition(job.main_status, to);
+
+    if (to !== "CANCELLED") {
+      const active = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? order by id desc limit 1", [jobId]);
+      if (job.main_status !== "CANCELLED" && (!active || active.stage !== job.main_status || !active.completed_at)) {
+        const remaining = active
+          ? all<{ label: SubStatus }>(db, "select label from checklist_items where checklist_cycle_id=? and checked_at is null order by sort_order", [active.id]).map((item) => item.label)
+          : [];
+        throw new Error(`Complete the ${job.main_status} checklist before moving to ${to}${remaining.length ? `: ${remaining.join(", ")}` : "."}`);
+      }
+    }
+
+    const nextSub = to === "CANCELLED" ? checklistSubStatus(db, jobId, job.sub_status) : LIFECYCLE_CHECKLIST[to][0];
+    db.run("update job_cards set main_status=?, sub_status=?, closed_at=case when ?='CLOSED' then coalesce(closed_at, ?) else closed_at end, updated_at=? where id=?", [to, nextSub, to, timestamp, timestamp, jobId]);
+    if (to !== "CANCELLED") createLifecycleCycle(db, jobId, to, timestamp);
+    history(db, jobId, to, nextSub, confirmation, timestamp);
+    if (to !== "CANCELLED") reconcileArtifactChecklist(db, jobId, 0, timestamp);
+    if (to === "COMPLETED") {
+      const cleared = maybe<Invoice>(db, "select * from invoices where job_card_id=? and status='Cleared' and voided_at is null order by id desc limit 1", [jobId]);
+      if (cleared) closeJobForClearedInvoice(db, cleared.id);
+    }
+    db.run("release savepoint job_status_transition");
+  } catch (error) {
+    db.run("rollback to savepoint job_status_transition");
+    db.run("release savepoint job_status_transition");
+    throw error;
+  }
 }
 
-function history(db: Database, jobId: number, main: MainStatus, sub: SubStatus, note: string) {
-  db.run("insert into status_history(job_card_id, main_status, sub_status, note, created_at) values (?, ?, ?, ?, datetime('now'))", [jobId, main, sub, note]);
+export function reconcileArtifactChecklist(db: Database, jobId: number, actorId = 0, timestamp = new Date().toISOString()) {
+  const cycle = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? order by id desc limit 1", [jobId]);
+  if (!cycle) return;
+  const items = all<ChecklistItem>(db, "select * from checklist_items where checklist_cycle_id=? order by sort_order", [cycle.id]);
+  for (const item of items) {
+    if (item.checked_at) continue;
+    if (!artifactExistsForChecklistItem(db, jobId, item.label)) break;
+    setChecklistItemChecked(db, item.id, actorId, true, timestamp);
+  }
+}
+
+function resetMissingPhotoEvidence(db: Database, onlyJobId?: number) {
+  const jobs = all<{ id: number }>(db, `select j.id from job_cards j
+    where j.main_status='IN_PROGRESS' ${onlyJobId === undefined ? "" : "and j.id=?"}
+    and not exists(select 1 from photos p where p.job_card_id=j.id and p.archived_at is null and trim(coalesce(p.src,''))<>'')`, onlyJobId === undefined ? [] : [onlyJobId]);
+  for (const job of jobs) {
+    const cycle = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? and stage='IN_PROGRESS' order by cycle_number desc,id desc limit 1", [job.id]);
+    if (!cycle) continue;
+    const photoItem = maybe<ChecklistItem>(db, "select * from checklist_items where checklist_cycle_id=? and label='Photos Shared'", [cycle.id]);
+    if (!photoItem?.checked_at) continue;
+    db.run("update checklist_items set checked_by=null,checked_at=null,completed_at=null where checklist_cycle_id=? and sort_order>=?", [cycle.id, photoItem.sort_order]);
+    syncSubStatusFromChecklist(db, job.id);
+  }
+}
+
+function artifactExistsForChecklistItem(db: Database, jobId: number, label: SubStatus) {
+  switch (label) {
+    case "Gather Requirements": return scalar<number>(db, "select count(*) from job_cards j join visits v on v.id=j.visit_id where j.id=? and trim(coalesce(v.requested_work,''))<>''", [jobId]) > 0;
+    case "Create Estimate": return scalar<number>(db, "select count(*) from estimates where job_card_id=? and archived_at is null", [jobId]) > 0;
+    case "Get Confirmation": return scalar<number>(db, "select count(*) from estimates where job_card_id=? and status='Approved' and archived_at is null", [jobId]) > 0;
+    case "Material Requested": return scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null", [jobId]) > 0;
+    case "Material Issued": return scalar<number>(db, "select count(*) from material_requests where job_card_id=? and issued_qty>0 and archived_at is null", [jobId]) > 0;
+    case "Washing Needed": return scalar<number>(db, "select count(*) from job_cards where id=? and washing_needed=1", [jobId]) > 0;
+    case "Work Started": return scalar<number>(db, "select count(*) from tasks where job_card_id=? and status in ('Started','Paused','Completed') and archived_at is null", [jobId]) > 0;
+    case "Follow-up Needed": return scalar<number>(db, "select count(*) from followups where job_card_id=? and archived_at is null", [jobId]) > 0;
+    case "Photos Shared": return scalar<number>(db, "select count(*) from photos where job_card_id=? and archived_at is null and trim(coalesce(src,''))<>''", [jobId]) > 0;
+    case "QC Pending": return scalar<number>(db, "select count(*) from tasks where job_card_id=? and status<>'Completed' and archived_at is null", [jobId]) === 0;
+    case "Customer Verification": return scalar<number>(db, "select count(*) from job_cards where id=? and qc_status='Pass'", [jobId]) > 0;
+    case "Invoice Ready": return scalar<number>(db, "select count(*) from invoices where job_card_id=? and document_available=1 and trim(coalesce(tally_invoice_no,''))<>'' and voided_at is null", [jobId]) > 0;
+    case "Payment Received": {
+      const invoice = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
+      return Boolean(invoice && invoice.total > 0 && scalar<number>(db, "select coalesce(sum(amount),0) from payments where invoice_id=? and voided_at is null", [invoice.id]) >= invoice.total);
+    }
+    case "Receipt Generated": return scalar<number>(db, "select count(*) from receipts where job_card_id=? and voided_at is null", [jobId]) > 0;
+    case "Gate Pass Generated": return scalar<number>(db, "select count(*) from gate_passes where job_card_id=? and voided_at is null", [jobId]) > 0;
+    case "Delivered": return false;
+  }
+}
+
+function checklistSubStatus(db: Database, jobId: number, fallback: SubStatus) {
+  const cycle = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? order by id desc limit 1", [jobId]);
+  if (!cycle) return fallback;
+  const items = all<ChecklistItem>(db, "select * from checklist_items where checklist_cycle_id=? order by sort_order", [cycle.id]);
+  return items.length ? deriveChecklistSubStatus(items) : fallback;
+}
+
+function history(db: Database, jobId: number, main: MainStatus, sub: SubStatus, note: string, timestamp?: string) {
+  db.run("insert into status_history(job_card_id, main_status, sub_status, note, created_at) values (?, ?, ?, ?, coalesce(?, datetime('now')))", [jobId, main, sub, note, timestamp ?? null]);
+}
+
+function auditEvidence(db: Database, jobId: number, note: string) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  history(db, jobId, job.main_status, checklistSubStatus(db, jobId, job.sub_status), note);
 }
 
 function movement(db: Database, jobId: number, itemId: number, direction: string, qty: number, note: string) {
