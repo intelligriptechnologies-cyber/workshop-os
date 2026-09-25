@@ -851,7 +851,7 @@ test("job lifecycle editor is ordered, status is read-only, and every action req
   await expect(editor.getByRole("tab")).toHaveText(["Details", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
   await expect(editor.getByRole("group", { name: "Downloads" })).toBeVisible();
   await editor.getByRole("tab", { name: "Materials" }).click();
-  await expect(editor.getByText("Materials is coming soon.")).toBeVisible();
+  await expect(editor.getByRole("region", { name: "Job materials" })).toBeVisible();
   await editor.getByRole("tab", { name: "Documents" }).click();
   await expect(editor.getByRole("region", { name: "Current job documents" })).toBeVisible();
   await expect(editor.getByRole("region", { name: "Current job documents" }).getByText("Job Card", { exact: true })).toBeVisible();
@@ -1123,4 +1123,27 @@ test("job sheet intake fields and damage marks persist through the Job Card edit
   await expect(view.getByText("12 MG Road")).toBeVisible();
   await expect(view.getByText("PPF", { exact: true })).toBeVisible();
   await expect(view.getByTestId("damage-mark")).toHaveCount(1);
+});
+
+test("owner adds, requests and cancels a material row with an over-stock warning", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: /Edit Job/ });
+  await editor.getByRole("tab", { name: "Materials" }).click();
+  await editor.getByLabel("Add material item", { exact: true }).fill("Tack");
+  await expect(editor.getByRole("option", { name: /in stock: 14/ })).toBeVisible();
+  await editor.getByRole("option", { name: /Tack Cloth/ }).getByRole("button").click();
+  await editor.getByLabel("Add material quantity").fill("20");
+  await editor.getByRole("button", { name: "Add row" }).click();
+  const row = editor.getByRole("list", { name: "Material rows" }).locator("li").filter({ hasText: "Draft" });
+  await expect(row).toContainText("in stock: 14");
+  await expect(row.getByRole("status")).toContainText("more than the 14 in stock");
+  await expect(row.getByRole("button", { name: "Delete" })).toBeVisible();
+  await row.getByRole("button", { name: "Request", exact: true }).click();
+  const requested = editor.getByRole("list", { name: "Material rows" }).locator("li").filter({ hasText: "Tack Cloth" });
+  await expect(requested).toContainText("Requested");
+  await expect(requested.getByRole("button", { name: "Delete" })).toHaveCount(0);
+  await requested.getByRole("button", { name: "Cancel request" }).click();
+  await expect(requested).toContainText("Cancelled");
 });

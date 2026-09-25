@@ -1748,3 +1748,15 @@ th {
 .damage-mark circle { fill: #d64545; stroke: #fff; stroke-width: 1; }
 .damage-mark text { fill: #fff; font-size: 6px; font-weight: 700; pointer-events: none; }
 .damage-hint { margin: 0; font-size: .75rem; color: #5f6b7a; }
+
+.inventory-picker { position: relative; display: grid; gap: 4px; min-width: 220px; }
+.inventory-picker-options { position: absolute; top: 100%; left: 0; right: 0; z-index: 5; margin: 2px 0 0; padding: 4px; list-style: none; background: var(--surface, #fff); border: 1px solid var(--line, #d0d5dd); border-radius: 8px; box-shadow: 0 6px 18px rgba(0, 0, 0, .12); max-height: 240px; overflow: auto; }
+.inventory-picker-options button { width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 8px; }
+.picker-stock { color: var(--muted, #667085); }
+.material-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-bottom: 12px; }
+.material-add input[type="number"], .material-row-main input[type="number"] { width: 90px; }
+.material-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
+.material-row { border: 1px solid var(--line, #d0d5dd); border-radius: 8px; padding: 10px; display: grid; gap: 6px; }
+.material-row-main { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+.material-status-cancelled { opacity: .7; }
+.material-warning { color: #b54708; }

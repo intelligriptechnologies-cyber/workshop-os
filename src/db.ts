@@ -1,5 +1,6 @@
 import { serializeDamageMarks, type DamageMark } from "./job-sheet";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
+import { canManageMaterialRows, materialRowActions, materialRowStatus, MATERIALS_CHECKLIST_LABELS, overStockWarning, type MaterialRowAction } from "./materials";
 import type {
   ChecklistCycle,
   ChecklistItem,
@@ -100,7 +101,7 @@ export function readState(db: Database): WorkshopState {
   const customers = all<Customer>(db, "select * from customers where archived_at is null order by id");
   const vehicles = all<Vehicle>(db, "select * from vehicles where archived_at is null order by id");
   const visits = all<Visit>(db, "select * from visits where archived_at is null order by id desc");
-  const inventory = all<InventoryItem>(db, "select * from inventory where archived_at is null order by category, name");
+  const inventory = all<InventoryItem>(db, "select i.*, i.stock_qty - coalesce((select sum(l.qty) from stock_ledger l where l.item_id=i.id),0) as stock_qty from inventory i where i.archived_at is null order by i.category, i.name");
   const jobRows = all<JobCard>(db, "select * from job_cards where archived_at is null order by id desc");
   const byId = <T extends { id: number }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
   const groupBy = <T>(rows: T[], key: (row: T) => number) => {
@@ -757,7 +758,7 @@ export function issueMaterialQty(db: Database, requestId: number, qty: number) {
   const request = one<MaterialRequest>(db, "select * from material_requests where id=?", [requestId]);
   const item = one<InventoryItem>(db, "select * from inventory where id=?", [request.item_id]);
   if (qty <= 0 || qty > item.stock_qty) throw new Error(`Cannot issue ${qty}; stock available is ${item.stock_qty}`);
-  db.run("update material_requests set issued_qty=issued_qty + ?, updated_at=datetime('now') where id=?", [qty, requestId]);
+  db.run("update material_requests set issued_qty=issued_qty + ?, status=case when issued_qty + ? >= requested_qty then 'Issued' else status end, updated_at=datetime('now') where id=?", [qty, qty, requestId]);
   db.run("update inventory set stock_qty=stock_qty - ?, updated_at=datetime('now') where id=?", [qty, request.item_id]);
   movement(db, request.job_card_id, request.item_id, "ISSUE", qty, "Issued to job");
   reconcileArtifactChecklist(db, request.job_card_id);
@@ -783,6 +784,87 @@ export function reconcileMaterialQty(db: Database, requestId: number, used: numb
 
 export function reconcileMaterial(db: Database, requestId: number, used: number, returned: number, wasted: number) {
   reconcileMaterialQty(db, requestId, used, returned, wasted);
+}
+
+const MATERIAL_ACTION_VERB: Record<MaterialRowAction, string> = { request: "requested", edit: "edited", "re-request": "re-requested", cancel: "cancelled", delete: "deleted" };
+
+function assertMaterialManager(db: Database, jobId: number, actorId: number) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (!canManageMaterialRows(actor, job)) {
+    throw new Error(job.main_status === "IN_PROGRESS" ? "Only the Owner or the linked Service Advisor can change material rows." : "Material rows can only change while the job card is IN_PROGRESS.");
+  }
+}
+
+function materialRowFor(db: Database, rowId: number, actorId: number, action: MaterialRowAction) {
+  const row = one<MaterialRequest>(db, "select * from material_requests where id=? and archived_at is null", [rowId]);
+  assertMaterialManager(db, row.job_card_id, actorId);
+  if (!materialRowActions(row).includes(action)) throw new Error(`A ${materialRowStatus(row)} material row cannot be ${MATERIAL_ACTION_VERB[action]}.`);
+  return row;
+}
+
+function assertMaterialInput(db: Database, itemId: number, qty: number) {
+  if (!(qty > 0)) throw new Error("Material quantity must be greater than zero.");
+  one<InventoryItem>(db, "select * from inventory where id=? and archived_at is null", [itemId]);
+}
+
+/** Stock on hand = seeded stock minus the sum of the signed stock-outward ledger. */
+export function materialStockOnHand(db: Database, itemId: number) {
+  return scalar<number>(db, "select stock_qty - coalesce((select sum(qty) from stock_ledger where item_id=inventory.id),0) from inventory where id=?", [itemId]);
+}
+
+export function addMaterialRowForActor(db: Database, jobId: number, actorId: number, itemId: number, qty: number) {
+  assertMaterialManager(db, jobId, actorId);
+  assertMaterialInput(db, itemId, qty);
+  return insert(db, "insert into material_requests(job_card_id,item_id,requested_qty,issued_qty,used_qty,returned_qty,wasted_qty,status,created_at,updated_at) values(?,?,?,0,0,0,0,'Draft',datetime('now'),datetime('now'))", [jobId, itemId, qty]);
+}
+
+export function updateMaterialRowForActor(db: Database, rowId: number, actorId: number, itemId: number, qty: number) {
+  materialRowFor(db, rowId, actorId, "edit");
+  assertMaterialInput(db, itemId, qty);
+  db.run("update material_requests set item_id=?, requested_qty=?, updated_at=datetime('now') where id=?", [itemId, qty, rowId]);
+}
+
+export function deleteMaterialRowForActor(db: Database, rowId: number, actorId: number) {
+  materialRowFor(db, rowId, actorId, "delete");
+  db.run("delete from material_requests where id=?", [rowId]);
+}
+
+function untickMaterialsIssued(db: Database, jobId: number) {
+  const item = maybe<ChecklistItem>(db, "select ci.* from checklist_items ci where ci.job_card_id=? and ci.label='Material Issued' and ci.checked_at is not null and ci.na_at is null and ci.checklist_cycle_id=(select id from checklist_cycles where job_card_id=? order by id desc limit 1)", [jobId, jobId]);
+  if (!item) return;
+  db.run("update checklist_items set checked_by=null, checked_at=null, completed_at=null where id=?", [item.id]);
+  db.run("update checklist_cycles set completed_at=null where id=?", [item.checklist_cycle_id]);
+  syncSubStatusFromChecklist(db, jobId);
+}
+
+function afterMaterialRequest(db: Database, row: MaterialRequest, actorId: number) {
+  const onHand = materialStockOnHand(db, row.item_id);
+  untickMaterialsIssued(db, row.job_card_id);
+  reconcileArtifactChecklist(db, row.job_card_id, actorId);
+  return { onHand, warning: overStockWarning(row.requested_qty, onHand) };
+}
+
+/** Draft -> Requested (locks the row). Over-stock quantities are allowed but reported as a warning. */
+export function requestMaterialRowForActor(db: Database, rowId: number, actorId: number) {
+  const row = materialRowFor(db, rowId, actorId, "request");
+  db.run("update material_requests set status='Requested', updated_at=datetime('now') where id=?", [rowId]);
+  return afterMaterialRequest(db, row, actorId);
+}
+
+/** Edit a Requested/Re-requested row and send it back to Store as Re-requested. */
+export function reRequestMaterialRowForActor(db: Database, rowId: number, actorId: number, itemId: number, qty: number) {
+  materialRowFor(db, rowId, actorId, "re-request");
+  assertMaterialInput(db, itemId, qty);
+  db.run("update material_requests set item_id=?, requested_qty=?, status='Re-requested', updated_at=datetime('now') where id=?", [itemId, qty, rowId]);
+  return afterMaterialRequest(db, one<MaterialRequest>(db, "select * from material_requests where id=?", [rowId]), actorId);
+}
+
+/** Only Requested/Re-requested rows can be cancelled; Materials Requested stays ticked. */
+export function cancelMaterialRowForActor(db: Database, rowId: number, actorId: number) {
+  const row = materialRowFor(db, rowId, actorId, "cancel");
+  db.run("update material_requests set status='Cancelled', updated_at=datetime('now') where id=?", [rowId]);
+  reconcileArtifactChecklist(db, row.job_card_id, actorId);
 }
 
 export function createInventoryItem(db: Database, payload: Omit<InventoryItem, "id">) {
@@ -1424,6 +1506,11 @@ export function createSchema(db: Database) {
 }
 
 export function migrateSchema(db: Database) {
+  db.run("create table if not exists stock_ledger(id integer primary key, job_card_id integer, material_row_id integer, item_id integer, qty real, type text, by_user integer, at text, note text)");
+  ensureColumn(db, "material_requests", "status", "text not null default 'Requested'");
+  ensureColumn(db, "material_requests", "invoiced_in", "integer");
+  ensureColumn(db, "material_requests", "note", "text");
+  db.run("update material_requests set status='Issued' where status='Requested' and issued_qty>0 and issued_qty>=requested_qty");
   ["users", "customers", "vehicles", "visits", "job_cards", "estimates", "estimate_items", "invoice_items", "tasks", "inventory", "material_requests", "photos", "followups"].forEach((table) => {
     ensureColumn(db, table, "archived_at", "text");
     ensureColumn(db, table, "archived_reason", "text");
@@ -1572,6 +1659,9 @@ export function setChecklistItemChecked(db: Database, itemId: number, actorId: n
 export function setChecklistItemNotApplicable(db: Database, itemId: number, actorId: number, notApplicable: boolean, timestamp = new Date().toISOString()) {
   const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
   if (notApplicable) {
+    if ((MATERIALS_CHECKLIST_LABELS as readonly string[]).includes(item.label) && scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null", [item.job_card_id]) > 0) {
+      throw new Error("N/A is only available while the job card has no material rows.");
+    }
     if (item.checked_at && !item.na_at) throw new Error("Untick the item before marking it N/A.");
   } else if (!item.na_at) {
     throw new Error("This item is not marked N/A.");
@@ -1755,8 +1845,9 @@ function artifactExistsForChecklistItem(db: Database, jobId: number, label: SubS
     case "Gather Requirements": return scalar<number>(db, "select count(*) from job_cards j join visits v on v.id=j.visit_id where j.id=? and trim(coalesce(v.requested_work,''))<>''", [jobId]) > 0;
     case "Create Estimate": return scalar<number>(db, "select count(*) from estimates where job_card_id=? and archived_at is null", [jobId]) > 0;
     case "Get Confirmation": return scalar<number>(db, "select count(*) from estimates where job_card_id=? and status='Approved' and archived_at is null", [jobId]) > 0;
-    case "Material Requested": return scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null", [jobId]) > 0;
-    case "Material Issued": return scalar<number>(db, "select count(*) from material_requests where job_card_id=? and issued_qty>0 and archived_at is null", [jobId]) > 0;
+    case "Material Requested": return scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null and status<>'Draft'", [jobId]) > 0;
+    case "Material Issued": return scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null and status='Issued'", [jobId]) > 0
+      && scalar<number>(db, "select count(*) from material_requests where job_card_id=? and archived_at is null and status not in ('Issued','Cancelled')", [jobId]) === 0;
     case "Washing Needed": return scalar<number>(db, "select count(*) from job_cards where id=? and washing_needed=1", [jobId]) > 0;
     case "Work Started": return scalar<number>(db, "select count(*) from tasks where job_card_id=? and status in ('Started','Paused','Completed') and archived_at is null", [jobId]) > 0;
     case "Follow-up Needed": return scalar<number>(db, "select count(*) from followups where job_card_id=? and archived_at is null", [jobId]) > 0;

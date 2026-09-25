@@ -13,7 +13,7 @@ export const JOB_CARD_TABS = [
 export type JobCardTabKey = (typeof JOB_CARD_TABS)[number]["key"];
 
 /** Tabs whose real content ships in a later ticket render a stub. */
-export const JOB_CARD_STUB_TABS: readonly JobCardTabKey[] = ["materials", "invoice", "payment"];
+export const JOB_CARD_STUB_TABS: readonly JobCardTabKey[] = ["invoice", "payment"];
 
 export function isStubTab(key: JobCardTabKey) {
   return JOB_CARD_STUB_TABS.includes(key);

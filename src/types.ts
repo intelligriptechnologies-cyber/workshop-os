@@ -228,6 +228,9 @@ export interface MaterialRequest {
   used_qty: number;
   returned_qty: number;
   wasted_qty: number;
+  status?: "Draft" | "Requested" | "Re-requested" | "Issued" | "Cancelled";
+  invoiced_in?: number | null;
+  note?: string;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;
