@@ -263,8 +263,10 @@ test("job card document actions stack editors, replace creation actions after sa
   await editInvoice.getByRole("button", { name: "Save Invoice" }).click();
   await expect(editInvoice).toBeHidden();
   const pdfPromise = page.waitForEvent("download");
-  await invoiceRow.getByRole("button", { name: "Download PDF" }).click();
+  await invoiceRow.first().getByRole("button", { name: "Download PDF" }).click();
   expect((await pdfPromise).suggestedFilename()).toMatch(/-invoice\.pdf$/);
+  // the voided invoice stays listed with a frozen copy
+  await expect(jobDialog.locator(".document-row").filter({ hasText: "void (frozen copy)" })).toHaveCount(1);
 
   // Record Payment (mode + reference) creates the Receipt and clears the invoice without closing the job; void reopens it.
   await jobDialog.getByRole("tab", { name: "Payment" }).click();
@@ -374,7 +376,7 @@ test("Data Flow cascades visit filters and supports keyboard, mouse, empty, clea
   const pdfPromise = page.waitForEvent("download");
   const pdfButton = page.locator(".flow-step").filter({ hasText: "Estimate:" }).locator("button.document-download");
   await pdfButton.click();
-  await expect(pdfButton).toHaveText(/Generating/);
+  await expect(pdfButton).toHaveText(/Preparing/);
   expect((await pdfPromise).suggestedFilename()).toBe("JC-2026-001245-estimate.pdf");
 
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
@@ -518,7 +520,7 @@ test("Manage Job Cards uses view and edit dialogs with documents and confirmed a
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
   await page.getByRole("tab", { name: "Documents" }).click();
   const pdfPromise = page.waitForEvent("download");
-  await page.getByRole("button", { name: /Download PDF/ }).first().click();
+  await page.locator(".document-row").filter({ has: page.getByText("Estimate", { exact: true }) }).getByRole("button", { name: "Download PDF" }).click();
   expect((await pdfPromise).suggestedFilename()).toMatch(/-estimate\.pdf$/);
   await page.getByRole("button", { name: "Close dialog" }).click();
 
@@ -833,29 +835,29 @@ test("job documents download financial PDFs, print other templated reports and e
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await page.getByLabel("Main status").selectOption("CLOSED");
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.locator(".record-card").first().locator(".doc-chip")).toHaveCount(4);
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("tab", { name: "Documents" }).click();
 
-  for (const label of ["Job Card", "Payment Receipt", "Gate Pass"]) {
-    const row = page.locator(".document-row").filter({ has: page.getByText(label, { exact: true }) });
-    await expect(row.getByRole("button", { name: "Print / Save as PDF" })).toBeVisible();
-    const popupPromise = page.waitForEvent("popup");
-    await row.getByRole("button", { name: "Print / Save as PDF" }).click();
-    const popup = await popupPromise;
-    await popup.waitForLoadState("domcontentloaded");
-    await expect(popup.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute("content", /default-src 'none'/);
-    await expect(popup.locator("body")).toContainText(label === "Payment Receipt" ? "PAYMENT RECEIPT" : label.toUpperCase());
-    await popup.close();
-  }
-
-  for (const label of ["Estimate", "Invoice"]) {
-    const row = page.locator(".document-row").filter({ has: page.getByText(label, { exact: true }) });
+  for (const label of ["Job Card", "Payment Receipt", "Gate Pass", "Estimate", "Invoice"]) {
+    const row = page.locator(".document-row").filter({ has: page.getByText(label, { exact: true }) }).first();
     const downloadPromise = page.waitForEvent("download");
     await row.getByRole("button", { name: "Download PDF" }).click();
-    expect((await downloadPromise).suggestedFilename()).toMatch(new RegExp(`-${label.toLowerCase()}\\.pdf$`));
+    const download = await downloadPromise;
+    expect(download.suggestedFilename()).toMatch(new RegExp(`-${label.toLowerCase().replace(" ", "-")}\.pdf$`));
+    await expect(row.getByRole("button", { name: "Downloaded ✓" })).toBeVisible();
   }
+
+  const printRow = page.locator(".document-row").filter({ has: page.getByText("Payment Receipt", { exact: true }) }).first();
+  const popupPromise = page.waitForEvent("popup");
+  await printRow.getByRole("button", { name: "Print", exact: true }).click();
+  const popup = await popupPromise;
+  await popup.waitForLoadState("domcontentloaded");
+  await expect(popup.locator('meta[http-equiv="Content-Security-Policy"]')).toHaveAttribute("content", /default-src 'none'/);
+  await expect(popup.locator("body")).toContainText("PAYMENT RECEIPT");
+  await popup.close();
   await page.evaluate(() => Object.defineProperty(window, "open", { configurable: true, value: () => null }));
-  await page.locator(".document-row").filter({ has: page.getByText("Job Card", { exact: true }) }).getByRole("button", { name: "Print / Save as PDF" }).click();
+  await page.locator(".document-row").filter({ has: page.getByText("Job Card", { exact: true }) }).getByRole("button", { name: "Print", exact: true }).click();
   await expect(page.getByRole("alert")).toContainText("Allow pop-ups");
 });
 

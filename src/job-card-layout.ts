@@ -41,7 +41,7 @@ export function resolveJobCardFooter(view: JobView, actor: Pick<User, "id" | "ro
   for (const kind of ["estimate", "invoice"] as const) {
     for (const action of resolveJobDocumentActions(kind, view, actor)) if (action !== "download") actions.add(action);
   }
-  const downloads = resolveJobDocuments(view).map((doc) => ({
+  const downloads = resolveJobDocuments(view).filter((doc) => doc.state !== "void").map((doc) => ({
     kind: doc.kind,
     label: doc.label,
     enabled: doc.available,

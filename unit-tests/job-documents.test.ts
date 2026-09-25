@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildJobDocumentModel, documentFilename, resolveJobDocumentActions, resolveJobDocuments } from "../src/job-documents";
+import { documentInfo, renderJobDocument, resolveJobDocumentActions, resolveJobDocuments } from "../src/job-documents";
+import type { DocumentSnapshot } from "../src/document-snapshots";
 import { loadAdminDemoState } from "../src/admin-demo-state";
 import type { JobView } from "../src/types";
 
@@ -19,32 +20,54 @@ function job(overrides: Partial<JobView> = {}): JobView {
   };
 }
 
-test("document availability is cumulative across lifecycle statuses", () => {
-  assert.deepEqual(resolveJobDocuments(job({ estimate: undefined })).map((item) => [item.kind, item.available, item.message]), [["job-card", true, undefined], ["estimate", false, "Estimate not created"], ["invoice", false, "Invoice not created"]]);
-  const completed = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: undefined });
-  assert.deepEqual(resolveJobDocuments(completed).map((item) => [item.kind, item.available]), [["job-card", true], ["estimate", true], ["invoice", false]]);
-  const closed = job({ job: { ...job().job, main_status: "CLOSED" }, invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "T-1", total: 1062, status: "Generated" } });
-  assert.deepEqual(resolveJobDocuments(closed).map((item) => [item.kind, item.available]), [["job-card", true], ["estimate", true], ["invoice", true], ["payment-receipt", false], ["gate-pass", false]]);
+const currentInvoice = (status = "Open") => ({ id: 9, job_card_id: 7, invoice_no: "INV-9", tally_invoice_no: "T-9", total: 1062, status, document_available: 1 }) as JobView["invoice"];
+const rows = (view: JobView, snapshots: DocumentSnapshot[] = []) => resolveJobDocuments(view, snapshots).map((item) => [item.kind, item.state]);
+
+test("Job Card sheet is always available and the four slots follow the creation rules", () => {
+  assert.deepEqual(rows(job({ estimate: undefined })), [["job-card", "ready"], ["estimate", "missing"], ["invoice", "missing"], ["payment-receipt", "missing"], ["gate-pass", "missing"]]);
+  const noEstimate = resolveJobDocuments(job({ estimate: undefined }));
+  assert.equal(noEstimate.find((item) => item.kind === "estimate")?.message, "Estimate not created");
+  assert.match(noEstimate.find((item) => item.kind === "invoice")?.message ?? "", /approve an estimate first/);
+  assert.match(noEstimate.find((item) => item.kind === "payment-receipt")?.message ?? "", /when a payment is recorded/);
+  assert.match(noEstimate.find((item) => item.kind === "gate-pass")?.message ?? "", /when the job is closed/);
+  // no document is created by status alone
+  assert.deepEqual(rows(job({ job: { ...job().job, main_status: "COMPLETED" } })).map((row) => row[1]), ["ready", "frozen", "missing", "missing", "missing"]);
+  assert.equal(resolveJobDocuments(job()).find((item) => item.kind === "invoice")?.message, "Invoice not created");
 });
 
-test("non-progressing statuses expose only records that exist", () => {
-  const view = job({ job: { ...job().job, main_status: "CANCELLED" }, invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "", total: 1062, status: "Generated" } });
-  assert.deepEqual(resolveJobDocuments(view).map((item) => item.kind), ["job-card", "estimate", "invoice"]);
+test("Approved estimate, Cleared invoice, receipt and gate pass are frozen; Open invoice is ready", () => {
+  assert.equal(documentInfo("estimate", job())?.frozen, true);
+  assert.equal(documentInfo("estimate", job({ estimate: { ...job().estimate!, status: "Draft" } }))?.frozen, false);
+  assert.deepEqual(documentInfo("invoice", job({ invoice: currentInvoice("Open") })), { number: "INV-9", frozen: false });
+  assert.equal(documentInfo("invoice", job({ invoice: currentInvoice("Cleared") }))?.frozen, true);
+  const closed = job({ job: { ...job().job, main_status: "CLOSED" }, invoice: currentInvoice("Cleared"), payments: [{ id: 1, job_card_id: 7, invoice_id: 9, amount: 1062, mode: "UPI", reference: "P" }] as JobView["payments"], receipt: { id: 1, job_card_id: 7, invoice_id: 9, receipt_no: "RCT-4509" }, gate_pass: { id: 1, job_card_id: 7, invoice_id: 9, gate_pass_no: "GP-3109" } });
+  assert.deepEqual(rows(closed).map((row) => row[1]), ["ready", "frozen", "frozen", "frozen", "frozen"]);
 });
 
-test("PDF models calculate totals, balance, branding and deterministic names", () => {
-  const settings = loadAdminDemoState().businessSettings;
-  const view = job({ invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "T-1", total: 1062, status: "Generated" }, gate_pass: { id: 1, job_card_id: 7, gate_pass_no: "GP-1" } });
-  const estimate = buildJobDocumentModel("estimate", view, settings);
-  const invoice = buildJobDocumentModel("invoice", view, settings);
-  const gatePass = buildJobDocumentModel("gate-pass", view, settings);
-  assert.equal(estimate.totals?.subtotal, 1000);
-  assert.equal(estimate.totals?.total, 1062);
-  assert.equal(invoice.totals?.balance, 562);
-  assert.equal(gatePass.identifiers.documentNumber, "GP-1");
-  assert.equal(documentFilename(view, "gate-pass"), "JC-2026-001245-gate-pass.pdf");
-  assert.equal(estimate.business.name, settings.profile.businessName);
-  assert.equal(estimate.business.gstin, settings.billing.gstin);
+test("void documents stay listed from their snapshots; cancelled jobs are read-only", () => {
+  const snap = { id: "s1", jobId: 7, jobNo: "JC-2026-001245", kind: "invoice", number: "INV-8", state: "void", templateId: "t", html: "<p>x</p>", values: {}, lines: [], frozenAt: "" } as DocumentSnapshot;
+  const listed = resolveJobDocuments(job(), [snap]);
+  assert.deepEqual(listed.at(-1) && [listed.at(-1)!.kind, listed.at(-1)!.state, listed.at(-1)!.number, listed.at(-1)!.snapshotId], ["invoice", "void", "INV-8", "s1"]);
+  assert.equal(resolveJobDocuments(job(), [{ ...snap, jobNo: "OTHER" }]).length, 5);
+  const cancelled = job({ job: { ...job().job, main_status: "CANCELLED" }, estimate: undefined, estimate_items: [] });
+  assert.match(resolveJobDocuments(cancelled).find((item) => item.kind === "estimate")?.message ?? "", /job cancelled/);
+  assert.deepEqual(resolveJobDocumentActions("estimate", cancelled, { id: 99, role: "admin" }), []);
+  assert.deepEqual(resolveJobDocumentActions("estimate", { ...cancelled, estimate: job().estimate }, { id: 99, role: "admin" }), ["download"]);
+});
+
+test("live rendering uses the Active template and company branding, Gate Pass shows Cleared not amounts, Job Card embeds the static diagram", () => {
+  const admin = loadAdminDemoState();
+  const closed = job({ job: { ...job().job, main_status: "CLOSED", damage_marks: JSON.stringify([{ id: 1, x: 40, y: 30 }]) }, invoice: currentInvoice("Cleared"), payments: [{ id: 1, job_card_id: 7, invoice_id: 9, amount: 1062, mode: "UPI", reference: "P" }] as JobView["payments"], receipt: { id: 1, job_card_id: 7, invoice_id: 9, receipt_no: "RCT-4509" }, gate_pass: { id: 1, job_card_id: 7, invoice_id: 9, gate_pass_no: "GP-3109" } });
+  const gate = renderJobDocument("gate-pass", closed, admin);
+  assert.match(gate.html, /Cleared/);
+  assert.doesNotMatch(gate.html, /balance|₹\s*1,?062/);
+  assert.equal(gate.number, "GP-3109");
+  const sheet = renderJobDocument("job-card", closed, admin);
+  assert.match(sheet.html, /<svg[^>]*viewBox="0 0 100 200"/);
+  assert.match(sheet.html, /1 damage mark recorded/);
+  assert.match(renderJobDocument("estimate", closed, admin).html, new RegExp(admin.businessSettings.profile.businessName));
+  assert.match(renderJobDocument("invoice", closed, admin).html, /₹/);
+  assert.equal(renderJobDocument("invoice", closed, admin).filename, "JC-2026-001245-invoice.pdf");
 });
 
 test("current document actions reject voided, unavailable, or mismatched financial records", () => {

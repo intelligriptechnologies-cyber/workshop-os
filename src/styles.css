@@ -1761,3 +1761,10 @@ th {
 .material-row-main { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .material-status-cancelled { opacity: .7; }
 .material-warning { color: #b54708; }
+
+.doc-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.doc-chip { font-size: 11px; line-height: 1; padding: 3px 7px; border-radius: 999px; border: 1px solid currentColor; font-weight: 600; }
+.doc-chip-missing { color: #94a3b8; background: transparent; border-style: dashed; }
+.doc-chip-created, .doc-chip-ready, .doc-chip-frozen { color: #fff; background: #0f766e; border-color: #0f766e; }
+.doc-chip-void { color: #b91c1c; background: #fee2e2; border-color: #b91c1c; text-decoration: line-through; }
+.document-print { margin-left: 6px; }

@@ -110,7 +110,9 @@ import { JOB_CARD_TABS, isStubTab, resolveJobCardFooter, type FooterAction, type
 import { Dialog, DownloadMenu, handleTabListKeyDown, ListSearchActions, PageSizeSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
 import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey } from "./admin-demo-state";
-import { downloadJobDocument, printJobDocument, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind } from "./job-documents";
+import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
+import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
+import { renderHtmlToPdf } from "./pdf-render";
 import { buildDataFlowTimeline, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "./data-flow";
 import { canCompleteWithInvoice } from "./invoice-math";
 import { BillingManager, InvoiceDialog, JobInvoicePanel, JobPaymentPanel, type BillingMode } from "./billing-manager";
@@ -263,6 +265,7 @@ function App() {
     openWorkshopDb().then((database) => {
       setDb(database);
       const next = readState(database);
+      syncDocumentSnapshots(undefined, next.jobs, loadAdminDemoState());
       setState(next);
       setSelectedJobId(next.jobs[0]?.job.id);
     });
@@ -353,6 +356,8 @@ function App() {
     }
     persist(db);
     const next = readState(db);
+    if (action === loadLargeDemoDataset) clearDocumentSnapshots();
+    syncDocumentSnapshots(action === loadLargeDemoDataset ? undefined : state?.jobs, next.jobs, loadAdminDemoState());
     setState(next);
     if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
     return true;
@@ -2273,27 +2278,48 @@ function DataFlowWorkspace({ jobs, users }: { jobs: JobView[]; users: User[] }) 
   </section>;
 }
 
-function DocumentDownloadButton({ kind, view, className = "document-download", label }: { kind: DocumentKind; view: JobView; className?: string; label?: string }) {
-  const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
+function DocumentDownloadButton({ kind, view, className = "document-download", label, snapshotId }: { kind: DocumentKind; view: JobView; className?: string; label?: string; snapshotId?: string }) {
+  const [status, setStatus] = useState<"idle" | "preparing" | "done" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
-  const download = async () => {
-    setStatus("generating");
+  const resolve = (): RenderedDocument => {
+    const snapshots = loadDocumentSnapshots();
+    const snap = snapshotId ? snapshots.find((item) => item.id === snapshotId) : undefined;
+    return snap ? renderSnapshotDocument(snap) : renderJobDocument(kind, view, loadAdminDemoState(), snapshots);
+  };
+  const print = () => {
     setErrorMessage("");
     try {
-      if (kind === "estimate" || kind === "invoice") {
-        await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
-        if (!downloadJobDocument(kind, view, loadAdminDemoState().businessSettings)) throw new Error("Document is not available.");
-      } else {
-        const result = printJobDocument(kind, view, loadAdminDemoState());
-        if (!result.ok) throw new Error(result.error);
-      }
-      setStatus("idle");
+      const result = printRenderedDocument(resolve());
+      if (!result.ok) throw new Error(result.error);
     } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Document generation failed. Please try again.");
+      setErrorMessage(error instanceof Error ? error.message : "The document could not be printed.");
       setStatus("error");
     }
   };
-  return <><button type="button" className={className} disabled={status === "generating"} aria-busy={status === "generating"} onClick={download}><Download size={15} />{status === "generating" ? "Generating…" : label ?? (kind === "estimate" || kind === "invoice" ? "Download PDF" : "Print / Save as PDF")}</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
+  const download = async () => {
+    setStatus("preparing");
+    setErrorMessage("");
+    let doc: RenderedDocument;
+    try {
+      doc = resolve();
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : "Document is not available.");
+      setStatus("error");
+      return;
+    }
+    try {
+      await new Promise<void>((done) => window.setTimeout(done, 30));
+      await renderHtmlToPdf(doc.html, doc.filename);
+      setStatus("done");
+      window.setTimeout(() => setStatus("idle"), 2500);
+    } catch {
+      // PDF generation failed: fall back to the browser print dialog (Save as PDF).
+      const result = printRenderedDocument(doc);
+      if (result.ok) setStatus("idle");
+      else { setErrorMessage(result.error ?? "Document generation failed."); setStatus("error"); }
+    }
+  };
+  return <><button type="button" className={className} disabled={status === "preparing"} aria-busy={status === "preparing"} onClick={download}><Download size={15} />{status === "preparing" ? "Preparing…" : status === "done" ? "Downloaded ✓" : label ?? "Download PDF"}</button><button type="button" className="document-print" onClick={print}>Print</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
 }
 
 function DataFlow({ view, users }: { view: JobView; users: User[] }) {
@@ -2338,10 +2364,10 @@ function JobDocuments({ view, actor, mutate, editor: controlledEditor, setEditor
   const [localEditor, setLocalEditor] = useState<DocumentEditor>();
   const editor = setControlledEditor ? controlledEditor : localEditor;
   const setEditor = setControlledEditor ?? setLocalEditor;
-  const documents = resolveJobDocuments(view);
+  const documents = resolveJobDocuments(view, loadDocumentSnapshots());
   return <><div className="document-center">{documents.length ? documents.map((document) => {
-    const actions = resolveJobDocumentActions(document.kind, view, actor);
-    return <div className={`document-row ${document.available ? "available" : "missing"}`} key={document.kind}><div><strong>{document.label}</strong><span>{document.available ? "Ready from current job data" : document.message}</span></div><div className="document-actions">{actions.includes("create-estimate") && <button type="button" className="primary-action" onClick={() => setEditor("estimate")}>Create Estimate</button>}{actions.includes("edit-estimate") && <button type="button" onClick={() => setEditor("estimate")}>Edit</button>}{actions.includes("approve-estimate") && <button type="button" className="primary-action" onClick={() => setEditor("approve-estimate")}>Approve Estimate</button>}{actions.includes("create-invoice") && <button type="button" className="primary-action" onClick={() => setEditor("invoice")}>Create Invoice</button>}{actions.includes("edit-invoice") && <button type="button" onClick={() => setEditor("invoice")}>Edit</button>}{actions.includes("download") && <DocumentDownloadButton kind={document.kind} view={view} className="primary-action document-download" />}</div></div>;
+    const actions = document.state === "void" ? ["download" as const] : resolveJobDocumentActions(document.kind, view, actor);
+    return <div className={`document-row ${document.available ? "available" : "missing"}`} key={document.snapshotId ?? document.kind}><div><strong>{document.label}</strong><span>{document.state === "void" ? `${document.number} - void (frozen copy)` : document.available ? `${document.number ?? ""} ${document.state === "frozen" ? "- frozen" : "- ready"}`.trim() : document.message}</span></div><div className="document-actions">{actions.includes("create-estimate") && <button type="button" className="primary-action" onClick={() => setEditor("estimate")}>Create Estimate</button>}{actions.includes("edit-estimate") && <button type="button" onClick={() => setEditor("estimate")}>Edit</button>}{actions.includes("approve-estimate") && <button type="button" className="primary-action" onClick={() => setEditor("approve-estimate")}>Approve Estimate</button>}{actions.includes("create-invoice") && <button type="button" className="primary-action" onClick={() => setEditor("invoice")}>Create Invoice</button>}{actions.includes("edit-invoice") && <button type="button" onClick={() => setEditor("invoice")}>Edit</button>}{actions.includes("download") && <DocumentDownloadButton kind={document.kind} view={view} snapshotId={document.snapshotId} className="primary-action document-download" />}</div></div>;
   }) : <p className="empty-state">No documents are available for this job.</p>}</div>{editor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}{editor === "approve-estimate" && <ApproveEstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}{editor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}</>;
 }
 
@@ -2859,7 +2885,7 @@ function EntityResults({ kind, rows, state, viewMode, role, actor, openRecord, m
     mutate((db) => kind === "jobs" ? archiveJobCardForActor(db, id, actor.id, "Archived from list") : kind === "customers" ? archiveCustomer(db, id, "Archived from list") : kind === "vehicles" ? archiveVehicle(db, id, "Archived from list") : archiveJobPhotoForActor(db, id, actor.id, "Archived from media list"));
   };
   const cardFor = (raw: unknown): ReactNode => {
-    if (kind === "jobs") { const row = raw as JobView; const manageable = canManageJob(row); return <article className="record-card job-card" key={row.job.id}><div className="record-identity"><strong>{row.vehicle.number}</strong><span>{row.vehicle.make} {row.vehicle.model}</span></div><h3>{row.job.job_no}</h3><p>{row.customer.name} · {row.customer.mobile}</p><Status status={row.job.main_status} sub={row.job.sub_status} /><Info label="Total" value={money(jobTotal(row))} /><RecordActions onView={() => openRecord(row.job.id, "view")} onEdit={manageable ? () => openRecord(row.job.id, "edit") : undefined} onArchive={manageable ? () => archive(row.job.id) : undefined} /></article>; }
+    if (kind === "jobs") { const row = raw as JobView; const manageable = canManageJob(row); return <article className="record-card job-card" key={row.job.id}><div className="record-identity"><strong>{row.vehicle.number}</strong><span>{row.vehicle.make} {row.vehicle.model}</span></div><h3>{row.job.job_no}</h3><p>{row.customer.name} · {row.customer.mobile}</p><Status status={row.job.main_status} sub={row.job.sub_status} /><DocumentChips view={row} /><Info label="Total" value={money(jobTotal(row))} /><RecordActions onView={() => openRecord(row.job.id, "view")} onEdit={manageable ? () => openRecord(row.job.id, "edit") : undefined} onArchive={manageable ? () => archive(row.job.id) : undefined} /></article>; }
     if (kind === "customers") { const row = raw as Customer; const vehicles = state.vehicles.filter((item) => item.customer_id === row.id); const jobs = state.jobs.filter((item) => item.customer.id === row.id); return <article className="record-card" key={row.id}><div className="record-identity"><strong>{row.name}</strong><span>{row.mobile}</span></div><span className="category-badge">{row.type}</span><Info label="Vehicles" value={vehicles.length} /><Info label="Open jobs" value={jobs.filter((job) => job.job.main_status !== "CLOSED").length} /><Info label="Last visit" value={jobs[0]?.visit.received_at?.slice(0, 10) || "—"} /><RecordActions onView={() => openRecord(row.id, "view")} onEdit={canArchive ? () => openRecord(row.id, "edit") : undefined} onArchive={canArchive ? () => archive(row.id) : undefined} /></article>; }
     if (kind === "vehicles") { const row = raw as Vehicle; const customer = state.customers.find((item) => item.id === row.customer_id); return <article className="record-card" key={row.id}><div className="record-identity"><strong>{row.number}</strong><span>{row.make} {row.model}</span></div><p><i className="color-swatch" style={{ background: row.color }} />{row.color}</p><Info label="Customer" value={customer?.name ?? "—"} /><Info label="KM" value={row.km.toLocaleString("en-IN")} /><RecordActions onView={() => openRecord(row.id, "view")} onEdit={canArchive ? () => openRecord(row.id, "edit") : undefined} onArchive={canArchive ? () => archive(row.id) : undefined} /></article>; }
     const { photo, job } = raw as { photo: Photo; job: JobView }; return <article className="record-card media-card" key={photo.id}><div className="media-preview"><img src={photo.src || "/media-placeholder.svg"} alt={photo.label} /><span>{photo.category || "General"}</span></div><h3>{job.vehicle.number}</h3><p>{job.job.job_no} · {photo.label}</p><RecordActions onView={() => openRecord(photo.id)} onArchive={canArchive ? () => archive(photo.id) : undefined} /></article>;
@@ -2882,6 +2908,20 @@ function EntityTableRow({ kind, raw, state, canArchive, canManageJob, openRecord
   return <tr>{cells.map((cell, index) => <td key={index}>{cell}</td>)}<td><RecordActions onView={() => openRecord(id, "view")} onEdit={kind === "jobs" ? canManageJob ? () => openRecord(id, "edit") : undefined : (kind === "customers" || kind === "vehicles") && canArchive ? () => openRecord(id, "edit") : undefined} onArchive={kind === "jobs" ? canManageJob ? () => archive(id) : undefined : canArchive ? () => archive(id) : undefined} /></td></tr>;
 }
 
+const CHIP_LABELS: Record<string, string> = { estimate: "Est", invoice: "Inv", "payment-receipt": "Rcpt", "gate-pass": "GP" };
+
+/** Four document chips (Estimate, Invoice, Receipt, Gate Pass): filled when created, hollow when not, struck when void. */
+function DocumentChips({ view }: { view: JobView }) {
+  const rows = resolveJobDocuments(view, loadDocumentSnapshots());
+  return <span className="doc-chips" aria-label="Documents">{(["estimate", "invoice", "payment-receipt", "gate-pass"] as DocumentKind[]).map((kind) => {
+    const current = rows.find((row) => row.kind === kind && row.state !== "void");
+    const voided = rows.some((row) => row.kind === kind && row.state === "void");
+    const state = current?.available ? current.state : voided ? "void" : "missing";
+    const text = state === "missing" ? "not created" : state === "void" ? "void" : "created";
+    return <span key={kind} className={`doc-chip doc-chip-${state}`} title={`${DOCUMENT_LABELS[kind]}: ${text}`} data-state={state}>{CHIP_LABELS[kind]}</span>;
+  })}</span>;
+}
+
 function JobRows({ jobs, selectedJobId, onSelect }: { jobs: JobView[]; selectedJobId?: number; onSelect?: (id: number) => void }) {
   return (
     <div className="row-list">
@@ -2890,6 +2930,7 @@ function JobRows({ jobs, selectedJobId, onSelect }: { jobs: JobView[]; selectedJ
           <strong>{view.job.job_no}</strong>
           <span>{view.vehicle.number}</span>
           <Status status={view.job.main_status} sub={view.job.sub_status} />
+          <DocumentChips view={view} />
         </button>
       ))}
     </div>
