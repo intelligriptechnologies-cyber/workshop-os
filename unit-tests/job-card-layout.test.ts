@@ -13,7 +13,7 @@ test("tab set and order match the dialog layout", () => {
 });
 
 test("unbuilt tabs are stubs, built tabs are not", () => {
-  assert.deepEqual(JOB_CARD_TABS.filter((t) => isStubTab(t.key)).map((t) => t.key), ["payment"]);
+  assert.deepEqual(JOB_CARD_TABS.filter((t) => isStubTab(t.key)).map((t) => t.key), []);
 });
 
 test("footer offers Create Estimate to the owner and lists Job Card download", () => {

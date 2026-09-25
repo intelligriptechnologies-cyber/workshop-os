@@ -3,7 +3,7 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
 import {
-  addPayment,
+  recordPayment,
   approveEstimate,
   createFollowup,
   createPhoto,
@@ -162,7 +162,7 @@ test("completed-job rework creates fresh stage cycles and preserves prior histor
   ]);
 });
 
-test("non-billing artifacts never advance main status while full payment closes through the billing system boundary", async () => {
+test("non-billing artifacts never advance main status; full payment does not close and manual Close creates the Gate Pass", async () => {
   const db = await database();
   insertJob(db, "NEW", "Gather Requirements");
   db.run("insert into inventory(id,sku,name,stock_qty,archived_at) values(1,'MAT-1','Material',100,null)");
@@ -187,7 +187,10 @@ test("non-billing artifacts never advance main status while full payment closes 
   transitionJobStatus(db, 1, "COMPLETED", "QC evidence accepted");
   generateInvoice(db, 1, "TLY-1");
   const total = rows<{ total: number }>(db, "select total from invoices where job_card_id=1")[0].total;
-  addPayment(db, 1, total, "UPI", "PAY-1");
+  assert.ok(total > 0);
+  recordPayment(db, rows<{ id: number }>(db, "select id from invoices where job_card_id=1")[0].id, { mode: "UPI", otherDetail: "", reference: "PAY-1" });
+  assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "COMPLETED");
+  transitionJobStatus(db, 1, "CLOSED", "Handed over");
   assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "CLOSED");
   assert.deepEqual(rows(db, "select label,checked_at is not null as checked from checklist_items where checklist_cycle_id=(select max(id) from checklist_cycles) order by sort_order"), [
     { label: "Receipt Generated", checked: 1 },

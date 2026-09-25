@@ -1141,7 +1141,7 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
   try {
     const priced = items.map((item) => ({ ...item, gst_rate: item.gst_rate ?? fallbackGst ?? DEFAULT_GST_BY_KIND[item.kind] }));
     const totals = invoiceTotals(priced, discount);
-    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, `INV-${String(8900 + jobId).padStart(5, "0")}`, input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
+    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, nextDocumentNumber(db, "invoices", "invoice_no", "INV-", 8900 + jobId, 5), input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
     for (const item of priced) {
       if (item.material_row_id) pickUpMaterialRow(db, jobId, item.material_row_id, id);
       insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description.trim(), item.qty, item.rate, item.gst_rate, item.material_row_id ?? null]);
@@ -1193,6 +1193,7 @@ export function saveInvoiceForActor(db: Database, invoiceId: number, actorId: nu
   const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
   const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
   if (!canEditInvoice(actor, job)) throw new Error("This user cannot edit the invoice for this job card.");
+  if (invoice.status === "Cleared") throw new Error("A Cleared invoice is locked. Void the payment to reopen it.");
   if (input.items.length === 0) throw new Error("An invoice requires at least one item.");
   const existing = activeInvoiceItems(db, invoiceId);
   const existingIds = new Set(existing.map((item) => item.id));
@@ -1241,11 +1242,11 @@ export function voidInvoiceForActor(db: Database, invoiceId: number, actorId: nu
   voidInvoice(db, invoiceId, reason, actorId);
 }
 
-export interface PaymentInput { amount: number; mode: PaymentMode; otherDetail: string; reference: string; notes: string }
+/** Single full payment: mode + reference only; the amount is always the invoice total. */
+export interface PaymentInput { mode: PaymentMode; otherDetail: string; reference: string; notes?: string }
 const PAYMENT_MODES: readonly PaymentMode[] = ["UPI", "Cash", "Card", "Other"];
 
 function validatePaymentInput(input: PaymentInput) {
-  if (!Number.isFinite(input.amount) || input.amount <= 0) throw new Error("Payment amount must be greater than zero.");
   if (!PAYMENT_MODES.includes(input.mode)) throw new Error("Payment mode must be UPI, Cash, Card, or Other.");
   if (input.mode === "Other" && !input.otherDetail.trim()) throw new Error("Other payment detail is required.");
 }
@@ -1262,44 +1263,32 @@ function syncInvoicePaymentStatus(db: Database, invoiceId: number) {
   reconcileArtifactChecklist(db, invoice.job_card_id);
 }
 
-function transitionJobStatusForBillingCorrection(db: Database, jobId: number, note: string, timestamp = new Date().toISOString()) {
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  if (job.main_status !== "CLOSED") throw new Error("A billing correction system transition requires a CLOSED job.");
-  db.run("update job_cards set main_status='COMPLETED',sub_status='Customer Verification',closed_at=null,updated_at=? where id=?", [timestamp, jobId]);
-  createLifecycleCycle(db, jobId, "COMPLETED", timestamp);
-  history(db, jobId, "COMPLETED", "Customer Verification", note, timestamp);
-  reconcileArtifactChecklist(db, jobId, 0, timestamp);
+/** Next unique document number: the preferred one unless taken, otherwise one past the highest issued. */
+function nextDocumentNumber(db: Database, table: string, column: string, prefix: string, preferred: number, width: number) {
+  const format = (n: number) => `${prefix}${String(n).padStart(width, "0")}`;
+  if (scalar<number>(db, `select count(*) from ${table} where ${column}=?`, [format(preferred)]) === 0) return format(preferred);
+  const highest = all<{ v: string }>(db, `select ${column} as v from ${table} where ${column} like ?`, [`${prefix}%`]).reduce((max, row) => Math.max(max, Number(String(row.v).slice(prefix.length)) || 0), preferred);
+  return format(highest + 1);
 }
 
-function reopenClearedInvoiceIfUnderpaid(db: Database, invoiceId: number, wasCleared: boolean) {
-  if (!wasCleared) return;
-  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
-  if (invoice.status === "Cleared" || job.main_status !== "CLOSED") return;
-  const reason = "Billing correction: cleared invoice became underpaid";
-  db.run("update receipts set voided_at=datetime('now'),void_reason=? where invoice_id=? and voided_at is null", [reason, invoiceId]);
-  db.run("update gate_passes set voided_at=datetime('now'),void_reason=? where invoice_id=? and voided_at is null", [reason, invoiceId]);
-  transitionJobStatusForBillingCorrection(db, invoice.job_card_id, "System billing correction: cleared invoice became underpaid; stale receipt and gate pass voided");
-}
-
-function closeJobForClearedInvoice(db: Database, invoiceId: number) {
-  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
-  if (invoice.status !== "Cleared") return;
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
-  if (job.main_status !== "COMPLETED") return;
-  generateReceiptAndGatePass(db, invoice.job_card_id);
-  transitionJobStatus(db, invoice.job_card_id, "CLOSED", "System: invoice cleared by cumulative active payments");
-}
-
-export function recordPayment(db: Database, invoiceId: number, input: PaymentInput) {
+/** Record Payment: one full payment plus its Receipt; the Invoice becomes Cleared (locked). It never closes the job. */
+export function recordPayment(db: Database, invoiceId: number, input: PaymentInput, actorId = 0) {
   validatePaymentInput(input);
-  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
-  if (activePaidAmount(db, invoiceId) + input.amount > invoice.total + 0.001) throw new Error("Payment would create an overpayment.");
+  const invoice = maybe<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  if (!invoice) throw new Error("Record Payment requires a current Invoice.");
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
+  if (job.main_status === "CLOSED" || job.main_status === "CANCELLED") throw new Error(`A ${job.main_status} job card is read-only.`);
+  if (activePaidAmount(db, invoiceId) > 0) throw new Error("This invoice already has a payment. Void it before recording another.");
+  if (!(invoice.total > 0)) throw new Error("An invoice with no amount due cannot be paid.");
   db.run("savepoint record_payment");
   try {
-    const id = insert(db, "insert into payments(job_card_id,invoice_id,amount,mode,other_detail,reference,notes,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [invoice.job_card_id, invoiceId, input.amount, input.mode, input.otherDetail.trim(), input.reference.trim(), input.notes.trim()]);
-    syncInvoicePaymentStatus(db, invoiceId);
-    closeJobForClearedInvoice(db, invoiceId);
+    const timestamp = new Date().toISOString();
+    const id = insert(db, "insert into payments(job_card_id,invoice_id,amount,mode,other_detail,reference,notes,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [invoice.job_card_id, invoiceId, invoice.total, input.mode, input.mode === "Other" ? input.otherDetail.trim() : "", input.reference.trim(), (input.notes ?? "").trim()]);
+    if (!maybe<Receipt>(db, "select * from receipts where invoice_id=? and voided_at is null", [invoiceId])) {
+      insert(db, "insert into receipts(job_card_id,invoice_id,receipt_no,created_at) values (?,?,?,datetime('now'))", [invoice.job_card_id, invoiceId, nextDocumentNumber(db, "receipts", "receipt_no", "RCT-", 4500 + invoiceId, 5)]);
+    }
+    db.run("update invoices set status='Cleared',updated_at=datetime('now') where id=?", [invoiceId]);
+    reconcileArtifactChecklist(db, invoice.job_card_id, actorId, timestamp);
     db.run("release savepoint record_payment");
     return id;
   } catch (error) {
@@ -1311,42 +1300,22 @@ export function recordPayment(db: Database, invoiceId: number, input: PaymentInp
 
 export function recordPaymentForActor(db: Database, invoiceId: number, actorId: number, input: PaymentInput) {
   assertBillingMutationAccess(db, actorId);
-  return recordPayment(db, invoiceId, input);
+  return recordPayment(db, invoiceId, input, actorId);
 }
 
-export function editPayment(db: Database, id: number, input: PaymentInput) {
-  validatePaymentInput(input);
-  const payment = one<Payment>(db, "select * from payments where id=? and voided_at is null", [id]);
-  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [payment.invoice_id]);
-  if (activePaidAmount(db, payment.invoice_id, id) + input.amount > invoice.total + 0.001) throw new Error("Payment would create an overpayment.");
-  db.run("savepoint edit_payment");
-  try {
-    db.run("update payments set amount=?,mode=?,other_detail=?,reference=?,notes=?,updated_at=datetime('now') where id=?", [input.amount, input.mode, input.otherDetail.trim(), input.reference.trim(), input.notes.trim(), id]);
-    syncInvoicePaymentStatus(db, payment.invoice_id);
-    reopenClearedInvoiceIfUnderpaid(db, payment.invoice_id, invoice.status === "Cleared");
-    closeJobForClearedInvoice(db, payment.invoice_id);
-    db.run("release savepoint edit_payment");
-  } catch (error) {
-    db.run("rollback to savepoint edit_payment");
-    db.run("release savepoint edit_payment");
-    throw error;
-  }
-}
-
-export function editPaymentForActor(db: Database, id: number, actorId: number, input: PaymentInput) {
-  assertBillingMutationAccess(db, actorId);
-  editPayment(db, id, input);
-}
-
+/** Voiding a payment (with reason) voids its Receipt, reopens the Invoice and unticks Payment Received. */
 export function voidPayment(db: Database, id: number, reason: string) {
   if (!reason.trim()) throw new Error("A payment void reason is required.");
   const payment = one<Payment>(db, "select * from payments where id=? and voided_at is null", [id]);
-  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [payment.invoice_id]);
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [payment.job_card_id]);
+  if (job.main_status === "CLOSED" || job.main_status === "CANCELLED") throw new Error(`A ${job.main_status} job card is read-only.`);
   db.run("savepoint void_payment");
   try {
     db.run("update payments set voided_at=datetime('now'),void_reason=?,updated_at=datetime('now') where id=?", [reason.trim(), id]);
-    syncInvoicePaymentStatus(db, payment.invoice_id);
-    reopenClearedInvoiceIfUnderpaid(db, payment.invoice_id, invoice.status === "Cleared");
+    db.run("update receipts set voided_at=datetime('now'),void_reason=? where invoice_id=? and voided_at is null", [reason.trim(), payment.invoice_id]);
+    db.run("update invoices set status='Open',updated_at=datetime('now') where id=? and voided_at is null", [payment.invoice_id]);
+    const item = maybe<ChecklistItem>(db, "select * from checklist_items where job_card_id=? and label='Payment Received' and checked_at is not null and checklist_cycle_id=(select max(id) from checklist_cycles where job_card_id=?)", [payment.job_card_id, payment.job_card_id]);
+    if (item) writeChecklistItemState(db, item, 0, false, false, new Date().toISOString());
     db.run("release savepoint void_payment");
   } catch (error) {
     db.run("rollback to savepoint void_payment");
@@ -1360,27 +1329,11 @@ export function voidPaymentForActor(db: Database, id: number, actorId: number, r
   voidPayment(db, id, reason);
 }
 
-export function addPayment(db: Database, jobId: number, amount: number, mode: string, reference: string) {
-  const invoice = one<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
-  const normalizedMode: PaymentMode = PAYMENT_MODES.includes(mode as PaymentMode) ? mode as PaymentMode : mode.toLowerCase().startsWith("upi") ? "UPI" : "Other";
-  return recordPayment(db, invoice.id, { amount, mode: normalizedMode, otherDetail: normalizedMode === "Other" ? mode : "", reference, notes: "" });
-}
-
-export function updatePayment(db: Database, id: number, amount: number, mode: string, reference: string) {
-  const normalizedMode: PaymentMode = PAYMENT_MODES.includes(mode as PaymentMode) ? mode as PaymentMode : "Other";
-  editPayment(db, id, { amount, mode: normalizedMode, otherDetail: normalizedMode === "Other" ? mode : "", reference, notes: "" });
-}
-
-export function generateReceiptAndGatePass(db: Database, jobId: number) {
-  const invoice = one<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
-  if (invoice.status !== "Cleared") throw new Error("Receipt and gate pass require a cleared invoice.");
-  if (!maybe<Receipt>(db, "select * from receipts where invoice_id=? and voided_at is null", [invoice.id])) {
-    insert(db, "insert into receipts(job_card_id,invoice_id,receipt_no,created_at) values (?,?,?,datetime('now'))", [jobId, invoice.id, `RCT-${String(4500 + invoice.id).padStart(5, "0")}`]);
-  }
-  if (!maybe<GatePass>(db, "select * from gate_passes where invoice_id=? and voided_at is null", [invoice.id])) {
-    insert(db, "insert into gate_passes(job_card_id,invoice_id,gate_pass_no,created_at) values (?,?,?,datetime('now'))", [jobId, invoice.id, `GP-${String(3100 + invoice.id).padStart(5, "0")}`]);
-  }
-  reconcileArtifactChecklist(db, jobId);
+/** Gate Pass is created when the job is Closed (never on payment); it shows Cleared, not amounts. */
+function ensureGatePassOnClose(db: Database, jobId: number) {
+  const invoice = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
+  if (!invoice || maybe<GatePass>(db, "select * from gate_passes where invoice_id=? and voided_at is null", [invoice.id])) return;
+  insert(db, "insert into gate_passes(job_card_id,invoice_id,gate_pass_no,created_at) values (?,?,?,datetime('now'))", [jobId, invoice.id, nextDocumentNumber(db, "gate_passes", "gate_pass_no", "GP-", 3100 + invoice.id, 5)]);
 }
 
 export function updateDeliveryDetails(db: Database, jobId: number, deliveredBy: string, finalKm: number, acknowledgement: string) {
@@ -1811,8 +1764,33 @@ function assertChecklistItemEditable(db: Database, item: ChecklistItem, resolvin
   }
 }
 
-export function setChecklistItemCheckedForActor(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString()) {
+/** Payment Received is owned by Owner + Accounts: ticking it (needs an Invoice) records the full payment and Receipt. */
+function setPaymentReceivedForActor(db: Database, item: ChecklistItem, actorId: number, checked: boolean, timestamp: string, payment?: PaymentInput) {
+  assertBillingMutationAccess(db, actorId);
+  assertChecklistItemEditable(db, item, checked);
+  const invoice = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [item.job_card_id]);
+  const paid = invoice ? activePaidAmount(db, invoice.id) > 0 : false;
+  if (!checked) {
+    if (paid) throw new Error("Void the payment (with a reason) to untick Payment Received.");
+    return setChecklistItemChecked(db, item.id, actorId, false, timestamp);
+  }
+  if (!invoice) throw new Error("Create an Invoice before recording payment.");
+  db.run("savepoint tick_payment_received");
+  try {
+    if (!paid) recordPayment(db, invoice.id, payment ?? { mode: "Cash", otherDetail: "", reference: "", notes: "Recorded by ticking Payment Received" }, actorId);
+    const current = one<ChecklistItem>(db, "select * from checklist_items where id=?", [item.id]);
+    if (!current.checked_at) setChecklistItemChecked(db, item.id, actorId, true, timestamp);
+    db.run("release savepoint tick_payment_received");
+  } catch (error) {
+    db.run("rollback to savepoint tick_payment_received");
+    db.run("release savepoint tick_payment_received");
+    throw error;
+  }
+}
+
+export function setChecklistItemCheckedForActor(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString(), payment?: PaymentInput) {
   const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
+  if (item.label === "Payment Received") return setPaymentReceivedForActor(db, item, actorId, checked, timestamp, payment);
   assertJobLifecycleMutationAccess(db, item.job_card_id, actorId);
   assertChecklistItemEditable(db, item, checked);
   setChecklistItemChecked(db, itemId, actorId, checked, timestamp);
@@ -1912,11 +1890,8 @@ export function transitionJobStatus(db: Database, jobId: number, to: MainStatus,
     db.run("update job_cards set main_status=?, sub_status=?, closed_at=case when ?='CLOSED' then coalesce(closed_at, ?) else closed_at end, updated_at=? where id=?", [to, nextSub, to, timestamp, timestamp, jobId]);
     if (!keepsChecklist && !resumesCycle) createLifecycleCycle(db, jobId, to, timestamp);
     history(db, jobId, to, nextSub, confirmation, timestamp);
+    if (to === "CLOSED") ensureGatePassOnClose(db, jobId);
     if (!keepsChecklist) reconcileArtifactChecklist(db, jobId, 0, timestamp);
-    if (to === "COMPLETED") {
-      const cleared = maybe<Invoice>(db, "select * from invoices where job_card_id=? and status='Cleared' and voided_at is null order by id desc limit 1", [jobId]);
-      if (cleared) closeJobForClearedInvoice(db, cleared.id);
-    }
     db.run("release savepoint job_status_transition");
   } catch (error) {
     db.run("rollback to savepoint job_status_transition");

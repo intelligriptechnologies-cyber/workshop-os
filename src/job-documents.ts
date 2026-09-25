@@ -23,7 +23,7 @@ export function resolveJobDocumentActions(kind: DocumentKind, view: JobView, act
     return canEditEstimate ? ["create-estimate"] : [];
   }
   if (kind === "invoice") {
-    if (view.invoice && !view.invoice.voided_at) return [...(mayEditInvoice(actor, view.job) ? ["edit-invoice" as const] : []), ...(recordExists(kind, view) ? ["download" as const] : [])];
+    if (view.invoice && !view.invoice.voided_at) return [...(mayEditInvoice(actor, view.job) && view.invoice.status !== "Cleared" ? ["edit-invoice" as const] : []), ...(recordExists(kind, view) ? ["download" as const] : [])];
     return canCreateInvoice(actor, view.job) && view.estimate?.status === "Approved" && !view.estimate.archived_at ? ["create-invoice"] : [];
   }
   return recordExists(kind, view) ? ["download"] : [];

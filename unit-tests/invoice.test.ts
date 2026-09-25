@@ -11,7 +11,9 @@ import {
   materialStockOnHand,
   migrateSchema,
   readState,
+  recordPaymentForActor,
   releaseMaterialRowForActor,
+  setChecklistItemCheckedForActor,
   requestMaterialRowForActor,
   saveEstimateForActor,
   saveInvoiceForActor,
@@ -157,4 +159,53 @@ test("a paid invoice rejects line edits", async () => {
   const items = view(db).invoice_items.map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: 999, gst_rate: 18 }));
   assert.throws(() => saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", documentAvailable: true, items, note: "n" }), /locked/);
   assert.equal(rows<{ n: number }>(db, "select count(*) n from invoice_events where kind='edit'")[0].n, 0);
+});
+
+async function completedWithInvoice() {
+  const db = await database("IN_PROGRESS", "Material Requested");
+  db.run("update checklist_items set checked_at='2026-09-25T09:00:00.000Z' where required=1");
+  db.run("update checklist_cycles set completed_at='2026-09-25T09:00:00.000Z'");
+  estimate(db);
+  approveEstimateForActor(db, 1, 2, "ok");
+  const id = createInvoiceForActor(db, 1, 2, invoiceInput([{ kind: "Service", description: "Labour", qty: 1, rate: 100, gst_rate: 18 }]));
+  transitionJobStatusForActor(db, 1, 2, "COMPLETED", "Done");
+  const item = (label: string) => view(db).checklist_items.filter((row) => row.stage === "COMPLETED").find((row) => row.label === label)!;
+  setChecklistItemCheckedForActor(db, item("Customer Verification").id, 1, true);
+  setChecklistItemCheckedForActor(db, item("Invoice Ready").id, 1, true);
+  return { db, id, item };
+}
+
+test("ticking Payment Received creates the payment and Receipt, clears the invoice, and does not close the job", async () => {
+  const { db, id, item } = await completedWithInvoice();
+  assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 2, true), /Only Owner\/Admin and Accounts/);
+  setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, true);
+  const v = view(db);
+  assert.equal(v.invoice?.status, "Cleared");
+  assert.equal(v.payments.length, 1);
+  assert.equal(v.payments[0].amount, 118);
+  assert.equal(v.receipt?.invoice_id, id);
+  assert.equal(v.gate_pass, undefined);
+  assert.equal(v.job.main_status, "COMPLETED");
+  assert.ok(item("Payment Received").checked_at);
+  assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, false), /Void the payment/);
+});
+
+test("ticking Payment Received requires a current invoice", async () => {
+  const { db, id, item } = await completedWithInvoice();
+  voidInvoiceForActor(db, id, 4, "Wrong customer");
+  assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, true), /Create an Invoice/);
+  assert.equal(view(db).payments.length, 0);
+});
+
+test("voiding needs Owner/Accounts and a reason; a paid invoice cannot be voided; a re-created invoice gets a new number", async () => {
+  const { db, id } = await completedWithInvoice();
+  assert.throws(() => voidInvoiceForActor(db, id, 2, "Advisor"), /Only Owner\/Admin and Accounts/);
+  assert.throws(() => voidInvoiceForActor(db, id, 4, " "), /reason/);
+  const first = view(db).invoice!.invoice_no;
+  voidInvoiceForActor(db, id, 4, "Wrong customer");
+  const again = createInvoiceForActor(db, 1, 1, invoiceInput([{ kind: "Service", description: "Labour", qty: 1, rate: 100, gst_rate: 18 }]));
+  assert.notEqual(view(db).invoice!.invoice_no, first);
+  recordPaymentForActor(db, again, 4, { mode: "UPI", otherDetail: "", reference: "R" });
+  assert.throws(() => voidInvoiceForActor(db, again, 4, "Too late"), /active payments/);
+  assert.equal(rows<{ n: number }>(db, "select count(*)-count(distinct invoice_no) n from invoices")[0].n, 0);
 });

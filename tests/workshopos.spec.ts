@@ -265,6 +265,21 @@ test("job card document actions stack editors, replace creation actions after sa
   const pdfPromise = page.waitForEvent("download");
   await invoiceRow.getByRole("button", { name: "Download PDF" }).click();
   expect((await pdfPromise).suggestedFilename()).toMatch(/-invoice\.pdf$/);
+
+  // Record Payment (mode + reference) creates the Receipt and clears the invoice without closing the job; void reopens it.
+  await jobDialog.getByRole("tab", { name: "Payment" }).click();
+  const paymentPanel = jobDialog.getByRole("region", { name: "Job payment" });
+  await paymentPanel.getByLabel("Payment mode").selectOption("UPI");
+  await paymentPanel.getByLabel("Payment reference").fill("E2E-UPI-1");
+  await paymentPanel.getByRole("button", { name: "Record Payment" }).click();
+  await expect(paymentPanel.getByRole("table", { name: "Payment", exact: true })).toContainText("E2E-UPI-1");
+  await expect(paymentPanel.getByRole("table", { name: "Payment", exact: true })).toContainText("RCT-");
+  await expect(paymentPanel).toContainText("Cleared");
+  await paymentPanel.getByRole("button", { name: "Void Payment" }).click();
+  const voidPayment = page.getByRole("dialog", { name: "Void Payment?" });
+  await voidPayment.getByLabel("Reason").fill("E2E correction");
+  await voidPayment.getByRole("button", { name: "Void" }).click();
+  await expect(paymentPanel.getByRole("button", { name: "Record Payment" })).toBeVisible();
 });
 
 test("customer and vehicle records use distinct view and edit dialogs on every list surface", async ({ page }) => {
@@ -439,32 +454,27 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   const billingJob = create.getByLabel("Billing job");
   if (await billingJob.count()) {
     const initialJob = await billingJob.inputValue();
-    await create.getByLabel("Amount").fill("1");
     await create.getByLabel("Reference").fill("STALE-CANDIDATE");
     const nextJob = await billingJob.locator("option").nth(1).getAttribute("value");
     await billingJob.selectOption(nextJob!);
-    await expect(create.getByLabel("Amount")).not.toHaveValue("1");
     await expect(create.getByLabel("Reference")).toHaveValue("");
     await billingJob.selectOption(initialJob);
   }
-  await create.getByLabel("Amount").fill("100");
   await create.getByLabel("Mode").selectOption("UPI");
   await create.getByLabel("Reference").fill("WP6-E2E");
   await create.getByRole("button", { name: "Save" }).click();
   const paymentRow = page.getByRole("table", { name: "Payments manager" }).locator("tbody tr").filter({ hasText: "WP6-E2E" });
   await expect(paymentRow).toHaveCount(1);
-  await paymentRow.getByRole("button", { name: "Edit" }).click();
-  await page.getByRole("dialog", { name: "Edit Payment" }).getByLabel("Reference").fill("WP6-EDITED");
-  await page.getByRole("dialog", { name: "Edit Payment" }).getByRole("button", { name: "Save" }).click();
-  await page.getByLabel("Search payments").fill("WP6-EDITED");
+  await expect(paymentRow.getByRole("button", { name: "Edit" })).toHaveCount(0);
+  await page.getByLabel("Search payments").fill("WP6-E2E");
   await page.locator('[data-billing-manager="Payments"]').getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByRole("table", { name: "Payments manager" })).toContainText("WP6-EDITED");
-  const editedPaymentRow = page.getByRole("table", { name: "Payments manager" }).locator("tbody tr").filter({ hasText: "WP6-EDITED" });
+  await expect(page.getByRole("table", { name: "Payments manager" })).toContainText("WP6-E2E");
+  const editedPaymentRow = page.getByRole("table", { name: "Payments manager" }).locator("tbody tr").filter({ hasText: "WP6-E2E" });
   const correctedJob = (await editedPaymentRow.locator("td").first().textContent())!.trim();
   await editedPaymentRow.getByRole("button", { name: "Void" }).click();
   await page.getByRole("dialog", { name: "Void Payment" }).getByLabel("Reason").fill("E2E correction");
   await page.getByRole("dialog", { name: "Void Payment" }).getByRole("button", { name: "Void" }).click();
-  await expect(page.getByRole("table", { name: "Payments manager" })).not.toContainText("WP6-EDITED");
+  await expect(page.getByRole("table", { name: "Payments manager" })).not.toContainText("WP6-E2E");
   await page.getByRole("button", { name: "Create Payment" }).click();
   await page.getByRole("dialog", { name: "Create Payment" }).getByRole("button", { name: "Save" }).click();
   await page.locator('[data-billing-manager="Payments"]').getByRole("button", { name: "Clear", exact: true }).click();
@@ -485,7 +495,7 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   const correctedTimeline = page.getByRole("region", { name: "Chronological data flow" });
   await expect(correctedTimeline).toContainText("Payment voided");
   await expect(correctedTimeline).toContainText("E2E correction");
-  await expect(correctedTimeline.locator(".timeline-event.voided")).toBeVisible();
+  await expect(correctedTimeline.locator(".timeline-event.voided").first()).toBeVisible();
 });
 
 test("Manage Job Cards uses view and edit dialogs with documents and confirmed archive", async ({ page }) => {

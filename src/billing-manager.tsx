@@ -3,7 +3,6 @@ import { useMemo, useState, type FormEvent } from "react";
 import {
   canMutateBilling,
   createInvoiceForActor,
-  editPaymentForActor,
   markJobDeliveredForActor,
   recordPaymentForActor,
   updateDeliveryForActor,
@@ -70,7 +69,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
       : [{ header: "Job", value: (row) => row.view.job.job_no }, { header: "Vehicle", value: (row) => row.view.vehicle.number }, { header: "Gate pass", value: (row) => row.view.gate_pass?.gate_pass_no ?? "Pending" }, { header: "Delivery", value: (row) => delivered(row.view) ? "Delivered" : "Pending" }];
   const creatable = mode === "Invoices"
     ? state.jobs.filter((view) => view.job.main_status === "COMPLETED" && !view.invoice)
-    : mode === "Payments" ? state.jobs.filter((view) => view.invoice && view.invoice.status !== "Cleared") : [];
+    : mode === "Payments" ? state.jobs.filter((view) => view.invoice && !view.invoice.voided_at && view.job.main_status !== "CLOSED" && view.job.main_status !== "CANCELLED" && !view.payments.some((payment) => payment.invoice_id === view.invoice!.id && !payment.voided_at)) : [];
 
   return (
     <section className={panel ? "workspace single-panel" : "billing-manager"} data-billing-manager={mode} role="tabpanel">
@@ -84,7 +83,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
         </div>
         <div className="list-result-controls"><DownloadMenu report={{ title: mode, filters: activeFilterSummary({ Search: search.trim(), Status: status }), columns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><PageSizeSelect ariaLabel={`${mode} records per page`} value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
         <BillingPagination page={paged.page} count={paged.pageCount} onChange={setPage} />
-        <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}<th>Actions</th></tr></thead><tbody>{paged.items.map((record) => <tr key={record.key}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}<td><div className="action-row"><button onClick={() => setEditor({ action: "view", record })}>View</button>{editable && <><button onClick={() => setEditor({ action: "edit", record })}>Edit</button>{mode !== "Delivery" && <button className="danger-action" onClick={() => setEditor({ action: "void", record })}>Void</button>}{mode === "Delivery" && !delivered(record.view) && <button className="primary-action" onClick={() => setEditor({ action: "deliver", record })}>Delivered</button>}</>}</div></td></tr>)}</tbody></table></div>
+        <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}<th>Actions</th></tr></thead><tbody>{paged.items.map((record) => <tr key={record.key}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}<td><div className="action-row"><button onClick={() => setEditor({ action: "view", record })}>View</button>{editable && <>{mode !== "Payments" && <button onClick={() => setEditor({ action: "edit", record })}>Edit</button>}{mode !== "Delivery" && !record.payment?.voided_at && <button className="danger-action" onClick={() => setEditor({ action: "void", record })}>Void</button>}{mode === "Delivery" && !delivered(record.view) && <button className="primary-action" onClick={() => setEditor({ action: "deliver", record })}>Delivered</button>}</>}</div></td></tr>)}</tbody></table></div>
         {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={clear}>Clear filters</button></div>}
         <BillingPagination page={paged.page} count={paged.pageCount} onChange={setPage} />
         {editor && mode === "Invoices" && (editor.action === "create" || editor.action === "view" || editor.action === "edit")
@@ -207,8 +206,8 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
     if (editor.action === "void") ok = mutate((db) => mode === "Invoices" ? voidInvoiceForActor(db, invoice!.id, actor.id, reason) : voidPaymentForActor(db, payment!.id, actor.id, reason));
     else if (mode === "Invoices") ok = mutate((db) => editor.action === "create" ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, notes, documentAvailable }) : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, notes, documentAvailable, items: invoiceItems, note: "Edited from Manage Invoices" }));
     else if (mode === "Payments") {
-      const input: PaymentInput = { amount, mode: paymentMode, otherDetail, reference, notes };
-      ok = mutate((db) => editor.action === "create" ? recordPaymentForActor(db, selected.invoice!.id, actor.id, input) : editPaymentForActor(db, payment!.id, actor.id, input));
+      const input: PaymentInput = { mode: paymentMode, otherDetail, reference, notes };
+      ok = editor.action === "create" && mutate((db) => recordPaymentForActor(db, selected.invoice!.id, actor.id, input));
     } else ok = mutate((db) => editor.action === "deliver" ? markJobDeliveredForActor(db, selected.job.id, actor.id, deliveryBy, finalKm, acknowledgement) : updateDeliveryForActor(db, selected.job.id, actor.id, deliveryBy, finalKm, acknowledgement));
     if (ok) onClose();
   };
@@ -216,7 +215,7 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
   return <Dialog title={title} subtitle={`${selected.job.job_no} · ${selected.vehicle.number}`} onClose={onClose} wide><form className="billing-dialog-form" onSubmit={submit}>
     {editor.action === "create" && candidates.length > 1 && <label>Job<select aria-label="Billing job" value={jobId} onChange={(event) => selectCandidate(Number(event.target.value))}>{candidates.map((view) => <option key={view.job.id} value={view.job.id}>{view.job.job_no} · {view.vehicle.number}</option>)}</select></label>}
     {mode === "Invoices" && editor.action !== "void" && <><div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Discount<input type="number" value={discount} disabled={readOnly || editor.action === "create"} onChange={(event) => setDiscount(Number(event.target.value))} /></label></div>{editor.action !== "create" && <div className="estimate-items"><strong>Invoice items</strong>{invoiceItems.map((item, index) => <div className="estimate-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, kind: event.target.value as "Service" | "Material" } : row))}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row))} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, qty: Number(event.target.value) } : row))} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, rate: Number(event.target.value) } : row))} />{!readOnly && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setInvoiceItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!readOnly && <button type="button" onClick={() => setInvoiceItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0, gst_rate: 18 }])}>Add Invoice Item</button>}</div>}<label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label><p>Invoice items are copied once from the estimate. Financial fields lock after the first active payment.</p></>}
-    {mode === "Payments" && editor.action !== "void" && <><div className="form-grid"><label>Amount<input data-dialog-initial-focus type="number" min="0.01" step="0.01" value={amount} disabled={readOnly} onChange={(event) => setAmount(Number(event.target.value))} /></label><label>Mode<select value={paymentMode} disabled={readOnly} onChange={(event) => setPaymentMode(event.target.value as PaymentMode)}>{(["UPI", "Cash", "Card", "Other"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>{paymentMode === "Other" && <label>Other detail<input value={otherDetail} disabled={readOnly} onChange={(event) => setOtherDetail(event.target.value)} /></label>}<label>Reference<input value={reference} disabled={readOnly} onChange={(event) => setReference(event.target.value)} /></label></div><label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label></>}
+    {mode === "Payments" && editor.action !== "void" && <><div className="form-grid"><label>Amount<input data-dialog-initial-focus type="number" value={editor.action === "create" ? selected.invoice?.total ?? 0 : amount} disabled readOnly /></label><label>Mode<select value={paymentMode} disabled={readOnly} onChange={(event) => setPaymentMode(event.target.value as PaymentMode)}>{(["UPI", "Cash", "Card", "Other"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>{paymentMode === "Other" && <label>Other detail<input value={otherDetail} disabled={readOnly} onChange={(event) => setOtherDetail(event.target.value)} /></label>}<label>Reference<input value={reference} disabled={readOnly} onChange={(event) => setReference(event.target.value)} /></label></div><label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label></>}
     {mode === "Delivery" && <><div className="linked-grid"><div><span>Gate Pass</span><strong>{selected.gate_pass?.gate_pass_no ?? "Not generated"}</strong></div><div><span>State</span><strong>{delivered(selected) ? "Delivered" : "Pending delivery"}</strong></div></div><div className="form-grid"><label>Delivered by<input data-dialog-initial-focus value={deliveryBy} disabled={readOnly} onChange={(event) => setDeliveryBy(event.target.value)} /></label><label>Final KM<input type="number" value={finalKm} disabled={readOnly} onChange={(event) => setFinalKm(Number(event.target.value))} /></label><label>Acknowledgement<input value={acknowledgement} disabled={readOnly} onChange={(event) => setAcknowledgement(event.target.value)} /></label></div></>}
     {editor.action === "void" && <label>Reason<textarea data-dialog-initial-focus required value={reason} onChange={(event) => setReason(event.target.value)} /></label>}
     {!readOnly && <div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className={editor.action === "void" ? "danger-action" : "primary-action"} type="submit">{editor.action === "deliver" ? "Mark Delivered" : editor.action === "void" ? "Void" : "Save"}</button></div>}
@@ -224,8 +223,10 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
 }
 
 /** Job Card Invoice tab: current invoice with per-line GST and totals, or the next step towards creating one. */
-export function JobInvoicePanel({ view, actor, onOpen, onEstimate }: { view: JobView; actor: User; onOpen: () => void; onEstimate: () => void }) {
+export function JobInvoicePanel({ view, actor, mutate, onOpen, onEstimate }: { view: JobView; actor: User; mutate: Mutate; onOpen: () => void; onEstimate: () => void }) {
   const invoice = view.invoice;
+  const [voiding, setVoiding] = useState(false);
+  const canVoidInvoice = Boolean(invoice && !invoice.voided_at) && canMutateBilling(actor) && !view.payments.some((item) => item.invoice_id === invoice!.id && !item.voided_at) && view.job.main_status !== "CLOSED" && view.job.main_status !== "CANCELLED";
   const actions = resolveJobDocumentActions("invoice", view, actor);
   const estimateActions = resolveJobDocumentActions("estimate", view, actor);
   const warning = unissuedWarning(buildInvoiceDraft(view).unissuedRows);
@@ -238,9 +239,60 @@ export function JobInvoicePanel({ view, actor, onOpen, onEstimate }: { view: Job
   }
   const totals = invoiceTotals(view.invoice_items.map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? invoice.gst_rate })), invoice.discount);
   return <section className="editor-block job-card-invoice" aria-label="Job invoice">
-    <div className="panel-actions"><div><h3>{invoice.invoice_no}</h3><p>{invoice.status}{invoice.tally_invoice_no ? ` · Tally ${invoice.tally_invoice_no}` : ""}</p></div>{actions.includes("edit-invoice") && <button type="button" className="primary-action" onClick={onOpen}>Edit Invoice</button>}</div>
+    <div className="panel-actions"><div><h3>{invoice.invoice_no}</h3><p>{invoice.status}{invoice.tally_invoice_no ? ` · Tally ${invoice.tally_invoice_no}` : ""}</p></div><div className="action-row">{actions.includes("edit-invoice") && <button type="button" className="primary-action" onClick={onOpen}>Edit Invoice</button>}{canVoidInvoice && <button type="button" className="danger-action" onClick={() => setVoiding(true)}>Void Invoice</button>}</div></div>
     <div className="table-wrap"><table aria-label="Invoice lines"><thead><tr><th>Type</th><th>Description</th><th>Qty</th><th>Rate</th><th>GST %</th><th>Amount</th></tr></thead><tbody>{view.invoice_items.map((item) => <tr key={item.id}><td>{item.kind}</td><td>{item.description}</td><td>{item.qty}</td><td>{money(item.rate)}</td><td>{item.gst_rate ?? invoice.gst_rate}%</td><td>{money(item.qty * item.rate)}</td></tr>)}</tbody></table></div>
     {warning && <p className="permission-note" role="status">{warning}</p>}
     <div className="invoice-totals" aria-label="Invoice summary"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(invoice.total)}</strong></span></div>
+    {voiding && <VoidReasonDialog title="Void Invoice?" subtitle={`${view.job.job_no} · Unlocks the material rows it billed`} mutate={mutate} onClose={() => setVoiding(false)} action={(db, reason) => voidInvoiceForActor(db, invoice.id, actor.id, reason)} />}
   </section>;
 }
+
+function VoidReasonDialog({ title, subtitle, action, onClose, mutate }: { title: string; subtitle: string; action: (db: Database, reason: string) => void; onClose: () => void; mutate: Mutate }) {
+  const [reason, setReason] = useState("");
+  const [error, setError] = useState("");
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (!reason.trim()) { setError("A reason is required."); return; }
+    if (mutate((db) => action(db, reason), setError)) onClose();
+  };
+  return <Dialog title={title} subtitle={subtitle} onClose={onClose}><form className="billing-dialog-form" onSubmit={submit}>
+    <label>Reason<textarea data-dialog-initial-focus required value={reason} onChange={(event) => setReason(event.target.value)} /></label>
+    {error && <p className="error-text" role="alert">{error}</p>}
+    <div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className="danger-action" type="submit">Void</button></div>
+  </form></Dialog>;
+}
+
+/** Payment tab: Record Payment (mode + reference) for an open Invoice; the full payment, its Receipt and voiding. */
+export function JobPaymentPanel({ view, actor, mutate }: { view: JobView; actor: User; mutate: Mutate }) {
+  const invoice = view.invoice && !view.invoice.voided_at ? view.invoice : undefined;
+  const payment = invoice ? view.payments.find((item) => item.invoice_id === invoice.id && !item.voided_at) : undefined;
+  const receipt = view.receipt && !view.receipt.voided_at && invoice && view.receipt.invoice_id === invoice.id ? view.receipt : undefined;
+  const [mode, setMode] = useState<PaymentMode>("UPI");
+  const [otherDetail, setOtherDetail] = useState("");
+  const [reference, setReference] = useState("");
+  const [error, setError] = useState("");
+  const [voiding, setVoiding] = useState(false);
+  const terminal = view.job.main_status === "CLOSED" || view.job.main_status === "CANCELLED";
+  const canAct = canMutateBilling(actor) && !terminal;
+  if (!invoice) return <section className="editor-block job-card-payment" aria-label="Job payment"><p className="empty-state">No invoice yet. Create an Invoice before recording payment.</p></section>;
+  const record = (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    mutate((db) => { recordPaymentForActor(db, invoice.id, actor.id, { mode, otherDetail, reference }); }, setError);
+  };
+  const voided = view.payments.filter((item) => item.invoice_id === invoice.id && item.voided_at);
+  return <section className="editor-block job-card-payment" aria-label="Job payment">
+    <div className="panel-actions"><div><h3>{invoice.invoice_no}</h3><p>{invoice.status} · Total {money(invoice.total)}</p></div>{payment && canAct && <button type="button" className="danger-action" onClick={() => setVoiding(true)}>Void Payment</button>}</div>
+    {payment ? <div className="table-wrap"><table aria-label="Payment"><thead><tr><th>Receipt</th><th>Mode</th><th>Reference</th><th>Amount</th></tr></thead><tbody><tr><td>{receipt?.receipt_no ?? "-"}</td><td>{payment.mode === "Other" ? `Other (${payment.other_detail})` : payment.mode}</td><td>{payment.reference || "-"}</td><td>{money(payment.amount)}</td></tr></tbody></table></div>
+      : canAct ? <form className="billing-dialog-form" onSubmit={record} aria-label="Record payment">
+        <div className="form-grid"><label>Amount<input aria-label="Payment amount" value={money(invoice.total)} disabled readOnly /></label><label>Mode<select aria-label="Payment mode" value={mode} onChange={(event) => setMode(event.target.value as PaymentMode)}>{(["UPI", "Cash", "Card", "Other"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>{mode === "Other" && <label>Other detail<input aria-label="Other payment detail" value={otherDetail} onChange={(event) => setOtherDetail(event.target.value)} /></label>}<label>Reference<input aria-label="Payment reference" value={reference} onChange={(event) => setReference(event.target.value)} /></label></div>
+        {error && <p className="error-text" role="alert">{error}</p>}
+        <div className="action-row"><button type="submit" className="primary-action">Record Payment</button></div>
+      </form>
+        : <p className="permission-note">{terminal ? `This job is ${view.job.main_status} and read-only.` : "Only the Owner and Accounts can record payment."}</p>}
+    {voided.length > 0 && <div className="table-wrap"><table aria-label="Voided payments"><thead><tr><th>Mode</th><th>Reference</th><th>Amount</th><th>Void reason</th></tr></thead><tbody>{voided.map((item) => <tr key={item.id}><td>{item.mode}</td><td>{item.reference || "-"}</td><td>{money(item.amount)}</td><td>{item.void_reason}</td></tr>)}</tbody></table></div>}
+    {voiding && payment && <VoidReasonDialog title="Void Payment?" subtitle={`${view.job.job_no} · Reopens the Invoice and voids the Receipt`} mutate={mutate} onClose={() => setVoiding(false)} action={(db, reason) => voidPaymentForActor(db, payment.id, actor.id, reason)} />}
+  </section>;
+}
+
