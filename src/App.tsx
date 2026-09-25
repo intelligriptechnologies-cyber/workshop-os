@@ -77,6 +77,7 @@ import {
   saveEstimateForActor,
   saveJobPhotoForActor,
   setChecklistItemCheckedForActor,
+  setChecklistItemNotApplicableForActor,
   transitionJobStatusForActor,
   searchJobs,
   stockIn,
@@ -1884,6 +1885,10 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
   const items = view.checklist_items.filter((item) => item.checklist_cycle_id === cycle?.id).sort((a, b) => a.sort_order - b.sort_order);
   const firstOpen = items.findIndex((item) => !item.checked_at);
   const remaining = items.filter((item) => !item.checked_at);
+  const toggleNotApplicable = (item: ChecklistItem, notApplicable: boolean) => {
+    setError("");
+    mutate((db) => setChecklistItemNotApplicableForActor(db, item.id, actor.id, notApplicable), setError);
+  };
   const toggle = (item: ChecklistItem, checked: boolean) => {
     setError("");
     mutate((db) => setChecklistItemCheckedForActor(db, item.id, actor.id, checked), setError);
@@ -1901,11 +1906,13 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
     <ol className="lifecycle-checklist">
       {items.map((item, index) => {
         const laterChecked = items.some((candidate) => candidate.sort_order > item.sort_order && candidate.checked_at);
-        const artifactLocked = item.label === "Create Estimate" && !view.estimate;
-        const enabled = canMutate && !artifactLocked && (item.checked_at ? !laterChecked : index === firstOpen);
+        const artifactLocked = (item.label === "Create Estimate" && !view.estimate) || (item.label === "Invoice Ready" && !view.invoice);
+        const blockedByEarlier = items.some((candidate) => candidate.sort_order < item.sort_order && candidate.required && !candidate.checked_at);
+        const enabled = canMutate && !artifactLocked && (item.checked_at ? !laterChecked : !blockedByEarlier);
+        const notApplicable = Boolean(item.na_at);
         const actorName = item.checked_by === 0 ? "System" : users.find((user) => user.id === item.checked_by)?.name;
-        const detail = item.checked_at ? `Completed ${formatTimestamp(item.checked_at)}${actorName ? ` by ${actorName}` : ""}` : item.started_at ? `Started ${formatTimestamp(item.started_at)}` : artifactLocked ? "Available after the estimate is saved" : "Waiting for the previous step";
-        return <li key={item.id} className={item.checked_at ? "complete" : index === firstOpen ? "active" : "locked"}><label><input type="checkbox" checked={Boolean(item.checked_at)} disabled={!enabled} onChange={(event) => toggle(item, event.target.checked)} /><span><strong>{item.label}</strong><small>{detail}</small></span></label></li>;
+        const detail = notApplicable ? `N/A ${formatTimestamp(item.na_at!)}${actorName ? ` by ${users.find((user) => user.id === item.na_by)?.name ?? actorName}` : ""}` : item.checked_at ? `Completed ${formatTimestamp(item.checked_at)}${actorName ? ` by ${actorName}` : ""}` : item.started_at ? `Started ${formatTimestamp(item.started_at)}` : artifactLocked ? `Available after the ${item.label === "Invoice Ready" ? "invoice" : "estimate"} is saved` : "Waiting for the previous step";
+        return <li key={item.id} className={item.checked_at ? "complete" : index === firstOpen ? "active" : "locked"}><label><input type="checkbox" checked={Boolean(item.checked_at)} disabled={!enabled} onChange={(event) => toggle(item, event.target.checked)} /><span><strong>{item.label}{!item.required && <em className="optional-tag"> (optional)</em>}</strong><small>{detail}</small></span></label>{canMutate && !artifactLocked && (notApplicable || !item.checked_at) && <button type="button" className="link-action" disabled={notApplicable && laterChecked} onClick={() => toggleNotApplicable(item, !notApplicable)}>{notApplicable ? "Undo N/A" : "Mark N/A"}</button>}</li>;
       })}
     </ol>
     {terminal && <p className="permission-note">This job is {view.job.main_status} and read-only.</p>}

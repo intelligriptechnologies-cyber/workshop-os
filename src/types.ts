@@ -395,6 +395,9 @@ export interface ChecklistItem {
   checked_at: string | null;
   started_at: string | null;
   completed_at: string | null;
+  required: 0 | 1;
+  na_at: string | null;
+  na_by: number | null;
 }
 
 export interface MaterialMovement {

@@ -522,12 +522,6 @@ export function transitionJobStatusForActor(db: Database, jobId: number, actorId
   transitionJobStatus(db, jobId, to, note, timestamp);
 }
 
-export function setChecklistItemCheckedForActor(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString()) {
-  const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
-  assertJobLifecycleMutationAccess(db, item.job_card_id, actorId);
-  setChecklistItemChecked(db, itemId, actorId, checked, timestamp);
-}
-
 export interface EstimateDraftInput {
   discount: number;
   gst_rate: number;
@@ -1460,6 +1454,10 @@ export function migrateLifecycleStorage(db: Database) {
     create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
     create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
   `);
+  ensureColumn(db, "checklist_items", "required", "integer not null default 1");
+  ensureColumn(db, "checklist_items", "na_at", "text");
+  ensureColumn(db, "checklist_items", "na_by", "integer");
+  db.run(`update checklist_items set required=case when label in (${OPTIONAL_CHECKLIST_ITEMS.map((label) => `'${label}'`).join(",")}) then 0 else 1 end`);
   all<{ id: number; main_status: MainStatus; sub_status: SubStatus; created_at: string | null }>(db, "select id, main_status, sub_status, created_at from job_cards").forEach((job) => {
     ensureLifecycleChecklist(db, job.id, job.main_status, job.sub_status, job.created_at ?? undefined);
     syncSubStatusFromChecklist(db, job.id);
@@ -1489,8 +1487,8 @@ function createLifecycleCycle(db: Database, jobId: number, stage: ChecklistStage
   labels.forEach((label, index) => {
     const checked = index < throughIndex || (completeThrough && index === throughIndex);
     const started = index === 0 || index <= throughIndex;
-    insert(db, "insert into checklist_items(checklist_cycle_id,job_card_id,stage,cycle_number,item_key,label,sort_order,checked_by,checked_at,started_at,completed_at) values(?,?,?,?,?,?,?,?,?,?,?)", [
-      cycleId, jobId, stage, cycleNumber, `${stage.toLowerCase()}.${index + 1}`, label, index + 1, null, checked ? timestamp : null, started ? timestamp : null, checked ? timestamp : null,
+    insert(db, "insert into checklist_items(checklist_cycle_id,job_card_id,stage,cycle_number,item_key,label,sort_order,checked_by,checked_at,started_at,completed_at,required) values(?,?,?,?,?,?,?,?,?,?,?,?)", [
+      cycleId, jobId, stage, cycleNumber, `${stage.toLowerCase()}.${index + 1}`, label, index + 1, null, checked ? timestamp : null, started ? timestamp : null, checked ? timestamp : null, OPTIONAL_CHECKLIST_ITEMS.includes(label) ? 0 : 1,
     ]);
   });
   return cycleId;
@@ -1504,19 +1502,73 @@ export function syncSubStatusFromChecklist(db: Database, jobId: number) {
   db.run("update job_cards set sub_status=? where id=?", [deriveChecklistSubStatus(items), jobId]);
 }
 
+export const OPTIONAL_CHECKLIST_ITEMS: readonly SubStatus[] = ["Washing Needed", "Follow-up Needed"];
+// Items that may only be ticked (or marked N/A) once the saved document behind them exists.
+const DOCUMENT_GATED_ITEMS: Partial<Record<SubStatus, { table: string; noun: string; live: string }>> = {
+  "Create Estimate": { table: "estimates", noun: "estimate", live: "archived_at is null" },
+  "Invoice Ready": { table: "invoices", noun: "invoice", live: "voided_at is null" },
+};
+
 export function setChecklistItemChecked(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString()) {
   const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
-  if (checked && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order<? and checked_at is null", [item.checklist_cycle_id, item.sort_order]) > 0) {
+  if (checked && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order<? and required=1 and checked_at is null", [item.checklist_cycle_id, item.sort_order]) > 0) {
     throw new Error("Checklist items must be completed in order.");
   }
-  if (!checked && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order>? and checked_at is not null", [item.checklist_cycle_id, item.sort_order]) > 0) {
+  if (!checked && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order>? and required=1 and checked_at is not null", [item.checklist_cycle_id, item.sort_order]) > 0) {
     throw new Error("Later checklist items must be reopened first.");
   }
-  db.run("update checklist_items set checked_by=?, checked_at=?, started_at=coalesce(started_at, ?), completed_at=? where id=?", [checked ? actorId : null, checked ? timestamp : null, timestamp, checked ? timestamp : null, itemId]);
-  const remaining = scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and checked_at is null", [item.checklist_cycle_id]);
+  writeChecklistItemState(db, item, actorId, checked, false, timestamp);
+}
+
+// N/A resolves an item (it counts toward completion) but keeps its own timestamp and actor.
+export function setChecklistItemNotApplicable(db: Database, itemId: number, actorId: number, notApplicable: boolean, timestamp = new Date().toISOString()) {
+  const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
+  if (notApplicable) {
+    if (item.checked_at && !item.na_at) throw new Error("Untick the item before marking it N/A.");
+  } else if (!item.na_at) {
+    throw new Error("This item is not marked N/A.");
+  }
+  if (!notApplicable && scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and sort_order>? and required=1 and checked_at is not null", [item.checklist_cycle_id, item.sort_order]) > 0) {
+    throw new Error("Later checklist items must be reopened first.");
+  }
+  writeChecklistItemState(db, item, actorId, notApplicable, notApplicable, timestamp);
+}
+
+function writeChecklistItemState(db: Database, item: ChecklistItem, actorId: number, resolved: boolean, notApplicable: boolean, timestamp: string) {
+  db.run("update checklist_items set checked_by=?, checked_at=?, started_at=coalesce(started_at, ?), completed_at=?, na_at=?, na_by=? where id=?", [
+    resolved && !notApplicable ? actorId : null, resolved ? timestamp : null, timestamp, resolved ? timestamp : null,
+    notApplicable ? timestamp : null, notApplicable ? actorId : null, item.id,
+  ]);
+  const remaining = scalar<number>(db, "select count(*) from checklist_items where checklist_cycle_id=? and required=1 and checked_at is null", [item.checklist_cycle_id]);
   db.run("update checklist_cycles set completed_at=? where id=?", [remaining === 0 ? timestamp : null, item.checklist_cycle_id]);
-  if (checked) db.run("update checklist_items set started_at=coalesce(started_at, ?) where checklist_cycle_id=? and sort_order=?", [timestamp, item.checklist_cycle_id, item.sort_order + 1]);
+  if (resolved) db.run("update checklist_items set started_at=coalesce(started_at, ?) where checklist_cycle_id=? and sort_order=?", [timestamp, item.checklist_cycle_id, item.sort_order + 1]);
   syncSubStatusFromChecklist(db, item.job_card_id);
+}
+
+function assertChecklistItemEditable(db: Database, item: ChecklistItem, resolving: boolean) {
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [item.job_card_id]);
+  const latest = maybe<{ id: number }>(db, "select id from checklist_cycles where job_card_id=? order by id desc limit 1", [item.job_card_id]);
+  if (job.main_status !== item.stage || latest?.id !== item.checklist_cycle_id) {
+    throw new Error(`The ${item.stage} checklist is read-only while the job card is ${job.main_status}.`);
+  }
+  const gate = DOCUMENT_GATED_ITEMS[item.label];
+  if (resolving && gate && scalar<number>(db, `select count(*) from ${gate.table} where job_card_id=? and ${gate.live}`, [item.job_card_id]) === 0) {
+    throw new Error(`Save the ${gate.noun} before completing "${item.label}".`);
+  }
+}
+
+export function setChecklistItemCheckedForActor(db: Database, itemId: number, actorId: number, checked: boolean, timestamp = new Date().toISOString()) {
+  const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
+  assertJobLifecycleMutationAccess(db, item.job_card_id, actorId);
+  assertChecklistItemEditable(db, item, checked);
+  setChecklistItemChecked(db, itemId, actorId, checked, timestamp);
+}
+
+export function setChecklistItemNotApplicableForActor(db: Database, itemId: number, actorId: number, notApplicable: boolean, timestamp = new Date().toISOString()) {
+  const item = one<ChecklistItem>(db, "select * from checklist_items where id=?", [itemId]);
+  assertJobLifecycleMutationAccess(db, item.job_card_id, actorId);
+  assertChecklistItemEditable(db, item, notApplicable);
+  setChecklistItemNotApplicable(db, itemId, actorId, notApplicable, timestamp);
 }
 
 function ensureColumn(db: Database, table: string, column: string, definition: string) {
@@ -1600,7 +1652,7 @@ export function transitionJobStatus(db: Database, jobId: number, to: MainStatus,
       const active = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? order by id desc limit 1", [jobId]);
       if ((!active || active.stage !== job.main_status || !active.completed_at)) {
         const remaining = active
-          ? all<{ label: SubStatus }>(db, "select label from checklist_items where checklist_cycle_id=? and checked_at is null order by sort_order", [active.id]).map((item) => item.label)
+          ? all<{ label: SubStatus }>(db, "select label from checklist_items where checklist_cycle_id=? and required=1 and checked_at is null order by sort_order", [active.id]).map((item) => item.label)
           : [];
         throw new Error(`Complete the ${job.main_status} checklist before moving to ${to}${remaining.length ? `: ${remaining.join(", ")}` : "."}`);
       }
@@ -1631,7 +1683,7 @@ export function reconcileArtifactChecklist(db: Database, jobId: number, actorId 
   const items = all<ChecklistItem>(db, "select * from checklist_items where checklist_cycle_id=? order by sort_order", [cycle.id]);
   for (const item of items) {
     if (item.checked_at) continue;
-    if (!artifactExistsForChecklistItem(db, jobId, item.label)) break;
+    if (!artifactExistsForChecklistItem(db, jobId, item.label)) { if (item.required === 0) continue; break; }
     setChecklistItemChecked(db, item.id, actorId, true, timestamp);
   }
 }
