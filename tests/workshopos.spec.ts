@@ -354,9 +354,11 @@ test("Data Flow cascades visit filters and supports keyboard, mouse, empty, clea
   await jobSearch.focus();
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".flow-step").first()).toBeVisible();
+  await expect(page.locator(".data-flow-line .timeline-event").first()).toBeVisible();
   await expect(page.getByRole("region", { name: "Active lifecycle stage" })).toContainText("Active stage");
   await expect(page.getByRole("region", { name: "Active lifecycle stage" })).toContainText("Ordered remaining steps");
+  await expect(page.getByRole("separator", { name: "Not yet" })).toBeVisible();
+  await expect(page.locator(".data-flow-line .timeline-event.ghost").first()).toBeVisible();
   const timeline = page.getByRole("region", { name: "Chronological data flow" });
   await expect(timeline).toBeVisible();
   await expect(timeline).toContainText("Vehicle visit received");
@@ -374,7 +376,7 @@ test("Data Flow cascades visit filters and supports keyboard, mouse, empty, clea
   await jobSearch.fill("OD02AB1234");
   await page.getByRole("option", { name: /JC-2026-001245/ }).click();
   const pdfPromise = page.waitForEvent("download");
-  const pdfButton = page.locator(".flow-step").filter({ hasText: "Estimate:" }).locator("button.document-download");
+  const pdfButton = page.locator(".data-flow-line .timeline-event").filter({ hasText: "Estimate created" }).locator("button.document-download");
   await pdfButton.click();
   await expect(pdfButton).toHaveText(/Preparing/);
   expect((await pdfPromise).suggestedFilename()).toBe("JC-2026-001245-estimate.pdf");
@@ -399,7 +401,7 @@ test("Data Flow filters and suggestions stay within a mobile viewport", async ({
   expect(overflow.bodyScroll).toBeLessThanOrEqual(overflow.viewport + 1);
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
-  await expect(page.locator(".flow-step").first()).toBeVisible();
+  await expect(page.locator(".data-flow-line .timeline-event").first()).toBeVisible();
 });
 
 test("admin management domains expose contextual creation paths", async ({ page }) => {

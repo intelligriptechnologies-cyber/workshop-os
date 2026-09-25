@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildDataFlowTimeline, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "../src/data-flow";
+import { buildDataFlowTimeline, buildGhostSteps, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "../src/data-flow";
 import type { JobView, User } from "../src/types";
 
 const job = (id: number, receivedAt: string, jobNo: string, customer: string, registration: string) => ({
@@ -93,4 +93,36 @@ test("lifecycle summary reports the active cycle and ordered remaining steps", (
     ],
   } as JobView;
   assert.deepEqual(summarizeJobLifecycle(view), { stage: "COMPLETED", cycle: 2, activeStep: "Invoice Ready", remainingSteps: ["Invoice Ready", "Payment Received"], completed: false });
+});
+
+test("ghost steps list remaining checklist items then uncreated documents with reasons", () => {
+  const view = {
+    ...job(7, "2026-09-01T08:00:00.000Z", "JC-007", "Ravi", "OD02AB0007"),
+    job: { id: 7, job_no: "JC-007", main_status: "COMPLETED", sub_status: "Invoice Ready" },
+    estimate: undefined, invoice: undefined, receipt: undefined, gate_pass: undefined,
+    checklist_cycles: [{ id: 2, stage: "COMPLETED", cycle_number: 1 }],
+    checklist_items: [
+      { id: 2, checklist_cycle_id: 2, label: "Invoice Ready", sort_order: 2, checked_at: null, required: 1, na_at: null },
+      { id: 1, checklist_cycle_id: 2, label: "Customer Verification", sort_order: 1, checked_at: "2026-09-01T10:00:00Z", required: 1, na_at: null },
+      { id: 3, checklist_cycle_id: 2, label: "Payment Received", sort_order: 3, checked_at: null, required: 1, na_at: "2026-09-01T10:30:00Z" },
+    ],
+  } as unknown as JobView;
+  const ghosts = buildGhostSteps(view);
+  assert.deepEqual(ghosts.map((ghost) => ghost.title), ["Invoice Ready", "Estimate", "Invoice", "Payment Receipt", "Gate Pass"]);
+  assert.equal(ghosts[0].kind, "checklist");
+  assert.match(ghosts.find((ghost) => ghost.title === "Gate Pass")!.reason, /not created/);
+  assert.match(ghosts.find((ghost) => ghost.title === "Payment Receipt")!.reason, /payment is recorded/);
+});
+
+test("document-creating events carry a document reference; void ones are flagged", () => {
+  const view = {
+    ...job(9, "2026-09-01T08:00:00.000Z", "JC-009", "Ravi", "OD02AB0009"),
+    visit: { id: 1, received_at: "2026-09-01T08:00:00.000Z", requested_work: "Service" },
+    job: { id: 9, job_no: "JC-009", main_status: "COMPLETED", sub_status: "Invoice Ready" },
+    checklist_cycles: [], checklist_items: [], status_history: [], photos: [], payments: [],
+    invoice: undefined,
+    invoice_history: [{ id: 4, invoice_no: "INV-9", status: "Open", document_available: 1, document_generated_at: "2026-09-01T10:05:00.000Z", created_at: "2026-09-01T10:00:00.000Z", voided_at: "2026-09-01T11:00:00.000Z", void_reason: "Wrong" }],
+  } as unknown as JobView;
+  const docs = buildDataFlowTimeline(view).filter((event) => event.document);
+  assert.deepEqual(docs.map((event) => [event.title, event.document!.kind, Boolean(event.document!.void)]), [["Invoice PDF voided", "invoice", true]]);
 });

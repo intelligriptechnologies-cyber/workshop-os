@@ -113,7 +113,7 @@ import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type
 import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
 import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
 import { renderHtmlToPdf } from "./pdf-render";
-import { buildDataFlowTimeline, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "./data-flow";
+import { buildDataFlowTimeline, buildGhostSteps, type DataFlowEvent, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "./data-flow";
 import { canCompleteWithInvoice } from "./invoice-math";
 import { BillingManager, InvoiceDialog, JobInvoicePanel, JobPaymentPanel, type BillingMode } from "./billing-manager";
 import { compressMediaFile, type JobMediaCategory, type PreparedJobMedia } from "./job-media";
@@ -2323,20 +2323,7 @@ function DocumentDownloadButton({ kind, view, className = "document-download", l
 }
 
 function DataFlow({ view, users }: { view: JobView; users: User[] }) {
-  const paid = view.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const lifecycle = summarizeJobLifecycle(view);
-  const steps = [
-    ["Visit", Boolean(view.visit), view.visit.received_at],
-    ["Estimate", Boolean(view.estimate), view.estimate?.status ?? "Missing"],
-    ["Job Card", Boolean(view.job), view.job.sub_status],
-    ["Material", view.material_requests.length > 0, `${view.material_requests.length} request(s)`],
-    ["Work", view.tasks.length > 0, `${view.tasks.filter((task) => task.status === "Completed").length}/${view.tasks.length} complete`],
-    ["QC", view.job.qc_status === "Pass", view.job.qc_status],
-    ["Invoice", Boolean(view.invoice?.tally_invoice_no), view.invoice?.tally_invoice_no || "Missing"],
-    ["Payment", Boolean(view.invoice && paid >= view.invoice.total), money(paid)],
-    ["Payment Receipt", Boolean(view.receipt && view.payments.length), view.receipt?.receipt_no || "Missing"],
-    ["Gate Pass", Boolean(view.gate_pass), view.gate_pass?.gate_pass_no || "Missing"],
-  ];
   return (
     <>
       <section className="lifecycle-summary" aria-label="Active lifecycle stage">
@@ -2344,11 +2331,29 @@ function DataFlow({ view, users }: { view: JobView; users: User[] }) {
         <div><span>Current step</span><strong>{lifecycle.activeStep}</strong></div>
         <div className="lifecycle-summary-remaining"><span>Ordered remaining steps</span><strong>{lifecycle.remainingSteps.length ? lifecycle.remainingSteps.join(" → ") : "None"}</strong></div>
       </section>
-      {steps.map(([label, ok, detail]) => <div key={String(label)} className={ok ? "flow-step ok" : "flow-step blocked"}><Check size={16} />{label}: {detail}{(["Estimate", "Job Card", "Invoice", "Payment Receipt", "Gate Pass"].includes(String(label))) && (() => { const kind = String(label).toLowerCase().replaceAll(" ", "-") as DocumentKind; const descriptor = resolveJobDocuments(view).find((item) => item.kind === kind); return descriptor?.available ? <DocumentDownloadButton kind={kind} view={view} /> : descriptor?.message ? <span className="document-missing">{descriptor.message}</span> : null; })()}</div>)}
-      {closureBlockers(view).map((blocker) => <p className="blocker-pill" key={blocker}>{blocker}</p>)}
-      <Timeline view={view} users={users} />
+      <DataFlowLine view={view} users={users} />
     </>
   );
+}
+
+function DataFlowLine({ view, users }: { view: JobView; users: User[] }) {
+  const events = buildDataFlowTimeline(view, users);
+  const snapshots = loadDocumentSnapshots();
+  const ghosts = buildGhostSteps(view, snapshots);
+  const pdf = (event: DataFlowEvent) => {
+    if (!event.document) return null;
+    const snap = event.document.void ? snapshots.find((item) => item.jobId === view.job.id && item.kind === event.document!.kind && item.number === event.document!.number && item.state === "void") : undefined;
+    if (event.document.void && !snap) return null;
+    return <DocumentDownloadButton kind={event.document.kind} view={view} snapshotId={snap?.id} />;
+  };
+  return <section className="data-flow-timeline data-flow-line" aria-label="Chronological data flow">
+    <PanelTitle icon={<ClipboardCheck />} title="Data Flow" subtitle={`${events.length} done event${events.length === 1 ? "" : "s"}`} />
+    <ol>
+      {events.map((event) => <li key={event.id} className={`timeline-event ${event.state ?? ""}`} data-event-kind={event.kind}><time dateTime={event.timestamp}>{formatTimestamp(event.timestamp)}</time><div><strong>{event.title}</strong><span>{event.detail}</span>{event.actor && <small>Actor: {event.actor}</small>}{pdf(event)}</div>{event.state && <span className="timeline-state">{event.state}</span>}</li>)}
+      <li className="not-yet-divider" role="separator" aria-label="Not yet"><span>Not yet</span></li>
+      {ghosts.length ? ghosts.map((ghost) => <li key={ghost.id} className="timeline-event ghost" data-ghost-kind={ghost.kind}><div><strong>{ghost.title}</strong><span>{ghost.reason}</span></div></li>) : <li className="timeline-event ghost none"><div><span>Nothing outstanding.</span></div></li>}
+    </ol>
+  </section>;
 }
 
 function JobSelector({ jobs, selectedJobId, onSelect, label = "Select job" }: { jobs: JobView[]; selectedJobId?: number; onSelect: (id: number) => void; label?: string }) {

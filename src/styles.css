@@ -1768,3 +1768,10 @@ th {
 .doc-chip-created, .doc-chip-ready, .doc-chip-frozen { color: #fff; background: #0f766e; border-color: #0f766e; }
 .doc-chip-void { color: #b91c1c; background: #fee2e2; border-color: #b91c1c; text-decoration: line-through; }
 .document-print { margin-left: 6px; }
+.data-flow-line .timeline-event > div .document-download, .data-flow-line .timeline-event > div .document-print { justify-self: start; }
+.data-flow-line .timeline-event > div { align-content: start; }
+.data-flow-line .timeline-event.ghost { grid-template-columns: minmax(0, 1fr); border-left: 2px dashed #b7c2cf; opacity: .8; }
+.data-flow-line .timeline-event.ghost::before { border: 2px dashed #8b97a6; background: #fff; }
+.not-yet-divider { position: relative; margin: .5rem 0; padding: .35rem 0 .35rem 1.35rem; border-left: 2px solid #bed0e2; color: #596878; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
+.not-yet-divider span { display: inline-block; padding: .15rem .6rem; border: 1px dashed #8b97a6; border-radius: 999px; background: #f4f7fa; }
+@media (max-width: 640px) { .data-flow-line .timeline-event { grid-template-columns: minmax(0, 1fr); } }

@@ -1,4 +1,6 @@
 import { normalizeSearch } from "./list-utils";
+import { documentInfo, resolveJobDocuments, type DocumentKind } from "./job-documents";
+import type { DocumentSnapshot } from "./document-snapshots";
 import type { ChecklistItem, JobView, User } from "./types";
 
 export interface DataFlowFilters {
@@ -41,6 +43,8 @@ export interface DataFlowEvent {
   detail: string;
   actor?: string;
   state?: "current" | "historical" | "voided" | "archived";
+  /** Set on document-creating events so the page can offer a PDF button. */
+  document?: { kind: DocumentKind; number: string; void?: boolean };
 }
 
 export interface LifecycleSummary {
@@ -70,6 +74,8 @@ export function summarizeJobLifecycle(view: JobView): LifecycleSummary {
   };
 }
 
+const documentNumber = (kind: DocumentKind, view: JobView) => documentInfo(kind, view)?.number ?? "";
+
 function checklistEvents(item: ChecklistItem, users: User[]): DataFlowEvent[] {
   const actor = actorName(item.checked_by, users);
   const cycle = `${item.stage} cycle ${item.cycle_number}`;
@@ -89,7 +95,7 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
   view.status_history.forEach((item) => events.push({ id: `status-${item.id}`, kind: "status", timestamp: item.created_at, title: `Status changed to ${item.main_status}`, detail: `${item.sub_status} · ${item.note}` }));
 
   for (const estimate of view.estimate_history ?? (view.estimate ? [view.estimate] : [])) {
-    if (hasTime(estimate.created_at)) events.push({ id: `estimate-create-${estimate.id}`, kind: "estimate", timestamp: estimate.created_at, title: "Estimate created", detail: `${estimate.status} · GST ${estimate.gst_rate}%`, state: estimate.archived_at ? "historical" : "current" });
+    if (hasTime(estimate.created_at)) events.push({ id: `estimate-create-${estimate.id}`, kind: "estimate", timestamp: estimate.created_at, title: "Estimate created", detail: `${estimate.status} · GST ${estimate.gst_rate}%`, state: estimate.archived_at ? "historical" : "current", document: estimate.archived_at ? undefined : { kind: "estimate", number: view.estimate?.id === estimate.id ? documentNumber("estimate", view) : "" } });
     if (hasTime(estimate.updated_at) && !sameTime(estimate.updated_at, estimate.created_at) && !sameTime(estimate.updated_at, estimate.archived_at)) events.push({ id: `estimate-update-${estimate.id}`, kind: "estimate", timestamp: estimate.updated_at, title: "Estimate updated", detail: estimate.approval_note || estimate.status, state: estimate.archived_at ? "historical" : "current" });
     if (hasTime(estimate.archived_at)) events.push({ id: `estimate-archive-${estimate.id}`, kind: "document", timestamp: estimate.archived_at, title: "Estimate document archived", detail: estimate.archived_reason || "Superseded", state: "archived" });
   }
@@ -99,11 +105,11 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
     if (hasTime(invoice.created_at)) {
       events.push({ id: `invoice-create-${invoice.id}`, kind: "invoice", timestamp: invoice.created_at, title: "Invoice created", detail: `${invoice.invoice_no} · ${invoice.status}`, state: current ? "current" : "historical" });
     }
-    if (hasTime(invoice.document_generated_at)) events.push({ id: `invoice-document-${invoice.id}`, kind: "document", timestamp: invoice.document_generated_at, title: "Invoice PDF generated", detail: invoice.invoice_no, state: current && invoice.document_available ? "current" : "historical" });
+    if (hasTime(invoice.document_generated_at)) events.push({ id: `invoice-document-${invoice.id}`, kind: "document", timestamp: invoice.document_generated_at, title: "Invoice PDF generated", detail: invoice.invoice_no, state: current && invoice.document_available ? "current" : "historical", document: current && invoice.document_available ? { kind: "invoice", number: invoice.invoice_no } : undefined });
     if (hasTime(invoice.updated_at) && !sameTime(invoice.updated_at, invoice.created_at) && !sameTime(invoice.updated_at, invoice.voided_at)) events.push({ id: `invoice-update-${invoice.id}`, kind: "invoice", timestamp: invoice.updated_at, title: "Invoice updated", detail: `${invoice.invoice_no} · ${invoice.status}`, state: current ? "current" : "historical" });
     if (hasTime(invoice.voided_at)) {
       events.push({ id: `invoice-void-${invoice.id}`, kind: "invoice", timestamp: invoice.voided_at, title: "Invoice voided", detail: `${invoice.invoice_no} · ${invoice.void_reason || "No reason recorded"}`, state: "voided" });
-      if (invoice.document_generated_at) events.push({ id: `invoice-document-void-${invoice.id}`, kind: "document", timestamp: invoice.voided_at, title: "Invoice PDF voided", detail: invoice.void_reason || invoice.invoice_no, state: "voided" });
+      if (invoice.document_generated_at) events.push({ id: `invoice-document-void-${invoice.id}`, kind: "document", timestamp: invoice.voided_at, title: "Invoice PDF voided", detail: invoice.void_reason || invoice.invoice_no, state: "voided", document: { kind: "invoice", number: invoice.invoice_no, void: true } });
     }
   }
 
@@ -116,20 +122,20 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
 
   for (const receipt of view.receipt_history ?? (view.receipt ? [view.receipt] : [])) {
     const current = receipt.id === view.receipt?.id && receipt.invoice_id === view.invoice?.id && !receipt.voided_at;
-    if (hasTime(receipt.created_at)) events.push({ id: `receipt-create-${receipt.id}`, kind: "document", timestamp: receipt.created_at, title: "Payment Receipt PDF generated", detail: receipt.receipt_no, state: current ? "current" : "historical" });
-    if (hasTime(receipt.voided_at)) events.push({ id: `receipt-void-${receipt.id}`, kind: "document", timestamp: receipt.voided_at, title: "Payment Receipt PDF voided", detail: receipt.void_reason || receipt.receipt_no, state: "voided" });
+    if (hasTime(receipt.created_at)) events.push({ id: `receipt-create-${receipt.id}`, kind: "document", timestamp: receipt.created_at, title: "Payment Receipt PDF generated", detail: receipt.receipt_no, state: current ? "current" : "historical", document: current ? { kind: "payment-receipt", number: receipt.receipt_no } : undefined });
+    if (hasTime(receipt.voided_at)) events.push({ id: `receipt-void-${receipt.id}`, kind: "document", timestamp: receipt.voided_at, title: "Payment Receipt PDF voided", detail: receipt.void_reason || receipt.receipt_no, state: "voided", document: { kind: "payment-receipt", number: receipt.receipt_no, void: true } });
   }
   for (const pass of view.gate_pass_history ?? (view.gate_pass ? [view.gate_pass] : [])) {
     const current = pass.id === view.gate_pass?.id && pass.invoice_id === view.invoice?.id && !pass.voided_at;
-    if (hasTime(pass.created_at)) events.push({ id: `gate-pass-create-${pass.id}`, kind: "document", timestamp: pass.created_at, title: "Gate Pass PDF generated", detail: pass.gate_pass_no, state: current ? "current" : "historical" });
-    if (hasTime(pass.voided_at)) events.push({ id: `gate-pass-void-${pass.id}`, kind: "document", timestamp: pass.voided_at, title: "Gate Pass PDF voided", detail: pass.void_reason || pass.gate_pass_no, state: "voided" });
+    if (hasTime(pass.created_at)) events.push({ id: `gate-pass-create-${pass.id}`, kind: "document", timestamp: pass.created_at, title: "Gate Pass PDF generated", detail: pass.gate_pass_no, state: current ? "current" : "historical", document: current ? { kind: "gate-pass", number: pass.gate_pass_no } : undefined });
+    if (hasTime(pass.voided_at)) events.push({ id: `gate-pass-void-${pass.id}`, kind: "document", timestamp: pass.voided_at, title: "Gate Pass PDF voided", detail: pass.void_reason || pass.gate_pass_no, state: "voided", document: { kind: "gate-pass", number: pass.gate_pass_no, void: true } });
   }
 
   for (const event of view.material_events ?? []) {
     const item = (id: number | null) => view.inventory.find((candidate) => candidate.id === id)?.name ?? `Item ${id}`;
     const detail = event.kind === "release"
       ? `${item(event.new_item_id)} x ${event.new_qty} released to job`
-      : `${item(event.old_item_id)} x ${event.old_qty} -> ${item(event.new_item_id)} x ${event.new_qty} � ${event.note}`;
+      : `${item(event.old_item_id)} x ${event.old_qty} -> ${item(event.new_item_id)} x ${event.new_qty} · ${event.note}`;
     if (hasTime(event.at)) events.push({ id: `material-${event.kind}-${event.id}`, kind: "material", timestamp: event.at, title: event.kind === "release" ? "Material released" : "Issued material edited", detail, actor: actorName(event.by_user, users), state: "current" });
   }
 
@@ -150,4 +156,29 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
     const byTime = new Date(left.timestamp).getTime() - new Date(right.timestamp).getTime();
     return (Number.isNaN(byTime) ? left.timestamp.localeCompare(right.timestamp) : byTime) || left.id.localeCompare(right.id);
   });
+}
+
+export interface GhostStep {
+  id: string;
+  kind: "checklist" | "document";
+  title: string;
+  reason: string;
+}
+
+/** The "Not yet" steps: remaining checklist items of the latest cycle, then uncreated documents with the reason. */
+export function buildGhostSteps(view: JobView, snapshots: readonly DocumentSnapshot[] = []): GhostStep[] {
+  const ghosts: GhostStep[] = [];
+  if (view.job.main_status !== "CANCELLED") {
+    const cycle = [...view.checklist_cycles].sort((left, right) => right.id - left.id)[0];
+    if (cycle) {
+      view.checklist_items
+        .filter((item) => item.checklist_cycle_id === cycle.id && !item.checked_at && !item.na_at)
+        .sort((left, right) => left.sort_order - right.sort_order)
+        .forEach((item) => ghosts.push({ id: `ghost-checklist-${item.id}`, kind: "checklist", title: item.label, reason: `${cycle.stage} checklist${item.required ? "" : " (optional)"}` }));
+    }
+  }
+  for (const doc of resolveJobDocuments(view, snapshots)) {
+    if (!doc.available) ghosts.push({ id: `ghost-document-${doc.kind}`, kind: "document", title: doc.label, reason: doc.message ?? `${doc.label} not created` });
+  }
+  return ghosts;
 }
