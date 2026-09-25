@@ -551,20 +551,28 @@ test("store stock and material requests combine search with domain filters", asy
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
   await page.getByLabel("Stock category").selectOption("PPF");
-  await expect(page.getByText("Showing 1 to 6 of 6")).toBeVisible();
+  await expect(page.getByText("Showing 1 to 10 of 127")).toBeVisible();
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("Showing 1 to 3 of 3")).toBeVisible();
+  await expect(page.getByText("Showing 1 to 10 of 61")).toBeVisible();
   await page.getByLabel("Stock status").selectOption("LOW");
-  await expect(page.getByRole("table", { name: "Stock results" }).locator("tbody tr")).toHaveCount(3);
+  await expect(page.getByRole("table", { name: "Stock results" }).locator("tbody tr")).toHaveCount(10);
+  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByText("No matching records")).toBeVisible();
+  await page.getByLabel("Stock category").selectOption("Paint");
+  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByText(/Showing 1 to \d+ of \d+/)).toBeVisible();
+  await page.getByLabel("Stock status").selectOption("ALL");
+  await page.getByLabel("Stock category").selectOption("PPF");
+  await page.getByLabel("Search stock").fill("70%VLT Nano Ceramic");
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Stock results" }).locator("tbody tr")).toHaveCount(1);
-  await expect(page.getByText("70% VLT Nano Ceramic Film")).toBeVisible();
+  await expect(page.getByText("70%VLT Nano Ceramic Film (UG)")).toBeVisible();
   await page.getByLabel("Search stock").fill("no-such-stock-item");
   await expect(page.getByText("No matching records")).toHaveCount(0);
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("No matching records")).toBeVisible();
   await page.getByRole("button", { name: "Clear filters" }).click();
-  await expect(page.getByText("Showing 1 to 6 of 6")).toBeVisible();
+  await expect(page.getByText("Showing 1 to 10 of 127")).toBeVisible();
 
   await page.locator(".role-nav").getByRole("button", { name: "Material Requests", exact: true }).click();
   await page.getByLabel("Request status").selectOption("Pending");
@@ -578,7 +586,7 @@ test("store stock and material requests combine search with domain filters", asy
 test("issue and reconcile lists filter by item, job and reconciliation state", async ({ page }) => {
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Issue Material", exact: true }).click();
-  await page.getByLabel("Issue Material item").selectOption({ label: "70% VLT Nano Ceramic Film" });
+  await page.getByLabel("Issue Material item").selectOption({ label: "70%VLT Nano Ceramic Film (UG)" });
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Issue Material results" }).locator("tbody tr")).toHaveCount(1);
   await page.getByLabel("Issue Material job").selectOption({ label: "JC-2026-001246" });
@@ -615,7 +623,7 @@ test("PDF and Excel downloads use the current filtered rows and visible columns"
   expect(ppfRows[0][0]).toBe("Stock");
   expect(ppfRows[2][1]).toContain("Category: PPF");
   expect(ppfRows[4]).toEqual(["SKU", "Item", "Category", "Stock", "Unit", "Minimum", "Status"]);
-  expect(ppfRows.slice(5)).toHaveLength(3);
+  expect(ppfRows.slice(5)).toHaveLength(61);
   expect(ppfRows.slice(5).every((row) => row[2] === "PPF")).toBeTruthy();
 
   await page.getByLabel("Stock category").selectOption("Paint");

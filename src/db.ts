@@ -1,3 +1,4 @@
+import { WORKBOOK_INVENTORY_SEED } from "./inventory-seed";
 import { serializeDamageMarks, type DamageMark } from "./job-sheet";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 import { canManageMaterialRows, materialRowActions, materialRowStatus, MATERIALS_CHECKLIST_LABELS, overStockWarning, type MaterialRowAction } from "./materials";
@@ -1726,13 +1727,7 @@ function seed(db: Database) {
 
   db.run("insert into customers(name, mobile, type, created_at, updated_at) values ('Rahul Sharma','9876543210','Individual',datetime('now'),datetime('now')),('Datya Motors','9777711022','Dealer',datetime('now'),datetime('now')),('Anita Patra','9123488990','Individual',datetime('now'),datetime('now'))");
   db.run("insert into vehicles(customer_id, number, make, model, color, km, created_at, updated_at) values (1,'OD02AB1234','Hyundai','Creta','White',18420,datetime('now'),datetime('now')),(2,'OD02CD5678','Mahindra','Thar','Black',9200,datetime('now'),datetime('now')),(3,'OD05EF9001','BMW','X1','Blue',31100,datetime('now'),datetime('now'))");
-  db.run(`insert into inventory(sku, category, name, unit, stock_qty, low_stock_qty, created_at, updated_at) values
-    ('PPF-UG-5Y','PPF','TPU Gloss PPF 5yrs warranty 1.5mx15m','metre',54,18,datetime('now'),datetime('now')),
-    ('PPF-SMAX-7Y','PPF','Super MAX 7yrs warranty PPF Roll','metre',21,12,datetime('now'),datetime('now')),
-    ('FILM-NANO-70','PPF','70% VLT Nano Ceramic Film','metre',7,10,datetime('now'),datetime('now')),
-    ('3M-TACK-50401','Paint','Teflon Tack Cloth #50401','piece',14,20,datetime('now'),datetime('now')),
-    ('DX90-PUTTY','Paint','Putty 1Kg DX90','kg',8,5,datetime('now'),datetime('now')),
-    ('CRX-3050S','Paint','Clear 3050S','litre',20,6,datetime('now'),datetime('now'))`);
+  WORKBOOK_INVENTORY_SEED.forEach((row) => db.run("insert into inventory(sku, category, name, unit, stock_qty, low_stock_qty, created_at, updated_at) values (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [...row]));
 
   makeSeedJob(db, 1, 1, "JC-2026-001245", "IN_PROGRESS", "Work Started", "Full body PPF, paint correction, interior detailing", 94400, 30000);
   makeSeedJob(db, 2, 2, "JC-2026-001246", "IN_PROGRESS", "Material Requested", "Bonnet PPF, ceramic coating", 42480, 0);
@@ -1753,7 +1748,7 @@ function makeSeedJob(db: Database, customerId: number, vehicleId: number, jobNo:
   ensureLifecycleChecklist(db, jobId, main, sub, "2026-01-01T08:00:00.000Z");
   const estimateId = insert(db, "insert into estimates(job_card_id, status, discount, gst_rate, approval_note, created_at, updated_at) values (?, 'Approved', 1000, 18, 'Seed approval', datetime('now'), datetime('now'))", [jobId]);
   insert(db, "insert into estimate_items(estimate_id, kind, description, qty, rate, created_at, updated_at) values (?, 'Service', ?, 1, ?, datetime('now'), datetime('now'))", [estimateId, work, Math.round(total / 1.18)]);
-  const itemId = jobNo.endsWith("1246") ? 3 : 1;
+  const itemId = jobNo.endsWith("1246") ? 16 : 1;
   const issued = jobNo.endsWith("1246") ? 0 : 6;
   createMaterialRequest(db, { job_card_id: jobId, item_id: itemId, requested_qty: 6, issued_qty: issued, used_qty: jobNo.endsWith("1246") ? 0 : 5, returned_qty: jobNo.endsWith("1246") ? 0 : 0.8, wasted_qty: jobNo.endsWith("1246") ? 0 : 0.2 });
   if (issued > 0) movement(db, jobId, itemId, "ISSUE", issued, "Seed issue");
