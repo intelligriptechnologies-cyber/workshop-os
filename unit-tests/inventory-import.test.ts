@@ -101,3 +101,39 @@ test("inventory template is a parseable workbook with auto-mappable headers", ()
   assert.deepEqual(Object.keys(mapping).sort(), ["category", "low_stock_qty", "name", "sku", "stock_qty", "unit"]);
   assert.equal(parsed.rows.length, 1);
 });
+
+test("sheet-per-category workbooks without SKU/unit columns import with derived values", () => {
+  const workbook = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ["SL NO", "ITEM NAME", "BRAND"],
+    [1, "TPU Gloss PPF 5yrs warranty [1.5mx15m]", "UG"],
+    [2, "Dendrite Gum", null],
+  ]), "PPF");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([
+    ["SL NO#", "ITEM NAME", "BRAND", "OB"],
+    [1, "Clear [Ltr] 3050S", "CROMAX", 20],
+    [2, "Putty 1Kg [DX90]", "DUXONE", 8],
+  ]), "paint");
+  XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet([[]]), "Sheet3");
+  const buffer = XLSX.write(workbook, { type: "array", bookType: "xlsx" }) as ArrayBuffer;
+
+  const parsed = parseInventoryWorkbook(buffer);
+  const preview = buildInventoryImportPreview({
+    headers: parsed.headers,
+    rows: parsed.rows,
+    mapping: suggestInventoryColumnMapping(parsed.headers),
+  });
+
+  assert.equal(preview.mappingIssues.length, 0);
+  assert.equal(preview.rejectedRows.length, 0);
+  assert.equal(preview.validRows.length, 4);
+  const [ppf, , clear, putty] = preview.validRows.map((row) => row.item);
+  assert.equal(ppf.category, "PPF");
+  assert.equal(ppf.stock_qty, 0);
+  assert.equal(ppf.low_stock_qty, 0);
+  assert.equal(clear.category, "paint");
+  assert.equal(clear.stock_qty, 20);
+  assert.equal(clear.unit, "ltr");
+  assert.equal(putty.unit, "kg");
+  assert.equal(new Set(preview.validRows.map((row) => row.item.sku)).size, 4);
+});

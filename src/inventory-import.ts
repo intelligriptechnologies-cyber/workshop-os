@@ -88,20 +88,74 @@ function isBlankRow(row: unknown[]) {
   return row.every((value) => value === undefined || value === null || String(value).trim() === "");
 }
 
+const UNIT_PATTERNS: [RegExp, string][] = [
+  [/\b(ltr|litre|liter)\b|\d\s*l\b/i, "ltr"],
+  [/\d\s*ml\b/i, "ml"],
+  [/\d\s*kg\b|\bkg\b/i, "kg"],
+  [/\d\s*gm?\b|\bgms?\b/i, "g"],
+  [/\broll\b/i, "roll"],
+];
+
+function inferUnit(name: string) {
+  return UNIT_PATTERNS.find(([pattern]) => pattern.test(name))?.[1] ?? "pcs";
+}
+
+function sheetMatrix(sheet: XLSX.WorkSheet) {
+  return XLSX.utils.sheet_to_json<unknown[]>(sheet, { header: 1, defval: "", blankrows: false, raw: true });
+}
+
+/**
+ * Sheet-per-category layout (no SKU column): every sheet is a category with an item-name column,
+ * optionally a brand and an opening balance ("OB"). SKU, unit and stock are derived so the rows
+ * flow through the normal mapping/validation preview.
+ */
+function parseCategorySheets(workbook: XLSX.WorkBook): ParsedInventoryWorkbook | null {
+  const rows: InventoryImportSourceRow[] = [];
+  for (const sheetName of workbook.SheetNames) {
+    const matrix = sheetMatrix(workbook.Sheets[sheetName]);
+    if (matrix.length === 0 || isBlankRow(matrix[0])) continue;
+    const keys = matrix[0].map((value) => headerKey(String(value ?? "")));
+    const nameIndex = keys.findIndex((key) => FIELD_ALIASES.name.includes(key));
+    if (nameIndex < 0) continue;
+    const brandIndex = keys.indexOf("brand");
+    const balanceIndex = keys.findIndex((key) => key === "ob" || FIELD_ALIASES.stock_qty.includes(key));
+    const prefix = sheetName.trim().toLocaleUpperCase().replace(/[^A-Z0-9]+/g, "") || "ITEM";
+    let serial = 0;
+    for (const row of matrix.slice(1)) {
+      const name = normalizedText(row[nameIndex]);
+      if (!name) continue;
+      serial += 1;
+      const brand = brandIndex >= 0 ? normalizedText(row[brandIndex]) : "";
+      const balance = balanceIndex >= 0 ? row[balanceIndex] : "";
+      rows.push({
+        SKU: `${prefix}-${String(serial).padStart(3, "0")}`,
+        Name: brand ? `${name} (${brand})` : name,
+        Category: sheetName.trim(),
+        Unit: inferUnit(name),
+        "Stock Qty": normalizedText(balance) === "" ? 0 : balance,
+        "Low Stock Qty": 0,
+      });
+    }
+  }
+  if (rows.length === 0) return null;
+  return { sheetName: "All sheets", headers: ["SKU", "Name", "Category", "Unit", "Stock Qty", "Low Stock Qty"], rows };
+}
+
 /** Parses the first worksheet from either CSV or an Excel-compatible ArrayBuffer. */
 export function parseInventoryWorkbook(data: ArrayBuffer | Uint8Array): ParsedInventoryWorkbook {
   const workbook = XLSX.read(data, { type: "array", raw: true });
   const sheetName = workbook.SheetNames[0];
   if (!sheetName) throw new Error("The inventory file does not contain a worksheet.");
 
-  const matrix = XLSX.utils.sheet_to_json<unknown[]>(workbook.Sheets[sheetName], {
-    header: 1,
-    defval: "",
-    blankrows: false,
-    raw: true,
-  });
+  const matrix = sheetMatrix(workbook.Sheets[sheetName]);
   if (matrix.length === 0 || isBlankRow(matrix[0])) {
     throw new Error("The inventory file does not contain a header row.");
+  }
+
+  const firstKeys = matrix[0].map((value) => headerKey(String(value ?? "")));
+  if (!firstKeys.some((key) => FIELD_ALIASES.sku.includes(key))) {
+    const categorized = parseCategorySheets(workbook);
+    if (categorized) return categorized;
   }
 
   const headers = uniqueHeaders(matrix[0]);
