@@ -10,6 +10,7 @@ import {
   ADMIN_PAGE_GROUPS,
   addDemoRole,
   createReportTemplate,
+  deleteReportTemplate,
   appendDemoLog,
   archiveDemoRole,
   clearDemoLogs,
@@ -32,6 +33,7 @@ import {
   type DemoRole,
   type WorkshopBusinessSettings,
   type CompanyAssets,
+  type CompanyDetails,
   type ReportCategory,
 } from "./admin-demo-state";
 import {
@@ -47,9 +49,12 @@ import {
   type ParsedInventoryWorkbook,
   type RejectedInventoryImportRow,
 } from "./inventory-import";
-import { REPORT_CATEGORY_LABELS, REPORT_PLACEHOLDERS, findUnsupportedPlaceholders, renderReportTemplate, sampleReportValues } from "./report-templates";
+import CodeMirror from "@uiw/react-codemirror";
+import { html as htmlLanguage } from "@codemirror/lang-html";
+import { EditorView } from "@codemirror/view";
+import { LINE_PLACEHOLDERS, REPORT_CATEGORY_LABELS, REPORT_PLACEHOLDERS, findUnsupportedPlaceholders, renderReportTemplate, sampleReportLines, sampleReportValues } from "./report-templates";
 
-const ADMIN_TABS = ["Users", "Roles & Page Access", "Business Settings", "Build Company Settings", "Report Templates", "Inventory Import", "Support & Logs"] as const;
+const ADMIN_TABS = ["Users", "Roles & Page Access", "Business Settings", "Company Settings", "Report Templates", "Inventory Import", "Support & Logs"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
@@ -97,7 +102,7 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { sta
         {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
         {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Business Settings" && <BusinessSettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
-        {tab === "Build Company Settings" && <CompanySettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
+        {tab === "Company Settings" && <CompanySettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Report Templates" && <ReportTemplatesTab adminState={adminState} commit={commit} actingUser={actingUser} onDirtyChange={setTemplateDirty} />}
         {tab === "Inventory Import" && <InventoryImportTab adminState={adminState} commit={commit} actingUser={actingUser} state={state} />}
         {tab === "Support & Logs" && <SupportLogsTab adminState={adminState} commit={commit} refresh={refresh} actingUser={actingUser} />}
@@ -475,48 +480,78 @@ function BusinessSettingsTab({ adminState, commit, actingUser }: { adminState: A
 
 /* ----------------------------------------------------------- Company identity ---- */
 
-const IMAGE_TYPES = new Set(["image/png", "image/jpeg", "image/webp"]);
-const MAX_COMPANY_IMAGE_BYTES = 1024 * 1024;
+const IMAGE_TYPES = new Set(["image/png", "image/jpeg"]);
+const MAX_COMPANY_IMAGE_BYTES = 500 * 1024;
+const MAX_IMAGE_EDGE = 800;
+
+/** Downscales an oversized image on a canvas so it fits the data-URL budget; resolves the original when already small. */
+function fitImage(file: File, dataUrl: string): Promise<string> {
+  const withinBudget = (url: string) => Math.ceil((url.length - url.indexOf(",") - 1) * 0.75) <= MAX_COMPANY_IMAGE_BYTES;
+  if (file.size <= MAX_COMPANY_IMAGE_BYTES) return Promise.resolve(dataUrl);
+  return new Promise((resolve, reject) => {
+    const image = new Image();
+    image.onerror = () => reject(new Error("could not be read"));
+    image.onload = () => {
+      const scale = Math.min(1, MAX_IMAGE_EDGE / Math.max(image.width, image.height));
+      const canvas = document.createElement("canvas");
+      canvas.width = Math.max(1, Math.round(image.width * scale)); canvas.height = Math.max(1, Math.round(image.height * scale));
+      canvas.getContext("2d")?.drawImage(image, 0, 0, canvas.width, canvas.height);
+      const out = canvas.toDataURL(file.type, 0.85);
+      if (withinBudget(out)) resolve(out); else reject(new Error("is too large even after downscaling"));
+    };
+    image.src = dataUrl;
+  });
+}
 
 function CompanyImageField({ label, value, onChange, onError }: { label: string; value: string | null; onChange: (value: string | null) => void; onError: (message: string) => void }) {
   const inputRef = useRef<HTMLInputElement>(null);
   const choose = (file?: File) => {
     if (!file) return;
-    if (!IMAGE_TYPES.has(file.type)) { onError(`${label} must be a PNG, JPEG, or WebP image.`); if (inputRef.current) inputRef.current.value = ""; return; }
-    if (file.size > MAX_COMPANY_IMAGE_BYTES) { onError(`${label} must be 1 MB or smaller.`); if (inputRef.current) inputRef.current.value = ""; return; }
+    if (!IMAGE_TYPES.has(file.type)) { onError(`${label} must be a PNG or JPEG image.`); if (inputRef.current) inputRef.current.value = ""; return; }
     const reader = new FileReader();
     reader.onerror = () => onError(`${label} could not be read.`);
-    reader.onload = () => { if (typeof reader.result === "string") { onError(""); onChange(reader.result); } };
+    reader.onload = () => { if (typeof reader.result === "string") fitImage(file, reader.result).then((url) => { onError(""); onChange(url); }, (error: Error) => onError(`${label} ${error.message}.`)); };
     reader.readAsDataURL(file);
   };
-  return <div className="company-image-field"><strong>{label}</strong><div className="company-image-preview">{value ? <img src={value} alt={`${label} preview`} /> : <span>No image configured</span>}</div><div className="action-row"><label className="file-upload-button">Choose image<input ref={inputRef} className="visually-hidden" type="file" accept="image/png,image/jpeg,image/webp" onChange={(event) => choose(event.target.files?.[0])} /></label><button type="button" disabled={!value} onClick={() => { onError(""); onChange(null); if (inputRef.current) inputRef.current.value = ""; }}>Clear</button></div><small>PNG, JPEG, or WebP · maximum 1 MB</small></div>;
+  return <div className="company-image-field"><strong>{label}</strong><div className="company-image-preview">{value ? <img src={value} alt={`${label} preview`} /> : <span>No image configured</span>}</div><div className="action-row"><label className="file-upload-button">Choose image<input ref={inputRef} className="visually-hidden" type="file" accept="image/png,image/jpeg" onChange={(event) => choose(event.target.files?.[0])} /></label><button type="button" disabled={!value} onClick={() => { onError(""); onChange(null); if (inputRef.current) inputRef.current.value = ""; }}>Clear</button></div><small>PNG or JPEG · downscaled to fit 500 KB</small></div>;
 }
 
 function CompanySettingsTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => boolean; actingUser: User }) {
-  const saved = { companyName: adminState.businessSettings.profile.businessName, assets: adminState.companyAssets };
+  const profile = adminState.businessSettings.profile;
+  const savedDetails: CompanyDetails = { address: profile.address, phone: profile.phone, email: profile.email, gstin: adminState.businessSettings.billing.gstin, footer: profile.footer };
+  const saved = { companyName: profile.businessName, assets: adminState.companyAssets, details: savedDetails };
+  const [details, setDetails] = useState<CompanyDetails>(saved.details);
   const [companyName, setCompanyName] = useState(saved.companyName);
   const [assets, setAssets] = useState<CompanyAssets>(saved.assets);
   const [error, setError] = useState("");
   const [savedMessage, setSavedMessage] = useState(false);
-  const dirty = companyName !== saved.companyName || JSON.stringify(assets) !== JSON.stringify(saved.assets);
+  const dirty = companyName !== saved.companyName || JSON.stringify(assets) !== JSON.stringify(saved.assets) || JSON.stringify(details) !== JSON.stringify(saved.details);
 
-  useEffect(() => { setCompanyName(saved.companyName); setAssets(saved.assets); }, [saved.companyName, saved.assets]);
+  useEffect(() => { setCompanyName(saved.companyName); setAssets(saved.assets); setDetails(savedDetails); }, [saved.companyName, saved.assets, JSON.stringify(savedDetails)]);
   const changeAsset = (key: keyof CompanyAssets, next: string | null) => { setSavedMessage(false); setAssets((current) => ({ ...current, [key]: next })); };
   const save = () => {
     if (!companyName.trim()) { setError("Company name is required."); return; }
-    const ok = commit((current) => saveCompanyIdentity(current, companyName, assets), { stream: "feature", level: "info", area: "Administration", feature: "Company Settings", message: "Company identity and report assets saved", userId: String(actingUser.id), userName: actingUser.name });
+    const ok = commit((current) => saveCompanyIdentity(current, companyName, assets, details), { stream: "feature", level: "info", area: "Administration", feature: "Company Settings", message: "Company identity and report assets saved", userId: String(actingUser.id), userName: actingUser.name });
     if (ok) { setError(""); setSavedMessage(true); }
   };
   const reset = () => {
     if (dirty && !window.confirm("Reset unsaved company settings?")) return;
-    setCompanyName(saved.companyName); setAssets(saved.assets); setError(""); setSavedMessage(false);
+    setCompanyName(saved.companyName); setAssets(saved.assets); setDetails(saved.details); setError(""); setSavedMessage(false);
   };
+  const setDetail = (key: keyof CompanyDetails, next: string) => { setSavedMessage(false); setDetails((current) => ({ ...current, [key]: next })); };
   return <div className="manager-panel" role="tabpanel">
-    <div className="panel-actions"><div><h3>Build Company Settings</h3><p>Canonical identity and images used by report templates.</p></div><div className="action-row"><button type="button" disabled={!dirty} onClick={reset}>Reset to Saved</button><button type="button" className="primary-action" disabled={!dirty} onClick={save}>Save Company Settings</button></div></div>
+    <div className="panel-actions"><div><h3>Company Settings</h3><p>Single company profile and images merged into every report template.</p></div><div className="action-row"><button type="button" disabled={!dirty} onClick={reset}>Reset to Saved</button><button type="button" className="primary-action" disabled={!dirty} onClick={save}>Save Company Settings</button></div></div>
     {error && <div className="api-error" role="alert"><p>{error}</p></div>}
     {savedMessage && !dirty && <p className="save-confirmation">Company settings saved for this session.</p>}
     {dirty && <p className="unsaved-note">Unsaved changes.</p>}
     <label>Company name<input value={companyName} onChange={(event) => { setCompanyName(event.target.value); setSavedMessage(false); }} /></label>
+    <div className="form-grid">
+      <label>Address<input value={details.address} onChange={(event) => setDetail("address", event.target.value)} /></label>
+      <label>Phone<input value={details.phone} onChange={(event) => setDetail("phone", event.target.value)} /></label>
+      <label>Email<input value={details.email} onChange={(event) => setDetail("email", event.target.value)} /></label>
+      <label>GSTIN<input value={details.gstin} onChange={(event) => setDetail("gstin", event.target.value)} /></label>
+      <label>Terms / footer<textarea value={details.footer} onChange={(event) => setDetail("footer", event.target.value)} /></label>
+    </div>
     <div className="company-assets-grid">
       <CompanyImageField label="Company logo" value={assets.logo} onChange={(next) => changeAsset("logo", next)} onError={setError} />
       <CompanyImageField label="Company stamp" value={assets.stamp} onChange={(next) => changeAsset("stamp", next)} onError={setError} />
@@ -536,7 +571,6 @@ function ReportTemplatesTab({ adminState, commit, actingUser, onDirtyChange }: {
   const [selectedId, setSelectedId] = useState<string | null>(initial?.id ?? null);
   const selected = adminState.reportTemplates.find((template) => template.id === selectedId);
   const [draft, setDraft] = useState({ name: initial?.name ?? "", html: initial?.html ?? "", active: initial?.active ?? false });
-  const [mode, setMode] = useState<"type" | "preview">("type");
   const [errors, setErrors] = useState<string[]>([]);
   const [justSaved, setJustSaved] = useState(false);
   const dirty = selected ? draft.name !== selected.name || draft.html !== selected.html || draft.active !== selected.active : Boolean(draft.name || draft.html || draft.active);
@@ -551,7 +585,7 @@ function ReportTemplatesTab({ adminState, commit, actingUser, onDirtyChange }: {
   const load = (id: string | null, nextCategory = category) => {
     const template = id ? adminState.reportTemplates.find((item) => item.id === id) : undefined;
     setSelectedId(id); setDraft({ name: template?.name ?? "", html: template?.html ?? "", active: template?.active ?? false });
-    setErrors([]); setJustSaved(false); setMode("type"); setCategory(nextCategory);
+    setErrors([]); setJustSaved(false); setCategory(nextCategory);
   };
   const confirmDiscard = () => !dirty || window.confirm("Discard unsaved template changes?");
   const changeCategory = (next: ReportCategory) => {
@@ -578,10 +612,16 @@ function ReportTemplatesTab({ adminState, commit, actingUser, onDirtyChange }: {
   };
   let preview = "";
   if (!unsupported.length && draft.html.trim()) {
-    try { preview = renderReportTemplate({ category, html: draft.html }, sampleReportValues(category)); } catch { preview = ""; }
+    try { preview = renderReportTemplate({ category, html: draft.html }, sampleReportValues(category), sampleReportLines()); } catch { preview = ""; }
   }
+  const remove = () => {
+    if (!selectedId || !selected) return;
+    if (!window.confirm(`Delete template "${selected.name}"?`)) return;
+    const ok = commit((current) => deleteReportTemplate(current, selectedId), { stream: "feature", level: "info", area: "Administration", feature: "Report Templates", message: `${REPORT_CATEGORY_LABELS[category]} template deleted`, userId: String(actingUser.id), userName: actingUser.name });
+    if (ok) { const rest = adminState.reportTemplates.filter((item) => item.category === category && item.id !== selectedId); const next = rest.find((item) => item.active) ?? rest[0]; setSelectedId(next?.id ?? null); setDraft({ name: next?.name ?? "", html: next?.html ?? "", active: next?.active ?? false }); setJustSaved(false); setErrors([]); }
+  };
   return <div className="manager-panel report-template-panel" role="tabpanel">
-    <div className="panel-actions"><div><h3>Report Templates</h3><p>Design sanitized print layouts using the supported placeholders.</p></div><div className="action-row"><button type="button" onClick={() => { if (confirmDiscard()) load(null); }}>New Template</button><button type="button" className="primary-action" disabled={!dirty} onClick={save}>{selectedId ? "Update Template" : "Create Template"}</button></div></div>
+    <div className="panel-actions"><div><h3>Report Templates</h3><p>Design sanitized print layouts using the supported placeholders.</p></div><div className="action-row"><button type="button" onClick={() => { if (confirmDiscard()) load(null); }}>New Template</button><button type="button" disabled={!selectedId} onClick={remove}>Delete Template</button><button type="button" className="primary-action" disabled={!dirty} onClick={save}>{selectedId ? "Update Template" : "Create Template"}</button></div></div>
     {errors.length > 0 && <div className="api-error" role="alert">{errors.map((message) => <p key={message}>{message}</p>)}</div>}
     {justSaved && !dirty && <p className="save-confirmation">Template saved for this session.</p>}
     {dirty && <p className="unsaved-note">Unsaved changes.</p>}
@@ -593,10 +633,14 @@ function ReportTemplatesTab({ adminState, commit, actingUser, onDirtyChange }: {
     </div>
     <div className="template-workspace">
       <div className="template-editor-column">
-        <div className="sub-tabs" role="tablist" aria-label="Template editor mode"><button role="tab" aria-selected={mode === "type"} className={mode === "type" ? "active" : ""} onClick={() => setMode("type")}>Type</button><button role="tab" aria-selected={mode === "preview"} className={mode === "preview" ? "active" : ""} onClick={() => setMode("preview")}>Preview</button></div>
-        {mode === "type" ? <label>Template HTML<textarea aria-label="Template HTML" className="template-html-editor" spellCheck={false} value={draft.html} onChange={(event) => { setDraft({ ...draft, html: event.target.value }); setJustSaved(false); }} /></label> : unsupported.length ? <div className="api-error" role="alert"><p>Preview unavailable until unsupported placeholders are removed.</p></div> : <iframe className="template-preview" title={`${REPORT_CATEGORY_LABELS[category]} template preview`} sandbox="" srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}*{box-sizing:border-box}</style></head><body>${preview}</body></html>`} />}
+        <strong>Template HTML</strong>
+        <CodeMirror className="template-html-editor" value={draft.html} height="460px" basicSetup={{ lineNumbers: true, foldGutter: false }} extensions={[htmlLanguage(), EditorView.lineWrapping, EditorView.contentAttributes.of({ "aria-label": "Template HTML" })]} onChange={(next) => { setDraft((current) => ({ ...current, html: next })); setJustSaved(false); }} />
       </div>
-      <aside className="placeholder-registry"><h4>Allowed placeholders</h4><p>Insert a placeholder exactly as shown. Blocks generate safe report tables or configured images.</p>{REPORT_PLACEHOLDERS[category].map((name) => <code key={name}>{`{{${name}}}`}</code>)}{unsupported.length > 0 && <div className="api-error" role="alert"><strong>Unsupported</strong>{unsupported.map((name) => <p key={name}>{name}</p>)}</div>}</aside>
+      <div className="template-preview-column">
+        <strong>Live preview (sandboxed)</strong>
+        {unsupported.length ? <div className="api-error" role="alert"><p>Preview unavailable until unsupported placeholders are removed.</p></div> : <iframe className="template-preview" title={`${REPORT_CATEGORY_LABELS[category]} template preview`} sandbox="" srcDoc={`<!doctype html><html><head><meta charset="utf-8"><style>body{margin:0}*{box-sizing:border-box}</style></head><body>${preview}</body></html>`} />}
+      </div>
+      <aside className="placeholder-registry"><h4>Allowed placeholders</h4><p>Insert a placeholder exactly as shown. Blocks generate safe report tables or configured images.</p>{REPORT_PLACEHOLDERS[category].map((name) => <code key={name}>{`{{${name}}}`}</code>)}<h4>Line loop</h4><code>{"{{#lines}} ... {{/lines}}"}</code>{LINE_PLACEHOLDERS.map((name) => <code key={name}>{`{{${name}}}`}</code>)}{unsupported.length > 0 && <div className="api-error" role="alert"><strong>Unsupported</strong>{unsupported.map((name) => <p key={name}>{name}</p>)}</div>}</aside>
     </div>
   </div>;
 }

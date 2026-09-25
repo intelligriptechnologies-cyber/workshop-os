@@ -686,8 +686,10 @@ test("admin user CRUD persists and protects the signed-in admin", async ({ page 
 test("company settings validate, preview, reset and persist report assets", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
-  await page.getByRole("tab", { name: "Build Company Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Company Settings", exact: true }).click();
   await page.getByLabel("Company name").fill("E2E Auto Studio");
+  await page.getByLabel("Terms / footer").fill("E2E footer terms");
+  await page.getByLabel("Address").fill("9 Test Road");
 
   const logo = page.locator(".company-image-field").filter({ hasText: "Company logo" });
   const fileInput = logo.locator('input[type="file"]');
@@ -696,7 +698,7 @@ test("company settings validate, preview, reset and persist report assets", asyn
   await expect(preview).toHaveAttribute("src", /^data:image\/png;base64,/);
   const validSrc = await preview.getAttribute("src");
   await fileInput.setInputFiles({ name: "bad.txt", mimeType: "text/plain", buffer: Buffer.from("not an image") });
-  await expect(page.getByRole("alert")).toContainText("must be a PNG, JPEG, or WebP");
+  await expect(page.getByRole("alert")).toContainText("must be a PNG or JPEG");
   await expect(preview).toHaveAttribute("src", validSrc!);
 
   await page.getByRole("button", { name: "Save Company Settings" }).click();
@@ -710,8 +712,10 @@ test("company settings validate, preview, reset and persist report assets", asyn
   await page.reload();
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
-  await page.getByRole("tab", { name: "Build Company Settings", exact: true }).click();
+  await page.getByRole("tab", { name: "Company Settings", exact: true }).click();
   await expect(page.getByLabel("Company name")).toHaveValue("E2E Auto Studio");
+  await expect(page.getByLabel("Terms / footer")).toHaveValue("E2E footer terms");
+  await expect(page.getByLabel("Address")).toHaveValue("9 Test Road");
   await expect(page.getByRole("img", { name: "Company logo preview" })).toBeVisible();
 });
 
@@ -778,11 +782,10 @@ test("report templates preview safely, validate, activate and persist", async ({
   await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
   await page.getByRole("tab", { name: "Report Templates", exact: true }).click();
 
-  for (const category of ["invoice", "gate-pass", "job-card", "payment-receipt"]) {
+  for (const category of ["estimate", "invoice", "gate-pass", "job-card", "payment-receipt"]) {
     await page.getByLabel("Report category").selectOption(category);
-    await page.getByRole("tab", { name: "Preview", exact: true }).click();
     await expect(page.locator(".template-preview")).toBeVisible();
-    await page.getByRole("tab", { name: "Type", exact: true }).click();
+    await expect(page.getByLabel("Report template").locator("option:checked")).toContainText("(Active)");
   }
 
   await page.getByLabel("Report category").selectOption("invoice");
@@ -795,14 +798,12 @@ test("report templates preview safely, validate, activate and persist", async ({
   await page.getByLabel("Report category").selectOption("gate-pass");
   await expect(page.getByLabel("Report category")).toHaveValue("invoice");
 
-  await page.getByRole("tab", { name: "Preview", exact: true }).click();
   const preview = page.frameLocator(".template-preview");
   await expect(preview.getByRole("heading", { name: "INV-2026-0042" })).toBeVisible();
   await expect(preview.locator("script")).toHaveCount(0);
   await expect(preview.locator("img")).not.toHaveAttribute("src");
   await expect(preview.locator("section")).not.toHaveAttribute("onclick");
 
-  await page.getByRole("tab", { name: "Type", exact: true }).click();
   await page.getByLabel("Template HTML").fill("<p>{{unsupported.value}}</p>");
   await page.getByRole("button", { name: "Create Template" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "unsupported.value" }).first()).toBeVisible();

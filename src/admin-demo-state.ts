@@ -140,6 +140,7 @@ export interface WorkshopBusinessSettings {
     phone: string;
     email: string;
     address: string;
+    footer: string;
     timezone: string;
     currency: string;
   };
@@ -295,6 +296,7 @@ const DEFAULT_SETTINGS: WorkshopBusinessSettings = {
     phone: "+91 98765 43210",
     email: "hello@workshopos.demo",
     address: "Bhubaneswar, Odisha",
+    footer: "Thank you for choosing WorkshopOS Demo Studio.",
     timezone: "Asia/Kolkata",
     currency: "INR",
   },
@@ -427,7 +429,7 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
   const base = createDefaultAdminDemoState();
   const access = Object.fromEntries(Object.entries(saved.rolePageAccess).map(([roleId, pages]) => [roleId, sanitizePages(pages)]));
   access[OWNER_ROLE_ID] = protectOwnerAccess(access[OWNER_ROLE_ID] ?? []);
-  const categories: ReportCategory[] = ["invoice", "gate-pass", "job-card", "payment-receipt"];
+  const categories: ReportCategory[] = ["estimate", "invoice", "gate-pass", "job-card", "payment-receipt"];
   const storedTemplates = Array.isArray(saved.reportTemplates) ? saved.reportTemplates : [];
   const reportTemplates = categories.flatMap((category) => {
     const candidates = storedTemplates.filter((template): template is ReportTemplate => Boolean(template && typeof template === "object" && template.category === category && template.id && template.name && template.html));
@@ -577,6 +579,7 @@ export function normalizeBusinessSettings(settings: WorkshopBusinessSettings): W
       phone: trim(settings.profile.phone),
       email: trim(settings.profile.email),
       address: trim(settings.profile.address),
+      footer: trim(settings.profile.footer ?? ""),
       timezone: trim(settings.profile.timezone),
       currency: trim(settings.profile.currency),
     },
@@ -683,11 +686,23 @@ export function activateReportTemplate(state: AdminDemoState, templateId: string
   return updateReportTemplate(state, templateId, { active: true }, now);
 }
 
-export function saveCompanyIdentity(state: AdminDemoState, companyName: string, assets: CompanyAssets): AdminDemoState {
+export function deleteReportTemplate(state: AdminDemoState, templateId: string): AdminDemoState {
+  const current = state.reportTemplates.find((template) => template.id === templateId);
+  if (!current) throw new Error("Template not found.");
+  if (current.active) throw new Error("Activate another template before deleting the active template.");
+  return { ...state, reportTemplates: state.reportTemplates.filter((template) => template.id !== templateId) };
+}
+
+export interface CompanyDetails { address: string; phone: string; email: string; gstin: string; footer: string }
+
+/** Company Settings singleton: name, images and (optionally) contact/GSTIN/footer, saved atomically. */
+export function saveCompanyIdentity(state: AdminDemoState, companyName: string, assets: CompanyAssets, details?: CompanyDetails): AdminDemoState {
   if (!companyName.trim()) throw new Error("Company name is required.");
   return {
     ...state,
-    businessSettings: mergeSettings({ profile: { businessName: companyName.trim() } }, state.businessSettings),
+    businessSettings: normalizeBusinessSettings(mergeSettings(details
+      ? { profile: { businessName: companyName.trim(), address: details.address, phone: details.phone, email: details.email, footer: details.footer }, billing: { gstin: details.gstin } }
+      : { profile: { businessName: companyName.trim() } }, state.businessSettings)),
     companyAssets: { ...assets },
   };
 }

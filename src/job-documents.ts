@@ -2,7 +2,7 @@ import { jsPDF } from "jspdf";
 import type { AdminDemoState, WorkshopBusinessSettings } from "./admin-demo-state";
 import type { JobView, User } from "./types";
 import { canCreateInvoice, canEditInvoice as mayEditInvoice, invoiceTotals } from "./invoice-math";
-import { buildPrintDocument, buildReportValues, renderReportTemplate, reportAvailable, type ReportCategory } from "./report-templates";
+import { buildPrintDocument, buildReportLines, buildReportValues, renderReportTemplate, reportAvailable, type ReportCategory } from "./report-templates";
 
 export type DocumentKind = "estimate" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
 
@@ -142,7 +142,7 @@ export function printJobDocument(kind: Exclude<DocumentKind, "estimate">, view: 
   try {
     printWindow.opener = null;
     const values = buildReportValues(category, view, adminState.businessSettings, adminState.companyAssets);
-    const rendered = renderReportTemplate(template, values);
+    const rendered = renderReportTemplate(template, values, buildReportLines(category, view));
     printWindow.document.open();
     printWindow.document.write(buildPrintDocument(`${labels[kind]} ${values["report.number"]}`, rendered));
     printWindow.document.close();

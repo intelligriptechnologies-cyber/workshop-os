@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { ADMIN_DEMO_STORAGE_KEY, activateReportTemplate, createDefaultAdminDemoState, createReportTemplate, loadAdminDemoState, saveCompanyIdentity, updateBusinessSettings, updateReportTemplate, type SessionStorageLike } from "../src/admin-demo-state";
-import { REPORT_PLACEHOLDERS, buildReportValues, findUnsupportedPlaceholders, renderReportTemplate, reportAvailable, sampleReportValues } from "../src/report-templates";
+import { ADMIN_DEMO_STORAGE_KEY, activateReportTemplate, createDefaultAdminDemoState, createReportTemplate, deleteReportTemplate, loadAdminDemoState, saveCompanyIdentity, updateBusinessSettings, updateReportTemplate, type SessionStorageLike } from "../src/admin-demo-state";
+import { REPORT_PLACEHOLDERS, buildReportLines, buildReportValues, findUnsupportedPlaceholders, renderReportTemplate, reportAvailable, sampleReportValues } from "../src/report-templates";
 import type { JobView } from "../src/types";
 
 const NOW = "2026-09-24T10:00:00.000Z";
@@ -31,8 +31,8 @@ function job(overrides: Partial<JobView> = {}): JobView {
 
 test("defaults seed exactly one active template for every report category", () => {
   const state = createDefaultAdminDemoState(NOW);
-  assert.equal(state.reportTemplates.length, 4);
-  for (const category of ["invoice", "gate-pass", "job-card", "payment-receipt"] as const) {
+  assert.equal(state.reportTemplates.length, 5);
+  for (const category of ["estimate", "invoice", "gate-pass", "job-card", "payment-receipt"] as const) {
     assert.equal(state.reportTemplates.filter((template) => template.category === category && template.active).length, 1);
     assert.ok(REPORT_PLACEHOLDERS[category].length > 10);
   }
@@ -45,22 +45,22 @@ test("older session JSON hydrates new defaults and repairs active-template invar
   const old = createDefaultAdminDemoState(NOW) as Record<string, unknown>;
   delete old.reportTemplates; delete old.companyAssets;
   storage.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(old));
-  assert.equal(loadAdminDemoState(storage, NOW).reportTemplates.length, 4);
+  assert.equal(loadAdminDemoState(storage, NOW).reportTemplates.length, 5);
 
   const broken = createDefaultAdminDemoState(NOW);
   broken.reportTemplates = broken.reportTemplates.map((template) => ({ ...template, active: false }));
   storage.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(broken));
-  assert.equal(loadAdminDemoState(storage, NOW).reportTemplates.filter((template) => template.active).length, 4);
+  assert.equal(loadAdminDemoState(storage, NOW).reportTemplates.filter((template) => template.active).length, 5);
 });
 
 test("template creation validates names/placeholders and active transfer is immutable", () => {
   const original = createDefaultAdminDemoState(NOW);
   const added = createReportTemplate(original, { category: "invoice", name: "Compact", html: "<h1>{{report.number}}</h1>" }, NOW);
-  assert.equal(original.reportTemplates.length, 4);
-  assert.equal(added.reportTemplates.length, 5);
+  assert.equal(original.reportTemplates.length, 5);
+  assert.equal(added.reportTemplates.length, 6);
   assert.throws(() => createReportTemplate(added, { category: "invoice", name: " compact ", html: "<p>duplicate</p>" }, NOW), /unique/i);
   assert.throws(() => createReportTemplate(added, { category: "invoice", name: "Bad", html: "{{customer.secret}}" }, NOW), /customer.secret/);
-  assert.equal(added.reportTemplates.length, 5);
+  assert.equal(added.reportTemplates.length, 6);
 
   const compact = added.reportTemplates.find((template) => template.name === "Compact")!;
   const activated = activateReportTemplate(added, compact.id, NOW);
@@ -127,4 +127,53 @@ test("invoice payment block omits blank rows and disappears when nothing is conf
   const partial = buildReportValues("invoice", job(), { ...state.businessSettings, billing: { ...blankBilling, upiId: "pay@sbi" } }, state.companyAssets);
   assert.match(partial["blocks.payment_details"], /pay@sbi/);
   assert.doesNotMatch(partial["blocks.payment_details"], /Account holder/);
+});
+
+test("estimate is a seeded category with a default that uses the lines loop", () => {
+  const state = createDefaultAdminDemoState(NOW);
+  const estimate = state.reportTemplates.find((template) => template.category === "estimate")!;
+  assert.equal(estimate.active, true);
+  assert.match(estimate.html, /{{#lines}}/);
+  assert.equal(reportAvailable("estimate", job()), true);
+  assert.equal(reportAvailable("estimate", job({ estimate: undefined })), false);
+});
+
+test("{{#lines}} loops merge one row per line with escaped values; line keys only work inside the loop", () => {
+  const view = job({ estimate_items: [{ id: 1, estimate_id: 1, kind: "Service", description: "<b>Wash</b>", qty: 2, rate: 500 }, { id: 2, estimate_id: 1, kind: "Part", description: "Wax", qty: 1, rate: 100 }] });
+  const state = createDefaultAdminDemoState(NOW);
+  const values = buildReportValues("estimate", view, state.businessSettings, state.companyAssets);
+  const html = renderReportTemplate({ category: "estimate", html: "<ul>{{#lines}}<li>{{line.description}}:{{line.qty}}</li>{{/lines}}</ul>" }, values, buildReportLines("estimate", view));
+  assert.equal((html.match(/<li>/g) ?? []).length, 2);
+  assert.match(html, /&lt;b&gt;Wash&lt;\/b&gt;:2/);
+  assert.deepEqual(findUnsupportedPlaceholders("{{line.qty}}", "estimate"), ["line.qty"]);
+  assert.deepEqual(findUnsupportedPlaceholders("{{#lines}}{{line.evil}}{{/lines}}", "estimate"), ["line.evil"]);
+  assert.deepEqual(findUnsupportedPlaceholders("{{#lines}}{{#lines}}x{{/lines}}{{/lines}}", "estimate"), ["#lines", "/lines"]);
+  assert.deepEqual(findUnsupportedPlaceholders("{{#lines}}no end", "estimate"), ["#lines"]);
+});
+
+test("company settings singleton saves contact details, GSTIN and footer atomically and exposes them as merge keys", () => {
+  const original = createDefaultAdminDemoState(NOW);
+  const saved = saveCompanyIdentity(original, "Apex", original.companyAssets, { address: " 1 Main Rd ", phone: "999", email: "a@b.co", gstin: "21abcde1234f1z5", footer: "Terms apply" });
+  assert.equal(saved.businessSettings.profile.address, "1 Main Rd");
+  assert.equal(saved.businessSettings.billing.gstin, "21ABCDE1234F1Z5");
+  const values = buildReportValues("estimate", job(), saved.businessSettings, saved.companyAssets);
+  assert.equal(values["company.footer"], "Terms apply");
+  assert.equal(values["company.gstin"], "21ABCDE1234F1Z5");
+});
+
+test("images merge only when they are PNG/JPEG data URLs", () => {
+  const state = createDefaultAdminDemoState(NOW);
+  const bad = saveCompanyIdentity(state, "A", { logo: "https://evil.example/x.png", stamp: "data:image/svg+xml;base64,AA==", authorizedSignature: "data:image/png;base64,AA==" });
+  const values = buildReportValues("invoice", job(), bad.businessSettings, bad.companyAssets);
+  assert.equal(values["blocks.company_logo"], "");
+  assert.equal(values["blocks.company_stamp"], "");
+  assert.match(values["blocks.authorized_signature"], /data:image\/png/);
+});
+
+test("a template can be deleted unless it is the active one", () => {
+  const state = createReportTemplate(createDefaultAdminDemoState(NOW), { category: "invoice", name: "Spare", html: "<p>x</p>" }, NOW);
+  const spare = state.reportTemplates.find((template) => template.name === "Spare")!;
+  assert.equal(deleteReportTemplate(state, spare.id).reportTemplates.length, state.reportTemplates.length - 1);
+  const active = state.reportTemplates.find((template) => template.category === "invoice" && template.active)!;
+  assert.throws(() => deleteReportTemplate(state, active.id), /active/i);
 });
