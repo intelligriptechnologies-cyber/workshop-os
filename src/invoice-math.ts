@@ -83,3 +83,33 @@ export function canEditInvoice(actor: Actor, job: JobRef) {
 export function canCompleteWithInvoice(view: Pick<JobView, "invoice">) {
   return Boolean(view.invoice && !view.invoice.voided_at);
 }
+
+export type PaymentListKind = "unpaid" | "received" | "void";
+export interface PaymentListRow<V extends Pick<JobView, "invoice" | "payments">, P = V["payments"][number]> { key: string; kind: PaymentListKind; view: V; payment?: P }
+
+/**
+ * Payments screen mixed list (#31 Layout B): unpaid current invoices first (Record Payment on the row),
+ * then received payments, then void payments. Voided invoices are not listed as unpaid.
+ */
+export function mixedPaymentRows<V extends Pick<JobView, "invoice" | "payments"> & Partial<Pick<JobView, "payment_history">>>(views: readonly V[], opts: { includeUnpaid: boolean } = { includeUnpaid: true }): PaymentListRow<V>[] {
+  const unpaid: PaymentListRow<V>[] = [];
+  const received: PaymentListRow<V>[] = [];
+  const voided: PaymentListRow<V>[] = [];
+  for (const view of views) {
+    const invoice = view.invoice && !view.invoice.voided_at ? view.invoice : undefined;
+    if (opts.includeUnpaid && invoice && !view.payments.some((payment) => payment.invoice_id === invoice.id && !payment.voided_at)) unpaid.push({ key: `unpaid-${invoice.id}`, kind: "unpaid", view });
+    for (const payment of view.payment_history ?? view.payments) (payment.voided_at ? voided : received).push({ key: `payment-${payment.id}`, kind: payment.voided_at ? "void" : "received", view, payment });
+  }
+  return [...unpaid, ...received, ...voided];
+}
+
+/** Recording or voiding a payment is Owner/Accounts only and blocked once the job is CLOSED or CANCELLED. */
+export function canRecordOrVoidPayment(actor: Pick<User, "role">, job: Pick<JobRef, "main_status">) {
+  return (actor.role === "admin" || actor.role === "accounts") && job.main_status !== "CLOSED" && job.main_status !== "CANCELLED";
+}
+
+/** An invoice may be voided (Owner/Accounts) only while unpaid and the job is not terminal. */
+export function canVoidCurrentInvoice(actor: Pick<User, "role">, view: Pick<JobView, "invoice" | "payments"> & { job: Pick<JobRef, "main_status"> }) {
+  const invoice = view.invoice;
+  return Boolean(invoice && !invoice.voided_at) && canRecordOrVoidPayment(actor, view.job) && !view.payments.some((payment) => payment.invoice_id === invoice!.id && !payment.voided_at);
+}

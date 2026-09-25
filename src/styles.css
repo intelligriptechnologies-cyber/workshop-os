@@ -1775,3 +1775,13 @@ th {
 .not-yet-divider { position: relative; margin: .5rem 0; padding: .35rem 0 .35rem 1.35rem; border-left: 2px solid #bed0e2; color: #596878; font-size: .8rem; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; }
 .not-yet-divider span { display: inline-block; padding: .15rem .6rem; border: 1px dashed #8b97a6; border-radius: 999px; background: #f4f7fa; }
 @media (max-width: 640px) { .data-flow-line .timeline-event { grid-template-columns: minmax(0, 1fr); } }
+
+/* Manage Invoice/Payment tabs and Payments screen: inline-expand rows (#45) */
+.billing-row-void td { opacity: 0.6; }
+.billing-detail-row > td { background: #f7f9fc; padding: 12px 16px; }
+.billing-detail { display: grid; gap: 10px; }
+.billing-detail h3 { margin: 0; }
+.status-pill { display: inline-block; margin-left: 8px; padding: 2px 8px; border-radius: 999px; border: 1px solid currentColor; font-size: 12px; font-weight: 600; vertical-align: middle; }
+.status-void { color: #b42318; }
+.status-cleared, .status-received { color: #067647; }
+.status-open, .status-unpaid { color: #b54708; }

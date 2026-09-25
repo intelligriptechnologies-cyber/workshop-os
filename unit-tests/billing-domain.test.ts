@@ -254,3 +254,24 @@ test("manual Delivered action requires a closed gate-passed job and records deli
   assert.equal(deliveredItem?.checked_at, "2026-09-24T12:00:00.000Z");
   assert.throws(() => markJobDeliveredForActor(db, 1, 3, "Accounts Desk", 151, "Again"), /already marked Delivered/);
 });
+
+test("payments mixed list orders unpaid, received, then void and gates void/record actions", async () => {
+  const { mixedPaymentRows, canRecordOrVoidPayment, canVoidCurrentInvoice } = await import("../src/invoice-math");
+  const inv = (id: number, voided_at: string | null = null) => ({ id, voided_at }) as never;
+  const pay = (id: number, invoice_id: number, voided_at: string | null = null) => ({ id, invoice_id, voided_at }) as never;
+  const views = [
+    { invoice: inv(1), payments: [pay(10, 1, "x")] },
+    { invoice: inv(2), payments: [pay(11, 2)] },
+    { invoice: inv(3, "v"), payments: [] },
+    { invoice: inv(4), payments: [] },
+    { invoice: undefined, payments: [] },
+  ] as never[];
+  const rows = mixedPaymentRows(views as never);
+  assert.deepEqual(rows.map((row) => row.kind), ["unpaid", "unpaid", "received", "void"]);
+  assert.equal(mixedPaymentRows(views as never, { includeUnpaid: false }).length, 2);
+  assert.equal(canRecordOrVoidPayment({ role: "accounts" }, { main_status: "COMPLETED" }), true);
+  assert.equal(canRecordOrVoidPayment({ role: "service" }, { main_status: "COMPLETED" }), false);
+  assert.equal(canRecordOrVoidPayment({ role: "admin" }, { main_status: "CLOSED" }), false);
+  assert.equal(canVoidCurrentInvoice({ role: "admin" }, { invoice: inv(4), payments: [], job: { main_status: "COMPLETED" } } as never), true);
+  assert.equal(canVoidCurrentInvoice({ role: "admin" }, { invoice: inv(2), payments: [pay(11, 2)], job: { main_status: "COMPLETED" } } as never), false);
+});
