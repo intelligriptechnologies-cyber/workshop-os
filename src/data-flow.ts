@@ -31,7 +31,7 @@ export function filterDataFlowJobs(jobs: JobView[], filters: DataFlowFilters) {
   );
 }
 
-export type DataFlowEventKind = "visit" | "checklist" | "status" | "estimate" | "invoice" | "payment" | "document" | "media";
+export type DataFlowEventKind = "visit" | "checklist" | "status" | "estimate" | "invoice" | "payment" | "document" | "media" | "material";
 
 export interface DataFlowEvent {
   id: string;
@@ -123,6 +123,14 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
     const current = pass.id === view.gate_pass?.id && pass.invoice_id === view.invoice?.id && !pass.voided_at;
     if (hasTime(pass.created_at)) events.push({ id: `gate-pass-create-${pass.id}`, kind: "document", timestamp: pass.created_at, title: "Gate Pass PDF generated", detail: pass.gate_pass_no, state: current ? "current" : "historical" });
     if (hasTime(pass.voided_at)) events.push({ id: `gate-pass-void-${pass.id}`, kind: "document", timestamp: pass.voided_at, title: "Gate Pass PDF voided", detail: pass.void_reason || pass.gate_pass_no, state: "voided" });
+  }
+
+  for (const event of view.material_events ?? []) {
+    const item = (id: number | null) => view.inventory.find((candidate) => candidate.id === id)?.name ?? `Item ${id}`;
+    const detail = event.kind === "release"
+      ? `${item(event.new_item_id)} x ${event.new_qty} released to job`
+      : `${item(event.old_item_id)} x ${event.old_qty} -> ${item(event.new_item_id)} x ${event.new_qty} · ${event.note}`;
+    if (hasTime(event.at)) events.push({ id: `material-${event.kind}-${event.id}`, kind: "material", timestamp: event.at, title: event.kind === "release" ? "Material released" : "Issued material edited", detail, actor: actorName(event.by_user, users), state: "current" });
   }
 
   for (const photo of view.photo_history ?? view.photos) {

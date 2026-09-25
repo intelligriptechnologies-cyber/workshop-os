@@ -7,6 +7,9 @@ import {
   cancelMaterialRowForActor,
   createSchema,
   deleteMaterialRowForActor,
+  editIssuedMaterialRowForActor,
+  materialStockOnHand,
+  releaseMaterialRowForActor,
   migrateSchema,
   readState,
   reconcileArtifactChecklist,
@@ -21,7 +24,7 @@ async function database(main = "IN_PROGRESS", sub = "Material Requested") {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
   const db = new SQL.Database();
   createSchema(db);
-  db.run("insert into users(id,email,name,role,password) values (1,'owner@test','Owner','admin','x'),(2,'linked@test','Linked','service','x'),(3,'other@test','Other','service','x'),(5,'tech@test','Tech','tech','x')");
+  db.run("insert into users(id,email,name,role,password) values (1,'owner@test','Owner','admin','x'),(2,'linked@test','Linked','service','x'),(3,'other@test','Other','service','x'),(5,'tech@test','Tech','tech','x'),(6,'store@test','Store','store','x')");
   db.run("insert into inventory(id,sku,category,name,unit,stock_qty,low_stock_qty) values (1,'P-1','PPF','Gloss PPF','metre',10,2),(2,'C-1','Paint','Clear','litre',4,1)");
   db.run("insert into visits(id,advisor_id,requested_work) values(1,2,'Repair')");
   db.run(`insert into job_cards(id,job_no,visit_id,advisor_id,technician_id,main_status,sub_status,qc_status,washing_needed,closed_at) values(1,'JC-1',1,2,5,'${main}','${sub}','Pending',0,'')`);
@@ -122,4 +125,82 @@ test("permitted actions per row state", () => {
   assert.deepEqual(materialRowActions({ status: "Requested" }), ["re-request", "cancel"]);
   assert.deepEqual(materialRowActions({ status: "Issued" }), []);
   assert.deepEqual(materialRowActions({ status: "Requested", invoiced_in: 4 }), []);
+});
+
+async function requested(qty: number, itemId = 1) {
+  const db = await database();
+  const id = addMaterialRowForActor(db, 1, 2, itemId, qty);
+  requestMaterialRowForActor(db, id, 2);
+  return { db, id };
+}
+const ledgerRows = (db: Database) => rows<{ qty: number; type: string; by_user: number }>(db, "select qty,type,by_user from stock_ledger order by id");
+
+test("Store release writes a signed ledger record, decrements stock and ticks Materials Issued", async () => {
+  const { db, id } = await requested(3);
+  assert.throws(() => releaseMaterialRowForActor(db, id, 2), /Only Store or the Owner/);
+  releaseMaterialRowForActor(db, id, 6);
+  assert.equal(status(db, id), "Issued");
+  assert.deepEqual(ledgerRows(db), [{ qty: 3, type: "issue", by_user: 6 }]);
+  assert.equal(materialStockOnHand(db, 1), 7);
+  assert.equal(ticked(db, "Material Issued"), true);
+  assert.throws(() => releaseMaterialRowForActor(db, id, 6), /cannot be released/);
+  assert.equal(readState(db).jobs[0].material_events?.[0].kind, "release");
+});
+
+test("release over stock is blocked and writes nothing", async () => {
+  const { db, id } = await requested(11);
+  assert.throws(() => releaseMaterialRowForActor(db, id, 6), /only 10 in stock/);
+  assert.equal(status(db, id), "Requested");
+  assert.equal(ledgerRows(db).length, 0);
+});
+
+test("release is allowed on HOLD but not once COMPLETED", async () => {
+  const { db, id } = await requested(2);
+  db.run("update job_cards set main_status='HOLD' where id=1");
+  releaseMaterialRowForActor(db, id, 1);
+  assert.equal(status(db, id), "Issued");
+  const second = await requested(2);
+  second.db.run("update job_cards set main_status='COMPLETED' where id=1");
+  assert.throws(() => releaseMaterialRowForActor(second.db, second.id, 6), /IN_PROGRESS or HOLD/);
+});
+
+test("Materials Issued needs every non-cancelled row Issued and unticks on a new request", async () => {
+  const { db, id } = await requested(1);
+  const other = addMaterialRowForActor(db, 1, 2, 2, 1);
+  requestMaterialRowForActor(db, other, 2);
+  releaseMaterialRowForActor(db, id, 6);
+  assert.equal(ticked(db, "Material Issued"), false);
+  cancelMaterialRowForActor(db, other, 2);
+  reconcileArtifactChecklist(db, 1);
+  assert.equal(ticked(db, "Material Issued"), true);
+  requestMaterialRowForActor(db, addMaterialRowForActor(db, 1, 2, 1, 1), 2);
+  assert.equal(ticked(db, "Material Issued"), false);
+});
+
+test("Issued edit needs a note, stays Issued, adjusts stock by the difference and logs old/new", async () => {
+  const { db, id } = await requested(3);
+  releaseMaterialRowForActor(db, id, 6);
+  assert.throws(() => editIssuedMaterialRowForActor(db, id, 6, 1, 5, "  "), /note is required/);
+  assert.throws(() => editIssuedMaterialRowForActor(db, id, 5, 1, 5, "x"), /Only Store/);
+  assert.throws(() => editIssuedMaterialRowForActor(db, id, 3, 1, 5, "x"), /Only Store/);
+  editIssuedMaterialRowForActor(db, id, 2, 1, 5, "Customer wants more");
+  assert.equal(status(db, id), "Issued");
+  assert.equal(materialStockOnHand(db, 1), 5);
+  assert.deepEqual(ledgerRows(db).at(-1), { qty: 2, type: "adjustment", by_user: 2 });
+  assert.equal(ticked(db, "Material Issued"), true);
+  const event = readState(db).jobs[0].material_events!.at(-1)!;
+  assert.deepEqual([event.kind, event.old_qty, event.new_qty, event.note], ["issued-edit", 3, 5, "Customer wants more"]);
+  editIssuedMaterialRowForActor(db, id, 6, 1, 1, "Returned surplus to shelf");
+  assert.equal(materialStockOnHand(db, 1), 9);
+  assert.throws(() => editIssuedMaterialRowForActor(db, id, 6, 1, 99, "too many"), /only 9 in stock|more; only/);
+});
+
+test("Issued edit can switch item and is blocked once invoiced", async () => {
+  const { db, id } = await requested(3);
+  releaseMaterialRowForActor(db, id, 6);
+  editIssuedMaterialRowForActor(db, id, 6, 2, 2, "Wrong item picked");
+  assert.equal(materialStockOnHand(db, 1), 10);
+  assert.equal(materialStockOnHand(db, 2), 2);
+  db.run("update material_requests set invoiced_in=9 where id=?", [id]);
+  assert.throws(() => editIssuedMaterialRowForActor(db, id, 6, 2, 1, "late"), /cannot be edited/);
 });

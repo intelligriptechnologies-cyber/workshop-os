@@ -1155,3 +1155,28 @@ test("owner adds, requests and cancels a material row with an over-stock warning
   await requested.getByRole("button", { name: "Cancel request" }).click();
   await expect(requested).toContainText("Cancelled");
 });
+
+test("owner releases a requested row, then edits it as Issued with a note", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: /Edit Job/ });
+  await editor.getByRole("tab", { name: "Materials" }).click();
+  await editor.getByLabel("Add material item", { exact: true }).fill("Tack");
+  await editor.getByRole("option", { name: /Tack Cloth/ }).getByRole("button").click();
+  await editor.getByLabel("Add material quantity").fill("2");
+  await editor.getByRole("button", { name: "Add row" }).click();
+  const row = editor.getByRole("list", { name: "Material rows" }).locator("li").last();
+  await row.getByRole("button", { name: "Request", exact: true }).click();
+  await row.getByRole("button", { name: "Release" }).click();
+  await expect(row).toContainText("Issued");
+  await expect(row).toContainText("in stock: 12");
+  await row.getByRole("button", { name: "Edit issued row" }).click();
+  await row.getByLabel("Material quantity").fill("3");
+  await row.getByRole("button", { name: "Save issued edit" }).click();
+  await expect(row.getByRole("alert")).toContainText("note is required");
+  await row.getByLabel("Edit note").fill("Customer wanted more");
+  await row.getByRole("button", { name: "Save issued edit" }).click();
+  await expect(row).toContainText("in stock: 11");
+  await expect(row).toContainText("Issued");
+});

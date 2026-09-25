@@ -1,7 +1,7 @@
 import { WORKBOOK_INVENTORY_SEED } from "./inventory-seed";
 import { serializeDamageMarks, type DamageMark } from "./job-sheet";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
-import { canManageMaterialRows, materialRowActions, materialRowStatus, MATERIALS_CHECKLIST_LABELS, overStockWarning, type MaterialRowAction } from "./materials";
+import { canEditIssuedMaterialRows, canReleaseMaterialRows, canManageMaterialRows, materialRowActions, materialRowStatus, MATERIALS_CHECKLIST_LABELS, materialRowActionsFor, overStockWarning, type MaterialRowAction } from "./materials";
 import type {
   ChecklistCycle,
   ChecklistItem,
@@ -17,6 +17,7 @@ import type {
   JobCard,
   JobView,
   MainStatus,
+  MaterialEvent,
   MaterialMovement,
   MaterialRequest,
   Payment,
@@ -143,6 +144,7 @@ export function readState(db: Database): WorkshopState {
   const historyByJob = groupBy(all<StatusHistory>(db, "select * from status_history order by id desc"), (row) => row.job_card_id);
   const cyclesByJob = groupBy(all<ChecklistCycle>(db, "select * from checklist_cycles order by cycle_number, id"), (row) => row.job_card_id);
   const checklistByJob = groupBy(all<ChecklistItem>(db, "select * from checklist_items order by cycle_number, sort_order, id"), (row) => row.job_card_id);
+  const materialEventsByJob = groupBy(all<MaterialEvent>(db, "select * from material_events order by id"), (row) => row.job_card_id);
   const movements = all<MaterialMovement>(db, "select * from material_movements order by id desc");
   const movementsByJob = groupBy(movements, (row) => row.job_card_id);
   const globalMovements = movementsByJob.get(0) ?? [];
@@ -156,8 +158,9 @@ export function readState(db: Database): WorkshopState {
     const estimate = jobEstimates.at(-1);
     const estimate_items = estimate ? estimateItemsByEstimate.get(estimate.id) ?? [] : [];
     const material_requests = materialByJob.get(job.id) ?? [];
-    const materialInventory = material_requests.map((request) => allInventory.get(request.item_id))
-      .filter(Boolean) as InventoryItem[];
+    const jobMaterialEvents = materialEventsByJob.get(job.id) ?? [];
+    const materialItemIds = new Set([...material_requests.map((request) => request.item_id), ...jobMaterialEvents.flatMap((event) => [event.old_item_id, event.new_item_id])]);
+    const materialInventory = [...materialItemIds].map((id) => allInventory.get(id as number)).filter(Boolean) as InventoryItem[];
     const invoice = (invoicesByJob.get(job.id) ?? []).at(-1);
     return {
       job,
@@ -169,6 +172,7 @@ export function readState(db: Database): WorkshopState {
       estimate,
       estimate_items,
       material_requests,
+      material_events: jobMaterialEvents,
       inventory: materialInventory,
       tasks: tasksByJob.get(job.id) ?? [],
       invoice,
@@ -757,10 +761,10 @@ export function archiveMaterialRequest(db: Database, id: number, reason: string)
 
 export function issueMaterialQty(db: Database, requestId: number, qty: number) {
   const request = one<MaterialRequest>(db, "select * from material_requests where id=?", [requestId]);
-  const item = one<InventoryItem>(db, "select * from inventory where id=?", [request.item_id]);
-  if (qty <= 0 || qty > item.stock_qty) throw new Error(`Cannot issue ${qty}; stock available is ${item.stock_qty}`);
+  const onHand = materialStockOnHand(db, request.item_id);
+  if (qty <= 0 || qty > onHand) throw new Error(`Cannot issue ${qty}; stock available is ${onHand}`);
   db.run("update material_requests set issued_qty=issued_qty + ?, status=case when issued_qty + ? >= requested_qty then 'Issued' else status end, updated_at=datetime('now') where id=?", [qty, qty, requestId]);
-  db.run("update inventory set stock_qty=stock_qty - ?, updated_at=datetime('now') where id=?", [qty, request.item_id]);
+  ledger(db, request.job_card_id, requestId, request.item_id, qty, "issue", 0, "Issued to job");
   movement(db, request.job_card_id, request.item_id, "ISSUE", qty, "Issued to job");
   reconcileArtifactChecklist(db, request.job_card_id);
 }
@@ -787,7 +791,7 @@ export function reconcileMaterial(db: Database, requestId: number, used: number,
   reconcileMaterialQty(db, requestId, used, returned, wasted);
 }
 
-const MATERIAL_ACTION_VERB: Record<MaterialRowAction, string> = { request: "requested", edit: "edited", "re-request": "re-requested", cancel: "cancelled", delete: "deleted" };
+const MATERIAL_ACTION_VERB: Record<MaterialRowAction, string> = { release: "released", "edit-issued": "edited", request: "requested", edit: "edited", "re-request": "re-requested", cancel: "cancelled", delete: "deleted" };
 
 function assertMaterialManager(db: Database, jobId: number, actorId: number) {
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
@@ -859,6 +863,48 @@ export function reRequestMaterialRowForActor(db: Database, rowId: number, actorI
   assertMaterialInput(db, itemId, qty);
   db.run("update material_requests set item_id=?, requested_qty=?, status='Re-requested', updated_at=datetime('now') where id=?", [itemId, qty, rowId]);
   return afterMaterialRequest(db, one<MaterialRequest>(db, "select * from material_requests where id=?", [rowId]), actorId);
+}
+
+function ledger(db: Database, jobId: number, rowId: number, itemId: number, qty: number, type: "issue" | "adjustment", actorId: number, note: string) {
+  db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(?,?,?,?,?,?,?,?)", [jobId, rowId, itemId, qty, type, actorId, new Date().toISOString(), note]);
+}
+
+function actorAndJob(db: Database, rowId: number, actorId: number) {
+  const row = one<MaterialRequest>(db, "select * from material_requests where id=? and archived_at is null", [rowId]);
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [row.job_card_id]);
+  return { row, actor, job };
+}
+
+/** Store/Owner release a Requested or Re-requested row: writes a signed stock-outward ledger record. Blocked over stock. Allowed on HOLD. */
+export function releaseMaterialRowForActor(db: Database, rowId: number, actorId: number) {
+  const { row, actor, job } = actorAndJob(db, rowId, actorId);
+  if (!canReleaseMaterialRows(actor, job)) throw new Error("Only Store or the Owner can release material, while the job card is IN_PROGRESS or HOLD.");
+  if (!materialRowActionsFor(actor, job, row).includes("release")) throw new Error(`A ${materialRowStatus(row)} material row cannot be released.`);
+  const onHand = materialStockOnHand(db, row.item_id);
+  if (row.requested_qty > onHand) throw new Error(`Cannot release ${row.requested_qty}; only ${onHand} in stock.`);
+  db.run("update material_requests set status='Issued', issued_qty=requested_qty, updated_at=datetime('now') where id=?", [rowId]);
+  ledger(db, job.id, rowId, row.item_id, row.requested_qty, "issue", actorId, "Released to job");
+  db.run("insert into material_events(job_card_id,material_row_id,kind,by_user,at,note,old_item_id,old_qty,new_item_id,new_qty) values(?,?,?,?,?,?,?,?,?,?)", [job.id, rowId, "release", actorId, new Date().toISOString(), "Released to job", null, null, row.item_id, row.requested_qty]);
+  reconcileArtifactChecklist(db, job.id, actorId);
+}
+
+/** Edit an Issued row in place (ADR 0001): note required, old/new logged, stock difference applied at once. */
+export function editIssuedMaterialRowForActor(db: Database, rowId: number, actorId: number, itemId: number, qty: number, note: string) {
+  const { row, actor, job } = actorAndJob(db, rowId, actorId);
+  if (!canEditIssuedMaterialRows(actor, job)) throw new Error("Only Store, the Owner or the linked Service Advisor can edit an Issued row.");
+  if (!materialRowActionsFor(actor, job, row).includes("edit-issued")) throw new Error(`A ${materialRowStatus(row)} material row cannot be edited this way.`);
+  if (!note.trim()) throw new Error("A note is required to edit an Issued row.");
+  assertMaterialInput(db, itemId, qty);
+  const oldItem = row.item_id, oldQty = row.issued_qty || row.requested_qty;
+  if (itemId === oldItem && qty === oldQty) throw new Error("Nothing changed.");
+  const needed = itemId === oldItem ? qty - oldQty : qty;
+  if (needed > 0 && needed > materialStockOnHand(db, itemId)) throw new Error(`Cannot issue ${needed} more; only ${materialStockOnHand(db, itemId)} in stock.`);
+  const reason = note.trim();
+  if (itemId === oldItem) ledger(db, job.id, rowId, itemId, qty - oldQty, "adjustment", actorId, reason);
+  else { ledger(db, job.id, rowId, oldItem, -oldQty, "adjustment", actorId, reason); ledger(db, job.id, rowId, itemId, qty, "adjustment", actorId, reason); }
+  db.run("update material_requests set item_id=?, requested_qty=?, issued_qty=?, updated_at=datetime('now') where id=?", [itemId, qty, qty, rowId]);
+  db.run("insert into material_events(job_card_id,material_row_id,kind,by_user,at,note,old_item_id,old_qty,new_item_id,new_qty) values(?,?,?,?,?,?,?,?,?,?)", [job.id, rowId, "issued-edit", actorId, new Date().toISOString(), reason, oldItem, oldQty, itemId, qty]);
 }
 
 /** Only Requested/Re-requested rows can be cancelled; Materials Requested stays ticked. */
@@ -1507,6 +1553,7 @@ export function createSchema(db: Database) {
 }
 
 export function migrateSchema(db: Database) {
+  db.run("create table if not exists material_events(id integer primary key, job_card_id integer, material_row_id integer, kind text, by_user integer, at text, note text, old_item_id integer, old_qty real, new_item_id integer, new_qty real)");
   db.run("create table if not exists stock_ledger(id integer primary key, job_card_id integer, material_row_id integer, item_id integer, qty real, type text, by_user integer, at text, note text)");
   ensureColumn(db, "material_requests", "status", "text not null default 'Requested'");
   ensureColumn(db, "material_requests", "invoiced_in", "integer");

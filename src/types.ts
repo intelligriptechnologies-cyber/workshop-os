@@ -237,6 +237,20 @@ export interface MaterialRequest {
   updated_at?: string;
 }
 
+export interface MaterialEvent {
+  id: number;
+  job_card_id: number;
+  material_row_id: number;
+  kind: "release" | "issued-edit";
+  by_user: number;
+  at: string;
+  note: string;
+  old_item_id: number | null;
+  old_qty: number | null;
+  new_item_id: number;
+  new_qty: number;
+}
+
 export interface InventoryItem {
   id: number;
   sku: string;
@@ -430,6 +444,7 @@ export interface JobView {
   estimate?: Estimate;
   estimate_items: EstimateItem[];
   material_requests: MaterialRequest[];
+  material_events?: MaterialEvent[];
   inventory: InventoryItem[];
   tasks: Task[];
   invoice?: Invoice;
