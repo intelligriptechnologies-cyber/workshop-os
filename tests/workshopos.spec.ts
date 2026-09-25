@@ -1100,3 +1100,27 @@ async function readWorksheet(download: import("@playwright/test").Download) {
   const workbook = XLSX.readFile(filePath);
   return XLSX.utils.sheet_to_json<(string | number)[]>(workbook.Sheets.Report, { header: 1, defval: "" });
 }
+
+test("job sheet intake fields and damage marks persist through the Job Card edit dialog", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.locator(".record-card").first().getByRole("button", { name: "Edit", exact: true }).click();
+  const sheet = page.getByRole("region", { name: "Job sheet" });
+  await sheet.getByLabel("Service Type").selectOption("PPF");
+  await sheet.getByLabel("Engine Number").fill("ENG-E2E-1");
+  await sheet.getByLabel("Address").fill("12 MG Road");
+  await sheet.getByRole("button", { name: "Save Job Sheet" }).click();
+  const diagram = sheet.getByTestId("damage-diagram").locator("svg");
+  await diagram.click({ position: { x: 20, y: 30 } });
+  await diagram.click({ position: { x: 60, y: 90 } });
+  await expect(sheet.getByTestId("damage-mark")).toHaveCount(2);
+  await sheet.getByTestId("damage-mark").first().click();
+  await expect(sheet.getByTestId("damage-mark")).toHaveCount(1);
+  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
+  const view = page.getByRole("region", { name: "Job sheet" });
+  await expect(view.getByText("ENG-E2E-1")).toBeVisible();
+  await expect(view.getByText("12 MG Road")).toBeVisible();
+  await expect(view.getByText("PPF", { exact: true })).toBeVisible();
+  await expect(view.getByTestId("damage-mark")).toHaveCount(1);
+});

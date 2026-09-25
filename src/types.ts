@@ -123,6 +123,7 @@ export interface Customer {
   name: string;
   mobile: string;
   type: string;
+  address?: string;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;
@@ -137,6 +138,7 @@ export interface Vehicle {
   model: string;
   color: string;
   km: number;
+  engine_no?: string;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;
@@ -180,6 +182,11 @@ export interface JobCard {
   delivery_by?: string;
   final_km?: number;
   acknowledgement?: string;
+  service_type?: string;
+  pickup_drop?: string;
+  estimated_delivery?: string;
+  /** JSON array of DamageMark; see job-sheet.ts. */
+  damage_marks?: string;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;

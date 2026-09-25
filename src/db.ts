@@ -1,3 +1,4 @@
+import { serializeDamageMarks, type DamageMark } from "./job-sheet";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 import type {
   ChecklistCycle,
@@ -337,18 +338,19 @@ function validateUser(db: Database, payload: Pick<User, "email" | "name" | "role
   if (duplicate) throw new Error("A user with this email already exists.");
 }
 
-export function createCustomer(db: Database, payload: Pick<Customer, "name" | "mobile" | "type">) {
+export function createCustomer(db: Database, payload: Pick<Customer, "name" | "mobile" | "type"> & { address?: string }) {
   validateCustomer(db, payload);
-  return insert(db, "insert into customers(name, mobile, type, created_at, updated_at) values (?, ?, ?, datetime('now'), datetime('now'))", [
+  return insert(db, "insert into customers(name, mobile, type, address, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), datetime('now'))", [
     payload.name.trim(),
     payload.mobile.trim(),
     payload.type.trim(),
+    (payload.address ?? "").trim(),
   ]);
 }
 
-export function updateCustomer(db: Database, id: number, payload: Pick<Customer, "name" | "mobile" | "type">) {
+export function updateCustomer(db: Database, id: number, payload: Pick<Customer, "name" | "mobile" | "type"> & { address?: string }) {
   validateCustomer(db, payload, id);
-  db.run("update customers set name=?, mobile=?, type=?, updated_at=datetime('now') where id=?", [payload.name.trim(), payload.mobile.trim(), payload.type.trim(), id]);
+  db.run("update customers set name=?, mobile=?, type=?, address=coalesce(?, address), updated_at=datetime('now') where id=?", [payload.name.trim(), payload.mobile.trim(), payload.type.trim(), payload.address == null ? null : payload.address.trim(), id]);
 }
 
 export function archiveCustomer(db: Database, id: number, reason: string) {
@@ -359,20 +361,21 @@ export function createVehicle(db: Database, payload: Omit<Vehicle, "id">) {
   validateVehicle(db, payload);
   return insert(
     db,
-    "insert into vehicles(customer_id, number, make, model, color, km, created_at, updated_at) values (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [payload.customer_id, payload.number.trim().toUpperCase(), payload.make.trim(), payload.model.trim(), payload.color.trim(), payload.km],
+    "insert into vehicles(customer_id, number, make, model, color, km, engine_no, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    [payload.customer_id, payload.number.trim().toUpperCase(), payload.make.trim(), payload.model.trim(), payload.color.trim(), payload.km, (payload.engine_no ?? "").trim()],
   );
 }
 
 export function updateVehicle(db: Database, id: number, payload: Omit<Vehicle, "id">) {
   validateVehicle(db, payload, id);
-  db.run("update vehicles set customer_id=?, number=?, make=?, model=?, color=?, km=?, updated_at=datetime('now') where id=?", [
+  db.run("update vehicles set customer_id=?, number=?, make=?, model=?, color=?, km=?, engine_no=coalesce(?, engine_no), updated_at=datetime('now') where id=?", [
     payload.customer_id,
     payload.number.trim().toUpperCase(),
     payload.make.trim(),
     payload.model.trim(),
     payload.color.trim(),
     payload.km,
+    payload.engine_no == null ? null : payload.engine_no.trim(),
     id,
   ]);
 }
@@ -413,6 +416,11 @@ export function receiveVehicle(
     requestedWork: string;
     advisorId: number;
     receptionId: number;
+    address?: string;
+    engineNo?: string;
+    serviceType?: string;
+    pickupDrop?: string;
+    estimatedDelivery?: string;
   },
 ) {
   if (!payload.customerName.trim()) throw new Error("Customer name is required.");
@@ -426,7 +434,7 @@ export function receiveVehicle(
   const customerId =
     payload.customerId ||
     maybe<{ id: number }>(db, "select id from customers where mobile=? and archived_at is null", [payload.mobile])?.id ||
-    createCustomer(db, { name: payload.customerName, mobile: payload.mobile, type: payload.customerType || "Individual" });
+    createCustomer(db, { name: payload.customerName, mobile: payload.mobile, type: payload.customerType || "Individual", address: payload.address });
   const vehicleId =
     payload.vehicleId ||
     maybe<{ id: number }>(db, "select id from vehicles where number=? and archived_at is null", [payload.vehicleNo.toUpperCase()])?.id ||
@@ -437,9 +445,10 @@ export function receiveVehicle(
       model: payload.model,
       color: payload.color,
       km: payload.km,
+      engine_no: payload.engineNo,
     });
-  updateCustomer(db, customerId, { name: payload.customerName, mobile: payload.mobile, type: payload.customerType || "Individual" });
-  updateVehicle(db, vehicleId, { customer_id: customerId, number: payload.vehicleNo, make: payload.make, model: payload.model, color: payload.color, km: payload.km });
+  updateCustomer(db, customerId, { name: payload.customerName, mobile: payload.mobile, type: payload.customerType || "Individual", address: payload.address });
+  updateVehicle(db, vehicleId, { customer_id: customerId, number: payload.vehicleNo, make: payload.make, model: payload.model, color: payload.color, km: payload.km, engine_no: payload.engineNo });
   const visitId = insert(
     db,
     "insert into visits(customer_id, vehicle_id, advisor_id, received_by, received_at, fuel, keys, accessories, requested_work, photos_note, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
@@ -450,6 +459,7 @@ export function receiveVehicle(
     "insert into job_cards(job_no, visit_id, advisor_id, technician_id, main_status, sub_status, work_list, promised_at, qc_status, washing_needed, closed_at, advisor_notes, customer_instructions, internal_instructions, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
     [`JC-${new Date().getFullYear()}-${String(1247 + visitId).padStart(6, "0")}`, visitId, payload.advisorId, 6, "NEW", "Gather Requirements", payload.requestedWork, "Tomorrow 6:00 PM", "Pending", 0, "", "", payload.requestedWork, ""],
   );
+  db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, damage_marks='[]' where id=?", [payload.serviceType ?? "", payload.pickupDrop ?? "", payload.estimatedDelivery ?? "", jobId]);
   ensureLifecycleChecklist(db, jobId, "NEW", "Gather Requirements");
   insert(db, "insert into tasks(job_card_id, technician_id, title, status, notes, created_at, updated_at) values (?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
     jobId,
@@ -602,6 +612,38 @@ export function updateJobCardForActor(
 ) {
   assertJobLifecycleMutationAccess(db, jobId, actorId);
   updateJobCard(db, jobId, payload);
+}
+
+export interface JobSheetInput {
+  service_type?: string;
+  pickup_drop?: string;
+  estimated_delivery?: string;
+  fuel?: string;
+  accessories?: string;
+  engine_no?: string;
+  address?: string;
+}
+
+/** Saves the paper job-sheet intake fields across the Job Card, its Visit, Vehicle and Customer. */
+export function updateJobSheetForActor(db: Database, jobId: number, actorId: number, input: JobSheetInput) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  const visit = one<Visit>(db, "select * from visits where id=?", [job.visit_id]);
+  db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, updated_at=datetime('now') where id=?", [
+    input.service_type ?? job.service_type ?? "",
+    input.pickup_drop ?? job.pickup_drop ?? "",
+    input.estimated_delivery ?? job.estimated_delivery ?? "",
+    jobId,
+  ]);
+  db.run("update visits set fuel=?, accessories=?, updated_at=datetime('now') where id=?", [input.fuel ?? visit.fuel, input.accessories ?? visit.accessories, visit.id]);
+  if (input.engine_no !== undefined) db.run("update vehicles set engine_no=?, updated_at=datetime('now') where id=?", [input.engine_no.trim(), visit.vehicle_id]);
+  if (input.address !== undefined) db.run("update customers set address=?, updated_at=datetime('now') where id=?", [input.address.trim(), visit.customer_id]);
+}
+
+/** Persists the tap-to-mark damage diagram with the Job Card. */
+export function setDamageMarksForActor(db: Database, jobId: number, actorId: number, marks: DamageMark[]) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  db.run("update job_cards set damage_marks=?, updated_at=datetime('now') where id=?", [serializeDamageMarks(marks), jobId]);
 }
 
 // True archive / soft-delete: removes the job from active views. Used by admin "Archive" actions
@@ -1356,10 +1398,10 @@ export function invoiceItemsTotal(items: EstimateItem[], estimate?: Estimate) {
 export function createSchema(db: Database) {
   db.run(`
     create table if not exists users(id integer primary key, email text unique, name text, role text, password text);
-    create table if not exists customers(id integer primary key, name text, mobile text unique, type text);
-    create table if not exists vehicles(id integer primary key, customer_id integer, number text unique, make text, model text, color text, km integer);
+    create table if not exists customers(id integer primary key, name text, mobile text unique, type text, address text);
+    create table if not exists vehicles(id integer primary key, customer_id integer, number text unique, make text, model text, color text, km integer, engine_no text);
     create table if not exists visits(id integer primary key, customer_id integer, vehicle_id integer, advisor_id integer, received_by integer, received_at text, fuel text, keys text, accessories text, requested_work text, photos_note text);
-    create table if not exists job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text);
+    create table if not exists job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text, service_type text, pickup_drop text, estimated_delivery text, damage_marks text);
     create table if not exists status_history(id integer primary key, job_card_id integer, main_status text, sub_status text, note text, created_at text);
     create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
     create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
@@ -1434,6 +1476,12 @@ export function migrateSchema(db: Database) {
   ensureColumn(db, "job_cards", "delivery_by", "text");
   ensureColumn(db, "job_cards", "final_km", "real");
   ensureColumn(db, "job_cards", "acknowledgement", "text");
+  ensureColumn(db, "job_cards", "service_type", "text");
+  ensureColumn(db, "job_cards", "pickup_drop", "text");
+  ensureColumn(db, "job_cards", "estimated_delivery", "text");
+  ensureColumn(db, "job_cards", "damage_marks", "text");
+  ensureColumn(db, "vehicles", "engine_no", "text");
+  ensureColumn(db, "customers", "address", "text");
   ensureColumn(db, "tasks", "started_at", "text");
   ensureColumn(db, "tasks", "paused_at", "text");
   ensureColumn(db, "tasks", "completed_at", "text");

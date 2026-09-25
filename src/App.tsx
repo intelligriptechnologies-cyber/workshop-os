@@ -101,6 +101,7 @@ import { activeFilterSummary, applyFilterDraft, clearFilterDraft, DEFAULT_PAGE_S
 import type { ExportColumn } from "./export-utils";
 import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
 import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
+import { JobSheetSection } from "./job-sheet-ui";
 import { JOB_CARD_TABS, isStubTab, resolveJobCardFooter, type FooterAction, type JobCardTabKey } from "./job-card-layout";
 import { Dialog, DownloadMenu, handleTabListKeyDown, ListSearchActions, PageSizeSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
@@ -872,6 +873,11 @@ function Reception({
     accessories: "Mats, charger",
     requestedWork: "PPF inspection, detailing",
     advisorId: advisors[0]?.id ?? 2,
+    address: "",
+    engineNo: "",
+    serviceType: "",
+    pickupDrop: "",
+    estimatedDelivery: "",
   });
   const selectCustomer = (id: number) => {
     const customer = state.customers.find((item) => item.id === id);
@@ -2333,7 +2339,7 @@ function JobRecordDialog({ view, state, mutate, actor, mode, onClose, onAdminArc
   const footer = resolveJobCardFooter(view, actor);
   const actionLabels: Record<FooterAction, string> = { "create-estimate": "Create Estimate", "edit-estimate": "Edit Estimate", "create-invoice": "Create Invoice", "edit-invoice": "Edit Invoice" };
   const dialogFooter = <><div className="dialog-footer-actions" role="group" aria-label="Job actions">{footer.actions.map((action) => <button type="button" key={action} className={action.startsWith("create") ? "primary-action" : ""} onClick={() => setDocumentEditor(action.endsWith("estimate") ? "estimate" : "invoice")}>{actionLabels[action]}</button>)}</div><div className="dialog-footer-downloads" role="group" aria-label="Downloads"><span className="dialog-footer-label">Downloads</span>{footer.downloads.map((download) => download.enabled ? <DocumentDownloadButton key={download.kind} kind={download.kind} view={view} className="document-download" label={download.label} /> : <button type="button" key={download.kind} disabled title={download.reason} aria-label={`${download.label} download unavailable: ${download.reason}`}><Download size={15} />{download.label}</button>)}</div></>;
-  return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose} footer={dialogFooter}>{mode === "edit" && <JobLifecyclePanel view={view} users={state.users} actor={actor} mutate={mutate} />}<div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{JOB_CARD_TABS.map((item) => <button id={`job-record-tab-${view.job.id}-${item.key}`} aria-controls={`job-record-${view.job.id}-${item.key}`} tabIndex={tab === item.key ? 0 : -1} key={item.key} role="tab" aria-selected={tab === item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <section className="editor-block job-card-documents" aria-label="Current job documents"><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : isStubTab(tab) ? <p className="empty-state job-card-stub">{JOB_CARD_TABS.find((item) => item.key === tab)?.label} is coming soon.</p> : mode === "edit" ? <><JobEditor embedded key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /></div>}</div>{tab !== "documents" && documentEditor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && documentEditor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}</Dialog>;
+  return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose} footer={dialogFooter}>{mode === "edit" && <JobLifecyclePanel view={view} users={state.users} actor={actor} mutate={mutate} />}<div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{JOB_CARD_TABS.map((item) => <button id={`job-record-tab-${view.job.id}-${item.key}`} aria-controls={`job-record-${view.job.id}-${item.key}`} tabIndex={tab === item.key ? 0 : -1} key={item.key} role="tab" aria-selected={tab === item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <section className="editor-block job-card-documents" aria-label="Current job documents"><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : isStubTab(tab) ? <p className="empty-state job-card-stub">{JOB_CARD_TABS.find((item) => item.key === tab)?.label} is coming soon.</p> : mode === "edit" ? <><JobEditor embedded key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} /><JobSheetSection key={`sheet-${view.job.updated_at}`} view={view} actor={actor} mutate={mutate} editable />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobSheetSection view={view} actor={actor} mutate={mutate} /></div>}</div>{tab !== "documents" && documentEditor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && documentEditor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}</Dialog>;
 }
 
 function CustomerRecordDialog({ customer, state, mutate, mode, onClose }: { customer: Customer; state: WorkshopState; mutate: Mutate; mode: "view" | "edit"; onClose: () => void }) {
@@ -2954,6 +2960,11 @@ function textFields<T extends Record<string, unknown>>(form: T, setForm: (value:
     ["keys", "Keys"],
     ["accessories", "Accessories"],
     ["requestedWork", "Requested Work"],
+    ["address", "Address"],
+    ["engineNo", "Engine Number"],
+    ["serviceType", "Service Type"],
+    ["pickupDrop", "Pickup / Drop"],
+    ["estimatedDelivery", "Estimated Delivery"],
   ] as [keyof T, string][];
 }
 
