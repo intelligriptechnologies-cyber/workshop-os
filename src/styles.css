@@ -622,6 +622,12 @@ main {
 .estimate-item { display: grid; grid-template-columns: 130px minmax(180px, 1fr) 100px 120px auto; gap: 8px; align-items: center; }
 .estimate-item-heading { color: #657482; font-size: .78rem; font-weight: 700; text-transform: uppercase; }
 .estimate-total { display: flex; justify-content: flex-end; gap: 18px; padding: 12px; border-radius: 8px; background: #f4f7fa; }
+.invoice-item { display: grid; grid-template-columns: 110px minmax(180px, 1fr) 90px 110px 120px auto; gap: 8px; align-items: center; }
+.invoice-item-heading { color: #657482; font-size: .78rem; font-weight: 700; text-transform: uppercase; }
+.invoice-item output { text-align: right; font-variant-numeric: tabular-nums; }
+.invoice-totals { display: grid; grid-template-columns: repeat(4, minmax(120px, 1fr)); gap: 10px; padding: 14px; border-radius: 8px; background: #f4f7fa; }
+.invoice-totals span { display: grid; gap: 4px; color: #657482; }
+.invoice-totals strong { color: #17212b; font-size: 1rem; }
 .sr-only { position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px; overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0; }
 
 .desk-panel > form,
@@ -1445,6 +1451,7 @@ th {
 .document-center { display: grid; gap: .65rem; }
 .document-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .85rem; border: 1px solid #d8e0e8; border-radius: 10px; background: #fff; }
 .document-row > div { display: grid; gap: .2rem; }
+.document-row > .document-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: center; gap: .5rem; }
 .document-row span, .document-missing { color: #637083; font-size: .9rem; }
 .document-row.missing { background: #fff8f5; border-color: #f1cec2; }
 .document-download { display: inline-flex; align-items: center; gap: .35rem; margin-left: auto; min-height: 42px; padding: .35rem .7rem; border-color: #9ac7c4; background: #f2fbf8; color: #0f5c62; white-space: nowrap; }
@@ -1672,6 +1679,9 @@ th {
 
   .estimate-item { grid-template-columns: 1fr 1fr; padding-bottom: 10px; border-bottom: 1px solid #e5eaf0; }
   .estimate-item-heading { display: none; }
+  .invoice-item { grid-template-columns: 1fr 1fr; padding-bottom: 10px; border-bottom: 1px solid #e5eaf0; }
+  .invoice-item-heading { display: none; }
+  .invoice-totals { grid-template-columns: 1fr 1fr; }
 }
 
 /* Admin Console */

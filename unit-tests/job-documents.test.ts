@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { buildJobDocumentModel, documentFilename, resolveJobDocuments } from "../src/job-documents";
+import { buildJobDocumentModel, documentFilename, resolveJobDocumentActions, resolveJobDocuments } from "../src/job-documents";
 import { loadAdminDemoState } from "../src/admin-demo-state";
 import type { JobView } from "../src/types";
 
@@ -60,4 +60,24 @@ test("current document actions reject voided, unavailable, or mismatched financi
   assert.deepEqual(resolveJobDocuments(view).map((item) => [item.kind, item.available]), [["job-card", true], ["estimate", true], ["invoice", true], ["payment-receipt", false], ["gate-pass", false]]);
   assert.equal(resolveJobDocuments(job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: { ...currentInvoice, document_available: 0 } })).find((item) => item.kind === "invoice")?.available, false);
   assert.equal(resolveJobDocuments(job({ estimate: { ...job().estimate!, archived_at: "2026-09-24T10:00:00Z" } })).find((item) => item.kind === "estimate")?.available, false);
+});
+
+test("document actions reflect record availability, lifecycle, assignment and billing permissions", () => {
+  const owner = { id: 99, role: "admin" as const };
+  const advisor = { id: 1, role: "service" as const };
+  const otherAdvisor = { id: 4, role: "service" as const };
+  const accounts = { id: 5, role: "accounts" as const };
+  const missingEstimate = job({ estimate: undefined, estimate_items: [] });
+  assert.deepEqual(resolveJobDocumentActions("estimate", missingEstimate, owner), ["create-estimate"]);
+  assert.deepEqual(resolveJobDocumentActions("estimate", missingEstimate, advisor), ["create-estimate"]);
+  assert.deepEqual(resolveJobDocumentActions("estimate", missingEstimate, otherAdvisor), []);
+  assert.deepEqual(resolveJobDocumentActions("estimate", job(), advisor), ["edit-estimate", "download"]);
+
+  const completed = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: undefined, invoice_items: [] });
+  assert.deepEqual(resolveJobDocumentActions("invoice", completed, accounts), ["create-invoice"]);
+  assert.deepEqual(resolveJobDocumentActions("invoice", completed, advisor), []);
+  const invoiced = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "T-1", total: 1062, status: "Open", document_available: 1 } });
+  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, accounts), ["edit-invoice", "download"]);
+  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, advisor), ["download"]);
+  assert.deepEqual(resolveJobDocumentActions("job-card", invoiced, advisor), ["download"]);
 });

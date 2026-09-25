@@ -85,7 +85,9 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
         <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}<th>Actions</th></tr></thead><tbody>{paged.items.map((record) => <tr key={record.key}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}<td><div className="action-row"><button onClick={() => setEditor({ action: "view", record })}>View</button>{editable && <><button onClick={() => setEditor({ action: "edit", record })}>Edit</button>{mode !== "Delivery" && <button className="danger-action" onClick={() => setEditor({ action: "void", record })}>Void</button>}{mode === "Delivery" && !delivered(record.view) && <button className="primary-action" onClick={() => setEditor({ action: "deliver", record })}>Delivered</button>}</>}</div></td></tr>)}</tbody></table></div>
         {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={clear}>Clear filters</button></div>}
         <BillingPagination page={paged.page} count={paged.pageCount} onChange={setPage} />
-        {editor && <BillingDialog mode={mode} editor={editor} candidates={creatable} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}
+        {editor && mode === "Invoices" && (editor.action === "create" || editor.action === "view" || editor.action === "edit")
+          ? <InvoiceDialog action={editor.action} view={editor.record.view} candidates={creatable} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />
+          : editor && <BillingDialog mode={mode} editor={editor} candidates={creatable} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}
       </div>
     </section>
   );
@@ -94,6 +96,66 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
 function BillingPagination({ page, count, onChange }: { page: number; count: number; onChange: (page: number) => void }) {
   if (count <= 1) return null;
   return <nav className="result-pagination" aria-label="Billing results pagination"><button disabled={page === 1} onClick={() => onChange(page - 1)}>Previous page</button><span>Page {page} of {count}</span><button disabled={page === count} onClick={() => onChange(page + 1)}>Next page</button></nav>;
+}
+
+export interface InvoiceDialogProps {
+  action: "create" | "view" | "edit";
+  view: JobView;
+  candidates?: JobView[];
+  fixedJob?: boolean;
+  actor: User;
+  mutate: Mutate;
+  onClose: () => void;
+}
+
+export function InvoiceDialog({ action, view, candidates = [], fixedJob = false, actor, mutate, onClose }: InvoiceDialogProps) {
+  const [selected, setSelected] = useState(view);
+  const invoice = selected.invoice;
+  const initialItems = (invoice ? selected.invoice_items : selected.estimate_items).map((item) => ({ id: invoice ? item.id : undefined, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate }));
+  const [tally, setTally] = useState(invoice?.tally_invoice_no ?? "");
+  const [discount, setDiscount] = useState(invoice?.discount ?? selected.estimate?.discount ?? 0);
+  const [gstRate, setGstRate] = useState(invoice?.gst_rate ?? selected.estimate?.gst_rate ?? 18);
+  const [notes, setNotes] = useState(invoice?.notes ?? "");
+  const [documentAvailable, setDocumentAvailable] = useState(Boolean(invoice?.document_available ?? true));
+  const [items, setItems] = useState<InvoiceItemDraft[]>(initialItems);
+  const [error, setError] = useState("");
+  const readOnly = action === "view";
+  const financialLocked = Boolean(invoice && selected.payments.some((payment) => payment.invoice_id === invoice.id));
+  const lockFinancials = readOnly || financialLocked;
+  const subtotal = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
+  const taxable = Math.max(0, subtotal - discount);
+  const gstAmount = Math.round(taxable * gstRate) / 100;
+  const total = Math.round((taxable + gstAmount) * 100) / 100;
+  const chooseJob = (jobId: number) => {
+    const next = candidates.find((candidate) => candidate.job.id === jobId);
+    if (!next) return;
+    setSelected(next);
+    setTally("");
+    setDiscount(next.estimate?.discount ?? 0);
+    setGstRate(next.estimate?.gst_rate ?? 18);
+    setNotes("");
+    setDocumentAvailable(true);
+    setItems(next.estimate_items.map((item) => ({ kind: item.kind, description: item.description, qty: item.qty, rate: item.rate })));
+  };
+  const updateItem = (index: number, patch: Partial<InvoiceItemDraft>) => setItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    const ok = mutate((db) => action === "create"
+      ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, discount, gstRate, notes, documentAvailable, items })
+      : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, gstRate, notes, documentAvailable, items }), setError);
+    if (ok) onClose();
+  };
+  return <Dialog title={`${action[0].toUpperCase() + action.slice(1)} Invoice`} subtitle={`${selected.job.job_no} · ${selected.vehicle.number}`} onClose={onClose} wide><form className="billing-dialog-form" onSubmit={submit}>
+    {action === "create" && !fixedJob && candidates.length > 1 && <label>Job<select aria-label="Billing job" value={selected.job.id} onChange={(event) => chooseJob(Number(event.target.value))}>{candidates.map((candidate) => <option key={candidate.job.id} value={candidate.job.id}>{candidate.job.job_no} · {candidate.vehicle.number}</option>)}</select></label>}
+    <div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Discount<input aria-label="Invoice discount" type="number" min="0" step="0.01" value={discount} disabled={lockFinancials} onChange={(event) => setDiscount(Number(event.target.value))} /></label><label>GST %<input aria-label="Invoice GST" type="number" min="0" max="100" step="0.01" value={gstRate} disabled={lockFinancials} onChange={(event) => setGstRate(Number(event.target.value))} /></label></div>
+    <div className="estimate-items"><strong>Invoice items</strong><div className="invoice-item invoice-item-heading"><span>Type</span><span>Description</span><span>Quantity</span><span>Rate</span><span>Amount</span><span>Action</span></div>{items.map((item, index) => <div className="invoice-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={lockFinancials} onChange={(event) => updateItem(index, { kind: event.target.value as InvoiceItemDraft["kind"] })}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={lockFinancials} onChange={(event) => updateItem(index, { description: event.target.value })} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={lockFinancials} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} /><output aria-label={`Invoice item ${index + 1} amount`}>{money(item.qty * item.rate)}</output>{!lockFinancials && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!lockFinancials && <button type="button" onClick={() => setItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0 }])}>Add Invoice Item</button>}</div>
+    <div className="invoice-totals" aria-label="Invoice totals"><span>Subtotal <strong>{money(subtotal)}</strong></span><span>Discount <strong>{money(discount)}</strong></span><span>GST <strong>{money(gstAmount)}</strong></span><span>Total <strong>{money(total)}</strong></span></div>
+    <label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label>
+    {financialLocked && <p className="permission-note">Financial fields and line items are locked because this invoice has an active payment. Tally reference, notes, and document availability can still be updated.</p>}
+    {error && <p className="error-text" role="alert">{error}</p>}
+    {!readOnly && <div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit">Save Invoice</button></div>}
+  </form></Dialog>;
 }
 
 function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { mode: BillingMode; editor: Editor; candidates: JobView[]; actor: User; mutate: Mutate; onClose: () => void }) {

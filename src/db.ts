@@ -817,12 +817,14 @@ export function passQc(db: Database, jobId: number) {
 }
 
 export function generateInvoice(db: Database, jobId: number, tally: string) {
-  createInvoiceFromEstimate(db, jobId, { tallyInvoiceNo: tally, notes: "", documentAvailable: true });
+  const estimate = one<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [jobId]);
+  const items = all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id]);
+  createInvoiceFromEstimate(db, jobId, { tallyInvoiceNo: tally, discount: estimate.discount, gstRate: estimate.gst_rate, items, notes: "", documentAvailable: true });
   reconcileArtifactChecklist(db, jobId);
 }
 
-export interface CreateInvoiceInput { tallyInvoiceNo: string; notes: string; documentAvailable: boolean }
 export interface InvoiceItemInput { kind: "Service" | "Material"; description: string; qty: number; rate: number }
+export interface CreateInvoiceInput { tallyInvoiceNo: string; discount?: number; gstRate?: number; items?: InvoiceItemInput[]; notes: string; documentAvailable: boolean }
 export interface InvoiceFieldsInput { tallyInvoiceNo: string; discount: number; gstRate: number; notes: string; documentAvailable: boolean }
 
 export function canMutateBilling(actor: Pick<User, "role">) {
@@ -849,7 +851,6 @@ function validateInvoiceItem(input: InvoiceItemInput) {
 function recalculateInvoice(db: Database, invoiceId: number) {
   const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
   const subtotal = scalar<number>(db, "select coalesce(sum(qty*rate),0) from invoice_items where invoice_id=? and archived_at is null", [invoiceId]);
-  if (subtotal <= 0) throw new Error("An invoice requires at least one item with a positive total.");
   const taxable = Math.max(0, subtotal - invoice.discount);
   const gstAmount = Math.round(taxable * invoice.gst_rate) / 100;
   const total = Math.round((taxable + gstAmount) * 100) / 100;
@@ -858,7 +859,7 @@ function recalculateInvoice(db: Database, invoiceId: number) {
 
 export function updateInvoiceFields(db: Database, invoiceId: number, input: InvoiceFieldsInput) {
   const current = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
-  const changesFinancials = input.tallyInvoiceNo.trim() !== current.tally_invoice_no || input.discount !== current.discount || input.gstRate !== current.gst_rate;
+  const changesFinancials = input.discount !== current.discount || input.gstRate !== current.gst_rate;
   if (changesFinancials) assertInvoiceFinancialsEditable(db, invoiceId);
   if (!Number.isFinite(input.discount) || input.discount < 0) throw new Error("Invoice discount cannot be negative.");
   if (!Number.isFinite(input.gstRate) || input.gstRate < 0 || input.gstRate > 100) throw new Error("Invoice GST must be between 0 and 100.");
@@ -911,16 +912,22 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
   const existing = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
   if (existing) return existing.id;
   const estimate = one<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [jobId]);
-  const items = all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id]);
-  if (items.length === 0) throw new Error("An invoice requires at least one estimate item.");
+  const estimateItems = all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id]);
+  const items = input.items ?? estimateItems;
+  const discount = input.discount ?? estimate.discount;
+  const gstRate = input.gstRate ?? estimate.gst_rate;
+  if (items.length === 0) throw new Error("An invoice requires at least one item.");
+  if (!Number.isFinite(discount) || discount < 0) throw new Error("Invoice discount cannot be negative.");
+  if (!Number.isFinite(gstRate) || gstRate < 0 || gstRate > 100) throw new Error("Invoice GST must be between 0 and 100.");
+  items.forEach(validateInvoiceItem);
   db.run("savepoint create_invoice");
   try {
     const subtotal = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
-    const taxable = Math.max(0, subtotal - estimate.discount);
-    const gstAmount = Math.round(taxable * estimate.gst_rate) / 100;
+    const taxable = Math.max(0, subtotal - discount);
+    const gstAmount = Math.round(taxable * gstRate) / 100;
     const total = Math.round((taxable + gstAmount) * 100) / 100;
-    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, `INV-${String(8900 + jobId).padStart(5, "0")}`, input.tallyInvoiceNo.trim(), estimate.discount, estimate.gst_rate, subtotal, gstAmount, total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
-    for (const item of items) insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description, item.qty, item.rate]);
+    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, `INV-${String(8900 + jobId).padStart(5, "0")}`, input.tallyInvoiceNo.trim(), discount, gstRate, subtotal, gstAmount, total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
+    for (const item of items) insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description.trim(), item.qty, item.rate]);
     reconcileArtifactChecklist(db, jobId);
     db.run("release savepoint create_invoice");
     return id;
@@ -933,6 +940,8 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
 
 export function createInvoiceForActor(db: Database, jobId: number, actorId: number, input: CreateInvoiceInput) {
   assertBillingMutationAccess(db, actorId);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (job.main_status !== "COMPLETED") throw new Error("An invoice can only be created for a completed job.");
   return createInvoiceFromEstimate(db, jobId, input);
 }
 
@@ -949,15 +958,24 @@ export function saveInvoiceForActor(db: Database, invoiceId: number, actorId: nu
   const existing = all<InvoiceItem>(db, "select * from invoice_items where invoice_id=? and archived_at is null order by id", [invoiceId]);
   const existingIds = new Set(existing.map((item) => item.id));
   if (input.items.some((item) => item.id && !existingIds.has(item.id))) throw new Error("Invoice item does not belong to this invoice.");
+  input.items.forEach(validateInvoiceItem);
+  const financialsLocked = scalar<number>(db, "select count(*) from payments where invoice_id=? and voided_at is null", [invoiceId]) > 0;
+  const itemsChanged = input.items.length !== existing.length || input.items.some((item, index) => {
+    const saved = existing[index];
+    return !saved || item.id !== saved.id || item.kind !== saved.kind || item.description.trim() !== saved.description || item.qty !== saved.qty || item.rate !== saved.rate;
+  });
+  if (financialsLocked && itemsChanged) throw new Error("Invoice financial fields are locked after the first active payment.");
   db.run("savepoint save_invoice_editor");
   try {
     updateInvoiceFields(db, invoiceId, input);
-    for (const item of input.items) {
-      if (item.id) updateInvoiceItem(db, item.id, item);
-      else createInvoiceItem(db, invoiceId, item);
+    if (!financialsLocked) {
+      for (const item of input.items) {
+        if (item.id) updateInvoiceItem(db, item.id, item);
+        else createInvoiceItem(db, invoiceId, item);
+      }
+      const retained = new Set(input.items.flatMap((item) => item.id ? [item.id] : []));
+      for (const item of existing) if (!retained.has(item.id)) archiveInvoiceItem(db, item.id, "Removed in invoice editor");
     }
-    const retained = new Set(input.items.flatMap((item) => item.id ? [item.id] : []));
-    for (const item of existing) if (!retained.has(item.id)) archiveInvoiceItem(db, item.id, "Removed in invoice editor");
     db.run("release savepoint save_invoice_editor");
   } catch (error) {
     db.run("rollback to savepoint save_invoice_editor");

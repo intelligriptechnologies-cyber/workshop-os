@@ -102,9 +102,9 @@ import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } fro
 import { Dialog, DownloadMenu, handleTabListKeyDown, ListSearchActions, PageSizeSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
 import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey } from "./admin-demo-state";
-import { downloadJobDocument, printJobDocument, resolveJobDocuments, type DocumentKind } from "./job-documents";
+import { downloadJobDocument, printJobDocument, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind } from "./job-documents";
 import { buildDataFlowTimeline, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "./data-flow";
-import { BillingManager, type BillingMode } from "./billing-manager";
+import { BillingManager, InvoiceDialog, type BillingMode } from "./billing-manager";
 import { compressMediaFile, type JobMediaCategory, type PreparedJobMedia } from "./job-media";
 
 export const roleLabels: Record<Role, string> = {
@@ -1866,7 +1866,7 @@ function JobEditor({ view, users, mutate, actor }: { view: JobView; users: User[
       <JobLifecyclePanel view={view} users={users} actor={actor} mutate={mutate} />
       <section className="editor-block job-card-documents" aria-label="Current job documents">
         <PanelTitle icon={<FileText />} title="Current Documents" subtitle="Only active records are available" />
-        <JobDocuments view={view} />
+        <JobDocuments view={view} actor={actor} mutate={mutate} />
       </section>
     </>
   );
@@ -2242,7 +2242,7 @@ function DocumentDownloadButton({ kind, view, className = "document-download" }:
     setStatus("generating");
     setErrorMessage("");
     try {
-      if (kind === "estimate") {
+      if (kind === "estimate" || kind === "invoice") {
         await new Promise<void>((resolve) => window.setTimeout(resolve, 50));
         if (!downloadJobDocument(kind, view, loadAdminDemoState().businessSettings)) throw new Error("Document is not available.");
       } else {
@@ -2255,7 +2255,7 @@ function DocumentDownloadButton({ kind, view, className = "document-download" }:
       setStatus("error");
     }
   };
-  return <><button type="button" className={className} disabled={status === "generating"} aria-busy={status === "generating"} onClick={download}><Download size={15} />{status === "generating" ? "Generating…" : kind === "estimate" ? "Download PDF" : "Print / Save as PDF"}</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
+  return <><button type="button" className={className} disabled={status === "generating"} aria-busy={status === "generating"} onClick={download}><Download size={15} />{status === "generating" ? "Generating…" : kind === "estimate" || kind === "invoice" ? "Download PDF" : "Print / Save as PDF"}</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
 }
 
 function DataFlow({ view, users }: { view: JobView; users: User[] }) {
@@ -2294,9 +2294,13 @@ function JobSelector({ jobs, selectedJobId, onSelect, label = "Select job" }: { 
   return <div className="job-selector"><label>{label}<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Job, vehicle, customer or mobile" /></label><label>Matching jobs<select aria-label="Job results" value={selectedJobId ?? ""} onChange={(event) => event.target.value && onSelect(Number(event.target.value))}><option value="">Choose a job</option>{options.map((view) => <option key={view.job.id} value={view.job.id}>{view.job.job_no} · {view.vehicle.number} · {view.customer.name}</option>)}</select></label></div>;
 }
 
-function JobDocuments({ view }: { view: JobView }) {
+function JobDocuments({ view, actor, mutate }: { view: JobView; actor: User; mutate: Mutate }) {
+  const [editor, setEditor] = useState<"estimate" | "invoice">();
   const documents = resolveJobDocuments(view);
-  return <div className="document-center">{documents.length ? documents.map((document) => <div className={`document-row ${document.available ? "available" : "missing"}`} key={document.kind}><div><strong>{document.label}</strong><span>{document.available ? "Ready from current job data" : document.message}</span></div>{document.available && <DocumentDownloadButton kind={document.kind} view={view} className="primary-action document-download" />}</div>) : <p className="empty-state">No documents are available for this job.</p>}</div>;
+  return <><div className="document-center">{documents.length ? documents.map((document) => {
+    const actions = resolveJobDocumentActions(document.kind, view, actor);
+    return <div className={`document-row ${document.available ? "available" : "missing"}`} key={document.kind}><div><strong>{document.label}</strong><span>{document.available ? "Ready from current job data" : document.message}</span></div><div className="document-actions">{actions.includes("create-estimate") && <button type="button" className="primary-action" onClick={() => setEditor("estimate")}>Create Estimate</button>}{actions.includes("edit-estimate") && <button type="button" onClick={() => setEditor("estimate")}>Edit</button>}{actions.includes("create-invoice") && <button type="button" className="primary-action" onClick={() => setEditor("invoice")}>Create Invoice</button>}{actions.includes("edit-invoice") && <button type="button" onClick={() => setEditor("invoice")}>Edit</button>}{actions.includes("download") && <DocumentDownloadButton kind={document.kind} view={view} className="primary-action document-download" />}</div></div>;
+  }) : <p className="empty-state">No documents are available for this job.</p>}</div>{editor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}{editor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}</>;
 }
 
 function JobRecordDialog({ view, state, mutate, actor, mode, onClose, onAdminArchive }: { view: JobView; state: WorkshopState; mutate: Mutate; actor: User; mode: "view" | "edit"; onClose: () => void; onAdminArchive?: () => boolean }) {
@@ -2306,7 +2310,7 @@ function JobRecordDialog({ view, state, mutate, actor, mode, onClose, onAdminArc
     if (onAdminArchive()) onClose();
   };
   const panelId = `job-record-${view.job.id}-${tab}`;
-  return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose}><div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{(["details", "media", "documents"] as const).map((item) => <button id={`job-record-tab-${view.job.id}-${item}`} aria-controls={`job-record-${view.job.id}-${item}`} tabIndex={tab === item ? 0 : -1} key={item} role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "details" ? "Details" : item === "media" ? "Photos / Media" : "Documents"}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <JobDocuments view={view} /> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : mode === "edit" ? <><JobEditor key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobDocuments view={view} /></div>}</div></Dialog>;
+  return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose}><div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{(["details", "media", "documents"] as const).map((item) => <button id={`job-record-tab-${view.job.id}-${item}`} aria-controls={`job-record-${view.job.id}-${item}`} tabIndex={tab === item ? 0 : -1} key={item} role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "details" ? "Details" : item === "media" ? "Photos / Media" : "Documents"}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <JobDocuments view={view} actor={actor} mutate={mutate} /> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : mode === "edit" ? <><JobEditor key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobDocuments view={view} actor={actor} mutate={mutate} /></div>}</div></Dialog>;
 }
 
 function CustomerRecordDialog({ customer, state, mutate, mode, onClose }: { customer: Customer; state: WorkshopState; mutate: Mutate; mode: "view" | "edit"; onClose: () => void }) {

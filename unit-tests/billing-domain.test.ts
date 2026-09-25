@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
-import { archiveInvoiceItem, createInvoiceForActor, createInvoiceFromEstimate, createInvoiceItem, createSchema, editPayment, markJobDeliveredForActor, migrateSchema, readState, recordPayment, recordPaymentForActor, transitionJobStatus, updateInvoiceFields, updateInvoiceItem, voidInvoiceForActor, voidPayment } from "../src/db";
+import { archiveInvoiceItem, createInvoiceForActor, createInvoiceFromEstimate, createInvoiceItem, createSchema, editPayment, markJobDeliveredForActor, migrateSchema, readState, recordPayment, recordPaymentForActor, saveInvoiceForActor, transitionJobStatus, updateInvoiceFields, updateInvoiceItem, voidInvoiceForActor, voidPayment } from "../src/db";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
@@ -50,6 +50,46 @@ test("invoice copies estimate items exactly once and then remains independent", 
     { description: "Oil", rate: 250 },
   ]);
   assert.equal(readState(db).jobs[0].invoice_items.length, 2);
+});
+
+test("custom invoice creation persists finalized lines and totals and rejects invalid drafts without partial writes", async () => {
+  const db = await database();
+  insertCompletedJob(db);
+  const input = { tallyInvoiceNo: " TLY-CUSTOM ", discount: 75, gstRate: 12, notes: " Finalized in dialog ", documentAvailable: true, items: [
+    { kind: "Service" as const, description: " Custom labour ", qty: 3, rate: 400 },
+    { kind: "Material" as const, description: "Filter", qty: 2, rate: 125 },
+  ] };
+  const invoiceId = createInvoiceFromEstimate(db, 1, input);
+  const view = readState(db).jobs[0];
+  assert.deepEqual(view.invoice_items.map(({ kind, description, qty, rate }) => ({ kind, description, qty, rate })), [
+    { kind: "Service", description: "Custom labour", qty: 3, rate: 400 },
+    { kind: "Material", description: "Filter", qty: 2, rate: 125 },
+  ]);
+  assert.deepEqual({ tally: view.invoice?.tally_invoice_no, subtotal: view.invoice?.subtotal, discount: view.invoice?.discount, gst: view.invoice?.gst_amount, total: view.invoice?.total }, { tally: "TLY-CUSTOM", subtotal: 1450, discount: 75, gst: 165, total: 1540 });
+  assert.equal(createInvoiceFromEstimate(db, 1, { ...input, tallyInvoiceNo: "DUPLICATE" }), invoiceId);
+
+  const invalidDb = await database();
+  insertCompletedJob(invalidDb);
+  assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [] }), /at least one item/);
+  assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [{ kind: "Service", description: " ", qty: 1, rate: 1 }] }), /description/);
+  assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [{ kind: "Service", description: "Labour", qty: 0, rate: 1 }] }), /quantity/);
+  assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, gstRate: 101 }), /between 0 and 100/);
+  assert.equal(rows(invalidDb, "select id from invoices").length, 0);
+});
+
+test("post-payment invoice edits allow metadata but reject totals or line-item changes", async () => {
+  const db = await database();
+  insertCompletedJob(db);
+  const invoiceId = createInvoiceForActor(db, 1, 1, { tallyInvoiceNo: "TLY-1", discount: 100, gstRate: 18, notes: "Initial", documentAvailable: true, items: [
+    { kind: "Service", description: "Labour", qty: 2, rate: 500 },
+    { kind: "Material", description: "Oil", qty: 1, rate: 250 },
+  ] });
+  recordPayment(db, invoiceId, { amount: 100, mode: "Cash", otherDetail: "", reference: "", notes: "Deposit" });
+  const items = readState(db).jobs[0].invoice_items.map(({ id, kind, description, qty, rate }) => ({ id, kind, description, qty, rate }));
+  saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, gstRate: 18, notes: "Metadata updated", documentAvailable: false, items });
+  assert.deepEqual({ tally: readState(db).jobs[0].invoice?.tally_invoice_no, notes: readState(db).jobs[0].invoice?.notes, available: readState(db).jobs[0].invoice?.document_available }, { tally: "TLY-META", notes: "Metadata updated", available: 0 });
+  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 99, gstRate: 18, notes: "", documentAvailable: true, items }), /locked/);
+  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, gstRate: 18, notes: "", documentAvailable: true, items: items.map((item, index) => index ? item : { ...item, rate: 999 }) }), /locked/);
 });
 
 test("invoice fields and items recalculate subtotal, overall discount, GST, total, and document availability", async () => {

@@ -1,6 +1,6 @@
 import { jsPDF } from "jspdf";
 import type { AdminDemoState, WorkshopBusinessSettings } from "./admin-demo-state";
-import type { JobView } from "./types";
+import type { JobView, User } from "./types";
 import { buildPrintDocument, buildReportValues, renderReportTemplate, reportAvailable, type ReportCategory } from "./report-templates";
 
 export type DocumentKind = "estimate" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
@@ -11,6 +11,22 @@ export interface JobDocumentDescriptor {
   available: boolean;
   expected: boolean;
   message?: string;
+}
+
+export type JobDocumentAction = "create-estimate" | "edit-estimate" | "create-invoice" | "edit-invoice" | "download";
+
+export function resolveJobDocumentActions(kind: DocumentKind, view: JobView, actor: Pick<User, "id" | "role">): JobDocumentAction[] {
+  const canEditEstimate = actor.role === "admin" || (actor.role === "service" && actor.id === view.job.advisor_id);
+  const canEditInvoice = actor.role === "admin" || actor.role === "accounts";
+  if (kind === "estimate") {
+    if (recordExists(kind, view)) return [...(canEditEstimate ? ["edit-estimate" as const] : []), "download"];
+    return canEditEstimate ? ["create-estimate"] : [];
+  }
+  if (kind === "invoice") {
+    if (view.invoice && !view.invoice.voided_at) return [...(canEditInvoice ? ["edit-invoice" as const] : []), ...(recordExists(kind, view) ? ["download" as const] : [])];
+    return canEditInvoice && view.job.main_status === "COMPLETED" && recordExists("estimate", view) ? ["create-invoice"] : [];
+  }
+  return recordExists(kind, view) ? ["download"] : [];
 }
 
 export interface JobDocumentLine {

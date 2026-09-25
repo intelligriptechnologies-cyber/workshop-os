@@ -210,6 +210,63 @@ test("job dialogs expose distinct modes, documents, focus return and shared sear
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
 });
 
+test("job card document actions stack editors, replace creation actions after save, and download financial PDFs", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
+  await page.getByRole("tab", { name: "Invoices", exact: true }).click();
+  const invoiceManager = page.getByRole("table", { name: "Invoices manager" });
+  await invoiceManager.locator("tbody tr").first().getByRole("button", { name: "Void" }).click();
+  const voidDialog = page.getByRole("dialog", { name: "Void Invoice" });
+  await voidDialog.getByLabel("Reason").fill("Recreate from job card E2E");
+  await voidDialog.getByRole("button", { name: "Void" }).click();
+
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.getByLabel("Main status").selectOption("COMPLETED");
+  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
+  const jobDialog = page.getByRole("dialog", { name: /View Job/ });
+  await jobDialog.getByRole("tab", { name: "Documents" }).click();
+
+  const estimateRow = jobDialog.locator(".document-row").filter({ has: page.getByText("Estimate", { exact: true }) });
+  const estimateEdit = estimateRow.getByRole("button", { name: "Edit", exact: true });
+  await estimateEdit.click();
+  await expect(page.getByRole("dialog")).toHaveCount(2);
+  await page.keyboard.press("Escape");
+  await expect(jobDialog).toBeVisible();
+  await expect(estimateEdit).toBeFocused();
+  await estimateEdit.click();
+  const estimateDialog = page.getByRole("dialog", { name: "Edit Estimate" });
+  await estimateDialog.getByLabel("Notes").fill("Edited from job card");
+  await estimateDialog.getByRole("button", { name: "Save Estimate" }).click();
+  await expect(jobDialog).toBeVisible();
+
+  const invoiceRow = jobDialog.locator(".document-row").filter({ has: page.getByText("Invoice", { exact: true }) });
+  await invoiceRow.getByRole("button", { name: "Create Invoice" }).click();
+  const createInvoice = page.getByRole("dialog", { name: "Create Invoice" });
+  await expect(page.getByRole("dialog")).toHaveCount(2);
+  await expect(createInvoice.getByLabel("Billing job")).toHaveCount(0);
+  await expect(createInvoice.getByLabel("Invoice item 1 description")).not.toHaveValue("");
+  await createInvoice.getByLabel("Tally invoice number").fill("TLY-JOB-CARD");
+  await createInvoice.getByLabel("Invoice item 1 quantity").fill("2");
+  await createInvoice.getByLabel("Invoice discount").fill("50");
+  await expect(createInvoice.getByLabel("Invoice totals")).toContainText("Total");
+  await createInvoice.getByLabel("Notes").fill("Created from job card");
+  await createInvoice.getByRole("button", { name: "Save Invoice" }).click();
+  await expect(createInvoice).toBeHidden();
+  await expect(jobDialog).toBeVisible();
+  await expect(invoiceRow.getByRole("button", { name: "Create Invoice" })).toHaveCount(0);
+  await expect(invoiceRow.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+
+  await invoiceRow.getByRole("button", { name: "Edit", exact: true }).click();
+  const editInvoice = page.getByRole("dialog", { name: "Edit Invoice" });
+  await editInvoice.getByLabel("Notes").fill("Edited from job card");
+  await editInvoice.getByRole("button", { name: "Save Invoice" }).click();
+  await expect(editInvoice).toBeHidden();
+  const pdfPromise = page.waitForEvent("download");
+  await invoiceRow.getByRole("button", { name: "Download PDF" }).click();
+  expect((await pdfPromise).suggestedFilename()).toMatch(/-invoice\.pdf$/);
+});
+
 test("customer and vehicle records use distinct view and edit dialogs on every list surface", async ({ page }) => {
   await loginAs(page, "admin@example.com");
 
@@ -368,7 +425,7 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   const invoiceEditor = page.getByRole("dialog", { name: "Edit Invoice" });
   await expect(invoiceEditor.getByText("Invoice items", { exact: true })).toBeVisible();
   await invoiceEditor.getByLabel("Notes").fill("WP6 invoice edit");
-  await invoiceEditor.getByRole("button", { name: "Save" }).click();
+  await invoiceEditor.getByRole("button", { name: "Save Invoice" }).click();
   await expect(invoiceEditor).toBeHidden();
 
   await page.locator(".logout").click();
@@ -693,16 +750,9 @@ test("tax and billing settings validate, normalize, persist, audit and drive inv
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("tab", { name: "Documents" }).click();
   const invoiceRow = page.locator(".document-row").filter({ has: page.getByText("Invoice", { exact: true }) });
-  const popupPromise = page.waitForEvent("popup");
-  await invoiceRow.getByRole("button", { name: "Print / Save as PDF" }).click();
-  const popup = await popupPromise;
-  await popup.waitForLoadState("domcontentloaded");
-  await expect(popup.getByRole("heading", { name: "Tax & Payment Details" })).toBeVisible();
-  await expect(popup.locator("body")).toContainText("Saved E2E Bank");
-  await expect(popup.locator("body")).not.toContainText("UNSAVED BANK");
-  await expect(popup.locator("body")).toContainText("<Unsafe Branch>");
-  await expect(popup.locator("body").locator("unsafe")).toHaveCount(0);
-  await popup.close();
+  const downloadPromise = page.waitForEvent("download");
+  await invoiceRow.getByRole("button", { name: "Download PDF" }).click();
+  expect((await downloadPromise).suggestedFilename()).toMatch(/-invoice\.pdf$/);
 });
 
 test("report templates preview safely, validate, activate and persist", async ({ page }) => {
@@ -756,7 +806,7 @@ test("report templates preview safely, validate, activate and persist", async ({
   await expect(page.getByLabel("Report template").locator("option:checked")).toContainText("Compact Invoice (Active)");
 });
 
-test("job documents print all templated reports and explain blocked popups", async ({ page }) => {
+test("job documents download financial PDFs, print other templated reports and explain blocked popups", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
@@ -767,7 +817,7 @@ test("job documents print all templated reports and explain blocked popups", asy
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("tab", { name: "Documents" }).click();
 
-  for (const label of ["Job Card", "Invoice", "Payment Receipt", "Gate Pass"]) {
+  for (const label of ["Job Card", "Payment Receipt", "Gate Pass"]) {
     const row = page.locator(".document-row").filter({ has: page.getByText(label, { exact: true }) });
     await expect(row.getByRole("button", { name: "Print / Save as PDF" })).toBeVisible();
     const popupPromise = page.waitForEvent("popup");
@@ -779,7 +829,12 @@ test("job documents print all templated reports and explain blocked popups", asy
     await popup.close();
   }
 
-  await expect(page.locator(".document-row").filter({ hasText: "Estimate" }).getByRole("button", { name: "Download PDF" })).toBeVisible();
+  for (const label of ["Estimate", "Invoice"]) {
+    const row = page.locator(".document-row").filter({ has: page.getByText(label, { exact: true }) });
+    const downloadPromise = page.waitForEvent("download");
+    await row.getByRole("button", { name: "Download PDF" }).click();
+    expect((await downloadPromise).suggestedFilename()).toMatch(new RegExp(`-${label.toLowerCase()}\\.pdf$`));
+  }
   await page.evaluate(() => Object.defineProperty(window, "open", { configurable: true, value: () => null }));
   await page.locator(".document-row").filter({ has: page.getByText("Job Card", { exact: true }) }).getByRole("button", { name: "Print / Save as PDF" }).click();
   await expect(page.getByRole("alert")).toContainText("Allow pop-ups");
