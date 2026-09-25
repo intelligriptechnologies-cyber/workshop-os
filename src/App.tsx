@@ -101,6 +101,7 @@ import { activeFilterSummary, applyFilterDraft, clearFilterDraft, DEFAULT_PAGE_S
 import type { ExportColumn } from "./export-utils";
 import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
 import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
+import { JOB_CARD_TABS, isStubTab, resolveJobCardFooter, type FooterAction, type JobCardTabKey } from "./job-card-layout";
 import { Dialog, DownloadMenu, handleTabListKeyDown, ListSearchActions, PageSizeSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
 import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey } from "./admin-demo-state";
@@ -1837,7 +1838,7 @@ function DuplicateVisitEditor({ view, advisors, mutate }: { view: JobView; advis
   );
 }
 
-function JobEditor({ view, users, mutate, actor }: { view: JobView; users: User[]; mutate: Mutate; actor: User }) {
+function JobEditor({ view, users, mutate, actor, embedded = false }: { view: JobView; users: User[]; mutate: Mutate; actor: User; embedded?: boolean }) {
   const [draft, setDraft] = useState({
     advisor_id: view.job.advisor_id,
     technician_id: view.job.technician_id,
@@ -1865,11 +1866,13 @@ function JobEditor({ view, users, mutate, actor }: { view: JobView; users: User[
         <label>Advisor Notes<input value={draft.advisor_notes} onChange={(event) => setDraft({ ...draft, advisor_notes: event.target.value })} /></label>
         <button className="primary-action">Save Job Card</button>
       </form>
-      <JobLifecyclePanel view={view} users={users} actor={actor} mutate={mutate} />
-      <section className="editor-block job-card-documents" aria-label="Current job documents">
-        <PanelTitle icon={<FileText />} title="Current Documents" subtitle="Only active records are available" />
-        <JobDocuments view={view} actor={actor} mutate={mutate} />
-      </section>
+      {!embedded && <>
+        <JobLifecyclePanel view={view} users={users} actor={actor} mutate={mutate} />
+        <section className="editor-block job-card-documents" aria-label="Current job documents">
+          <PanelTitle icon={<FileText />} title="Current Documents" subtitle="Only active records are available" />
+          <JobDocuments view={view} actor={actor} mutate={mutate} />
+        </section>
+      </>}
     </>
   );
 }
@@ -1901,6 +1904,9 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
     }
   };
   return <section className="editor-block lifecycle-panel" aria-label="Job lifecycle">
+    <div className="job-card-header"><span className={`status-badge status-${view.job.main_status.toLowerCase()}`}>{view.job.main_status.replace("_", " ")}</span><span className="job-card-header-meta">{view.job.job_no} · {view.vehicle.number}</span></div>
+    {allowed.length > 0 && <div className="action-row">{allowed.map((status) => <button type="button" key={status} className={status === "CANCELLED" ? "danger-action" : "primary-action"} onClick={() => { setTarget(status); setNote(""); setError(""); }}>{lifecycleActionLabel(view.job.main_status, status)}</button>)}</div>}
+    {error && !target && <p className="error-text" role="alert">{error}</p>}
     <PanelTitle icon={<ClipboardList />} title="Lifecycle Checklist" subtitle={cycle ? `${cycle.stage} · cycle ${cycle.cycle_number}` : "No active cycle"} />
     <p className="remaining-steps" aria-live="polite">{remaining.length ? `${remaining.length} remaining: ${remaining.map((item) => item.label).join(" → ")}` : "All steps complete. The next lifecycle action is available."}</p>
     <ol className="lifecycle-checklist">
@@ -1917,8 +1923,6 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
     </ol>
     {terminal && <p className="permission-note">This job is {view.job.main_status} and read-only.</p>}
     {!terminal && !canMutate && allowed.length === 0 && <p className="permission-note">Read only. Lifecycle changes are limited to the Owner and the linked Service Advisor.</p>}
-    {error && !target && <p className="error-text" role="alert">{error}</p>}
-    {allowed.length > 0 && <div className="action-row">{allowed.map((status) => <button type="button" key={status} className={status === "CANCELLED" ? "danger-action" : "primary-action"} onClick={() => { setTarget(status); setNote(""); setError(""); }}>{lifecycleActionLabel(view.job.main_status, status)}</button>)}</div>}
     {target && <Dialog title={`${lifecycleActionLabel(view.job.main_status, target)}?`} subtitle={`${view.job.job_no}: ${view.job.main_status} → ${target}`} onClose={() => { setTarget(undefined); setError(""); }}><form onSubmit={confirm}><label>Confirmation note<textarea data-dialog-initial-focus aria-describedby="lifecycle-note-help" value={note} onChange={(event) => setNote(event.target.value)} /></label><p id="lifecycle-note-help" className="field-help">Required. This note is recorded in status history.</p>{error && <p className="error-text" role="alert">{error}</p>}<div className="action-row"><button className="primary-action">Confirm status change</button><button type="button" onClick={() => setTarget(undefined)}>Cancel</button></div></form></Dialog>}
   </section>;
 }
@@ -2246,7 +2250,7 @@ function DataFlowWorkspace({ jobs, users }: { jobs: JobView[]; users: User[] }) 
   </section>;
 }
 
-function DocumentDownloadButton({ kind, view, className = "document-download" }: { kind: DocumentKind; view: JobView; className?: string }) {
+function DocumentDownloadButton({ kind, view, className = "document-download", label }: { kind: DocumentKind; view: JobView; className?: string; label?: string }) {
   const [status, setStatus] = useState<"idle" | "generating" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const download = async () => {
@@ -2266,7 +2270,7 @@ function DocumentDownloadButton({ kind, view, className = "document-download" }:
       setStatus("error");
     }
   };
-  return <><button type="button" className={className} disabled={status === "generating"} aria-busy={status === "generating"} onClick={download}><Download size={15} />{status === "generating" ? "Generating…" : kind === "estimate" || kind === "invoice" ? "Download PDF" : "Print / Save as PDF"}</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
+  return <><button type="button" className={className} disabled={status === "generating"} aria-busy={status === "generating"} onClick={download}><Download size={15} />{status === "generating" ? "Generating…" : label ?? (kind === "estimate" || kind === "invoice" ? "Download PDF" : "Print / Save as PDF")}</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
 }
 
 function DataFlow({ view, users }: { view: JobView; users: User[] }) {
@@ -2305,8 +2309,12 @@ function JobSelector({ jobs, selectedJobId, onSelect, label = "Select job" }: { 
   return <div className="job-selector"><label>{label}<input type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Job, vehicle, customer or mobile" /></label><label>Matching jobs<select aria-label="Job results" value={selectedJobId ?? ""} onChange={(event) => event.target.value && onSelect(Number(event.target.value))}><option value="">Choose a job</option>{options.map((view) => <option key={view.job.id} value={view.job.id}>{view.job.job_no} · {view.vehicle.number} · {view.customer.name}</option>)}</select></label></div>;
 }
 
-function JobDocuments({ view, actor, mutate }: { view: JobView; actor: User; mutate: Mutate }) {
-  const [editor, setEditor] = useState<"estimate" | "invoice">();
+type DocumentEditor = "estimate" | "invoice" | undefined;
+
+function JobDocuments({ view, actor, mutate, editor: controlledEditor, setEditor: setControlledEditor }: { view: JobView; actor: User; mutate: Mutate; editor?: DocumentEditor; setEditor?: (editor: DocumentEditor) => void }) {
+  const [localEditor, setLocalEditor] = useState<DocumentEditor>();
+  const editor = setControlledEditor ? controlledEditor : localEditor;
+  const setEditor = setControlledEditor ?? setLocalEditor;
   const documents = resolveJobDocuments(view);
   return <><div className="document-center">{documents.length ? documents.map((document) => {
     const actions = resolveJobDocumentActions(document.kind, view, actor);
@@ -2315,13 +2323,17 @@ function JobDocuments({ view, actor, mutate }: { view: JobView; actor: User; mut
 }
 
 function JobRecordDialog({ view, state, mutate, actor, mode, onClose, onAdminArchive }: { view: JobView; state: WorkshopState; mutate: Mutate; actor: User; mode: "view" | "edit"; onClose: () => void; onAdminArchive?: () => boolean }) {
-  const [tab, setTab] = useState<"details" | "media" | "documents">("details");
+  const [tab, setTab] = useState<JobCardTabKey>("details");
+  const [documentEditor, setDocumentEditor] = useState<DocumentEditor>();
   const archive = () => {
     if (!onAdminArchive || !window.confirm(`Archive Job ${view.job.job_no}? This will cancel the job card.`)) return;
     if (onAdminArchive()) onClose();
   };
   const panelId = `job-record-${view.job.id}-${tab}`;
-  return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose}><div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{(["details", "media", "documents"] as const).map((item) => <button id={`job-record-tab-${view.job.id}-${item}`} aria-controls={`job-record-${view.job.id}-${item}`} tabIndex={tab === item ? 0 : -1} key={item} role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "details" ? "Details" : item === "media" ? "Photos / Media" : "Documents"}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <JobDocuments view={view} actor={actor} mutate={mutate} /> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : mode === "edit" ? <><JobEditor key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobDocuments view={view} actor={actor} mutate={mutate} /></div>}</div></Dialog>;
+  const footer = resolveJobCardFooter(view, actor);
+  const actionLabels: Record<FooterAction, string> = { "create-estimate": "Create Estimate", "edit-estimate": "Edit Estimate", "create-invoice": "Create Invoice", "edit-invoice": "Edit Invoice" };
+  const dialogFooter = <><div className="dialog-footer-actions" role="group" aria-label="Job actions">{footer.actions.map((action) => <button type="button" key={action} className={action.startsWith("create") ? "primary-action" : ""} onClick={() => setDocumentEditor(action.endsWith("estimate") ? "estimate" : "invoice")}>{actionLabels[action]}</button>)}</div><div className="dialog-footer-downloads" role="group" aria-label="Downloads"><span className="dialog-footer-label">Downloads</span>{footer.downloads.map((download) => download.enabled ? <DocumentDownloadButton key={download.kind} kind={download.kind} view={view} className="document-download" label={download.label} /> : <button type="button" key={download.kind} disabled title={download.reason} aria-label={`${download.label} download unavailable: ${download.reason}`}><Download size={15} />{download.label}</button>)}</div></>;
+  return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose} footer={dialogFooter}>{mode === "edit" && <JobLifecyclePanel view={view} users={state.users} actor={actor} mutate={mutate} />}<div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{JOB_CARD_TABS.map((item) => <button id={`job-record-tab-${view.job.id}-${item.key}`} aria-controls={`job-record-${view.job.id}-${item.key}`} tabIndex={tab === item.key ? 0 : -1} key={item.key} role="tab" aria-selected={tab === item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <section className="editor-block job-card-documents" aria-label="Current job documents"><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : isStubTab(tab) ? <p className="empty-state job-card-stub">{JOB_CARD_TABS.find((item) => item.key === tab)?.label} is coming soon.</p> : mode === "edit" ? <><JobEditor embedded key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /></div>}</div>{tab !== "documents" && documentEditor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && documentEditor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}</Dialog>;
 }
 
 function CustomerRecordDialog({ customer, state, mutate, mode, onClose }: { customer: Customer; state: WorkshopState; mutate: Mutate; mode: "view" | "edit"; onClose: () => void }) {

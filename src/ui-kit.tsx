@@ -94,12 +94,14 @@ export function Dialog({
   onClose,
   children,
   wide = false,
+  footer,
 }: {
   title: string;
   subtitle?: string;
   onClose: () => void;
   children: ReactNode;
   wide?: boolean;
+  footer?: ReactNode;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -150,6 +152,7 @@ export function Dialog({
           </button>
         </div>
         <div className="dialog-body">{children}</div>
+        {footer && <div className="dialog-footer">{footer}</div>}
       </div>
     </div>
   );

@@ -1727,3 +1727,15 @@ th {
   .template-workspace { grid-template-columns: 1fr; }
   .placeholder-registry { max-height: 300px; }
 }
+
+.job-card-header { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
+.job-card-header-meta { color: #657482; font-size: 0.86rem; }
+.status-badge { display: inline-block; padding: 3px 10px; border-radius: 999px; background: #e9f5f4; color: #0f5f5a; font-size: 0.78rem; font-weight: 700; letter-spacing: 0.02em; }
+.status-badge.status-cancelled { background: #fbeaea; color: #9b2c2c; }
+.status-badge.status-hold { background: #fff4e0; color: #8a5a00; }
+.lifecycle-panel { margin-top: 0; margin-bottom: 14px; padding-top: 0; border-top: 0; }
+.job-card-stub { padding: 24px 0; text-align: center; }
+.dialog-footer { position: sticky; bottom: 0; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 12px 20px; border-top: 1px solid #e5eaf0; background: #fff; border-radius: 0 0 10px 10px; }
+.dialog-footer-actions, .dialog-footer-downloads { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.dialog-footer-downloads { margin-left: auto; justify-content: flex-end; }
+.dialog-footer-label { color: #657482; font-size: 0.78rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.04em; }
