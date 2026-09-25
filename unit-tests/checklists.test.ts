@@ -47,6 +47,7 @@ test("items are flagged required or optional and N/A carries its own timestamp a
 
 test("optional items do not block completion of the status checklist, required ones do", async () => {
   const db = await database("IN_PROGRESS", "Material Requested");
+  db.run("insert into invoices(id,job_card_id,invoice_no,tally_invoice_no,total,status,document_available) values(1,1,'INV-1','T-1',100,'Open',1)");
   const required = rows<{ id: number; label: string }>(db, "select id,label from checklist_items where required=1 order by sort_order");
   required.slice(0, -1).forEach((item) => setChecklistItemCheckedForActor(db, item.id, 2, true));
   assert.throws(() => transitionJobStatusForActor(db, 1, 2, "COMPLETED", "Done"), /Complete the IN_PROGRESS checklist/);
@@ -60,6 +61,7 @@ test("a checklist is editable only while the card is in that status", async () =
   assert.throws(() => setChecklistItemCheckedForActor(hold, itemId(hold, "Material Requested"), 1, true), /read-only/);
 
   const db = await database("IN_PROGRESS", "Material Requested");
+  db.run("insert into invoices(id,job_card_id,invoice_no,tally_invoice_no,total,status,document_available) values(1,1,'INV-1','T-1',100,'Open',1)");
   const oldItem = itemId(db, "Material Requested");
   db.run("update checklist_items set checked_at='2026-09-25T09:00:00.000Z' where required=1");
   db.run("update checklist_cycles set completed_at='2026-09-25T09:00:00.000Z'");

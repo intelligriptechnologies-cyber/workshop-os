@@ -1180,3 +1180,31 @@ test("owner releases a requested row, then edits it as Issued with a note", asyn
   await expect(row).toContainText("in stock: 11");
   await expect(row).toContainText("Issued");
 });
+
+test("estimate approval and invoice creation enable Completed with per-line GST totals", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.getByLabel("Main status").selectOption("IN_PROGRESS");
+  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await page.locator(".record-card").first().getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: /Edit Job/ });
+  await editor.getByRole("tab", { name: "Invoice" }).click();
+  await expect(editor.getByText("No invoice yet.")).toBeVisible();
+  await expect(editor.getByRole("button", { name: "Complete Work" })).toBeDisabled();
+  const approve = editor.getByRole("button", { name: "Approve Estimate" });
+  if (await approve.count()) {
+    await approve.first().click();
+    await page.getByRole("dialog", { name: "Approve Estimate?" }).getByRole("button", { name: "Approve Estimate" }).click();
+  }
+  await editor.getByRole("button", { name: "Create Invoice" }).first().click();
+  const create = page.getByRole("dialog", { name: "Create Invoice" });
+  await create.getByLabel("Invoice item 1 rate").fill("1000");
+  await create.getByLabel("Invoice item 1 quantity").fill("1");
+  await create.getByLabel("Invoice item 1 GST").fill("18");
+  await create.getByLabel("Invoice discount").fill("100");
+  await expect(create.getByLabel("Invoice totals")).toContainText("Discount");
+  await create.getByRole("button", { name: "Save Invoice" }).click();
+  await expect(create).toBeHidden();
+  await expect(editor.getByRole("table", { name: "Invoice lines" })).toBeVisible();
+  await expect(editor.getByRole("button", { name: "Complete Work" })).toBeEnabled();
+});

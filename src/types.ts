@@ -301,9 +301,24 @@ export interface Invoice {
   updated_at?: string;
 }
 
+export interface InvoiceEvent {
+  id: number;
+  job_card_id: number;
+  invoice_id: number;
+  kind: "create" | "edit" | "void";
+  by_user: number;
+  at: string;
+  note: string;
+  old_total: number | null;
+  new_total: number | null;
+  detail: string;
+}
+
 export interface InvoiceItem {
   id: number;
   invoice_id: number;
+  gst_rate?: number | null;
+  material_row_id?: number | null;
   kind: "Service" | "Material";
   description: string;
   qty: number;
@@ -445,6 +460,7 @@ export interface JobView {
   estimate_items: EstimateItem[];
   material_requests: MaterialRequest[];
   material_events?: MaterialEvent[];
+  invoice_events?: InvoiceEvent[];
   inventory: InventoryItem[];
   tasks: Task[];
   invoice?: Invoice;

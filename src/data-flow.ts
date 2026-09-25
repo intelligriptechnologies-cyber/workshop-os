@@ -133,6 +133,12 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
     if (hasTime(event.at)) events.push({ id: `material-${event.kind}-${event.id}`, kind: "material", timestamp: event.at, title: event.kind === "release" ? "Material released" : "Issued material edited", detail, actor: actorName(event.by_user, users), state: "current" });
   }
 
+  for (const event of view.invoice_events ?? []) {
+    if (!hasTime(event.at) || event.kind === "create") continue;
+    const totals = event.old_total !== null && event.new_total !== null ? ` (total ${event.old_total.toFixed(2)} -> ${event.new_total.toFixed(2)})` : "";
+    events.push({ id: `invoice-audit-${event.id}`, kind: "invoice", timestamp: event.at, title: event.kind === "edit" ? "Invoice edited" : "Invoice void audited", detail: `${event.detail}${totals}${event.note ? ` - ${event.note}` : ""}`, actor: actorName(event.by_user, users), state: "current" });
+  }
+
   for (const photo of view.photo_history ?? view.photos) {
     const category = photo.category || "Job";
     if (hasTime(photo.created_at)) events.push({ id: `media-upload-${photo.id}`, kind: "media", timestamp: photo.created_at, title: "Media uploaded", detail: `${category} · ${photo.label}`, state: photo.archived_at ? "historical" : "current" });

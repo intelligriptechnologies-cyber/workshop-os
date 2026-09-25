@@ -13,7 +13,7 @@ export const JOB_CARD_TABS = [
 export type JobCardTabKey = (typeof JOB_CARD_TABS)[number]["key"];
 
 /** Tabs whose real content ships in a later ticket render a stub. */
-export const JOB_CARD_STUB_TABS: readonly JobCardTabKey[] = ["invoice", "payment"];
+export const JOB_CARD_STUB_TABS: readonly JobCardTabKey[] = ["payment"];
 
 export function isStubTab(key: JobCardTabKey) {
   return JOB_CARD_STUB_TABS.includes(key);
@@ -33,7 +33,7 @@ export interface JobCardFooter {
   downloads: FooterDownload[];
 }
 
-const ACTION_ORDER: FooterAction[] = ["create-estimate", "edit-estimate", "create-invoice", "edit-invoice"];
+const ACTION_ORDER: FooterAction[] = ["create-estimate", "edit-estimate", "approve-estimate", "create-invoice", "edit-invoice"];
 
 /** Contextual actions (left) and document downloads (right) for the sticky footer. */
 export function resolveJobCardFooter(view: JobView, actor: Pick<User, "id" | "role">): JobCardFooter {

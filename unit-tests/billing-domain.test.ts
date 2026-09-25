@@ -73,7 +73,7 @@ test("custom invoice creation persists finalized lines and totals and rejects in
   assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [] }), /at least one item/);
   assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [{ kind: "Service", description: " ", qty: 1, rate: 1 }] }), /description/);
   assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [{ kind: "Service", description: "Labour", qty: 0, rate: 1 }] }), /quantity/);
-  assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, gstRate: 101 }), /between 0 and 100/);
+  assert.throws(() => createInvoiceFromEstimate(invalidDb, 1, { ...input, items: [{ kind: "Service", description: "Labour", qty: 1, rate: 1, gst_rate: 101 }] }), /GST/);
   assert.equal(rows(invalidDb, "select id from invoices").length, 0);
 });
 
@@ -86,10 +86,10 @@ test("post-payment invoice edits allow metadata but reject totals or line-item c
   ] });
   recordPayment(db, invoiceId, { amount: 100, mode: "Cash", otherDetail: "", reference: "", notes: "Deposit" });
   const items = readState(db).jobs[0].invoice_items.map(({ id, kind, description, qty, rate }) => ({ id, kind, description, qty, rate }));
-  saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, gstRate: 18, notes: "Metadata updated", documentAvailable: false, items });
+  saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, notes: "Metadata updated", documentAvailable: false, items });
   assert.deepEqual({ tally: readState(db).jobs[0].invoice?.tally_invoice_no, notes: readState(db).jobs[0].invoice?.notes, available: readState(db).jobs[0].invoice?.document_available }, { tally: "TLY-META", notes: "Metadata updated", available: 0 });
-  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 99, gstRate: 18, notes: "", documentAvailable: true, items }), /locked/);
-  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, gstRate: 18, notes: "", documentAvailable: true, items: items.map((item, index) => index ? item : { ...item, rate: 999 }) }), /locked/);
+  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 99, notes: "", documentAvailable: true, items }), /locked/);
+  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, notes: "", documentAvailable: true, items: items.map((item, index) => index ? item : { ...item, rate: 999 }) }), /locked/);
 });
 
 test("invoice fields and items recalculate subtotal, overall discount, GST, total, and document availability", async () => {
@@ -103,11 +103,11 @@ test("invoice fields and items recalculate subtotal, overall discount, GST, tota
   updateInvoiceItem(db, labour.id, { kind: "Service", description: "Revised labour", qty: 3, rate: 400 });
   const extraId = createInvoiceItem(db, invoiceId, { kind: "Material", description: "Filter", qty: 2, rate: 50 });
   archiveInvoiceItem(db, extraId, "Entered in error");
-  updateInvoiceFields(db, invoiceId, { tallyInvoiceNo: "TLY-2", discount: 50, gstRate: 12, notes: "Final notes", documentAvailable: false });
+  updateInvoiceFields(db, invoiceId, { tallyInvoiceNo: "TLY-2", discount: 50, notes: "Final notes", documentAvailable: false });
 
   const view = readState(db).jobs[0];
   invoice = view.invoice!;
-  assert.deepEqual({ tally: invoice.tally_invoice_no, subtotal: invoice.subtotal, discount: invoice.discount, gstRate: invoice.gst_rate, gst: invoice.gst_amount, total: invoice.total, notes: invoice.notes, available: invoice.document_available }, { tally: "TLY-2", subtotal: 1450, discount: 50, gstRate: 12, gst: 168, total: 1568, notes: "Final notes", available: 0 });
+  assert.deepEqual({ tally: invoice.tally_invoice_no, subtotal: invoice.subtotal, discount: invoice.discount, gstRate: invoice.gst_rate, gst: invoice.gst_amount, total: invoice.total, notes: invoice.notes, available: invoice.document_available }, { tally: "TLY-2", subtotal: 1450, discount: 50, gstRate: 0, gst: 252, total: 1652, notes: "Final notes", available: 0 });
   assert.deepEqual(view.invoice_items.map((item) => item.description), ["Revised labour", "Oil"]);
 });
 

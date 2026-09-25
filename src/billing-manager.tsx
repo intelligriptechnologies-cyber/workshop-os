@@ -12,6 +12,8 @@ import {
   voidPaymentForActor,
   type PaymentInput,
 } from "./db";
+import { resolveJobDocumentActions } from "./job-documents";
+import { buildInvoiceDraft, DEFAULT_GST_BY_KIND, invoiceTotals, pickableMaterialLines, unissuedWarning } from "./invoice-math";
 import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } from "./list-utils";
 import type { ExportColumn } from "./export-utils";
 import type { JobView, Payment, PaymentMode, User, WorkshopState } from "./types";
@@ -21,7 +23,7 @@ export type BillingMode = "Invoices" | "Payments" | "Delivery";
 type Mutate = (action: (database: Database) => void, onError?: (message: string) => void) => boolean;
 type BillingRecord = { key: string; view: JobView; payment?: Payment };
 type Editor = { action: "create" | "view" | "edit" | "void" | "deliver"; record: BillingRecord };
-type InvoiceItemDraft = { id?: number; kind: "Service" | "Material"; description: string; qty: number; rate: number };
+type InvoiceItemDraft = { id?: number; kind: "Service" | "Material"; description: string; qty: number; rate: number; gst_rate: number; material_row_id?: number };
 
 function money(value: number) {
   return new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR", maximumFractionDigits: 0 }).format(value);
@@ -111,52 +113,56 @@ export interface InvoiceDialogProps {
 export function InvoiceDialog({ action, view, candidates = [], fixedJob = false, actor, mutate, onClose }: InvoiceDialogProps) {
   const [selected, setSelected] = useState(view);
   const invoice = selected.invoice;
-  const initialItems = (invoice ? selected.invoice_items : selected.estimate_items).map((item) => ({ id: invoice ? item.id : undefined, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate }));
+  const draftFor = (source: JobView) => buildInvoiceDraft(source);
+  const toDrafts = (source: JobView): InvoiceItemDraft[] => source.invoice
+    ? source.invoice_items.map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? source.invoice!.gst_rate, material_row_id: item.material_row_id ?? undefined }))
+    : draftFor(source).lines;
   const [tally, setTally] = useState(invoice?.tally_invoice_no ?? "");
-  const [discount, setDiscount] = useState(invoice?.discount ?? selected.estimate?.discount ?? 0);
-  const [gstRate, setGstRate] = useState(invoice?.gst_rate ?? selected.estimate?.gst_rate ?? 18);
+  const [discount, setDiscount] = useState(invoice?.discount ?? draftFor(selected).discount);
   const [notes, setNotes] = useState(invoice?.notes ?? "");
+  const [editNote, setEditNote] = useState("");
   const [documentAvailable, setDocumentAvailable] = useState(Boolean(invoice?.document_available ?? true));
-  const [items, setItems] = useState<InvoiceItemDraft[]>(initialItems);
+  const [items, setItems] = useState<InvoiceItemDraft[]>(toDrafts(selected));
   const [error, setError] = useState("");
   const readOnly = action === "view";
-  const financialLocked = Boolean(invoice && selected.payments.some((payment) => payment.invoice_id === invoice.id));
+  const financialLocked = Boolean(invoice && selected.payments.some((payment) => payment.invoice_id === invoice.id && !payment.voided_at));
   const lockFinancials = readOnly || financialLocked;
-  const subtotal = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
-  const taxable = Math.max(0, subtotal - discount);
-  const gstAmount = Math.round(taxable * gstRate) / 100;
-  const total = Math.round((taxable + gstAmount) * 100) / 100;
+  const totals = invoiceTotals(items.map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: item.gst_rate })), discount);
+  const warning = unissuedWarning(draftFor(selected).unissuedRows);
+  const lateMaterials = invoice ? pickableMaterialLines(selected).filter((line) => !items.some((item) => item.material_row_id === line.material_row_id)) : [];
   const chooseJob = (jobId: number) => {
     const next = candidates.find((candidate) => candidate.job.id === jobId);
     if (!next) return;
     setSelected(next);
     setTally("");
-    setDiscount(next.estimate?.discount ?? 0);
-    setGstRate(next.estimate?.gst_rate ?? 18);
+    setDiscount(draftFor(next).discount);
     setNotes("");
     setDocumentAvailable(true);
-    setItems(next.estimate_items.map((item) => ({ kind: item.kind, description: item.description, qty: item.qty, rate: item.rate })));
+    setItems(toDrafts(next));
   };
   const updateItem = (index: number, patch: Partial<InvoiceItemDraft>) => setItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
     const ok = mutate((db) => action === "create"
-      ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, discount, gstRate, notes, documentAvailable, items })
-      : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, gstRate, notes, documentAvailable, items }), setError);
+      ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, discount, notes, documentAvailable, items })
+      : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, notes, documentAvailable, items, note: editNote }), setError);
     if (ok) onClose();
   };
   return <Dialog title={`${action[0].toUpperCase() + action.slice(1)} Invoice`} subtitle={`${selected.job.job_no} · ${selected.vehicle.number}`} onClose={onClose} wide><form className="billing-dialog-form" onSubmit={submit}>
     {action === "create" && !fixedJob && candidates.length > 1 && <label>Job<select aria-label="Billing job" value={selected.job.id} onChange={(event) => chooseJob(Number(event.target.value))}>{candidates.map((candidate) => <option key={candidate.job.id} value={candidate.job.id}>{candidate.job.job_no} · {candidate.vehicle.number}</option>)}</select></label>}
-    <div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Discount<input aria-label="Invoice discount" type="number" min="0" step="0.01" value={discount} disabled={lockFinancials} onChange={(event) => setDiscount(Number(event.target.value))} /></label><label>GST %<input aria-label="Invoice GST" type="number" min="0" max="100" step="0.01" value={gstRate} disabled={lockFinancials} onChange={(event) => setGstRate(Number(event.target.value))} /></label></div>
-    <div className="estimate-items"><strong>Invoice items</strong><div className="invoice-item invoice-item-heading"><span>Type</span><span>Description</span><span>Quantity</span><span>Rate</span><span>Amount</span><span>Action</span></div>{items.map((item, index) => <div className="invoice-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={lockFinancials} onChange={(event) => updateItem(index, { kind: event.target.value as InvoiceItemDraft["kind"] })}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={lockFinancials} onChange={(event) => updateItem(index, { description: event.target.value })} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={lockFinancials} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} /><output aria-label={`Invoice item ${index + 1} amount`}>{money(item.qty * item.rate)}</output>{!lockFinancials && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!lockFinancials && <button type="button" onClick={() => setItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0 }])}>Add Invoice Item</button>}</div>
-    <div className="invoice-totals" aria-label="Invoice totals"><span>Subtotal <strong>{money(subtotal)}</strong></span><span>Discount <strong>{money(discount)}</strong></span><span>GST <strong>{money(gstAmount)}</strong></span><span>Total <strong>{money(total)}</strong></span></div>
+    {warning && !readOnly && <p className="permission-note" role="status">{warning}</p>}
+    <div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Flat discount (₹)<input aria-label="Invoice discount" type="number" min="0" step="0.01" value={discount} disabled={lockFinancials} onChange={(event) => setDiscount(Number(event.target.value))} /></label></div>
+    <div className="estimate-items"><strong>Invoice items</strong><div className="invoice-item invoice-item-heading"><span>Type</span><span>Description</span><span>Quantity</span><span>Rate</span><span>GST %</span><span>Amount</span><span>Action</span></div>{items.map((item, index) => <div className="invoice-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={lockFinancials} onChange={(event) => { const kind = event.target.value as InvoiceItemDraft["kind"]; updateItem(index, { kind, gst_rate: DEFAULT_GST_BY_KIND[kind] }); }}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={lockFinancials} onChange={(event) => updateItem(index, { description: event.target.value })} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={lockFinancials} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} GST`} type="number" min="0" max="100" step="0.01" value={item.gst_rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { gst_rate: Number(event.target.value) })} /><output aria-label={`Invoice item ${index + 1} amount`}>{money(item.qty * item.rate)}</output>{!lockFinancials && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!lockFinancials && <button type="button" onClick={() => setItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0, gst_rate: DEFAULT_GST_BY_KIND.Service }])}>Add Invoice Item</button>}{!lockFinancials && lateMaterials.map((line) => <button type="button" key={line.material_row_id} onClick={() => setItems((rows) => [...rows, line])}>Add late material: {line.description} x {line.qty}</button>)}</div>
+    <div className="invoice-totals" aria-label="Invoice totals"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(totals.total)}</strong></span></div>
     <label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label>
+    {action === "edit" && !lockFinancials && <label>Edit note<textarea aria-label="Invoice edit note" value={editNote} onChange={(event) => setEditNote(event.target.value)} placeholder="Required when lines or discount change. Recorded in Data Flow." /></label>}
     {financialLocked && <p className="permission-note">Financial fields and line items are locked because this invoice has an active payment. Tally reference, notes, and document availability can still be updated.</p>}
     {error && <p className="error-text" role="alert">{error}</p>}
     {!readOnly && <div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit">Save Invoice</button></div>}
   </form></Dialog>;
 }
+
 
 function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { mode: BillingMode; editor: Editor; candidates: JobView[]; actor: User; mutate: Mutate; onClose: () => void }) {
   const [jobId, setJobId] = useState(editor.record.view.job.id);
@@ -165,10 +171,9 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
   const payment = editor.record.payment;
   const [tally, setTally] = useState(invoice?.tally_invoice_no ?? "");
   const [discount, setDiscount] = useState(invoice?.discount ?? selected.estimate?.discount ?? 0);
-  const [gstRate, setGstRate] = useState(invoice?.gst_rate ?? selected.estimate?.gst_rate ?? 18);
   const [notes, setNotes] = useState(payment?.notes ?? invoice?.notes ?? "");
   const [documentAvailable, setDocumentAvailable] = useState(Boolean(invoice?.document_available ?? true));
-  const [invoiceItems, setInvoiceItems] = useState<InvoiceItemDraft[]>(editor.record.view.invoice_items.map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate })));
+  const [invoiceItems, setInvoiceItems] = useState<InvoiceItemDraft[]>(editor.record.view.invoice_items.map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? editor.record.view.invoice?.gst_rate ?? 18 })));
   const [amount, setAmount] = useState(payment?.amount ?? Math.max(0, (selected.invoice?.total ?? 0) - selected.payments.reduce((sum, item) => sum + item.amount, 0)));
   const [paymentMode, setPaymentMode] = useState<PaymentMode>(payment?.mode ?? "UPI");
   const [otherDetail, setOtherDetail] = useState(payment?.other_detail ?? "");
@@ -191,7 +196,6 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
     } else if (mode === "Invoices") {
       setTally("");
       setDiscount(next.estimate?.discount ?? 0);
-      setGstRate(next.estimate?.gst_rate ?? 18);
       setNotes("");
       setDocumentAvailable(true);
     }
@@ -201,7 +205,7 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
     event.preventDefault();
     let ok = false;
     if (editor.action === "void") ok = mutate((db) => mode === "Invoices" ? voidInvoiceForActor(db, invoice!.id, actor.id, reason) : voidPaymentForActor(db, payment!.id, actor.id, reason));
-    else if (mode === "Invoices") ok = mutate((db) => editor.action === "create" ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, notes, documentAvailable }) : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, gstRate, notes, documentAvailable, items: invoiceItems }));
+    else if (mode === "Invoices") ok = mutate((db) => editor.action === "create" ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, notes, documentAvailable }) : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, notes, documentAvailable, items: invoiceItems, note: "Edited from Manage Invoices" }));
     else if (mode === "Payments") {
       const input: PaymentInput = { amount, mode: paymentMode, otherDetail, reference, notes };
       ok = mutate((db) => editor.action === "create" ? recordPaymentForActor(db, selected.invoice!.id, actor.id, input) : editPaymentForActor(db, payment!.id, actor.id, input));
@@ -211,10 +215,32 @@ function BillingDialog({ mode, editor, candidates, actor, mutate, onClose }: { m
   const readOnly = editor.action === "view";
   return <Dialog title={title} subtitle={`${selected.job.job_no} · ${selected.vehicle.number}`} onClose={onClose} wide><form className="billing-dialog-form" onSubmit={submit}>
     {editor.action === "create" && candidates.length > 1 && <label>Job<select aria-label="Billing job" value={jobId} onChange={(event) => selectCandidate(Number(event.target.value))}>{candidates.map((view) => <option key={view.job.id} value={view.job.id}>{view.job.job_no} · {view.vehicle.number}</option>)}</select></label>}
-    {mode === "Invoices" && editor.action !== "void" && <><div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Discount<input type="number" value={discount} disabled={readOnly || editor.action === "create"} onChange={(event) => setDiscount(Number(event.target.value))} /></label><label>GST %<input type="number" value={gstRate} disabled={readOnly || editor.action === "create"} onChange={(event) => setGstRate(Number(event.target.value))} /></label></div>{editor.action !== "create" && <div className="estimate-items"><strong>Invoice items</strong>{invoiceItems.map((item, index) => <div className="estimate-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, kind: event.target.value as "Service" | "Material" } : row))}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row))} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, qty: Number(event.target.value) } : row))} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, rate: Number(event.target.value) } : row))} />{!readOnly && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setInvoiceItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!readOnly && <button type="button" onClick={() => setInvoiceItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0 }])}>Add Invoice Item</button>}</div>}<label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label><p>Invoice items are copied once from the estimate. Financial fields lock after the first active payment.</p></>}
+    {mode === "Invoices" && editor.action !== "void" && <><div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Discount<input type="number" value={discount} disabled={readOnly || editor.action === "create"} onChange={(event) => setDiscount(Number(event.target.value))} /></label></div>{editor.action !== "create" && <div className="estimate-items"><strong>Invoice items</strong>{invoiceItems.map((item, index) => <div className="estimate-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, kind: event.target.value as "Service" | "Material" } : row))}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, description: event.target.value } : row))} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, qty: Number(event.target.value) } : row))} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={readOnly} onChange={(event) => setInvoiceItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, rate: Number(event.target.value) } : row))} />{!readOnly && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setInvoiceItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!readOnly && <button type="button" onClick={() => setInvoiceItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0, gst_rate: 18 }])}>Add Invoice Item</button>}</div>}<label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label><p>Invoice items are copied once from the estimate. Financial fields lock after the first active payment.</p></>}
     {mode === "Payments" && editor.action !== "void" && <><div className="form-grid"><label>Amount<input data-dialog-initial-focus type="number" min="0.01" step="0.01" value={amount} disabled={readOnly} onChange={(event) => setAmount(Number(event.target.value))} /></label><label>Mode<select value={paymentMode} disabled={readOnly} onChange={(event) => setPaymentMode(event.target.value as PaymentMode)}>{(["UPI", "Cash", "Card", "Other"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>{paymentMode === "Other" && <label>Other detail<input value={otherDetail} disabled={readOnly} onChange={(event) => setOtherDetail(event.target.value)} /></label>}<label>Reference<input value={reference} disabled={readOnly} onChange={(event) => setReference(event.target.value)} /></label></div><label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label></>}
     {mode === "Delivery" && <><div className="linked-grid"><div><span>Gate Pass</span><strong>{selected.gate_pass?.gate_pass_no ?? "Not generated"}</strong></div><div><span>State</span><strong>{delivered(selected) ? "Delivered" : "Pending delivery"}</strong></div></div><div className="form-grid"><label>Delivered by<input data-dialog-initial-focus value={deliveryBy} disabled={readOnly} onChange={(event) => setDeliveryBy(event.target.value)} /></label><label>Final KM<input type="number" value={finalKm} disabled={readOnly} onChange={(event) => setFinalKm(Number(event.target.value))} /></label><label>Acknowledgement<input value={acknowledgement} disabled={readOnly} onChange={(event) => setAcknowledgement(event.target.value)} /></label></div></>}
     {editor.action === "void" && <label>Reason<textarea data-dialog-initial-focus required value={reason} onChange={(event) => setReason(event.target.value)} /></label>}
     {!readOnly && <div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className={editor.action === "void" ? "danger-action" : "primary-action"} type="submit">{editor.action === "deliver" ? "Mark Delivered" : editor.action === "void" ? "Void" : "Save"}</button></div>}
   </form></Dialog>;
+}
+
+/** Job Card Invoice tab: current invoice with per-line GST and totals, or the next step towards creating one. */
+export function JobInvoicePanel({ view, actor, onOpen, onEstimate }: { view: JobView; actor: User; onOpen: () => void; onEstimate: () => void }) {
+  const invoice = view.invoice;
+  const actions = resolveJobDocumentActions("invoice", view, actor);
+  const estimateActions = resolveJobDocumentActions("estimate", view, actor);
+  const warning = unissuedWarning(buildInvoiceDraft(view).unissuedRows);
+  if (!invoice) {
+    return <section className="editor-block job-card-invoice" aria-label="Job invoice">
+      <p className="empty-state">No invoice yet.{view.estimate?.status === "Approved" ? "" : " Approve the Estimate first."}</p>
+      {warning && <p className="permission-note" role="status">{warning}</p>}
+      <div className="action-row">{estimateActions.includes("approve-estimate") && <button type="button" className="primary-action" onClick={onEstimate}>Approve Estimate</button>}{actions.includes("create-invoice") && <button type="button" className="primary-action" onClick={onOpen}>Create Invoice</button>}</div>
+    </section>;
+  }
+  const totals = invoiceTotals(view.invoice_items.map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? invoice.gst_rate })), invoice.discount);
+  return <section className="editor-block job-card-invoice" aria-label="Job invoice">
+    <div className="panel-actions"><div><h3>{invoice.invoice_no}</h3><p>{invoice.status}{invoice.tally_invoice_no ? ` · Tally ${invoice.tally_invoice_no}` : ""}</p></div>{actions.includes("edit-invoice") && <button type="button" className="primary-action" onClick={onOpen}>Edit Invoice</button>}</div>
+    <div className="table-wrap"><table aria-label="Invoice lines"><thead><tr><th>Type</th><th>Description</th><th>Qty</th><th>Rate</th><th>GST %</th><th>Amount</th></tr></thead><tbody>{view.invoice_items.map((item) => <tr key={item.id}><td>{item.kind}</td><td>{item.description}</td><td>{item.qty}</td><td>{money(item.rate)}</td><td>{item.gst_rate ?? invoice.gst_rate}%</td><td>{money(item.qty * item.rate)}</td></tr>)}</tbody></table></div>
+    {warning && <p className="permission-note" role="status">{warning}</p>}
+    <div className="invoice-totals" aria-label="Invoice summary"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(invoice.total)}</strong></span></div>
+  </section>;
 }

@@ -20,7 +20,7 @@ function job(overrides: Partial<JobView> = {}): JobView {
 }
 
 test("document availability is cumulative across lifecycle statuses", () => {
-  assert.deepEqual(resolveJobDocuments(job({ estimate: undefined })).map((item) => [item.kind, item.available, item.message]), [["job-card", true, undefined], ["estimate", false, "Estimate not created"]]);
+  assert.deepEqual(resolveJobDocuments(job({ estimate: undefined })).map((item) => [item.kind, item.available, item.message]), [["job-card", true, undefined], ["estimate", false, "Estimate not created"], ["invoice", false, "Invoice not created"]]);
   const completed = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: undefined });
   assert.deepEqual(resolveJobDocuments(completed).map((item) => [item.kind, item.available]), [["job-card", true], ["estimate", true], ["invoice", false]]);
   const closed = job({ job: { ...job().job, main_status: "CLOSED" }, invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "T-1", total: 1062, status: "Generated" } });
@@ -71,13 +71,19 @@ test("document actions reflect record availability, lifecycle, assignment and bi
   assert.deepEqual(resolveJobDocumentActions("estimate", missingEstimate, owner), ["create-estimate"]);
   assert.deepEqual(resolveJobDocumentActions("estimate", missingEstimate, advisor), ["create-estimate"]);
   assert.deepEqual(resolveJobDocumentActions("estimate", missingEstimate, otherAdvisor), []);
-  assert.deepEqual(resolveJobDocumentActions("estimate", job(), advisor), ["edit-estimate", "download"]);
+  assert.deepEqual(resolveJobDocumentActions("estimate", job({ estimate: { ...job().estimate!, status: "Draft" } }), advisor), ["edit-estimate", "approve-estimate", "download"]);
+  assert.deepEqual(resolveJobDocumentActions("estimate", job({ estimate: { ...job().estimate!, status: "Approved" } }), advisor), ["edit-estimate", "download"]);
 
   const completed = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: undefined, invoice_items: [] });
   assert.deepEqual(resolveJobDocumentActions("invoice", completed, accounts), ["create-invoice"]);
   assert.deepEqual(resolveJobDocumentActions("invoice", completed, advisor), []);
   const invoiced = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "T-1", total: 1062, status: "Open", document_available: 1 } });
   assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, accounts), ["edit-invoice", "download"]);
-  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, advisor), ["download"]);
+  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, advisor), ["edit-invoice", "download"]);
+  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, otherAdvisor), ["download"]);
+  const inProgress = job({ job: { ...job().job, main_status: "IN_PROGRESS" }, invoice: undefined, invoice_items: [] });
+  assert.deepEqual(resolveJobDocumentActions("invoice", inProgress, advisor), ["create-invoice"]);
+  assert.deepEqual(resolveJobDocumentActions("invoice", inProgress, accounts), []);
+  assert.deepEqual(resolveJobDocumentActions("invoice", { ...inProgress, estimate: { ...inProgress.estimate!, status: "Draft" } }, advisor), []);
   assert.deepEqual(resolveJobDocumentActions("job-card", invoiced, advisor), ["download"]);
 });

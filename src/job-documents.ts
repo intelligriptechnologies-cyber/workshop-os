@@ -1,6 +1,7 @@
 import { jsPDF } from "jspdf";
 import type { AdminDemoState, WorkshopBusinessSettings } from "./admin-demo-state";
 import type { JobView, User } from "./types";
+import { canCreateInvoice, canEditInvoice as mayEditInvoice, invoiceTotals } from "./invoice-math";
 import { buildPrintDocument, buildReportValues, renderReportTemplate, reportAvailable, type ReportCategory } from "./report-templates";
 
 export type DocumentKind = "estimate" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
@@ -13,18 +14,17 @@ export interface JobDocumentDescriptor {
   message?: string;
 }
 
-export type JobDocumentAction = "create-estimate" | "edit-estimate" | "create-invoice" | "edit-invoice" | "download";
+export type JobDocumentAction = "create-estimate" | "edit-estimate" | "approve-estimate" | "create-invoice" | "edit-invoice" | "download";
 
 export function resolveJobDocumentActions(kind: DocumentKind, view: JobView, actor: Pick<User, "id" | "role">): JobDocumentAction[] {
   const canEditEstimate = actor.role === "admin" || (actor.role === "service" && actor.id === view.job.advisor_id);
-  const canEditInvoice = actor.role === "admin" || actor.role === "accounts";
   if (kind === "estimate") {
-    if (recordExists(kind, view)) return [...(canEditEstimate ? ["edit-estimate" as const] : []), "download"];
+    if (recordExists(kind, view)) return [...(canEditEstimate ? ["edit-estimate" as const, ...(view.estimate?.status === "Approved" ? [] : ["approve-estimate" as const])] : []), "download"];
     return canEditEstimate ? ["create-estimate"] : [];
   }
   if (kind === "invoice") {
-    if (view.invoice && !view.invoice.voided_at) return [...(canEditInvoice ? ["edit-invoice" as const] : []), ...(recordExists(kind, view) ? ["download" as const] : [])];
-    return canEditInvoice && view.job.main_status === "COMPLETED" && recordExists("estimate", view) ? ["create-invoice"] : [];
+    if (view.invoice && !view.invoice.voided_at) return [...(mayEditInvoice(actor, view.job) ? ["edit-invoice" as const] : []), ...(recordExists(kind, view) ? ["download" as const] : [])];
+    return canCreateInvoice(actor, view.job) && view.estimate?.status === "Approved" && !view.estimate.archived_at ? ["create-invoice"] : [];
   }
   return recordExists(kind, view) ? ["download"] : [];
 }
@@ -59,7 +59,7 @@ const recordExists = (kind: DocumentKind, view: JobView) => kind === "estimate" 
         : Boolean(view.job);
 
 export function resolveJobDocuments(view: JobView): JobDocumentDescriptor[] {
-  const expected: DocumentKind[] = view.job.main_status === "IN_PROGRESS" ? ["job-card", "estimate"]
+  const expected: DocumentKind[] = view.job.main_status === "IN_PROGRESS" ? ["job-card", "estimate", "invoice"]
     : view.job.main_status === "COMPLETED" ? ["job-card", "estimate", "invoice"]
       : view.job.main_status === "CLOSED" ? ["job-card", "estimate", "invoice", "payment-receipt", "gate-pass"] : ["job-card"];
   const extras = (["estimate", "invoice", "payment-receipt", "gate-pass"] as DocumentKind[]).filter((kind) => recordExists(kind, view) && !expected.includes(kind));
@@ -81,12 +81,11 @@ export function documentFilename(view: JobView, kind: DocumentKind) {
 export function buildJobDocumentModel(kind: DocumentKind, view: JobView, settings: WorkshopBusinessSettings): JobDocumentModel {
   const sourceItems = kind === "invoice" || kind === "payment-receipt" ? view.invoice_items ?? view.estimate_items : view.estimate_items;
   const lines = sourceItems.map((item) => ({ description: item.description, kind: item.kind, quantity: item.qty, rate: item.rate, amount: item.qty * item.rate }));
-  const subtotal = lines.reduce((sum, line) => sum + line.amount, 0);
-  const discount = kind === "invoice" || kind === "payment-receipt" ? view.invoice?.discount ?? 0 : view.estimate?.discount ?? 0;
-  const taxable = Math.max(0, subtotal - discount);
-  const gstRate = kind === "invoice" || kind === "payment-receipt" ? view.invoice?.gst_rate ?? settings.billing.defaultGstPercent : view.estimate?.gst_rate ?? settings.billing.defaultGstPercent;
-  const gst = taxable * gstRate / 100;
-  const calculatedTotal = taxable + gst;
+  const billed = kind === "invoice" || kind === "payment-receipt";
+  const gstFallback = billed ? view.invoice?.gst_rate ?? settings.billing.defaultGstPercent : view.estimate?.gst_rate ?? settings.billing.defaultGstPercent;
+  const priced = invoiceTotals(sourceItems.map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: billed ? (item as { gst_rate?: number | null }).gst_rate ?? gstFallback : gstFallback })), billed ? view.invoice?.discount ?? 0 : view.estimate?.discount ?? 0);
+  const { subtotal, discount, gst } = priced;
+  const calculatedTotal = priced.total;
   const total = kind === "invoice" && view.invoice ? view.invoice.total : calculatedTotal;
   const paid = view.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const received = clean(view.visit.received_at?.slice(0, 10));
