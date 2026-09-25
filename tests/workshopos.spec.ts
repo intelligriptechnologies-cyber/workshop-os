@@ -63,12 +63,12 @@ test("Search actions use the WorkshopOS teal primary in management and entity li
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Customers", exact: true }).click();
   const managementSearch = page.getByRole("tabpanel").getByRole("button", { name: "Search", exact: true });
-  await expect(managementSearch).toHaveCSS("background-color", "rgb(21, 97, 109)");
+  await expect(managementSearch).toHaveCSS("background-color", "rgb(29, 78, 216)");
   await expect(managementSearch).toHaveCSS("color", "rgb(255, 255, 255)");
 
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   const entitySearch = page.locator(".entity-list-page").getByRole("button", { name: "Search", exact: true });
-  await expect(entitySearch).toHaveCSS("background-color", "rgb(21, 97, 109)");
+  await expect(entitySearch).toHaveCSS("background-color", "rgb(29, 78, 216)");
   await expect(entitySearch).toHaveCSS("color", "rgb(255, 255, 255)");
 });
 

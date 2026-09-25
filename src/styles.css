@@ -1435,7 +1435,8 @@ th {
 .compact-action { min-height: 42px; padding: .35rem .75rem; }
 .list-search-actions { display: inline-flex; align-items: end; align-self: end; gap: .5rem; width: max-content; max-width: 100%; }
 .list-search-actions .compact-action { flex: 0 0 auto; }
-.search-action { background: #15616d; color: #fff; }
+.search-action { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
+.search-action:hover:not(:disabled), .search-action:focus-visible { background: #1e40af; border-color: #1e40af; }
 .job-selector { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.4fr); gap: .75rem; padding: .85rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 10px; background: #f7fbff; }
 .job-selector label { display: grid; gap: .35rem; font-weight: 600; color: #31445b; }
 .data-flow-filters { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(280px, 1.6fr) auto; align-items: end; gap: .75rem; padding: 1rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 12px; background: #f7fbff; }
