@@ -90,12 +90,25 @@ export function documentFilename(view: JobView, kind: DocumentKind) {
 export interface RenderedDocument { html: string; title: string; number: string; filename: string; frozen: boolean }
 
 /** Merge the Active template of the kind's category with Company Settings and assets. */
+const DAMAGE_PLACEHOLDER = /{{\s*blocks\.damage_diagram\s*}}/;
+/** Returns the template with the damage diagram block injected (before Tasks, else before </main>, else appended) when it is missing. */
+export function withDamageDiagram<T extends { html: string }>(template: T): T {
+  if (DAMAGE_PLACEHOLDER.test(template.html)) return template;
+  const block = "<h3>Vehicle damage</h3>{{blocks.damage_diagram}}";
+  const html = template.html.replace(/{{\s*blocks\.tasks\s*}}/, (m) => `${block}${m}`);
+  if (html !== template.html) return { ...template, html };
+  const close = template.html.lastIndexOf("</main>");
+  return { ...template, html: close >= 0 ? template.html.slice(0, close) + block + template.html.slice(close) : template.html + block };
+}
+
 export function renderLive(kind: DocumentKind, view: JobView, adminState: Pick<AdminDemoState, "reportTemplates" | "businessSettings" | "companyAssets">): string {
   const category = kind as ReportCategory;
   const template = adminState.reportTemplates.find((candidate) => candidate.category === category && candidate.active);
   if (!template) throw new Error(`No active ${labels[kind]} template is configured.`);
   const values = buildReportValues(category, view, adminState.businessSettings, adminState.companyAssets);
-  const html = renderReportTemplate(template, values, buildReportLines(category, view));
+  // Templates saved before {{blocks.damage_diagram}} existed lack it; the Job Card sheet always embeds the diagram.
+  const source = kind === "job-card" ? withDamageDiagram(template) : template;
+  const html = renderReportTemplate(source, values, buildReportLines(category, view));
   return kind === "job-card" ? html.replace(DAMAGE_SLOT, staticDamageDiagramSvg(parseDamageMarks(view.job.damage_marks))) : html;
 }
 

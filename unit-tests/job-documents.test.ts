@@ -110,3 +110,13 @@ test("document actions reflect record availability, lifecycle, assignment and bi
   assert.deepEqual(resolveJobDocumentActions("invoice", { ...inProgress, estimate: { ...inProgress.estimate!, status: "Draft" } }, advisor), []);
   assert.deepEqual(resolveJobDocumentActions("job-card", invoiced, advisor), ["download"]);
 });
+
+test("job card renders the damage diagram even when a stored template lacks the placeholder", () => {
+  const admin = loadAdminDemoState();
+  const old = { ...admin, reportTemplates: admin.reportTemplates.map((t) => t.category === "job-card" ? { ...t, html: t.html.replace(/<h3>Vehicle damage<\/h3>{{blocks\.damage_diagram}}/, "") } : t) };
+  assert.ok(!old.reportTemplates.find((t) => t.category === "job-card")!.html.includes("damage_diagram"));
+  const view = job({ job: { ...job().job, damage_marks: JSON.stringify([{ id: 1, x: 30, y: 40 }]) } as JobView["job"] });
+  const html = renderJobDocument("job-card", view, old, []).html;
+  assert.match(html, /Vehicle damage diagram/);
+  assert.match(html, /1 damage mark recorded/);
+});
