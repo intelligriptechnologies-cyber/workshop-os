@@ -56,19 +56,20 @@ function completeActiveCycle(db: Database, actorId = 7) {
 test("central transition API enforces the complete allowed-transition table", async () => {
   assert.deepEqual(MAIN_STATUS_TRANSITIONS, {
     NEW: ["IN_PROGRESS", "CANCELLED"],
-    IN_PROGRESS: ["COMPLETED", "CANCELLED"],
-    COMPLETED: ["CLOSED", "CANCELLED", "IN_PROGRESS"],
-    CANCELLED: ["IN_PROGRESS"],
+    IN_PROGRESS: ["COMPLETED", "HOLD", "CANCELLED"],
+    HOLD: ["IN_PROGRESS", "CANCELLED"],
+    COMPLETED: ["IN_PROGRESS", "CLOSED"],
+    CANCELLED: [],
     CLOSED: [],
   });
 
   const statuses = Object.keys(MAIN_STATUS_TRANSITIONS) as MainStatus[];
-  const subByStatus: Record<MainStatus, SubStatus> = { NEW: "Gather Requirements", IN_PROGRESS: "Material Requested", COMPLETED: "Customer Verification", CLOSED: "Delivered", CANCELLED: "Work Started" };
+  const subByStatus: Record<MainStatus, SubStatus> = { NEW: "Gather Requirements", IN_PROGRESS: "Material Requested", COMPLETED: "Customer Verification", CLOSED: "Delivered", CANCELLED: "Work Started", HOLD: "Material Requested" };
   for (const from of statuses) {
     for (const to of statuses) {
       const db = await database();
       insertJob(db, from, subByStatus[from]);
-      if (from !== "CANCELLED") completeActiveCycle(db);
+      if (from !== "CANCELLED" && from !== "HOLD") completeActiveCycle(db);
       const allowed = MAIN_STATUS_TRANSITIONS[from].includes(to);
       if (allowed) {
         transitionJobStatus(db, 1, to, `${from} to ${to}`, "2026-02-01T00:00:00.000Z");
@@ -104,14 +105,30 @@ test("every transition requires a note, cancellation bypasses gates, and CLOSED 
 
   transitionJobStatus(db, 1, "CANCELLED", "Customer withdrew approval");
   assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "CANCELLED");
-  transitionJobStatus(db, 1, "IN_PROGRESS", "Customer restored approval");
-  assert.deepEqual(rows(db, "select stage,cycle_number from checklist_cycles order by id"), [{ stage: "NEW", cycle_number: 1 }, { stage: "IN_PROGRESS", cycle_number: 1 }]);
+  assert.throws(() => transitionJobStatus(db, 1, "IN_PROGRESS", "try reopen"), /Cannot move.*CANCELLED/);
+});
 
+test("CLOSED is terminal", async () => {
+  const db = await database();
+  insertJob(db, "IN_PROGRESS", "Material Requested");
   completeActiveCycle(db);
   transitionJobStatus(db, 1, "COMPLETED", "Work complete");
   completeActiveCycle(db);
   transitionJobStatus(db, 1, "CLOSED", "Vehicle released");
   assert.throws(() => transitionJobStatus(db, 1, "IN_PROGRESS", "try reopen"), /Cannot move.*CLOSED/);
+});
+
+test("HOLD pauses without a checklist gate and resumes the same IN_PROGRESS cycle", async () => {
+  const db = await database();
+  insertJob(db, "IN_PROGRESS", "Material Requested");
+  assert.throws(() => transitionJobStatus(db, 1, "HOLD", " "), /confirmation note/);
+  transitionJobStatus(db, 1, "HOLD", "Waiting for parts");
+  assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "HOLD");
+  transitionJobStatus(db, 1, "IN_PROGRESS", "Parts arrived");
+  assert.deepEqual(rows(db, "select stage,cycle_number from checklist_cycles order by id"), [{ stage: "IN_PROGRESS", cycle_number: 1 }]);
+  transitionJobStatus(db, 1, "HOLD", "Paused again");
+  transitionJobStatus(db, 1, "CANCELLED", "Customer withdrew");
+  assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "CANCELLED");
 });
 
 test("transition failure rolls back status, new cycle, and audit history atomically", async () => {

@@ -28,8 +28,8 @@ function rows<T>(db: Database, sql: string): T[] {
   return result.values.map((values) => Object.fromEntries(result.columns.map((column, index) => [column, values[index]])) as T);
 }
 
-test("lifecycle model exposes exactly five main statuses and ordered stage templates", () => {
-  assert.deepEqual(Object.keys(MAIN_STATUS_TRANSITIONS), ["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"]);
+test("lifecycle model exposes exactly six main statuses and ordered stage templates", () => {
+  assert.deepEqual(Object.keys(MAIN_STATUS_TRANSITIONS), ["NEW", "IN_PROGRESS", "HOLD", "COMPLETED", "CANCELLED", "CLOSED"]);
   assert.deepEqual(LIFECYCLE_CHECKLIST.COMPLETED, ["Customer Verification", "Invoice Ready", "Payment Received"]);
   assert.equal(deriveChecklistSubStatus([
     { label: "Invoice Ready", sort_order: 2, checked_at: null },
@@ -37,7 +37,7 @@ test("lifecycle model exposes exactly five main statuses and ordered stage templ
   ]), "Invoice Ready");
 });
 
-test("migration normalizes HOLD once, preserves audit evidence, and creates lifecycle storage", async () => {
+test("migration keeps HOLD as a real status, preserves audit evidence, and creates lifecycle storage", async () => {
   const db = await database();
   db.run("insert into job_cards(id,job_no,main_status,sub_status,created_at,updated_at) values(1,'JC-OLD','HOLD','Invoice Ready','2026-01-02T03:04:05.000Z','2026-01-02T03:04:05.000Z')");
   db.run("insert into status_history(job_card_id,main_status,sub_status,note,created_at) values(1,'HOLD','Invoice Ready','Legacy hold','2026-01-02T03:04:05.000Z')");
@@ -46,9 +46,8 @@ test("migration normalizes HOLD once, preserves audit evidence, and creates life
   migrateLifecycleStorage(db);
   migrateLifecycleStorage(db);
 
-  assert.deepEqual(rows(db, "select main_status,sub_status from job_cards"), [{ main_status: "IN_PROGRESS", sub_status: "Invoice Ready" }]);
-  assert.equal(rows(db, "select * from status_history where main_status='HOLD'").length, 0);
-  assert.equal(rows(db, "select * from status_history where note='Migration: HOLD normalized to IN_PROGRESS'").length, 1);
+  assert.deepEqual(rows(db, "select main_status,sub_status from job_cards"), [{ main_status: "HOLD", sub_status: "Invoice Ready" }]);
+  assert.equal(rows(db, "select * from status_history where main_status='HOLD'").length, 2);
   assert.deepEqual(rows(db, "select stage,cycle_number,started_at,completed_at from checklist_cycles"), [{ stage: "COMPLETED", cycle_number: 1, started_at: "2026-01-02T03:04:05.000Z", completed_at: null }]);
   assert.deepEqual(rows(db, "select label,sort_order,checked_by,checked_at,started_at,completed_at from checklist_items order by sort_order"), [
     { label: "Customer Verification", sort_order: 1, checked_by: null, checked_at: "2026-01-02T03:04:05.000Z", started_at: "2026-01-02T03:04:05.000Z", completed_at: "2026-01-02T03:04:05.000Z" },

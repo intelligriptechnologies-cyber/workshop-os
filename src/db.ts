@@ -470,32 +470,55 @@ export function receiveVehicle(
   }
 }
 
-// Job status lifecycle (UI_BRD_v1.3.md §3/§4):
-//   NEW -> IN_PROGRESS -> COMPLETED -> CLOSED; COMPLETED -> IN_PROGRESS starts rework
-//   CANCELLED -> (reopen) -> IN_PROGRESS
-// CLOSED is terminal. Any transition not listed here is rejected.
+// Job status lifecycle (workshop feedback v3.1-v3.3, issue #33):
+//   NEW -> IN_PROGRESS | CANCELLED
+//   IN_PROGRESS -> COMPLETED | HOLD | CANCELLED
+//   HOLD -> IN_PROGRESS | CANCELLED
+//   COMPLETED -> IN_PROGRESS (rework) | CLOSED
+// CLOSED and CANCELLED are terminal. Any transition not listed here is rejected.
 export const MAIN_STATUS_TRANSITIONS: Record<MainStatus, MainStatus[]> = {
   NEW: ["IN_PROGRESS", "CANCELLED"],
-  IN_PROGRESS: ["COMPLETED", "CANCELLED"],
-  COMPLETED: ["CLOSED", "CANCELLED", "IN_PROGRESS"],
-  CANCELLED: ["IN_PROGRESS"],
+  IN_PROGRESS: ["COMPLETED", "HOLD", "CANCELLED"],
+  HOLD: ["IN_PROGRESS", "CANCELLED"],
+  COMPLETED: ["IN_PROGRESS", "CLOSED"],
+  CANCELLED: [],
   CLOSED: [],
 };
+
+export function isTerminalMainStatus(status: MainStatus) {
+  return MAIN_STATUS_TRANSITIONS[status].length === 0;
+}
 
 export function canMutateJobLifecycle(actor: Pick<User, "id" | "role">, job: Pick<JobCard, "advisor_id">) {
   return actor.role === "admin" || (actor.role === "service" && actor.id === job.advisor_id);
 }
 
+// Per-transition permission: Owner/Admin may do everything; the linked Service Advisor may do
+// everything except Close; Accounts may only Close a COMPLETED card. Cancel is therefore limited
+// to Owner/Admin and the linked Advisor.
+export function canTransitionJobStatus(actor: Pick<User, "id" | "role">, job: Pick<JobCard, "advisor_id" | "main_status">, to: MainStatus) {
+  if (!MAIN_STATUS_TRANSITIONS[job.main_status].includes(to)) return false;
+  if (actor.role === "admin") return true;
+  if (to === "CLOSED") return actor.role === "accounts";
+  return actor.role === "service" && actor.id === job.advisor_id;
+}
+
 export function assertJobLifecycleMutationAccess(db: Database, jobId: number, actorId: number) {
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
   const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (isTerminalMainStatus(job.main_status)) throw new Error(`A ${job.main_status} job card is read-only.`);
   if (!canMutateJobLifecycle(actor, job)) {
     throw new Error("Only the Owner or the linked Service Advisor can change this job lifecycle or estimate.");
   }
 }
 
 export function transitionJobStatusForActor(db: Database, jobId: number, actorId: number, to: MainStatus, note: string, timestamp = new Date().toISOString()) {
-  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (!MAIN_STATUS_TRANSITIONS[job.main_status].includes(to)) throw new Error(`Cannot move a job card from ${job.main_status} to ${to}.`);
+  if (!canTransitionJobStatus(actor, job, to)) {
+    throw new Error(to === "CANCELLED" ? "Only the Owner or the linked Service Advisor can cancel a job card." : to === "CLOSED" ? "Only the Owner or Accounts can close a job card." : "Only the Owner or the linked Service Advisor can change this job lifecycle.");
+  }
   transitionJobStatus(db, jobId, to, note, timestamp);
 }
 
@@ -609,12 +632,6 @@ export function archiveJobCardForActor(db: Database, jobId: number, actorId: num
 
 export function cancelJobCardStatus(db: Database, jobId: number, note: string) {
   transitionJobStatus(db, jobId, "CANCELLED", note);
-}
-
-export function reopenJobCard(db: Database, jobId: number, note: string) {
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  if (job.main_status !== "CANCELLED") throw new Error("Only a cancelled job can be reopened.");
-  transitionJobStatus(db, jobId, "IN_PROGRESS", note);
 }
 
 export function createEstimate(db: Database, jobId: number) {
@@ -1438,21 +1455,11 @@ export function migrateSchema(db: Database) {
   migrateLifecycleStorage(db);
 }
 
-const HOLD_MIGRATION_NOTE = "Migration: HOLD normalized to IN_PROGRESS";
-
 export function migrateLifecycleStorage(db: Database) {
   db.run(`
     create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
     create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
   `);
-  const heldJobs = all<{ id: number; sub_status: SubStatus }>(db, "select id, sub_status from job_cards where main_status='HOLD'");
-  heldJobs.forEach((job) => {
-    db.run("update job_cards set main_status='IN_PROGRESS', updated_at=coalesce(updated_at, datetime('now')) where id=?", [job.id]);
-    if (!maybe<{ id: number }>(db, "select id from status_history where job_card_id=? and note=?", [job.id, HOLD_MIGRATION_NOTE])) {
-      history(db, job.id, "IN_PROGRESS", job.sub_status, HOLD_MIGRATION_NOTE);
-    }
-  });
-  db.run("update status_history set main_status='IN_PROGRESS' where main_status='HOLD'");
   all<{ id: number; main_status: MainStatus; sub_status: SubStatus; created_at: string | null }>(db, "select id, main_status, sub_status, created_at from job_cards").forEach((job) => {
     ensureLifecycleChecklist(db, job.id, job.main_status, job.sub_status, job.created_at ?? undefined);
     syncSubStatusFromChecklist(db, job.id);
@@ -1588,9 +1595,10 @@ export function transitionJobStatus(db: Database, jobId: number, to: MainStatus,
     if (job.main_status === to) throw new Error(`Job card is already ${to}.`);
     assertValidMainStatusTransition(job.main_status, to);
 
-    if (to !== "CANCELLED") {
+    const gated = to !== "CANCELLED" && to !== "HOLD" && job.main_status !== "HOLD";
+    if (gated) {
       const active = maybe<ChecklistCycle>(db, "select * from checklist_cycles where job_card_id=? order by id desc limit 1", [jobId]);
-      if (job.main_status !== "CANCELLED" && (!active || active.stage !== job.main_status || !active.completed_at)) {
+      if ((!active || active.stage !== job.main_status || !active.completed_at)) {
         const remaining = active
           ? all<{ label: SubStatus }>(db, "select label from checklist_items where checklist_cycle_id=? and checked_at is null order by sort_order", [active.id]).map((item) => item.label)
           : [];
@@ -1598,11 +1606,13 @@ export function transitionJobStatus(db: Database, jobId: number, to: MainStatus,
       }
     }
 
-    const nextSub = to === "CANCELLED" ? checklistSubStatus(db, jobId, job.sub_status) : LIFECYCLE_CHECKLIST[to][0];
+    const keepsChecklist = to === "CANCELLED" || to === "HOLD";
+    const resumesCycle = job.main_status === "HOLD" && to === "IN_PROGRESS";
+    const nextSub = keepsChecklist || resumesCycle ? checklistSubStatus(db, jobId, job.sub_status) : LIFECYCLE_CHECKLIST[to][0];
     db.run("update job_cards set main_status=?, sub_status=?, closed_at=case when ?='CLOSED' then coalesce(closed_at, ?) else closed_at end, updated_at=? where id=?", [to, nextSub, to, timestamp, timestamp, jobId]);
-    if (to !== "CANCELLED") createLifecycleCycle(db, jobId, to, timestamp);
+    if (!keepsChecklist && !resumesCycle) createLifecycleCycle(db, jobId, to, timestamp);
     history(db, jobId, to, nextSub, confirmation, timestamp);
-    if (to !== "CANCELLED") reconcileArtifactChecklist(db, jobId, 0, timestamp);
+    if (!keepsChecklist) reconcileArtifactChecklist(db, jobId, 0, timestamp);
     if (to === "COMPLETED") {
       const cleared = maybe<Invoice>(db, "select * from invoices where job_card_id=? and status='Cleared' and voided_at is null order by id desc limit 1", [jobId]);
       if (cleared) closeJobForClearedInvoice(db, cleared.id);

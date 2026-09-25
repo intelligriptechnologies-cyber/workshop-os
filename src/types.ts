@@ -1,8 +1,8 @@
 export type Role = "admin" | "service" | "reception" | "accounts" | "store" | "tech";
 
-export type MainStatus = "NEW" | "IN_PROGRESS" | "COMPLETED" | "CLOSED" | "CANCELLED";
+export type MainStatus = "NEW" | "IN_PROGRESS" | "HOLD" | "COMPLETED" | "CLOSED" | "CANCELLED";
 
-export type ChecklistStage = Exclude<MainStatus, "CANCELLED">;
+export type ChecklistStage = Exclude<MainStatus, "CANCELLED" | "HOLD">;
 
 export type SubStatus =
   | "Gather Requirements"

@@ -57,6 +57,31 @@ test("only owner and linked service advisor can mutate lifecycle and checklist",
   assert.equal(value<{ main_status: string }>(ownerDb, "select main_status from job_cards where id=1").main_status, "CANCELLED");
 });
 
+test("Cancel is Owner/Advisor only, Close is Owner/Accounts only, and terminal jobs are read-only", async () => {
+  const db = await database();
+  db.run("update job_cards set main_status='COMPLETED' where id=1");
+  assert.throws(() => transitionJobStatusForActor(db, 1, 3, "CANCELLED", "x"), /Cannot move/);
+  assert.throws(() => transitionJobStatusForActor(db, 1, 2, "CLOSED", "x"), /Owner or Accounts/);
+  const cancelDb = await database();
+  for (const denied of [3, 4]) assert.throws(() => transitionJobStatusForActor(cancelDb, 1, denied, "CANCELLED", "x"), /cancel/);
+  transitionJobStatusForActor(cancelDb, 1, 2, "CANCELLED", "Advisor cancelled");
+  const item = value<{ id: number }>(cancelDb, "select id from checklist_items order by sort_order limit 1");
+  assert.throws(() => setChecklistItemCheckedForActor(cancelDb, item.id, 1, true), /read-only/);
+  assert.throws(() => transitionJobStatusForActor(cancelDb, 1, 1, "IN_PROGRESS", "x"), /Cannot move/);
+});
+
+test("Cancel is Owner/Advisor only, Close is Owner/Accounts only, and terminal jobs are read-only", async () => {
+  const db = await database();
+  db.run("update job_cards set main_status='COMPLETED' where id=1");
+  assert.throws(() => transitionJobStatusForActor(db, 1, 2, "CLOSED", "x"), /Owner or Accounts/);
+  const cancelDb = await database();
+  for (const denied of [3, 4]) assert.throws(() => transitionJobStatusForActor(cancelDb, 1, denied, "CANCELLED", "x"), /cancel/);
+  transitionJobStatusForActor(cancelDb, 1, 2, "CANCELLED", "Advisor cancelled");
+  const item = value<{ id: number }>(cancelDb, "select id from checklist_items order by sort_order limit 1");
+  assert.throws(() => setChecklistItemCheckedForActor(cancelDb, item.id, 1, true), /read-only/);
+  assert.throws(() => transitionJobStatusForActor(cancelDb, 1, 1, "IN_PROGRESS", "x"), /Cannot move/);
+});
+
 test("estimate save validates, persists items and completes Create Estimate only after save", async () => {
   const db = await database();
   assert.equal(value<{ count: number }>(db, "select count(*) as count from estimates").count, 0);

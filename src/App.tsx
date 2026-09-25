@@ -61,6 +61,8 @@ import {
   login,
   loadLargeDemoDataset,
   MAIN_STATUS_TRANSITIONS,
+  canTransitionJobStatus,
+  isTerminalMainStatus,
   markWashingNeeded,
   markFollowupDone,
   openWorkshopDb,
@@ -71,7 +73,6 @@ import {
   receiveVehicle,
   reconcileMaterial,
   reconcileMaterialQty,
-  reopenJobCard,
   canMutateJobLifecycle,
   saveEstimateForActor,
   saveJobPhotoForActor,
@@ -1876,8 +1877,9 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
   const [target, setTarget] = useState<MainStatus>();
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
-  const allowed = MAIN_STATUS_TRANSITIONS[view.job.main_status];
-  const canMutate = canMutateJobLifecycle(actor, view.job);
+  const allowed = MAIN_STATUS_TRANSITIONS[view.job.main_status].filter((status) => canTransitionJobStatus(actor, view.job, status));
+  const terminal = isTerminalMainStatus(view.job.main_status);
+  const canMutate = canMutateJobLifecycle(actor, view.job) && !terminal && view.job.main_status !== "HOLD";
   const cycle = [...view.checklist_cycles].sort((a, b) => b.id - a.id)[0];
   const items = view.checklist_items.filter((item) => item.checklist_cycle_id === cycle?.id).sort((a, b) => a.sort_order - b.sort_order);
   const firstOpen = items.findIndex((item) => !item.checked_at);
@@ -1906,16 +1908,18 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
         return <li key={item.id} className={item.checked_at ? "complete" : index === firstOpen ? "active" : "locked"}><label><input type="checkbox" checked={Boolean(item.checked_at)} disabled={!enabled} onChange={(event) => toggle(item, event.target.checked)} /><span><strong>{item.label}</strong><small>{detail}</small></span></label></li>;
       })}
     </ol>
-    {!canMutate && <p className="permission-note">Read only. Lifecycle changes are limited to the Owner and the linked Service Advisor.</p>}
+    {terminal && <p className="permission-note">This job is {view.job.main_status} and read-only.</p>}
+    {!terminal && !canMutate && allowed.length === 0 && <p className="permission-note">Read only. Lifecycle changes are limited to the Owner and the linked Service Advisor.</p>}
     {error && !target && <p className="error-text" role="alert">{error}</p>}
-    {canMutate && allowed.length > 0 && <div className="action-row">{allowed.map((status) => <button type="button" key={status} className={status === "CANCELLED" ? "danger-action" : "primary-action"} onClick={() => { setTarget(status); setNote(""); setError(""); }}>{lifecycleActionLabel(view.job.main_status, status)}</button>)}</div>}
+    {allowed.length > 0 && <div className="action-row">{allowed.map((status) => <button type="button" key={status} className={status === "CANCELLED" ? "danger-action" : "primary-action"} onClick={() => { setTarget(status); setNote(""); setError(""); }}>{lifecycleActionLabel(view.job.main_status, status)}</button>)}</div>}
     {target && <Dialog title={`${lifecycleActionLabel(view.job.main_status, target)}?`} subtitle={`${view.job.job_no}: ${view.job.main_status} → ${target}`} onClose={() => { setTarget(undefined); setError(""); }}><form onSubmit={confirm}><label>Confirmation note<textarea data-dialog-initial-focus aria-describedby="lifecycle-note-help" value={note} onChange={(event) => setNote(event.target.value)} /></label><p id="lifecycle-note-help" className="field-help">Required. This note is recorded in status history.</p>{error && <p className="error-text" role="alert">{error}</p>}<div className="action-row"><button className="primary-action">Confirm status change</button><button type="button" onClick={() => setTarget(undefined)}>Cancel</button></div></form></Dialog>}
   </section>;
 }
 
 function lifecycleActionLabel(from: MainStatus, to: MainStatus) {
   if (to === "CANCELLED") return "Cancel Job";
-  if (from === "CANCELLED") return "Reopen Job";
+  if (to === "HOLD") return "Put On Hold";
+  if (from === "HOLD") return "Resume Work";
   if (from === "COMPLETED" && to === "IN_PROGRESS") return "Start Rework";
   if (to === "IN_PROGRESS") return "Start Work";
   if (to === "COMPLETED") return "Complete Work";
