@@ -3,11 +3,10 @@ import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboard
 import { downloadExcel, downloadPdf, type ExportColumn, type ExportReport } from "./export-utils";
 import { PAGE_SIZE_OPTIONS } from "./list-utils";
 
-export function ListSearchActions({ onClear, onSearch }: { onClear: () => void; onSearch: () => void }) {
+export function ListSearchActions({ onClear }: { onClear: () => void }) {
   return (
     <div className="list-search-actions" role="group" aria-label="Search actions">
       <button type="button" className="compact-action" onClick={onClear}>Clear</button>
-      <button type="button" className="primary-action compact-action search-action" onClick={onSearch}>Search</button>
     </div>
   );
 }

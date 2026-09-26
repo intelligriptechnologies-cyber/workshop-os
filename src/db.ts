@@ -456,6 +456,9 @@ export function receiveVehicle(
     color: string;
     km: number;
     fuel: string;
+    odoReading?: number;
+    fuelLevelValue?: string;
+    fuelLevelUnit?: "bars" | "%" | "litres" | "Other";
     keys: string;
     accessories: string;
     requestedWork: string;
@@ -475,8 +478,10 @@ export function receiveVehicle(
   if (!payload.make.trim() || !payload.model.trim()) throw new Error("Vehicle make and model are required.");
   if (!payload.requestedWork.trim()) throw new Error("Requested work is required.");
   if (!payload.receptionId) throw new Error("Receiving user is required.");
-  if (!Number.isFinite(payload.km) || payload.km < 0) throw new Error("Enter the vehicle KM reading.");
+  const odoReading = payload.odoReading ?? payload.km;
+  if (!Number.isFinite(odoReading) || odoReading < 0) throw new Error("Enter the ODO meter reading in km.");
   if (!payload.fuel.trim()) throw new Error("Enter the fuel level or battery percentage.");
+  if (payload.fuelLevelUnit && !payload.fuelLevelValue?.trim()) throw new Error("Enter the fuel or battery level.");
   const advisorId = payload.advisorId || 0;
   db.run("savepoint reception_intake");
   try {
@@ -493,15 +498,15 @@ export function receiveVehicle(
       make: payload.make,
       model: payload.model,
       color: payload.color,
-      km: payload.km,
+      km: odoReading,
       engine_no: payload.engineNo,
     });
   updateCustomer(db, customerId, { name: payload.customerName, mobile: payload.mobile, type: payload.customerType || "Individual", address: payload.address });
-  updateVehicle(db, vehicleId, { customer_id: customerId, number: payload.vehicleNo, make: payload.make, model: payload.model, color: payload.color, km: payload.km, engine_no: payload.engineNo });
+  updateVehicle(db, vehicleId, { customer_id: customerId, number: payload.vehicleNo, make: payload.make, model: payload.model, color: payload.color, km: odoReading, engine_no: payload.engineNo });
   const visitId = insert(
     db,
-    "insert into visits(customer_id, vehicle_id, advisor_id, received_by, received_at, fuel, keys, accessories, requested_work, photos_note, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [customerId, vehicleId, advisorId, payload.receptionId, payload.fuel, payload.keys, payload.accessories, payload.requestedWork, "Reception intake"],
+    "insert into visits(customer_id, vehicle_id, advisor_id, received_by, received_at, fuel, odo_reading, fuel_level_value, fuel_level_unit, keys, accessories, requested_work, photos_note, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
+    [customerId, vehicleId, advisorId, payload.receptionId, payload.fuel, odoReading, payload.fuelLevelValue ?? "", payload.fuelLevelUnit ?? "", payload.keys, payload.accessories, payload.requestedWork, "Reception intake"],
   );
   const jobId = insert(
     db,
@@ -1585,7 +1590,7 @@ export function createSchema(db: Database) {
     create table if not exists users(id integer primary key, email text unique, name text, role text, password text);
     create table if not exists customers(id integer primary key, name text, mobile text unique, type text, address text);
     create table if not exists vehicles(id integer primary key, customer_id integer, number text unique, make text, model text, color text, km integer, engine_no text);
-    create table if not exists visits(id integer primary key, customer_id integer, vehicle_id integer, advisor_id integer, received_by integer, received_at text, fuel text, keys text, accessories text, requested_work text, photos_note text);
+    create table if not exists visits(id integer primary key, customer_id integer, vehicle_id integer, advisor_id integer, received_by integer, received_at text, fuel text, odo_reading real, fuel_level_value text, fuel_level_unit text, keys text, accessories text, requested_work text, photos_note text);
     create table if not exists job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text, service_type text, pickup_drop text, estimated_delivery text, damage_marks text);
     create table if not exists status_history(id integer primary key, job_card_id integer, main_status text, sub_status text, note text, created_at text);
     create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
@@ -1676,6 +1681,9 @@ export function migrateSchema(db: Database) {
   ensureColumn(db, "job_cards", "pickup_drop", "text");
   ensureColumn(db, "job_cards", "estimated_delivery", "text");
   ensureColumn(db, "job_cards", "damage_marks", "text");
+  ensureColumn(db, "visits", "odo_reading", "real");
+  ensureColumn(db, "visits", "fuel_level_value", "text");
+  ensureColumn(db, "visits", "fuel_level_unit", "text");
   ensureColumn(db, "vehicles", "engine_no", "text");
   ensureColumn(db, "customers", "address", "text");
   ensureColumn(db, "tasks", "started_at", "text");

@@ -216,9 +216,10 @@ form {
 .membership-status.active { background: #dcfce7; color: #166534; }
 
 .app-shell {
-  min-height: 100vh;
+  height: 100dvh;
   display: grid;
   grid-template-columns: 250px 1fr;
+  overflow: hidden;
   transition: grid-template-columns 180ms ease;
 }
 
@@ -227,7 +228,8 @@ form {
 }
 
 .rail {
-  min-height: 100vh;
+  min-height: 0;
+  height: 100dvh;
   padding: 18px;
   background: #e1f1eb;
   color: #21302e;
@@ -235,6 +237,9 @@ form {
   position: sticky;
   top: 0;
   overflow: visible;
+  box-sizing: border-box;
+  display: flex;
+  flex-direction: column;
 }
 
 .brand {
@@ -296,6 +301,11 @@ form {
   display: grid;
   gap: 8px;
   margin-top: 14px;
+  min-height: 0;
+  flex: 1 1 auto;
+  overflow-x: hidden;
+  overflow-y: auto;
+  align-content: start;
 }
 
 .role-nav button {
@@ -319,11 +329,11 @@ form {
 }
 
 .logout {
-  width: calc(100% - 36px);
-  position: absolute;
-  bottom: 18px;
+  width: 100%;
+  margin-top: 14px;
   gap: 8px;
   justify-content: center;
+  flex: 0 0 auto;
 }
 
 .rail-collapsed .rail {
@@ -353,10 +363,6 @@ form {
   left: 59px;
 }
 
-.rail-collapsed .logout {
-  left: 12px;
-}
-
 .mobile-logout {
   display: none;
   gap: 8px;
@@ -370,7 +376,10 @@ form {
 }
 
 main {
+  min-width: 0;
+  min-height: 0;
   padding: 22px;
+  overflow: auto;
 }
 
 .topbar {
@@ -401,13 +410,30 @@ main {
   min-height: 46px;
   border: 0;
   border-radius: 8px;
-  background: #f4b942;
-  color: #17212b;
+  background: #0d6efd;
+  color: #fff;
   justify-content: center;
   gap: 8px;
   padding: 0 15px;
   font-weight: 400;
 }
+
+.add-action {
+  min-height: 42px;
+  border: 1px solid #198754;
+  border-radius: 8px;
+  background: #198754;
+  color: #fff;
+  padding: 0 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+}
+.add-action:hover { background: #157347; border-color: #146c43; }
+.back-action { min-height: 42px; border: 1px solid #6c757d; border-radius: 8px; background: #6c757d; color: #fff; padding: 0 14px; }
+.primary-action:hover { background: #0b5ed7; }
+.primary-action:focus-visible, .add-action:focus-visible, .back-action:focus-visible { outline-color: rgba(13, 110, 253, .5); }
 
 .kpi-strip {
   display: grid;
@@ -1239,11 +1265,14 @@ th {
 
 @media (max-width: 1180px) {
   .app-shell {
+    height: auto;
     display: block;
     padding-bottom: 78px;
+    overflow: visible;
   }
 
   .rail {
+    height: auto;
     min-height: auto;
     position: fixed;
     z-index: 20;
@@ -1266,9 +1295,12 @@ th {
 
   .role-nav {
     margin: 0;
+    min-height: auto;
+    flex: initial;
     grid-auto-flow: column;
     grid-auto-columns: minmax(86px, 1fr);
     overflow-x: auto;
+    overflow-y: hidden;
     gap: 4px;
   }
 
@@ -1293,6 +1325,11 @@ th {
   .mobile-logout {
     display: inline-flex;
     justify-content: center;
+  }
+
+  main {
+    min-height: auto;
+    overflow: visible;
   }
 
   .kpi-strip,
@@ -1437,8 +1474,9 @@ th {
 .list-search-actions .compact-action { flex: 0 0 auto; }
 .search-action { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .search-action:hover:not(:disabled), .search-action:focus-visible { background: #1e40af; border-color: #1e40af; }
-.job-selector { display: grid; grid-template-columns: minmax(220px, 1fr) minmax(260px, 1.4fr); gap: .75rem; padding: .85rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 10px; background: #f7fbff; }
+.job-selector { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); align-items: end; gap: .75rem; padding: .85rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 10px; background: #f7fbff; }
 .job-selector label { display: grid; gap: .35rem; font-weight: 600; color: #31445b; }
+.job-picker-empty { grid-column: 1 / -1; margin: 0; color: #637083; }
 .data-flow-filters { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(280px, 1.6fr) auto; align-items: end; gap: .75rem; padding: 1rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 12px; background: #f7fbff; }
 .data-flow-filters label, .data-flow-combobox { display: grid; gap: .35rem; min-width: 0; font-weight: 600; color: #31445b; }
 .data-flow-combobox { position: relative; }
@@ -1515,6 +1553,61 @@ th {
 .job-media-card .record-actions { padding: .5rem .85rem .85rem; }
 .pagination { justify-content: center; margin-top: 1rem; }
 
+/* Compact filters only inside the Admin Management Hub. */
+.management-hub .store-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .65rem;
+}
+.management-hub .store-filter-grid > label {
+  flex: 0 1 10rem;
+  min-width: 8.5rem;
+}
+.management-hub .store-filter-grid > .list-search {
+  flex: 1 1 18rem;
+  min-width: 12rem;
+}
+.management-hub .store-filter-grid > .list-search-actions {
+  margin-left: auto;
+}
+.management-hub .job-selector {
+  grid-template-columns: repeat(3, minmax(160px, 1fr));
+  align-items: end;
+}
+.management-hub .job-selector > * { min-width: 0; }
+.management-hub .job-selector input,
+.management-hub .job-selector select { min-width: 0; width: 100%; max-width: 100%; }
+.management-hub .billing-more-filters {
+  align-self: end;
+  border: 1px solid #c9d9ec;
+  border-radius: 8px;
+  background: #f7fbff;
+}
+.management-hub .billing-more-filters summary {
+  min-height: 42px;
+  display: flex;
+  align-items: center;
+  padding: 0 .75rem;
+  cursor: pointer;
+  font-weight: 600;
+  color: #31445b;
+}
+.management-hub .billing-more-filters[open] {
+  flex: 1 0 100%;
+}
+.management-hub .billing-date-filters {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: .65rem;
+  padding: 0 .75rem .75rem;
+}
+.management-hub .billing-date-filters label {
+  display: grid;
+  min-width: 0;
+  gap: .35rem;
+}
+
 @media (max-width: 700px) {
   .compact-action, .document-download { min-height: 44px; }
   .media-phase-tabs { display: grid; grid-template-columns: 1fr 1fr; }
@@ -1539,6 +1632,22 @@ th {
   .store-filter-grid .list-search {
     grid-column: auto;
   }
+  .management-hub .store-filter-grid > label,
+  .management-hub .store-filter-grid > .list-search,
+  .management-hub .store-filter-grid > .list-search-actions,
+  .management-hub .billing-more-filters {
+    flex-basis: 100%;
+    width: 100%;
+    margin-left: 0;
+  }
+  .management-hub .store-filter-grid > .list-search-actions {
+    justify-content: stretch;
+  }
+  .management-hub .store-filter-grid > .list-search-actions button {
+    flex: 1 1 0;
+  }
+  .management-hub .job-selector { grid-template-columns: 1fr; }
+  .management-hub .billing-date-filters { grid-template-columns: 1fr; }
   .management-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .management-tabs button { width: 100%; }
   .managed-record { align-items: stretch; flex-direction: column; }
@@ -1824,19 +1933,45 @@ th {
 
 /* Body Mark tab */
 .body-mark { display: grid; gap: .75rem; }
-.body-mark-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .75rem; max-width: 46rem; }
-.body-mark-panel { margin: 0; display: grid; gap: .25rem; }
-.body-mark-panel figcaption { font-size: .8rem; font-weight: 600; color: #3b4756; }
-.body-mark-panel svg { width: 100%; height: auto; cursor: crosshair; border: 1px solid #d6dbe3; border-radius: 8px; background: #fff; }
+.body-mark-canvas { position: relative; width: min(100%, 420px); aspect-ratio: 1; border: 1px solid #d6dbe3; border-radius: 8px; background: #fff; overflow: hidden; }
+.body-mark-canvas.editable { cursor: crosshair; }
+.body-mark-canvas img { display: block; width: 100%; height: 100%; user-select: none; pointer-events: none; }
+.damage-marker { position: absolute; transform: translate(-50%, -50%); width: 28px; height: 28px; padding: 0; border: 2px solid #fff; border-radius: 50%; background: #dc3545; color: #fff; font-size: .72rem; font-weight: 700; display: inline-flex; align-items: center; justify-content: center; box-shadow: 0 1px 4px rgba(0,0,0,.3); }
+.damage-marker svg { display: none; }
+.damage-marker:hover svg, .damage-marker:focus-visible svg { display: block; position: absolute; right: -6px; top: -6px; padding: 1px; border-radius: 50%; background: #7f1d1d; }
+.damage-marker:disabled { opacity: 1; cursor: default; }
 .body-mark-footer { display: flex; flex-wrap: wrap; align-items: center; gap: .75rem; }
-@media (max-width: 560px) { .body-mark-grid { grid-template-columns: 1fr; } }
 /* Job Card dialog: use most of the region */
 .dialog-panel.dialog-job { width: min(1400px, 92vw); max-height: 90vh; height: 88vh; }
 .job-documents-block { margin-top: 1rem; }
 .add-line-item { justify-self: start; display: inline-flex; align-items: center; gap: .35rem; width: auto; }
+.remove-icon { min-width: 34px; min-height: 34px; display: inline-grid; place-items: center; padding: 0; border: 1px solid #dc3545; border-radius: 7px; background: #fff; color: #dc3545; }
+.field-pair { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: .45rem; }
+@media (max-width: 560px) { .dialog-footer-actions { width: 100%; justify-content: stretch; } .dialog-footer-actions button { flex: 1; } }
 .search-select { position: relative; display: grid; gap: 4px; }
 .search-select-options { position: absolute; top: 100%; left: 0; right: 0; z-index: 6; margin: 2px 0 0; padding: 4px; list-style: none; max-height: 14rem; overflow: auto; background: #fff; border: 1px solid #d0d5dd; border-radius: 8px; box-shadow: 0 6px 18px rgba(16,24,40,.12); }
 .search-select-options button { width: 100%; text-align: left; border: 0; background: transparent; padding: 6px 8px; }
 .search-select-options button:hover, .search-select-options button[aria-selected="true"] { background: #eef4f6; }
 .field-with-action { display: grid; gap: 4px; }
 .field-with-action .link-action { justify-self: start; }
+
+/* Reception queue */
+.queue-heading { display: flex; align-items: start; justify-content: space-between; gap: 1rem; }
+.queue-heading .panel-title { margin-bottom: 0; }
+.queue-summary { display: flex; flex-wrap: wrap; gap: .75rem; margin: .9rem 0; }
+.queue-summary span { padding: .45rem .7rem; border-radius: 8px; background: #eef4f6; color: #52606d; }
+.queue-summary strong { color: #15616d; margin-right: .25rem; }
+.advisor-attendance { margin: 1rem 0; padding: .8rem; border: 1px solid #d9e2e8; border-radius: 10px; background: #fbfcfd; }
+.advisor-roster-heading { display: flex; justify-content: space-between; gap: .5rem; color: #52606d; font-size: .85rem; }
+.advisor-roster { display: grid; grid-template-columns: repeat(auto-fit, minmax(190px, 1fr)); gap: .55rem; margin-top: .65rem; }
+.advisor-card { display: flex; align-items: center; justify-content: space-between; gap: .5rem; padding: .6rem; border: 1px solid #d9e2e8; border-radius: 8px; background: #fff; }
+.advisor-card > div { display: grid; gap: .1rem; }.advisor-card span { color: #637083; font-size: .8rem; }.advisor-card.away { opacity: .8; border-style: dashed; }
+.advisor-card button { min-height: 32px; padding: .25rem .5rem; font-size: .78rem; }
+.queue-filter-bar { display: grid; grid-template-columns: minmax(190px, 1fr) auto auto; gap: .6rem; align-items: end; }
+.queue-statuses { display: flex; flex-wrap: wrap; gap: .35rem; }.queue-statuses button { padding: .4rem .55rem; border: 1px solid #d4dde5; border-radius: 999px; background: #fff; color: #52606d; }.queue-statuses button.active { background: #15616d; color: #fff; border-color: #15616d; }.queue-statuses span { font-weight: 700; }
+.reception-visit-rows { display: grid; gap: .5rem; }.reception-visit-row { display: grid; grid-template-columns: minmax(140px, 1fr) minmax(120px, .8fr) minmax(140px, .9fr); gap: .4rem .8rem; align-items: center; text-align: left; width: 100%; padding: .75rem; border: 1px solid #d9e2e8; border-radius: 9px; background: #fff; }.reception-visit-row:hover, .reception-visit-row.active { border-color: #15616d; background: #f2fbf8; }.reception-visit-row div { display: grid; gap: .2rem; }.reception-visit-row span, .reception-visit-row p { margin: 0; color: #637083; font-size: .82rem; }.reception-visit-row p { grid-column: 1 / -1; }.advisor-name.unassigned { color: #a15c00; font-weight: 700; }
+@media (max-width: 760px) { .queue-heading { align-items: stretch; flex-direction: column; }.queue-filter-bar { grid-template-columns: 1fr; }.reception-visit-row { grid-template-columns: 1fr; } }
+
+@media (max-width: 700px) {
+  .management-hub .job-selector { grid-template-columns: minmax(0, 1fr); }
+}

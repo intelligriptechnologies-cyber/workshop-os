@@ -31,14 +31,24 @@ export function parseDamageMarks(raw: string | null | undefined): DamageMark[] {
     if (!Array.isArray(parsed)) return [];
     return parsed
       .filter((item): item is DamageMark => !!item && typeof item.id === "number" && Number.isFinite(item.x) && Number.isFinite(item.y))
-      .map((item) => ({ id: item.id, x: clamp(item.x), y: clamp(item.y), ...(isBodyView(item.view) ? { view: item.view } : {}) }));
+      .map((item) => legacyMarkToUnified({ id: item.id, x: clamp(item.x), y: clamp(item.y), ...(isBodyView(item.view) ? { view: item.view } : {}) }));
   } catch {
     return [];
   }
 }
 
 export function serializeDamageMarks(marks: DamageMark[]): string {
-  return JSON.stringify(marks.map((mark) => ({ id: mark.id, x: clamp(mark.x), y: clamp(mark.y), ...(mark.view ? { view: mark.view } : {}) })));
+  // New saves are always positions on the combined vehicle sheet. `parseDamageMarks`
+  // maps historical four-panel marks before they reach this point.
+  return JSON.stringify(marks.map((mark) => ({ id: mark.id, x: clamp(mark.x), y: clamp(mark.y) })));
+}
+
+/** Keeps old left/right panel records visible on the single combined illustration. */
+export function legacyMarkToUnified(mark: DamageMark): DamageMark {
+  if (!mark.view) return { id: mark.id, x: clamp(mark.x), y: clamp(mark.y) };
+  const origins: Record<BodyView, [number, number]> = { LF: [8, 8], RF: [54, 8], LR: [8, 54], RR: [54, 54] };
+  const [left, top] = origins[mark.view];
+  return { id: mark.id, x: clamp(left + mark.x * .38), y: clamp(top + mark.y * .38) };
 }
 
 export function addDamageMark(marks: DamageMark[], x: number, y: number, view?: BodyView): DamageMark[] {
@@ -84,10 +94,7 @@ export function staticBodyMarksSvg(marks: DamageMark[]): string {
 
 /** Static (no handlers) vehicle diagram with the recorded marks, inline-styled so it prints and rasterises without app CSS. */
 export function staticDamageDiagramSvg(allMarks: DamageMark[]): string {
-  const marks = allMarks.filter((mark) => !mark.view);
-  const bodyMarks = allMarks.filter((mark) => mark.view);
-  if (bodyMarks.length) return `${marks.length ? staticTopDiagram(marks) : ""}${staticBodyMarksSvg(allMarks)}`;
-  return staticTopDiagram(marks);
+  return staticTopDiagram(allMarks.map(legacyMarkToUnified));
 }
 
 function staticTopDiagram(marks: DamageMark[]): string {

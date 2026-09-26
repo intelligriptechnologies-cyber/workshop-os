@@ -18,10 +18,12 @@ const intake = { customerName: "Asha", mobile: "9000000001", customerType: "Indi
 
 test("intake fields are saved on job card, vehicle and customer", async () => {
   const db = await database();
-  const jobId = receiveVehicle(db, { ...intake, address: "12 MG Road", engineNo: "ENG123", serviceType: "PPF", pickupDrop: "Pickup and drop", estimatedDelivery: "2026-10-01" });
+  const jobId = receiveVehicle(db, { ...intake, km: 100, odoReading: 12345, fuel: "70 %", fuelLevelValue: "70", fuelLevelUnit: "%", address: "12 MG Road", engineNo: "ENG123", serviceType: "PPF", pickupDrop: "Pickup and drop", estimatedDelivery: "2026-10-01" });
   assert.deepEqual(row(db, `select service_type,pickup_drop,estimated_delivery from job_cards where id=${jobId}`), ["PPF", "Pickup and drop", "2026-10-01"]);
   assert.equal(row(db, "select engine_no from vehicles")[0], "ENG123");
   assert.equal(row(db, "select address from customers")[0], "12 MG Road");
+  assert.deepEqual(row(db, "select odo_reading,fuel_level_value,fuel_level_unit,fuel from visits"), [12345, "70", "%", "70 %"]);
+  assert.equal(row(db, "select km from vehicles")[0], 12345);
 });
 
 test("Details edits persist and a re-intake without new fields keeps them", async () => {
@@ -55,6 +57,11 @@ test("pure helpers clamp, tolerate bad JSON, and never reuse ids", () => {
   assert.deepEqual(parseDamageMarks(null), []);
   const m = addDamageMark(removeDamageMark(addDamageMark(addDamageMark([], 1, 1), 2, 2), 2), 150, -5);
   assert.deepEqual(m.map((x) => [x.id, x.x, x.y]), [[1, 1, 1], [2, 100, 0]]);
+});
+
+test("legacy four-panel damage marks map into the unified illustration", () => {
+  const marks = parseDamageMarks('[{"id":1,"x":50,"y":50,"view":"LF"},{"id":2,"x":50,"y":50,"view":"RR"}]');
+  assert.deepEqual(marks.map(({ id, x, y }) => [id, x, y]), [[1, 27, 27], [2, 73, 73]]);
 });
 
 test("dropped paper fields (D.O.B., tyres, road test) are not in the schema", async () => {

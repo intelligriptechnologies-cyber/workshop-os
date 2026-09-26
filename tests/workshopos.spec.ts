@@ -3,7 +3,7 @@ import XLSX from "xlsx";
 import { statSync } from "node:fs";
 
 const roles = [
-  ["reception@example.com", ["Receive Vehicle", "Today Queue", "Customers", "Vehicles", "Search"]],
+  ["reception@example.com", ["Today Queue", "Customers", "Vehicles", "Search"]],
   ["service@example.com", ["My Queue", "Job Card", "Estimate", "Follow-ups", "Media", "Search"]],
   ["store@example.com", ["Material Requests", "Issue Material", "Reconcile", "Stock", "Search"]],
   ["tech@example.com", ["My Tasks", "Work Update", "QC Prep", "Search"]],
@@ -27,11 +27,54 @@ for (const [email, navItems] of roles) {
   });
 }
 
+test("desktop main content scrolls without moving the navigation rail", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 720 });
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
+  page.once("dialog", (dialog) => dialog.accept());
+  await page.getByRole("button", { name: "Load Large Demo Dataset" }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+
+  const rail = page.locator(".rail");
+  const main = page.locator("main");
+  const railBefore = await rail.boundingBox();
+  const scroll = await main.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return { clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, scrollTop: element.scrollTop };
+  });
+
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  expect(scroll.scrollTop).toBeGreaterThan(0);
+  expect(await page.evaluate(() => window.scrollY)).toBe(0);
+  expect((await rail.boundingBox())?.y).toBe(railBefore?.y);
+});
+
+test("desktop navigation scrolls independently in a short viewport", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 360 });
+  await loginAs(page, "admin@example.com");
+
+  const nav = page.locator(".role-nav");
+  const scroll = await nav.evaluate((element) => {
+    element.scrollTop = element.scrollHeight;
+    return { clientHeight: element.clientHeight, scrollHeight: element.scrollHeight, scrollTop: element.scrollTop };
+  });
+
+  expect(scroll.scrollHeight).toBeGreaterThan(scroll.clientHeight);
+  expect(scroll.scrollTop).toBeGreaterThan(0);
+  await nav.getByRole("button", { name: "Search", exact: true }).scrollIntoViewIfNeeded();
+  await expect(nav.getByRole("button", { name: "Search", exact: true })).toBeVisible();
+});
+
 test("reception creates a linked customer vehicle visit and job searchable after reload", async ({ page }) => {
   await loginAs(page, "reception@example.com");
+  await page.getByRole("button", { name: "Create New Visit" }).click();
   await page.getByLabel("Customer Name").fill("E2E Customer");
   await page.getByLabel("Mobile").fill("9000099999");
   await page.getByLabel("Vehicle Number").fill("OD02E2E9999");
+  await page.getByLabel("Make").fill("Kia");
+  await page.getByLabel("Model").fill("Seltos");
+  await page.getByLabel("ODO meter reading (km)").fill("12000");
+  await page.locator("#create-visit-form .field-pair input").fill("3");
   await page.getByLabel("Requested Work").fill("E2E coating inspection");
   await page.getByRole("button", { name: "Create Visit" }).click();
   await page.reload();
@@ -39,7 +82,6 @@ test("reception creates a linked customer vehicle visit and job searchable after
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search records").fill("OD02E2E9999");
   await page.getByLabel("Search category").selectOption("vehicle");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("OD02E2E9999").first()).toBeVisible();
   await expect(page.getByText("E2E Customer").first()).toBeVisible();
 });
@@ -58,18 +100,60 @@ test("admin can open the management hub and create a user", async ({ page }) => 
   await expect(page.getByText("e2e.manager@example.com")).toBeVisible();
 });
 
-test("Search actions use the WorkshopOS teal primary in management and entity lists", async ({ page }) => {
+test("list filters expose Clear but no Search submit action", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Customers", exact: true }).click();
-  const managementSearch = page.getByRole("tabpanel").getByRole("button", { name: "Search", exact: true });
-  await expect(managementSearch).toHaveCSS("background-color", "rgb(29, 78, 216)");
-  await expect(managementSearch).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(page.getByRole("tabpanel").getByRole("button", { name: "Clear", exact: true })).toBeVisible();
+  await expect(page.getByRole("tabpanel").getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
 
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
-  const entitySearch = page.locator(".entity-list-page").getByRole("button", { name: "Search", exact: true });
-  await expect(entitySearch).toHaveCSS("background-color", "rgb(29, 78, 216)");
-  await expect(entitySearch).toHaveCSS("color", "rgb(255, 255, 255)");
+  await expect(page.locator(".entity-list-page").getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+});
+
+test("Management Hub filters stay compact, disclose billing dates, and remain keyboard and mobile safe", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
+  const hub = page.locator(".management-hub");
+
+  for (const [tab, input] of [["Users", "Search users"], ["Customers", "Search customers"], ["Vehicles", "Search vehicles"], ["Job Cards", "Search job cards"], ["Inventory / Materials", "Search inventory / materials"]] as const) {
+    await page.getByRole("tab", { name: tab, exact: true }).click();
+    await expect(hub.getByLabel(input)).toBeVisible();
+    await expect(hub.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
+    await expect(hub.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+  }
+
+  await page.getByRole("tab", { name: "Users", exact: true }).click();
+  const userSearch = hub.getByLabel("Search users");
+  const searchBox = await userSearch.boundingBox();
+  expect(searchBox).not.toBeNull();
+  await userSearch.fill("no matching administrator");
+  await expect(hub.getByText("No matching records")).toBeVisible();
+  await hub.getByRole("button", { name: "Clear", exact: true }).click();
+
+  for (const tab of ["Invoices", "Payments"] as const) {
+    await page.getByRole("tab", { name: tab, exact: true }).click();
+    const manager = hub.locator(`[data-billing-manager="${tab}"]`);
+    await expect(manager.getByLabel(`Search ${tab.toLowerCase()}`)).toBeVisible();
+    await expect(manager.getByLabel(`${tab} status filter`)).toBeVisible();
+    await expect(manager.getByLabel(`Job for ${tab.toLowerCase()} received date`)).toBeVisible();
+    await expect(manager.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+    await manager.getByRole("button", { name: "Clear", exact: true }).click();
+  }
+
+  await page.getByRole("tab", { name: "Delivery", exact: true }).click();
+  await expect(hub.getByLabel("Search delivery")).toBeVisible();
+  await expect(hub.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+  await expectNoPageOverflow(page);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("tab", { name: "Job Cards", exact: true }).click();
+  await expect(hub.getByLabel("Search job cards")).toBeVisible();
+  await expectNoPageOverflow(page);
+  await page.getByRole("tab", { name: "Estimates", exact: true }).click();
+  await expect(hub.getByLabel("Job for Estimates search")).toBeVisible();
+  await expectNoPageOverflow(page);
 });
 
 test("search shows an explicit empty state without an unrelated job", async ({ page }) => {
@@ -77,7 +161,6 @@ test("search shows an explicit empty state without an unrelated job", async ({ p
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search records").fill("definitely-no-workshop-record");
   await page.getByLabel("Search category").selectOption("job");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("No matching records")).toBeVisible();
   await expect(page.getByText("Showing 0 to 0 of 0")).toBeVisible();
 });
@@ -87,22 +170,27 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search records").fill("  od02AB1234  ");
   await page.getByLabel("Search category").selectOption("vehicle");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByLabel("Search category").locator('option[value="job"]')).toHaveText("Job Card");
+  await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
   await expect(page.getByText("OD02AB1234")).toBeVisible();
   await page.getByLabel("Search category").selectOption("customer");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByText("No matching records")).toBeVisible();
   await page.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByText("Please select a category to activate search")).toBeVisible();
   await page.getByLabel("Search category").selectOption("job");
+  await expect(page.getByLabel("Job status")).toBeVisible();
+  const monthYear = page.getByLabel("Search month-year");
+  await expect(monthYear).toBeVisible();
+  const monthValues = await monthYear.locator("option").evaluateAll((options) => options.map((option) => option.getAttribute("value") ?? ""));
+  expect(monthValues[0]).toBe("");
+  expect(monthValues.slice(1)).toEqual([...monthValues.slice(1)].sort().reverse());
   await page.getByLabel("Job status").selectOption("IN_PROGRESS");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText(/Showing 1 to .* of/)).toBeVisible();
   await page.getByLabel("Search records").fill("inv-08947");
   await page.getByLabel("Search category").selectOption("invoice");
-  await page.getByLabel("Job status").selectOption("ALL");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
   await expect(page.getByText("INV-08947")).toBeVisible();
 });
@@ -206,7 +294,7 @@ test("job dialogs expose distinct modes, documents, focus return and shared sear
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search category").selectOption("job");
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
-  await page.getByRole("table", { name: "Job search results" }).locator("tbody tr").first().getByRole("button", { name: "View" }).click();
+  await page.getByRole("table", { name: "Job Card search results" }).locator("tbody tr").first().getByRole("button", { name: "View" }).click();
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
 });
 
@@ -1085,7 +1173,7 @@ test("linked advisor can change job media while other authorized job viewers are
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search category").selectOption("job");
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
-  await page.getByRole("table", { name: "Job search results" }).getByRole("button", { name: "View" }).first().click();
+  await page.getByRole("table", { name: "Job Card search results" }).getByRole("button", { name: "View" }).first().click();
   job = page.getByRole("dialog", { name: /View Job/ });
   await job.getByRole("tab", { name: "Photos / Media" }).click();
   await expect(job.getByText(/Read only.*Owner.*linked Service Advisor/)).toBeVisible();

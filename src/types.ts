@@ -153,6 +153,11 @@ export interface Visit {
   received_by: number;
   received_at: string;
   fuel: string;
+  /** Immutable odometer snapshot captured at check-in. */
+  odo_reading?: number;
+  /** Structured fuel/battery reading retained alongside the legacy `fuel` display value. */
+  fuel_level_value?: string;
+  fuel_level_unit?: "bars" | "%" | "litres" | "Other";
   keys: string;
   accessories: string;
   requested_work: string;

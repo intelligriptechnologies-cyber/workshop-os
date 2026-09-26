@@ -117,9 +117,7 @@ const ALL_PAGE_KEYS: AdminPageKey[] = ADMIN_PAGE_GROUPS.flatMap((group) => group
 
 function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void; actingUser: User }) {
   const [search, setSearch] = useState("");
-  const [searchDraft, setSearchDraft] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "active" | "archived">("ALL");
-  const [statusDraft, setStatusDraft] = useState<"ALL" | "active" | "archived">("ALL");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [selectedRoleId, setSelectedRoleId] = useState<string | undefined>(adminState.roles[0]?.id);
@@ -198,10 +196,10 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
         </Dialog>
       )}
 
-      <div className="store-filter-grid" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); setSearch(searchDraft); setStatusFilter(statusDraft); setPage(1); } }}>
-        <label className="list-search">Search<input aria-label="Search roles" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Role name or description" /></label>
-        <label>Status<select aria-label="Filter roles by status" value={statusDraft} onChange={(event) => setStatusDraft(event.target.value as typeof statusDraft)}><option value="ALL">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
-        <ListSearchActions onClear={() => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatusFilter("ALL"); setPage(1); }} onSearch={() => { setSearch(searchDraft); setStatusFilter(statusDraft); setPage(1); }} />
+      <div className="store-filter-grid">
+        <label className="list-search">Search<input aria-label="Search roles" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Role name or description" /></label>
+        <label>Status<select aria-label="Filter roles by status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }}><option value="ALL">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
+        <ListSearchActions onClear={() => { setSearch(""); setStatusFilter("ALL"); setPage(1); }} />
         <DownloadMenu report={{ title: "Roles", filters: activeFilterSummary({ Search: search.trim(), Status: statusFilter }), columns: roleColumns, rows: roles }} />
       </div>
       <div className="list-result-controls"><span className="result-summary">Showing {pagedRoles.from} to {pagedRoles.to} of {pagedRoles.totalCount}</span><PageSizeSelect ariaLabel="Role records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
@@ -247,7 +245,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
               )}
             </div>
           ))}
-          {roles.length === 0 && <div className="list-empty"><h3>No matching roles</h3><button onClick={() => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatusFilter("ALL"); setPage(1); }}>Clear filters</button></div>}
+          {roles.length === 0 && <div className="list-empty"><h3>No matching roles</h3><button onClick={() => { setSearch(""); setStatusFilter("ALL"); setPage(1); }}>Clear filters</button></div>}
         </div>
 
         <div className="desk-panel page-access-panel">
@@ -845,15 +843,10 @@ function LogTable({ logs, onSelect }: { logs: DemoLogEntry[]; onSelect: (log: De
 
 function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState; stream: DemoLogStream; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void }) {
   const [search, setSearch] = useState("");
-  const [searchDraft, setSearchDraft] = useState("");
   const [dateFrom, setDateFrom] = useState("");
-  const [dateFromDraft, setDateFromDraft] = useState("");
   const [dateTo, setDateTo] = useState("");
-  const [dateToDraft, setDateToDraft] = useState("");
   const [level, setLevel] = useState("ALL");
-  const [levelDraft, setLevelDraft] = useState("ALL");
   const [area, setArea] = useState("ALL");
-  const [areaDraft, setAreaDraft] = useState("ALL");
   const [selected, setSelected] = useState<DemoLogEntry>();
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
@@ -866,8 +859,7 @@ function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState;
     area: area === "ALL" ? undefined : area,
   });
   const paged = paginate(filtered, page, pageSize);
-  const applyFilters = () => { setSearch(searchDraft); setDateFrom(dateFromDraft); setDateTo(dateToDraft); setLevel(levelDraft); setArea(areaDraft); setPage(1); };
-  const clearFilters = () => { setSearchDraft(""); setSearch(""); setDateFromDraft(""); setDateFrom(""); setDateToDraft(""); setDateTo(""); setLevelDraft("ALL"); setLevel("ALL"); setAreaDraft("ALL"); setArea("ALL"); setPage(1); };
+  const clearFilters = () => { setSearch(""); setDateFrom(""); setDateTo(""); setLevel("ALL"); setArea("ALL"); setPage(1); };
   const columns: ExportColumn<DemoLogEntry>[] = [
     { header: "Timestamp", value: (row) => new Date(row.timestamp).toLocaleString("en-IN") },
     { header: "Level", value: (row) => row.level }, { header: "Area", value: (row) => row.area }, { header: "Feature", value: (row) => row.feature },
@@ -880,13 +872,13 @@ function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState;
 
   return (
     <div className="manager-panel" role="tabpanel">
-      <div className="store-filter-grid" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); applyFilters(); } }}>
-        <label className="list-search">Search<input aria-label="Search logs" value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Message, area, feature, user or reference" /></label>
-        <label>Date from<input type="date" value={dateFromDraft} onChange={(event) => setDateFromDraft(event.target.value)} /></label>
-        <label>Date to<input type="date" value={dateToDraft} onChange={(event) => setDateToDraft(event.target.value)} /></label>
-        <label>Level<select value={levelDraft} onChange={(event) => setLevelDraft(event.target.value)}><option value="ALL">All levels</option>{LOG_LEVELS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <label>Area<select value={areaDraft} onChange={(event) => setAreaDraft(event.target.value)}><option value="ALL">All areas</option>{areas.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
-        <ListSearchActions onClear={clearFilters} onSearch={applyFilters} />
+      <div className="store-filter-grid">
+        <label className="list-search">Search<input aria-label="Search logs" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Message, area, feature, user or reference" /></label>
+        <label>Date from<input type="date" value={dateFrom} onChange={(event) => { setDateFrom(event.target.value); setPage(1); }} /></label>
+        <label>Date to<input type="date" value={dateTo} onChange={(event) => { setDateTo(event.target.value); setPage(1); }} /></label>
+        <label>Level<select value={level} onChange={(event) => { setLevel(event.target.value); setPage(1); }}><option value="ALL">All levels</option>{LOG_LEVELS.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <label>Area<select value={area} onChange={(event) => { setArea(event.target.value); setPage(1); }}><option value="ALL">All areas</option>{areas.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
+        <ListSearchActions onClear={clearFilters} />
       </div>
       <div className="list-result-controls">
         <DownloadMenu report={{ title: stream === "operational" ? "Daily Operational Logs" : "Feature Activity", filters: activeFilterSummary({ Search: search.trim(), Level: level, Area: area, "Date from": dateFrom, "Date to": dateTo }), columns, rows: filtered }} />
