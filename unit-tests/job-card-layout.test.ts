@@ -9,7 +9,7 @@ const view = (main_status: string, extra: Record<string, unknown> = {}) => ({
 }) as unknown as JobView;
 
 test("tab set and order match the dialog layout", () => {
-  assert.deepEqual(JOB_CARD_TABS.map((t) => t.label), ["Details", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
+  assert.deepEqual(JOB_CARD_TABS.map((t) => t.label), ["Details", "Body Mark", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
 });
 
 test("unbuilt tabs are stubs, built tabs are not", () => {

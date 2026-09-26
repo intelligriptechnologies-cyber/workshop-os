@@ -184,3 +184,30 @@ export function buildGhostSteps(view: JobView, snapshots: readonly DocumentSnaps
   }
   return ghosts;
 }
+
+export interface StageRow {
+  id: string;
+  label: string;
+  value: string;
+  done: boolean;
+  document?: DocumentKind;
+}
+
+/** One row per workflow stage (Visit .. Gate Pass) for the stage summary above the chronological timeline. */
+export function buildStageRows(view: JobView): StageRow[] {
+  const material = view.material_requests.length;
+  const tasksDone = view.tasks.filter((task) => task.status === "Completed").length;
+  const qc = view.qc_checks.length ? (view.qc_checks.every((check) => check.passed) ? "Pass" : "Fail") : view.job.qc_status;
+  return [
+    { id: "visit", label: "Visit", value: view.visit.received_at, done: true },
+    { id: "estimate", label: "Estimate", value: view.estimate ? view.estimate.status : "Not created", done: Boolean(view.estimate), document: view.estimate ? "estimate" : undefined },
+    { id: "job-card", label: "Job Card", value: view.job.main_status === "CLOSED" ? "Delivered" : view.job.sub_status, done: view.job.main_status !== "NEW", document: "job-card" },
+    { id: "material", label: "Material", value: material ? `${material} request(s)` : "None requested", done: material > 0 },
+    { id: "work", label: "Work", value: `${tasksDone}/${view.tasks.length} complete`, done: view.tasks.length > 0 && tasksDone === view.tasks.length },
+    { id: "qc", label: "QC", value: qc || "Pending", done: qc === "Pass" },
+    { id: "invoice", label: "Invoice", value: view.invoice ? view.invoice.invoice_no : "Not created", done: Boolean(view.invoice), document: view.invoice ? "invoice" : undefined },
+    { id: "payment", label: "Payment", value: view.payments.length ? `Rs ${view.payments.reduce((sum, payment) => sum + payment.amount, 0).toLocaleString("en-IN")}` : "Not received", done: view.payments.length > 0 },
+    { id: "receipt", label: "Payment Receipt", value: view.receipt ? view.receipt.receipt_no : "Not generated", done: Boolean(view.receipt), document: view.receipt ? "payment-receipt" : undefined },
+    { id: "gate-pass", label: "Gate Pass", value: view.gate_pass ? view.gate_pass.gate_pass_no : "Not generated", done: Boolean(view.gate_pass), document: view.gate_pass ? "gate-pass" : undefined },
+  ];
+}

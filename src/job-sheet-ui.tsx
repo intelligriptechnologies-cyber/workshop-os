@@ -1,6 +1,6 @@
 import { useState } from "react";
-import { setDamageMarksForActor, updateJobSheetForActor } from "./db";
-import { addDamageMark, FUEL_LEVELS, parseDamageMarks, PICKUP_DROP_OPTIONS, removeDamageMark, SERVICE_TYPES } from "./job-sheet";
+import { updateJobSheetForActor } from "./db";
+import { FUEL_LEVELS, parseDamageMarks, PICKUP_DROP_OPTIONS, SERVICE_TYPES } from "./job-sheet";
 import type { JobView, User } from "./types";
 import type { Mutate } from "./App";
 
@@ -19,7 +19,7 @@ export function DamageDiagram({ marks, onAdd, onRemove }: { marks: ReturnType<ty
         <rect x="26" y="40" width="48" height="34" rx="6" className="damage-glass" />
         <rect x="26" y="128" width="48" height="26" rx="6" className="damage-glass" />
         <line x1="18" y1="100" x2="82" y2="100" className="damage-body-line" />
-        {marks.map((mark) => (
+        {marks.filter((mark) => !mark.view).map((mark) => (
           <g key={mark.id} className="damage-mark" data-testid="damage-mark" transform={`translate(${mark.x} ${mark.y * 2})`} onClick={(event) => { event.stopPropagation(); onRemove?.(mark.id); }}>
             <circle r="5" />
             <text textAnchor="middle" dy="2.5">{mark.id}</text>
@@ -42,8 +42,6 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
     address: view.customer.address ?? "",
   });
   const [error, setError] = useState("");
-  const marks = parseDamageMarks(view.job.damage_marks);
-  const saveMarks = (next: typeof marks) => { setError(""); mutate((db) => setDamageMarksForActor(db, view.job.id, actor.id, next), setError); };
   if (!editable) {
     return (
       <section className="editor-block job-sheet" aria-label="Job sheet">
@@ -57,7 +55,6 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
           <Row label="Engine number" value={view.vehicle.engine_no ?? ""} />
           <Row label="Address" value={view.customer.address ?? ""} />
         </div>
-        <DamageDiagram marks={marks} />
       </section>
     );
   }
@@ -78,7 +75,6 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
         <button className="primary-action">Save Job Sheet</button>
         {error && <p role="alert" className="form-error">{error}</p>}
       </form>
-      <DamageDiagram marks={marks} onAdd={(x, y) => saveMarks(addDamageMark(marks, x, y))} onRemove={(id) => saveMarks(removeDamageMark(marks, id))} />
     </section>
   );
 }

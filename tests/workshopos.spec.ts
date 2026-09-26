@@ -858,7 +858,7 @@ test("job lifecycle editor is ordered, status is read-only, and every action req
   await expect(editor.getByLabel("Main Status")).toBeDisabled();
   await expect(editor.getByLabel("Sub Status")).toHaveCount(0);
   await expect(editor.getByRole("region", { name: "Job lifecycle" }).locator(".lifecycle-checklist li")).toHaveCount(3);
-  await expect(editor.getByRole("tab")).toHaveText(["Details", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
+  await expect(editor.getByRole("tab")).toHaveText(["Details", "Body Mark", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
   await expect(editor.getByRole("group", { name: "Downloads" })).toBeVisible();
   await editor.getByRole("tab", { name: "Materials" }).click();
   await expect(editor.getByRole("region", { name: "Job materials" })).toBeVisible();
@@ -1119,19 +1119,22 @@ test("job sheet intake fields and damage marks persist through the Job Card edit
   await sheet.getByLabel("Engine Number").fill("ENG-E2E-1");
   await sheet.getByLabel("Address").fill("12 MG Road");
   await sheet.getByRole("button", { name: "Save Job Sheet" }).click();
-  const diagram = sheet.getByTestId("damage-diagram").locator("svg");
-  await diagram.click({ position: { x: 20, y: 30 } });
-  await diagram.click({ position: { x: 60, y: 90 } });
-  await expect(sheet.getByTestId("damage-mark")).toHaveCount(2);
-  await sheet.getByTestId("damage-mark").first().click();
-  await expect(sheet.getByTestId("damage-mark")).toHaveCount(1);
+  await page.getByRole("tab", { name: "Body Mark" }).click();
+  const body = page.getByRole("region", { name: "Body mark" });
+  await body.getByRole("img", { name: "Left Front body panel" }).click({ position: { x: 20, y: 30 } });
+  await body.getByRole("img", { name: "Right Rear body panel" }).click({ position: { x: 60, y: 40 } });
+  await expect(body.getByTestId("damage-mark")).toHaveCount(2);
+  await body.getByTestId("damage-mark").first().click();
+  await expect(body.getByTestId("damage-mark")).toHaveCount(1);
+  await body.getByRole("button", { name: "Save Body Marks" }).click();
   await page.getByRole("button", { name: "Close dialog" }).click();
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   const view = page.getByRole("region", { name: "Job sheet" });
   await expect(view.getByText("ENG-E2E-1")).toBeVisible();
   await expect(view.getByText("12 MG Road")).toBeVisible();
   await expect(view.getByText("PPF", { exact: true })).toBeVisible();
-  await expect(view.getByTestId("damage-mark")).toHaveCount(1);
+  await page.getByRole("tab", { name: "Body Mark" }).click();
+  await expect(page.getByRole("region", { name: "Body mark" }).getByTestId("damage-mark")).toHaveCount(1);
 });
 
 test("owner adds, requests and cancels a material row with an over-stock warning", async ({ page }) => {

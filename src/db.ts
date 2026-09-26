@@ -39,6 +39,7 @@ import type {
   Vehicle,
   Visit,
   WorkshopState,
+  AdvisorAttendance,
 } from "./types";
 import { validateMediaDataUrl, type JobMediaCategory } from "./job-media";
 
@@ -73,6 +74,7 @@ export async function openWorkshopDb() {
   createSchema(db);
   migrateSchema(db);
   if (scalar<number>(db, "select count(*) from users") === 0) seed(db);
+  ensureDemoAdvisors(db);
   persist(db);
   return db;
 }
@@ -155,7 +157,7 @@ export function readState(db: Database): WorkshopState {
     const visit = allVisits.get(job.visit_id)!;
     const customer = allCustomers.get(visit.customer_id)!;
     const vehicle = allVehicles.get(visit.vehicle_id)!;
-    const advisor = allUsers.get(job.advisor_id)!;
+    const advisor = allUsers.get(job.advisor_id) ?? UNASSIGNED_ADVISOR;
     const technician = allUsers.get(job.technician_id)!;
     const jobEstimates = estimatesByJob.get(job.id) ?? [];
     const estimate = jobEstimates.at(-1);
@@ -199,7 +201,40 @@ export function readState(db: Database): WorkshopState {
       photo_history: photoHistoryByJob.get(job.id) ?? [],
     };
   });
-  return { users, customers, vehicles, visits, jobs, inventory };
+  const attendance = all<AdvisorAttendance>(db, "select user_id, date, present from advisor_attendance order by date, user_id");
+  return { users, customers, vehicles, visits, jobs, inventory, attendance };
+}
+
+/** Placeholder shown while a job is waiting for Reception to map a Service Advisor (advisor_id 0). */
+export const UNASSIGNED_ADVISOR: User = { id: 0, email: "", name: "Not mapped", role: "service", password: "" };
+export const ADVISOR_NOT_MAPPED_LABEL = "Pending - Service Advisor not mapped";
+export const todayKey = () => new Date().toISOString().slice(0, 10);
+
+/** Service advisors marked present on `date`. An advisor with no attendance record for the day counts as present until Reception unticks them. */
+export function presentAdvisors(users: User[], attendance: AdvisorAttendance[], date = todayKey()) {
+  return users.filter((user) => user.role === "service" && attendance.find((row) => row.user_id === user.id && row.date === date)?.present !== 0);
+}
+
+export function setAdvisorPresent(db: Database, userId: number, present: boolean, date = todayKey()) {
+  db.run("insert into advisor_attendance(user_id, date, present) values (?, ?, ?) on conflict(user_id, date) do update set present=excluded.present", [userId, date, present ? 1 : 0]);
+}
+
+/** Reception mapping of a queued job to a Service Advisor. */
+export function assignAdvisor(db: Database, jobId: number, advisorId: number) {
+  const advisor = maybe<User>(db, "select * from users where id=? and role='service' and archived_at is null", [advisorId]);
+  if (!advisor) throw new Error("Pick a Service Advisor.");
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+  db.run("update job_cards set advisor_id=?, updated_at=datetime('now') where id=?", [advisorId, jobId]);
+  db.run("update visits set advisor_id=?, updated_at=datetime('now') where id=?", [advisorId, job.visit_id]);
+  history(db, jobId, job.main_status, job.sub_status, `Assigned to ${advisor.name}`);
+}
+
+/** Demo Service Advisors shown in every advisor assignment list; idempotent so existing browser databases pick them up. */
+export function ensureDemoAdvisors(db: Database) {
+  db.run("update users set name='Service advisor 1' where email='service@example.com' and name='Service Advisor'");
+  [["advisor.aa@example.com", "Service advisor AA"], ["advisor.bb1@example.com", "Service advisor BB1"]].forEach(([email, name]) => {
+    if (scalar<number>(db, "select count(*) from users where email=?", [email]) === 0) db.run("insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service', 'admin123', datetime('now'), datetime('now'))", [email, name]);
+  });
 }
 
 export function loadLargeDemoDataset(db: Database) {
@@ -424,8 +459,9 @@ export function receiveVehicle(
     keys: string;
     accessories: string;
     requestedWork: string;
-    advisorId: number;
+    advisorId?: number;
     receptionId: number;
+    damageMarks?: string;
     address?: string;
     engineNo?: string;
     serviceType?: string;
@@ -438,7 +474,10 @@ export function receiveVehicle(
   if (!payload.vehicleNo.trim()) throw new Error("Vehicle number is required.");
   if (!payload.make.trim() || !payload.model.trim()) throw new Error("Vehicle make and model are required.");
   if (!payload.requestedWork.trim()) throw new Error("Requested work is required.");
-  if (!payload.advisorId || !payload.receptionId) throw new Error("Advisor and receiving user are required.");
+  if (!payload.receptionId) throw new Error("Receiving user is required.");
+  if (!Number.isFinite(payload.km) || payload.km < 0) throw new Error("Enter the vehicle KM reading.");
+  if (!payload.fuel.trim()) throw new Error("Enter the fuel level or battery percentage.");
+  const advisorId = payload.advisorId || 0;
   db.run("savepoint reception_intake");
   try {
   const customerId =
@@ -462,14 +501,14 @@ export function receiveVehicle(
   const visitId = insert(
     db,
     "insert into visits(customer_id, vehicle_id, advisor_id, received_by, received_at, fuel, keys, accessories, requested_work, photos_note, created_at, updated_at) values (?, ?, ?, ?, datetime('now'), ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [customerId, vehicleId, payload.advisorId, payload.receptionId, payload.fuel, payload.keys, payload.accessories, payload.requestedWork, "Reception intake"],
+    [customerId, vehicleId, advisorId, payload.receptionId, payload.fuel, payload.keys, payload.accessories, payload.requestedWork, "Reception intake"],
   );
   const jobId = insert(
     db,
     "insert into job_cards(job_no, visit_id, advisor_id, technician_id, main_status, sub_status, work_list, promised_at, qc_status, washing_needed, closed_at, advisor_notes, customer_instructions, internal_instructions, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
-    [`JC-${new Date().getFullYear()}-${String(1247 + visitId).padStart(6, "0")}`, visitId, payload.advisorId, 6, "NEW", "Gather Requirements", payload.requestedWork, "Tomorrow 6:00 PM", "Pending", 0, "", "", payload.requestedWork, ""],
+    [`JC-${new Date().getFullYear()}-${String(1247 + visitId).padStart(6, "0")}`, visitId, advisorId, 6, "NEW", "Gather Requirements", payload.requestedWork, "Tomorrow 6:00 PM", "Pending", 0, "", "", payload.requestedWork, ""],
   );
-  db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, damage_marks='[]' where id=?", [payload.serviceType ?? "", payload.pickupDrop ?? "", payload.estimatedDelivery ?? "", jobId]);
+  db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, damage_marks=? where id=?", [payload.serviceType ?? "", payload.pickupDrop ?? "", payload.estimatedDelivery ?? "", payload.damageMarks || "[]", jobId]);
   ensureLifecycleChecklist(db, jobId, "NEW", "Gather Requirements");
   insert(db, "insert into tasks(job_card_id, technician_id, title, status, notes, created_at, updated_at) values (?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
     jobId,
@@ -1570,6 +1609,7 @@ export function createSchema(db: Database) {
 }
 
 export function migrateSchema(db: Database) {
+  db.run("create table if not exists advisor_attendance(user_id integer not null, date text not null, present integer not null default 1, primary key(user_id, date))");
   db.run("create table if not exists material_events(id integer primary key, job_card_id integer, material_row_id integer, kind text, by_user integer, at text, note text, old_item_id integer, old_qty real, new_item_id integer, new_qty real)");
   db.run("create table if not exists stock_ledger(id integer primary key, job_card_id integer, material_row_id integer, item_id integer, qty real, type text, by_user integer, at text, note text)");
   ensureColumn(db, "material_requests", "status", "text not null default 'Requested'");

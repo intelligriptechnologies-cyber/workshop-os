@@ -95,6 +95,7 @@ export function Dialog({
   children,
   wide = false,
   footer,
+  className,
 }: {
   title: string;
   subtitle?: string;
@@ -102,6 +103,7 @@ export function Dialog({
   children: ReactNode;
   wide?: boolean;
   footer?: ReactNode;
+  className?: string;
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const returnFocusRef = useRef<HTMLElement | null>(null);
@@ -141,7 +143,7 @@ export function Dialog({
 
   return (
     <div className="dialog-backdrop" onMouseDown={(event) => { if (event.target === event.currentTarget) onClose(); }}>
-      <div ref={panelRef} tabIndex={-1} className={wide ? "dialog-panel dialog-wide" : "dialog-panel"} role="dialog" aria-modal="true" aria-labelledby={titleId}>
+      <div ref={panelRef} tabIndex={-1} className={`${wide ? "dialog-panel dialog-wide" : "dialog-panel"}${className ? ` ${className}` : ""}`} role="dialog" aria-modal="true" aria-labelledby={titleId}>
         <div className="dialog-header">
           <div>
             <h2 id={titleId}>{title}</h2>
@@ -155,5 +157,41 @@ export function Dialog({
         {footer && <div className="dialog-footer">{footer}</div>}
       </div>
     </div>
+  );
+}
+
+export interface SearchSelectOption { value: number | string; label: string }
+
+/** Searchable dropdown (type to filter). Controlled by `value`; reuse for any long option list. */
+export function SearchSelect({ label, options, value, onChange, placeholder = "Search...", disabled = false }: { label: string; options: SearchSelectOption[]; value: number | string | undefined; onChange: (value: number | string) => void; placeholder?: string; disabled?: boolean }) {
+  const [open, setOpen] = useState(false);
+  const [query, setQuery] = useState("");
+  const listId = useId();
+  const selected = options.find((option) => option.value === value);
+  const needle = query.trim().toLowerCase();
+  const shown = options.filter((option) => !needle || option.label.toLowerCase().includes(needle)).slice(0, 100);
+  return (
+    <label className="search-select">
+      {label}
+      <input
+        role="combobox"
+        aria-label={label}
+        aria-expanded={open}
+        aria-controls={listId}
+        aria-autocomplete="list"
+        disabled={disabled}
+        placeholder={placeholder}
+        value={open ? query : selected?.label ?? ""}
+        onFocus={() => { setQuery(""); setOpen(true); }}
+        onChange={(event) => { setQuery(event.target.value); setOpen(true); }}
+        onBlur={() => window.setTimeout(() => setOpen(false), 120)}
+        onKeyDown={(event) => { if (event.key === "Enter" && open) { event.preventDefault(); if (shown[0]) { onChange(shown[0].value); setOpen(false); } } else if (event.key === "Escape" && open) { event.stopPropagation(); setOpen(false); } }}
+      />
+      {open && (
+        <ul id={listId} role="listbox" className="search-select-options">
+          {shown.length ? shown.map((option) => <li key={option.value}><button type="button" role="option" aria-selected={option.value === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(option.value); setOpen(false); }}>{option.label}</button></li>) : <li className="picker-stock">No matches</li>}
+        </ul>
+      )}
+    </label>
   );
 }

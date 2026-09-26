@@ -46,6 +46,10 @@ function paymentStatus(record: BillingRecord) {
   return record.kind === "unpaid" ? "Unpaid" : record.kind === "void" ? "Void" : "Received";
 }
 
+function recordDate(record: BillingRecord) {
+  return (record.payment?.created_at ?? record.view.invoice?.created_at ?? "").slice(0, 10);
+}
+
 function searchText(record: BillingRecord) {
   const { view, payment } = record;
   return normalizeSearch([view.job.job_no, view.customer.name, view.customer.mobile, view.vehicle.number, view.invoice?.invoice_no, view.invoice?.tally_invoice_no, view.invoice?.status, payment?.amount, payment?.mode, payment?.other_detail, payment?.reference, view.gate_pass?.gate_pass_no, delivered(view) ? "delivered" : "pending", record.kind ? paymentStatus(record) : ""].join(" "));
@@ -60,6 +64,13 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [editor, setEditor] = useState<Editor>();
+  const [invoiceDialog, setInvoiceDialog] = useState<{ action: "create" | "view" | "edit"; view: JobView }>();
+  const [jobId, setJobId] = useState(0);
+  const [fromDraft, setFromDraft] = useState("");
+  const [toDraft, setToDraft] = useState("");
+  const [monthDraft, setMonthDraft] = useState("ALL");
+  const [yearDraft, setYearDraft] = useState("ALL");
+  const [dates, setDates] = useState({ from: "", to: "", month: "ALL", year: "ALL" });
   const [expanded, setExpanded] = useState<string>();
   const editable = canMutateBilling(actor);
   // The Payments screen (panel) is the mixed list with unpaid rows; the Manage Payment tab lists payments only.
@@ -67,29 +78,40 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
   const recordStatus = (record: BillingRecord) => mode === "Invoices" ? invoiceStatus(record.view) : mode === "Payments" ? paymentStatus(record) : delivered(record.view) ? "Delivered" : "Pending";
   const filtered = allRecords.filter((record) => {
     const needle = normalizeSearch(search);
-    return (!needle || searchText(record).includes(needle)) && (status === "ALL" || recordStatus(record) === status);
+    const date = recordDate(record);
+    const dated = mode === "Delivery" || ((!dates.from || date >= dates.from) && (!dates.to || date <= dates.to) && (dates.month === "ALL" || date.slice(5, 7) === dates.month) && (dates.year === "ALL" || date.slice(0, 4) === dates.year));
+    return dated && (!needle || searchText(record).includes(needle)) && (status === "ALL" || recordStatus(record) === status);
   });
+  const years = [...new Set(allRecords.map((record) => recordDate(record).slice(0, 4)).filter(Boolean))].sort().reverse();
+  const manage = !panel && mode !== "Delivery";
+  const pickedJob = state.jobs.find((view) => view.job.id === jobId);
   const paged = paginate(filtered, page, pageSize);
   const statusOptions = mode === "Invoices" ? ["Unpaid", "Cleared", "Void"] : mode === "Payments" ? (panel ? ["Unpaid", "Received", "Void"] : ["Received", "Void"]) : ["Pending", "Delivered"];
-  const clear = () => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatus("ALL"); setPage(1); };
-  const apply = () => { setSearch(searchDraft); setStatus(statusDraft); setPage(1); };
+  const clear = () => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatus("ALL"); setFromDraft(""); setToDraft(""); setMonthDraft("ALL"); setYearDraft("ALL"); setDates({ from: "", to: "", month: "ALL", year: "ALL" }); setPage(1); };
+  const apply = () => { setSearch(searchDraft); setStatus(statusDraft); setDates({ from: fromDraft, to: toDraft, month: monthDraft, year: yearDraft }); setPage(1); };
   const columns: ExportColumn<BillingRecord>[] = mode === "Invoices"
     ? [{ header: "Job", value: (row) => row.view.job.job_no }, { header: "Invoice", value: (row) => row.view.invoice?.invoice_no ?? "Not created" }, { header: "Customer", value: (row) => row.view.customer.name }, { header: "Total", value: (row) => row.view.invoice?.total ?? 0 }, { header: "Status", value: (row) => invoiceStatus(row.view) }]
     : mode === "Payments"
       ? [{ header: "Job", value: (row) => row.view.job.job_no }, { header: "Invoice", value: (row) => row.view.invoice?.invoice_no ?? "" }, { header: "Customer", value: (row) => row.view.customer.name }, { header: "Amount", value: (row) => row.payment?.amount ?? row.view.invoice?.total ?? 0 }, { header: "Mode", value: (row) => row.payment?.mode ?? "-" }, { header: "Reference", value: (row) => row.payment?.reference ?? "" }, { header: "Status", value: (row) => paymentStatus(row) }]
       : [{ header: "Job", value: (row) => row.view.job.job_no }, { header: "Vehicle", value: (row) => row.view.vehicle.number }, { header: "Gate pass", value: (row) => row.view.gate_pass?.gate_pass_no ?? "Pending" }, { header: "Delivery", value: (row) => delivered(row.view) ? "Delivered" : "Pending" }];
   const inline = mode !== "Delivery";
-  const toggle = (key: string) => setExpanded((current) => current === key ? undefined : key);
+  const toggle = (key: string) => { setExpanded((current) => current === key ? undefined : key); const hit = allRecords.find((record) => record.key === key); if (manage && hit) setJobId(hit.view.job.id); };
 
   return (
     <section className={panel ? "workspace single-panel" : "billing-manager"} data-billing-manager={mode} role="tabpanel">
       <div className={panel ? "desk-panel" : "manager-panel"} role={panel ? undefined : "tabpanel"}>
         <div className="panel-actions"><div><h2>{mode}</h2><p>{mode === "Payments" && panel ? "Unpaid invoices first, then received and void payments" : "All workshop jobs"}</p></div></div>
         {!editable && <p className="permission-note">Read-only billing access. Owner/Admin or Accounts is required to make changes.</p>}
-        {inline && <p className="permission-note" role="note">Click a row for lines, GST and totals. Create or edit invoices from the Job Card.</p>}
+        {inline && <p className="permission-note" role="note">Click a row for lines, GST and totals.{manage ? "" : " Create or edit invoices from the Job Card."}</p>}
+        {manage && <div className="job-selector"><label>Job for {mode.toLowerCase()}<select aria-label={`Job for ${mode.toLowerCase()}`} value={jobId} onChange={(event) => setJobId(Number(event.target.value))}><option value={0}>Select a job</option>{state.jobs.map((view) => <option key={view.job.id} value={view.job.id}>{view.job.job_no} · {view.vehicle.number} · {view.customer.name}</option>)}</select></label>
+          {pickedJob && <div className="action-row"><span className="result-summary">{pickedJob.invoice ? `${pickedJob.invoice.invoice_no} · ${invoiceStatus(pickedJob)}` : "No invoice yet"}</span>
+            {pickedJob.invoice ? <><button onClick={() => setInvoiceDialog({ action: "view", view: pickedJob })}>View Invoice</button>{editable && pickedJob.invoice.status !== "Cleared" && !pickedJob.invoice.voided_at && <button className="primary-action" onClick={() => setInvoiceDialog({ action: "edit", view: pickedJob })}>Edit Invoice</button>}</> : editable && <button className="primary-action" onClick={() => setInvoiceDialog({ action: "create", view: pickedJob })}>Create Invoice</button>}</div>}</div>}
         <div className="store-filter-grid" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(); } }}>
           <label className="list-search">Search {mode.toLowerCase()}<input aria-label={`Search ${mode.toLowerCase()}`} value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Job, invoice, customer, vehicle or reference" /></label>
           <label>Status<select aria-label={`${mode} status filter`} value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="ALL">All</option>{statusOptions.map((value) => <option key={value}>{value}</option>)}</select></label>
+          {mode !== "Delivery" && <><label>From<input type="date" aria-label={`${mode} from date`} value={fromDraft} onChange={(event) => setFromDraft(event.target.value)} /></label><label>To<input type="date" aria-label={`${mode} to date`} value={toDraft} onChange={(event) => setToDraft(event.target.value)} /></label>
+          <label>Month<select aria-label={`${mode} month filter`} value={monthDraft} onChange={(event) => setMonthDraft(event.target.value)}><option value="ALL">All months</option>{["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"].map((name, index) => <option key={name} value={String(index + 1).padStart(2, "0")}>{name}</option>)}</select></label>
+          <label>Year<select aria-label={`${mode} year filter`} value={yearDraft} onChange={(event) => setYearDraft(event.target.value)}><option value="ALL">All years</option>{years.map((year) => <option key={year}>{year}</option>)}</select></label></>}
           <ListSearchActions onClear={clear} onSearch={apply} />
         </div>
         <div className="list-result-controls"><DownloadMenu report={{ title: mode, filters: activeFilterSummary({ Search: search.trim(), Status: status }), columns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><PageSizeSelect ariaLabel={`${mode} records per page`} value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
@@ -106,6 +128,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
         })}</tbody></table></div>
         {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={clear}>Clear filters</button></div>}
         <BillingPagination page={paged.page} count={paged.pageCount} onChange={setPage} />
+        {invoiceDialog && <InvoiceDialog action={invoiceDialog.action} view={invoiceDialog.view} fixedJob actor={actor} mutate={mutate} onClose={() => setInvoiceDialog(undefined)} />}
         {editor && <DeliveryDialog editor={editor} actor={actor} mutate={mutate} onClose={() => setEditor(undefined)} />}
       </div>
     </section>
@@ -228,7 +251,7 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
     {action === "create" && !fixedJob && candidates.length > 1 && <label>Job<select aria-label="Billing job" value={selected.job.id} onChange={(event) => chooseJob(Number(event.target.value))}>{candidates.map((candidate) => <option key={candidate.job.id} value={candidate.job.id}>{candidate.job.job_no} · {candidate.vehicle.number}</option>)}</select></label>}
     {warning && !readOnly && <p className="permission-note" role="status">{warning}</p>}
     <div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Flat discount (₹)<input aria-label="Invoice discount" type="number" min="0" step="0.01" value={discount} disabled={lockFinancials} onChange={(event) => setDiscount(Number(event.target.value))} /></label></div>
-    <div className="estimate-items"><strong>Invoice items</strong><div className="invoice-item invoice-item-heading"><span>Type</span><span>Description</span><span>Quantity</span><span>Rate</span><span>GST %</span><span>Amount</span><span>Action</span></div>{items.map((item, index) => <div className="invoice-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={lockFinancials} onChange={(event) => { const kind = event.target.value as InvoiceItemDraft["kind"]; updateItem(index, { kind, gst_rate: DEFAULT_GST_BY_KIND[kind] }); }}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={lockFinancials} onChange={(event) => updateItem(index, { description: event.target.value })} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={lockFinancials} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} GST`} type="number" min="0" max="100" step="0.01" value={item.gst_rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { gst_rate: Number(event.target.value) })} /><output aria-label={`Invoice item ${index + 1} amount`}>{money(item.qty * item.rate)}</output>{!lockFinancials && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!lockFinancials && <button type="button" onClick={() => setItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0, gst_rate: DEFAULT_GST_BY_KIND.Service }])}>Add Invoice Item</button>}{!lockFinancials && lateMaterials.map((line) => <button type="button" key={line.material_row_id} onClick={() => setItems((rows) => [...rows, line])}>Add late material: {line.description} x {line.qty}</button>)}</div>
+    <div className="estimate-items"><strong>Invoice items</strong><div className="invoice-item invoice-item-heading"><span>Type</span><span>Description</span><span>Quantity</span><span>Rate</span><span>GST %</span><span>Amount</span><span>Action</span></div>{items.map((item, index) => <div className="invoice-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={lockFinancials} onChange={(event) => { const kind = event.target.value as InvoiceItemDraft["kind"]; updateItem(index, { kind, gst_rate: DEFAULT_GST_BY_KIND[kind] }); }}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={lockFinancials} onChange={(event) => updateItem(index, { description: event.target.value })} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={lockFinancials} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} GST`} type="number" min="0" max="100" step="0.01" value={item.gst_rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { gst_rate: Number(event.target.value) })} /><output aria-label={`Invoice item ${index + 1} amount`}>{money(item.qty * item.rate)}</output>{!lockFinancials && <button type="button" className="danger-action" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!lockFinancials && <button type="button" className="add-line-item" onClick={() => setItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0, gst_rate: DEFAULT_GST_BY_KIND.Service }])}>+ Add Line Item</button>}{!lockFinancials && lateMaterials.map((line) => <button type="button" key={line.material_row_id} onClick={() => setItems((rows) => [...rows, line])}>Add late material: {line.description} x {line.qty}</button>)}</div>
     <div className="invoice-totals" aria-label="Invoice totals"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(totals.total)}</strong></span></div>
     <label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label>
     {action === "edit" && !lockFinancials && <label>Edit note<textarea aria-label="Invoice edit note" value={editNote} onChange={(event) => setEditNote(event.target.value)} placeholder="Required when lines or discount change. Recorded in Data Flow." /></label>}

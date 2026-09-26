@@ -3,6 +3,7 @@ import type { JobView, User } from "./types";
 
 export const JOB_CARD_TABS = [
   { key: "details", label: "Details" },
+  { key: "bodymark", label: "Body Mark" },
   { key: "materials", label: "Materials" },
   { key: "documents", label: "Documents" },
   { key: "media", label: "Photos / Media" },

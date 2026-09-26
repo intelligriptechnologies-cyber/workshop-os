@@ -491,4 +491,11 @@ export interface WorkshopState {
   visits: Visit[];
   jobs: JobView[];
   inventory: InventoryItem[];
+  attendance: AdvisorAttendance[];
+}
+
+export interface AdvisorAttendance {
+  user_id: number;
+  date: string;
+  present: number;
 }
