@@ -192,6 +192,8 @@ export interface JobCard {
   estimated_delivery?: string;
   /** JSON array of DamageMark; see job-sheet.ts. */
   damage_marks?: string;
+  /** Timestamp of the most recent explicit body-mark save. */
+  damage_marks_recorded_at?: string | null;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;

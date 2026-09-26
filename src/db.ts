@@ -751,7 +751,7 @@ export function updateJobSheetForActor(db: Database, jobId: number, actorId: num
 /** Persists the tap-to-mark damage diagram with the Job Card. */
 export function setDamageMarksForActor(db: Database, jobId: number, actorId: number, marks: DamageMark[]) {
   assertJobLifecycleMutationAccess(db, jobId, actorId);
-  db.run("update job_cards set damage_marks=?, updated_at=datetime('now') where id=?", [serializeDamageMarks(marks), jobId]);
+  db.run("update job_cards set damage_marks=?, damage_marks_recorded_at=datetime('now'), updated_at=datetime('now') where id=?", [serializeDamageMarks(marks), jobId]);
 }
 
 // True archive / soft-delete: removes the job from active views. Used by admin "Archive" actions
@@ -1969,7 +1969,7 @@ export function createSchema(db: Database) {
     create table if not exists customers(id integer primary key, name text, mobile text unique, type text, address text);
     create table if not exists vehicles(id integer primary key, customer_id integer, number text unique, make text, model text, color text, km integer, engine_no text);
     create table if not exists visits(id integer primary key, customer_id integer, vehicle_id integer, advisor_id integer, received_by integer, received_at text, fuel text, odo_reading real, fuel_level_value text, fuel_level_unit text, keys text, accessories text, requested_work text, photos_note text);
-    create table if not exists job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text, service_type text, pickup_drop text, estimated_delivery text, damage_marks text);
+    create table if not exists job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text, service_type text, pickup_drop text, estimated_delivery text, damage_marks text, damage_marks_recorded_at text);
     create table if not exists status_history(id integer primary key, job_card_id integer, main_status text, sub_status text, note text, created_at text);
     create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
     create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
@@ -2089,6 +2089,7 @@ export function migrateSchema(db: Database) {
   ensureColumn(db, "job_cards", "pickup_drop", "text");
   ensureColumn(db, "job_cards", "estimated_delivery", "text");
   ensureColumn(db, "job_cards", "damage_marks", "text");
+  ensureColumn(db, "job_cards", "damage_marks_recorded_at", "text");
   ensureColumn(db, "visits", "odo_reading", "real");
   ensureColumn(db, "visits", "fuel_level_value", "text");
   ensureColumn(db, "visits", "fuel_level_unit", "text");

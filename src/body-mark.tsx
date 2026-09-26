@@ -7,14 +7,21 @@ export interface BodyMarkMeta {
   vehicleName: string;
   color?: string;
   regNo: string;
+  recordedAt?: string | null;
+}
+
+function formatRecordedAt(recordedAt?: string | null) {
+  if (!recordedAt) return "Not recorded";
+  const date = new Date(recordedAt);
+  return Number.isNaN(date.valueOf()) ? recordedAt : date.toLocaleString("en-IN", { dateStyle: "medium", timeStyle: "short" });
 }
 
 /** Renders the annotated combined vehicle sheet to a PNG and downloads it. */
 export async function downloadBodyMarkImage(marks: DamageMark[], meta: BodyMarkMeta) {
   const width = 600;
   const padding = 24;
-  const headerHeight = 128;
-  const line = [meta.jobNo ? `Job Card: ${meta.jobNo}` : "Job Card: (new)", `Vehicle: ${meta.vehicleName || "-"}`, `Colour: ${meta.color || "-"}`, `Reg No: ${meta.regNo || "-"}`];
+  const headerHeight = 152;
+  const line = [meta.jobNo ? `Job Card: ${meta.jobNo}` : "Job Card: (new)", `Vehicle: ${meta.vehicleName || "-"}`, `Colour: ${meta.color || "-"}`, `Reg No: ${meta.regNo || "-"}`, `Date & Time of Record: ${formatRecordedAt(meta.recordedAt)}`];
   const image = new Image();
   await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Could not load body mark illustration.")); image.src = DAMAGE_DIAGRAM_ASSET; });
   const diagramWidth = width - padding * 2;

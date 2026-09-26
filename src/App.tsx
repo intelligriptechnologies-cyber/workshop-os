@@ -2638,7 +2638,7 @@ function JobBodyMarkPanel({ view, actor, mutate, editable }: { view: JobView; ac
   const [saved, setSaved] = useState(true);
   const save = () => { setError(""); if (mutate((db) => setDamageMarksForActor(db, view.job.id, actor.id, marks), setError)) setSaved(true); };
   return <section className="editor-block body-mark-tab" aria-label="Body mark">
-    <BodyMarkDiagram marks={marks} onChange={editable ? (next) => { setMarks(next); setSaved(false); } : undefined} meta={{ jobNo: view.job.job_no, vehicleName: `${view.vehicle.make} ${view.vehicle.model}`.trim(), color: view.vehicle.color, regNo: view.vehicle.number }} />
+    <BodyMarkDiagram marks={marks} onChange={editable ? (next) => { setMarks(next); setSaved(false); } : undefined} meta={{ jobNo: view.job.job_no, vehicleName: `${view.vehicle.make} ${view.vehicle.model}`.trim(), color: view.vehicle.color, regNo: view.vehicle.number, recordedAt: view.job.damage_marks_recorded_at }} />
     {editable && <div className="action-row"><button type="button" className="primary-action" disabled={saved} onClick={save}>{saved ? "Marks saved" : "Save Body Marks"}</button></div>}
     {error && <p role="alert" className="form-error">{error}</p>}
   </section>;

@@ -73,13 +73,31 @@ test("damage marks add, remove and persist with the job card; technician cannot 
   const jobId = receiveVehicle(db, intake);
   let marks = addDamageMark(addDamageMark([], 10, 20), 55.55, 80);
   setDamageMarksForActor(db, jobId, 2, marks);
-  let stored = parseDamageMarks(row(db, `select damage_marks from job_cards where id=${jobId}`)[0] as string);
+  let [storedMarks, recordedAt] = row(db, `select damage_marks,damage_marks_recorded_at from job_cards where id=${jobId}`);
+  let stored = parseDamageMarks(storedMarks as string);
   assert.equal(stored.length, 2);
+  assert.match(recordedAt as string, /^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/);
+  db.run(`update job_cards set damage_marks_recorded_at='2000-01-01 00:00:00' where id=${jobId}`);
   marks = removeDamageMark(stored, stored[0].id);
   setDamageMarksForActor(db, jobId, 1, marks);
-  stored = parseDamageMarks(row(db, `select damage_marks from job_cards where id=${jobId}`)[0] as string);
+  [storedMarks, recordedAt] = row(db, `select damage_marks,damage_marks_recorded_at from job_cards where id=${jobId}`);
+  stored = parseDamageMarks(storedMarks as string);
   assert.deepEqual(stored.map((m) => m.id), [2]);
+  assert.notEqual(recordedAt, "2000-01-01 00:00:00");
   assert.throws(() => setDamageMarksForActor(db, jobId, 5, []));
+});
+
+test("migration adds the body-mark record timestamp without changing legacy marks", async () => {
+  const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
+  const db = new SQL.Database();
+  const legacyMarks = '[{"id":1,"x":10,"y":20}]';
+  db.run("create table job_cards(id integer primary key, damage_marks text, main_status text, sub_status text, created_at text)");
+  db.run("insert into job_cards(id,damage_marks,main_status,sub_status,created_at) values(1,?,'NEW','Gather Requirements','2026-01-01 00:00:00')", [legacyMarks]);
+  createSchema(db);
+  migrateSchema(db);
+  assert.equal(row(db, "select damage_marks from job_cards where id=1")[0], legacyMarks);
+  assert.equal(row(db, "select damage_marks_recorded_at from job_cards where id=1")[0], null);
+  assert.ok((row(db, "select group_concat(name) from pragma_table_info('job_cards')")[0] as string).includes("damage_marks_recorded_at"));
 });
 
 test("pure helpers clamp, tolerate bad JSON, and never reuse ids", () => {
