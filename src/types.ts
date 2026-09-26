@@ -218,6 +218,8 @@ export interface EstimateItem {
   description: string;
   qty: number;
   rate: number;
+  gst_type?: "CGST+SGST" | "IGST" | "No GST" | null;
+  gst_rate?: number | null;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;
@@ -238,6 +240,40 @@ export interface MaterialRequest {
   note?: string;
   archived_at?: string;
   archived_reason?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** A job-specific purchase made outside inventory. This is cost tracking only. */
+export interface LocalPurchase {
+  id: number;
+  job_card_id: number;
+  item_description: string;
+  quantity: number;
+  unit: string;
+  unit_cost: number;
+  vendor: string;
+  bill_reference: string;
+  note?: string;
+  archived_at?: string;
+  archived_reason?: string;
+  created_at?: string;
+  updated_at?: string;
+}
+
+/** An advisor's free-text request, resolved by Store into stock and an issued job row. */
+export interface MaterialPurchaseRequest {
+  id: number;
+  job_card_id: number;
+  item_name: string;
+  quantity: number;
+  unit: string;
+  status: "Pending" | "Completed" | "Cancelled";
+  mapped_inventory_item_id?: number | null;
+  material_request_id?: number | null;
+  local_purchase_id?: number | null;
+  completed_by?: number | null;
+  completed_at?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -264,10 +300,83 @@ export interface InventoryItem {
   unit: string;
   stock_qty: number;
   low_stock_qty: number;
+  /** Default customer-facing rate (INR) for material invoice lines. */
+  selling_price: number;
   archived_at?: string;
   archived_reason?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export type SupplierStatus = "Active" | "On hold" | "Archived";
+
+/** A supplier is managed by an administrator and can be selected only while Active. */
+export interface Supplier {
+  id: number;
+  name: string;
+  contact_name: string;
+  phone: string;
+  email: string;
+  gstin: string;
+  status: SupplierStatus;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export type InwardPurchaseStatus = "Draft" | "Submitted";
+
+export interface InwardPurchase {
+  id: number;
+  supplier_id: number;
+  supplier_invoice_no: string;
+  invoice_date: string;
+  po_number: string;
+  status: InwardPurchaseStatus;
+  subtotal: number;
+  discount_total: number;
+  gst_total: number;
+  total: number;
+  created_by: number;
+  submitted_by: number | null;
+  submitted_at: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface InwardPurchaseLine {
+  id: number;
+  purchase_id: number;
+  item_id: number;
+  received_qty: number;
+  unit_cost: number;
+  discount: number;
+  gst_rate: number;
+  subtotal: number;
+  gst_amount: number;
+  total: number;
+}
+
+/** Demo persistence stores a data URL; production adapters should expose an authorized URL only. */
+export interface InwardPurchaseAttachment {
+  id: number;
+  purchase_id: number;
+  original_name: string;
+  mime_type: string;
+  byte_size: number;
+  storage_key: string;
+  document_url: string;
+  uploaded_by: number;
+  uploaded_at: string;
+}
+
+export interface InwardPurchaseRevision {
+  id: number;
+  purchase_id: number;
+  revision_no: number;
+  reason: string;
+  revised_by: number;
+  revised_at: string;
 }
 
 export interface Task {
@@ -323,6 +432,7 @@ export interface InvoiceItem {
   id: number;
   invoice_id: number;
   gst_rate?: number | null;
+  gst_type?: "CGST+SGST" | "IGST" | "No GST" | null;
   material_row_id?: number | null;
   kind: "Service" | "Material";
   description: string;
@@ -464,6 +574,8 @@ export interface JobView {
   estimate?: Estimate;
   estimate_items: EstimateItem[];
   material_requests: MaterialRequest[];
+  local_purchases: LocalPurchase[];
+  material_purchase_requests: MaterialPurchaseRequest[];
   material_events?: MaterialEvent[];
   invoice_events?: InvoiceEvent[];
   inventory: InventoryItem[];
@@ -497,6 +609,11 @@ export interface WorkshopState {
   jobs: JobView[];
   inventory: InventoryItem[];
   attendance: AdvisorAttendance[];
+  suppliers: Supplier[];
+  inward_purchases: InwardPurchase[];
+  inward_purchase_lines: InwardPurchaseLine[];
+  inward_purchase_attachments: InwardPurchaseAttachment[];
+  inward_purchase_revisions: InwardPurchaseRevision[];
 }
 
 export interface AdvisorAttendance {

@@ -5,6 +5,8 @@ import initSqlJs, { type Database } from "sql.js";
 import {
   addMaterialRowForActor,
   cancelMaterialRowForActor,
+  createLocalPurchase,
+  createMaterialPurchaseRequestForActor,
   createSchema,
   deleteMaterialRowForActor,
   editIssuedMaterialRowForActor,
@@ -15,7 +17,10 @@ import {
   reconcileArtifactChecklist,
   reRequestMaterialRowForActor,
   requestMaterialRowForActor,
+  purchaseStockAndIssueForActor,
   setChecklistItemNotApplicableForActor,
+  archiveLocalPurchase,
+  updateLocalPurchase,
   updateMaterialRowForActor,
 } from "../src/db";
 import { canManageMaterialRows, materialRowActions, overStockWarning } from "../src/materials";
@@ -203,4 +208,48 @@ test("Issued edit can switch item and is blocked once invoiced", async () => {
   assert.equal(materialStockOnHand(db, 2), 2);
   db.run("update material_requests set invoiced_in=9 where id=?", [id]);
   assert.throws(() => editIssuedMaterialRowForActor(db, id, 6, 2, 1, "late"), /cannot be edited/);
+});
+
+test("local purchases persist with a job, can be edited and archived, and never affect stock or material rows", async () => {
+  const db = await database();
+  const beforeStock = materialStockOnHand(db, 1);
+  const beforeMovements = rows(db, "select * from material_movements").length;
+  const id = createLocalPurchase(db, {
+    job_card_id: 1, item_description: "Door handle", quantity: 2, unit: "piece", unit_cost: 450,
+    vendor: "City Parts", bill_reference: "BILL-42", note: "Bought locally",
+  });
+  assert.equal(materialStockOnHand(db, 1), beforeStock);
+  assert.equal(rows(db, "select * from material_requests").length, 0);
+  assert.equal(rows(db, "select * from material_movements").length, beforeMovements);
+  assert.deepEqual(readState(db).jobs[0].local_purchases.map((item) => [item.id, item.item_description, item.bill_reference]), [[id, "Door handle", "BILL-42"]]);
+
+  updateLocalPurchase(db, id, {
+    job_card_id: 1, item_description: "Door handle assembly", quantity: 1, unit: "piece", unit_cost: 700,
+    vendor: "City Parts", bill_reference: "BILL-43", note: "Corrected bill",
+  });
+  assert.deepEqual(rows(db, "select item_description,quantity,unit_cost,bill_reference from local_purchases where id=" + id), [{ item_description: "Door handle assembly", quantity: 1, unit_cost: 700, bill_reference: "BILL-43" }]);
+  assert.equal(materialStockOnHand(db, 1), beforeStock);
+
+  archiveLocalPurchase(db, id, "Duplicate bill");
+  assert.equal(readState(db).jobs[0].local_purchases.length, 0);
+  assert.deepEqual(rows(db, "select archived_reason from local_purchases where id=" + id), [{ archived_reason: "Duplicate bill" }]);
+});
+
+test("local purchases require a selected job and vendor/bill details", async () => {
+  const db = await database();
+  assert.throws(() => createLocalPurchase(db, { job_card_id: 1, item_description: "Clip", quantity: 1, unit: "piece", unit_cost: 5, vendor: "", bill_reference: "BILL-1" }), /vendor or shop/);
+  assert.throws(() => createLocalPurchase(db, { job_card_id: 1, item_description: "Clip", quantity: 1, unit: "piece", unit_cost: 5, vendor: "Parts", bill_reference: "" }), /bill or reference/);
+  assert.throws(() => createLocalPurchase(db, { job_card_id: 0, item_description: "Clip", quantity: 1, unit: "piece", unit_cost: 5, vendor: "Parts", bill_reference: "BILL-1" }), /selected job/);
+});
+
+test("a new-item purchase request is separate until Store purchases, stocks and issues it", async () => {
+  const db = await database();
+  const requestId = createMaterialPurchaseRequestForActor(db, 1, 2, { item_name: "Door trim clip", quantity: 6, unit: "piece" });
+  assert.deepEqual(rows(db, "select status,mapped_inventory_item_id,material_request_id from material_purchase_requests"), [{ status: "Pending", mapped_inventory_item_id: null, material_request_id: null }]);
+  const result = purchaseStockAndIssueForActor(db, requestId, 6, { sku: "CLIP-6", category: "Trim", unit_cost: 12, vendor: "City Parts", bill_reference: "BILL-9" });
+  assert.equal(materialStockOnHand(db, result.itemId), 0, "the purchased quantity is immediately issued to the job");
+  assert.deepEqual(rows(db, `select status,mapped_inventory_item_id,material_request_id,local_purchase_id from material_purchase_requests where id=${requestId}`), [{ status: "Completed", mapped_inventory_item_id: result.itemId, material_request_id: result.materialRowId, local_purchase_id: result.purchaseId }]);
+  assert.deepEqual(rows(db, `select status,requested_qty,issued_qty from material_requests where id=${result.materialRowId}`), [{ status: "Issued", requested_qty: 6, issued_qty: 6 }]);
+  assert.equal(readState(db).jobs[0].material_purchase_requests[0].status, "Completed");
+  assert.throws(() => purchaseStockAndIssueForActor(db, requestId, 6, { unit_cost: 0, vendor: "City Parts", bill_reference: "BILL-10" }), /pending/);
 });

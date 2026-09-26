@@ -254,6 +254,7 @@ export function buildInventoryImportPreview({
       unit: normalizedText(source[sourceColumn.unit]).toLocaleLowerCase(),
       stock_qty: parseQuantity(source[sourceColumn.stock_qty]),
       low_stock_qty: parseQuantity(source[sourceColumn.low_stock_qty]),
+      selling_price: 0,
     };
     const issues: InventoryImportIssue[] = [];
 

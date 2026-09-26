@@ -29,7 +29,7 @@ async function database(main = "IN_PROGRESS", sub = "Material Requested") {
   const db = new SQL.Database();
   createSchema(db);
   db.run("insert into users(id,email,name,role,password) values (1,'owner@test','Owner','admin','x'),(2,'linked@test','Linked','service','x'),(3,'other@test','Other','service','x'),(4,'acc@test','Accounts','accounts','x'),(5,'tech@test','Tech','tech','x'),(6,'store@test','Store','store','x')");
-  db.run("insert into inventory(id,sku,category,name,unit,stock_qty,low_stock_qty) values (1,'P-1','PPF','Gloss PPF','metre',10,2),(2,'C-1','Paint','Clear','litre',4,1)");
+  db.run("insert into inventory(id,sku,category,name,unit,stock_qty,low_stock_qty,selling_price) values (1,'P-1','PPF','Gloss PPF','metre',10,2,125),(2,'C-1','Paint','Clear','litre',4,1,0)");
   db.run("insert into visits(id,advisor_id,requested_work) values(1,2,'Repair')");
   db.run(`insert into job_cards(id,job_no,visit_id,advisor_id,technician_id,main_status,sub_status,qc_status,washing_needed,closed_at) values(1,'JC-1',1,2,5,'${main}','${sub}','Pending',0,'')`);
   migrateSchema(db);
@@ -65,6 +65,48 @@ test("discount rounding remainder lands on the last line and a discount never ex
   assert.equal(invoiceTotals([{ qty: 1, rate: 50, gst_rate: 18 }], 999).total, 0);
 });
 
+test("line GST accepts only the supported rates, normalizes No GST, and totals mixed treatments", async () => {
+  const db = await database();
+  assert.throws(() => saveEstimateForActor(db, 1, 2, { discount: 0, gst_rate: 18, notes: "", items: [{ kind: "Service", description: "Bad tax", qty: 1, rate: 100, gst_type: "IGST", gst_rate: 7 }] }), /GST rate must be 5%, 9%, 12%, 18%, or 28%/);
+  saveEstimateForActor(db, 1, 2, {
+    discount: 100,
+    gst_rate: 18,
+    notes: "",
+    items: [
+      { kind: "Service", description: "CGST work", qty: 1, rate: 1000, gst_type: "CGST+SGST", gst_rate: 18 },
+      { kind: "Material", description: "IGST part", qty: 1, rate: 500, gst_type: "IGST", gst_rate: 5 },
+      { kind: "Material", description: "Exempt item", qty: 1, rate: 500, gst_type: "No GST", gst_rate: 18 },
+    ],
+  });
+  const estimateItems = view(db).estimate_items;
+  assert.deepEqual(estimateItems.map((item) => [item.gst_type, item.gst_rate]), [["CGST+SGST", 18], ["IGST", 5], ["No GST", 0]]);
+  assert.deepEqual(invoiceTotals(estimateItems.map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? 0 })), 100), { lines: [{ amount: 1000, discount: 50, taxable: 950, gst: 171, total: 1121 }, { amount: 500, discount: 25, taxable: 475, gst: 23.75, total: 498.75 }, { amount: 500, discount: 25, taxable: 475, gst: 0, total: 475 }], subtotal: 2000, discount: 100, taxable: 1900, gst: 194.75, total: 2094.75 });
+});
+
+test("migration assigns legacy zero-rate rows to No GST and preserves other tax amounts", async () => {
+  const db = await database();
+  db.run("insert into estimates(id,job_card_id,status,discount,gst_rate,approval_note) values(10,1,'Draft',0,18,'')");
+  db.run("insert into estimate_items(id,estimate_id,kind,description,qty,rate,gst_type,gst_rate) values(10,10,'Service','Exempt',1,100,null,0),(11,10,'Service','Taxable',1,100,null,18)");
+  db.run("insert into invoices(id,job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status) values(10,1,'INV-LEGACY','',0,18,200,18,218,'Open')");
+  db.run("insert into invoice_items(id,invoice_id,kind,description,qty,rate,gst_type,gst_rate) values(10,10,'Service','Exempt',1,100,null,0),(11,10,'Service','Taxable',1,100,null,18)");
+  migrateSchema(db);
+  assert.deepEqual(rows<{ gst_type: string; gst_rate: number }>(db, "select gst_type,gst_rate from estimate_items where estimate_id=10 order by id"), [{ gst_type: "No GST", gst_rate: 0 }, { gst_type: "CGST+SGST", gst_rate: 18 }]);
+  assert.deepEqual(rows<{ gst_type: string; gst_rate: number }>(db, "select gst_type,gst_rate from invoice_items where invoice_id=10 order by id"), [{ gst_type: "No GST", gst_rate: 0 }, { gst_type: "CGST+SGST", gst_rate: 18 }]);
+  assert.equal(rows<{ total: number }>(db, "select total from invoices where id=10")[0].total, 218);
+});
+
+test("estimate-to-invoice conversion transfers every line's GST treatment", async () => {
+  const db = await database();
+  saveEstimateForActor(db, 1, 2, { discount: 0, gst_rate: 18, notes: "", items: [
+    { kind: "Service", description: "Local service", qty: 1, rate: 100, gst_type: "CGST+SGST", gst_rate: 18 },
+    { kind: "Material", description: "Interstate part", qty: 1, rate: 100, gst_type: "IGST", gst_rate: 12 },
+    { kind: "Material", description: "Exempt part", qty: 1, rate: 100, gst_type: "No GST", gst_rate: 0 },
+  ] });
+  approveEstimateForActor(db, 1, 2, "ok");
+  createInvoiceForActor(db, 1, 2, { tallyInvoiceNo: "", notes: "", documentAvailable: true });
+  assert.deepEqual(view(db).invoice_items.map((item) => [item.gst_type, item.gst_rate]), [["CGST+SGST", 18], ["IGST", 12], ["No GST", 0]]);
+});
+
 test("estimate is generated explicitly, approved by Owner or linked Advisor with a note", async () => {
   const db = await database();
   assert.throws(() => approveEstimateForActor(db, 1, 2, "ok"), /Generate the Estimate/);
@@ -85,6 +127,7 @@ test("invoice pre-fills Service lines from the estimate and Issued rows; unissue
   requestMaterialRowForActor(db, requested, 2);
   const draft = buildInvoiceDraft(view(db));
   assert.deepEqual(draft.lines.map((line) => [line.kind, line.description, line.qty, line.material_row_id]), [["Service", "Labour", 2, undefined], ["Material", "Gloss PPF", 3, issued]]);
+  assert.equal(draft.lines.find((line) => line.material_row_id === issued)?.rate, 125);
   assert.equal(draft.unissuedRows, 1);
   assert.throws(() => createInvoiceForActor(db, 1, 2, invoiceInput(draft.lines)), /Approve the Estimate/);
 });

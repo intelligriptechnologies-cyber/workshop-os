@@ -55,7 +55,7 @@ test("void documents stay listed from their snapshots; cancelled jobs are read-o
   assert.deepEqual(resolveJobDocumentActions("estimate", { ...cancelled, estimate: job().estimate }, { id: 99, role: "admin" }), ["download"]);
 });
 
-test("live rendering uses the Active template and company branding, Gate Pass shows Cleared not amounts, Job Card embeds the static diagram", () => {
+test("live rendering uses the Active template and company branding, Gate Pass shows Cleared not amounts, Job Card embeds the recorded damage diagram", () => {
   const admin = loadAdminDemoState();
   const closed = job({ job: { ...job().job, main_status: "CLOSED", damage_marks: JSON.stringify([{ id: 1, x: 40, y: 30 }]) }, invoice: currentInvoice("Cleared"), payments: [{ id: 1, job_card_id: 7, invoice_id: 9, amount: 1062, mode: "UPI", reference: "P" }] as JobView["payments"], receipt: { id: 1, job_card_id: 7, invoice_id: 9, receipt_no: "RCT-4509" }, gate_pass: { id: 1, job_card_id: 7, invoice_id: 9, gate_pass_no: "GP-3109" } });
   const gate = renderJobDocument("gate-pass", closed, admin);
@@ -63,7 +63,9 @@ test("live rendering uses the Active template and company branding, Gate Pass sh
   assert.doesNotMatch(gate.html, /balance|₹\s*1,?062/);
   assert.equal(gate.number, "GP-3109");
   const sheet = renderJobDocument("job-card", closed, admin);
-  assert.match(sheet.html, /<svg[^>]*viewBox="0 0 100 200"/);
+  assert.match(sheet.html, /<img[^>]*src="\/car-damage-diagram\.png"/);
+  assert.match(sheet.html, /left:40%;top:30%/);
+  assert.match(sheet.html, />1<\/span>/);
   assert.match(sheet.html, /1 damage mark recorded/);
   assert.match(renderJobDocument("estimate", closed, admin).html, new RegExp(admin.businessSettings.profile.businessName));
   assert.match(renderJobDocument("invoice", closed, admin).html, /₹/);
@@ -117,6 +119,7 @@ test("job card renders the damage diagram even when a stored template lacks the 
   assert.ok(!old.reportTemplates.find((t) => t.category === "job-card")!.html.includes("damage_diagram"));
   const view = job({ job: { ...job().job, damage_marks: JSON.stringify([{ id: 1, x: 30, y: 40 }]) } as JobView["job"] });
   const html = renderJobDocument("job-card", view, old, []).html;
-  assert.match(html, /Vehicle damage diagram/);
+  assert.match(html, /car-damage-diagram\.png/);
+  assert.match(html, /left:30%;top:40%/);
   assert.match(html, /1 damage mark recorded/);
 });

@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
-import { createSchema, migrateSchema, receiveVehicle, setDamageMarksForActor, updateJobSheetForActor } from "../src/db";
+import { archiveJobPhotoForActor, createSchema, migrateSchema, receiveVehicle, saveJobDetailsForActor, saveJobPhotoForActor, setDamageMarksForActor, updateJobSheetForActor } from "../src/db";
 import { addDamageMark, parseDamageMarks, removeDamageMark } from "../src/job-sheet";
 
 async function database() {
@@ -36,6 +36,36 @@ test("Details edits persist and a re-intake without new fields keeps them", asyn
   assert.equal(row(db, "select address from customers")[0], "Cuttack");
   receiveVehicle(db, intake);
   assert.equal(row(db, "select engine_no from vehicles")[0], "E9");
+});
+
+test("one job-details save updates the job card and job sheet records together", async () => {
+  const db = await database();
+  const jobId = receiveVehicle(db, intake);
+  saveJobDetailsForActor(db, jobId, 2, {
+    work_list: "Door repair", promised_at: "2026-10-02", advisor_notes: "Call first", customer_instructions: "Use OEM", internal_instructions: "Inspect hinges",
+    service_type: "Repair", pickup_drop: "Walk-in", estimated_delivery: "2026-10-03", fuel: "Full", accessories: "Mats", engine_no: "E10", address: "Bhubaneswar",
+  });
+  assert.deepEqual(row(db, `select work_list,promised_at,advisor_notes,customer_instructions,internal_instructions,service_type,pickup_drop,estimated_delivery from job_cards where id=${jobId}`), ["Door repair", "2026-10-02", "Call first", "Use OEM", "Inspect hinges", "Repair", "Walk-in", "2026-10-03"]);
+  assert.deepEqual(row(db, "select fuel,accessories from visits"), ["Full", "Mats"]);
+  assert.equal(row(db, "select engine_no from vehicles")[0], "E10");
+  assert.equal(row(db, "select address from customers")[0], "Bhubaneswar");
+});
+
+test("before and after photo mutation gates follow the job status", async () => {
+  const db = await database();
+  const jobId = receiveVehicle(db, intake);
+  const photo = { label: "Evidence", src: "data:image/png;base64,AA==", originalName: "e.png", width: 1, height: 1 };
+  assert.throws(() => saveJobPhotoForActor(db, jobId, 2, { ...photo, category: "After Work" }), /After photos can only/);
+  assert.throws(() => saveJobPhotoForActor(db, jobId, 2, { ...photo, category: "Before Work" }), /image|data/i, "Before Work passes the NEW gate before image validation");
+  db.run(`update job_cards set main_status='IN_PROGRESS' where id=${jobId}`);
+  assert.throws(() => saveJobPhotoForActor(db, jobId, 2, { ...photo, category: "Before Work" }), /Before photos can only/);
+  assert.throws(() => saveJobPhotoForActor(db, jobId, 2, { ...photo, category: "After Work" }), /image|data/i, "After Work passes the IN_PROGRESS gate");
+  db.run(`insert into photos(id,job_card_id,label,src,category) values(99,${jobId},'Before','x','Before Work')`);
+  assert.throws(() => archiveJobPhotoForActor(db, 99, 2, "replace"), /Before photos can only/);
+  db.run(`update job_cards set main_status='COMPLETED' where id=${jobId}`);
+  assert.throws(() => saveJobPhotoForActor(db, jobId, 2, { ...photo, category: "Before Work" }), /Before photos can only/);
+  db.run(`update job_cards set main_status='HOLD' where id=${jobId}`);
+  assert.throws(() => saveJobPhotoForActor(db, jobId, 2, { ...photo, category: "After Work" }), /After photos can only/);
 });
 
 test("damage marks add, remove and persist with the job card; technician cannot edit", async () => {

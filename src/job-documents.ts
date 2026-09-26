@@ -2,7 +2,7 @@ import type { AdminDemoState } from "./admin-demo-state";
 import type { JobView, User } from "./types";
 import { canCreateInvoice, canEditInvoice as mayEditInvoice } from "./invoice-math";
 import { buildPrintDocument, buildReportLines, buildReportValues, renderReportTemplate, type ReportCategory } from "./report-templates";
-import { DAMAGE_SLOT, parseDamageMarks, staticDamageDiagramSvg } from "./job-sheet";
+import { DAMAGE_SLOT, parseDamageMarks, staticDamageDiagramHtml } from "./job-sheet";
 import type { DocumentSnapshot } from "./document-snapshots";
 
 export type DocumentKind = "estimate" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
@@ -109,7 +109,7 @@ export function renderLive(kind: DocumentKind, view: JobView, adminState: Pick<A
   // Templates saved before {{blocks.damage_diagram}} existed lack it; the Job Card sheet always embeds the diagram.
   const source = kind === "job-card" ? withDamageDiagram(template) : template;
   const html = renderReportTemplate(source, values, buildReportLines(category, view));
-  return kind === "job-card" ? html.replace(DAMAGE_SLOT, staticDamageDiagramSvg(parseDamageMarks(view.job.damage_marks))) : html;
+  return kind === "job-card" ? html.replace(DAMAGE_SLOT, staticDamageDiagramHtml(parseDamageMarks(view.job.damage_marks))) : html;
 }
 
 /** Frozen snapshot when one exists for the live document, otherwise a render from the Active template and Company Settings. */

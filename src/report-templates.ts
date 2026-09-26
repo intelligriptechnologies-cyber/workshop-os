@@ -2,6 +2,7 @@ import DOMPurify from "dompurify";
 import type { WorkshopBusinessSettings } from "./admin-demo-state";
 import type { JobView } from "./types";
 import { DAMAGE_SLOT } from "./job-sheet";
+import { invoiceTotals, normalizeGstLine } from "./invoice-math";
 
 export type ReportCategory = "estimate" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
 
@@ -178,8 +179,10 @@ export function buildReportValues(category: ReportCategory, view: JobView, setti
   const reportItems = category === "invoice" || category === "payment-receipt" ? view.invoice_items ?? view.estimate_items : view.estimate_items;
   const subtotal = reportItems.reduce((sum, item) => sum + item.qty * item.rate, 0);
   const discount = category === "invoice" || category === "payment-receipt" ? view.invoice?.discount ?? 0 : view.estimate?.discount ?? 0;
-  const gst = Math.max(0, subtotal - discount) * (category === "invoice" || category === "payment-receipt" ? view.invoice?.gst_rate ?? settings.billing.defaultGstPercent : view.estimate?.gst_rate ?? settings.billing.defaultGstPercent) / 100;
-  const invoiceTotal = view.invoice?.total ?? subtotal - discount + gst;
+  const fallbackGst = category === "invoice" || category === "payment-receipt" ? view.invoice?.gst_rate ?? settings.billing.defaultGstPercent : view.estimate?.gst_rate ?? settings.billing.defaultGstPercent;
+  const totals = invoiceTotals(reportItems.map((item) => ({ qty: item.qty, rate: item.rate, ...normalizeGstLine(item.gst_type, item.gst_rate, fallbackGst) })), discount);
+  const gst = totals.gst;
+  const invoiceTotal = view.invoice?.total ?? totals.total;
   const paid = view.payments.reduce((sum, payment) => sum + payment.amount, 0);
   const reportNumber = category === "invoice" ? view.invoice?.invoice_no : category === "estimate" ? `EST-${view.job.job_no}` : category === "gate-pass" ? view.gate_pass?.gate_pass_no : category === "payment-receipt" ? view.receipt?.receipt_no : view.job.job_no;
   return {
@@ -196,10 +199,10 @@ export function buildReportValues(category: ReportCategory, view: JobView, setti
     "invoice.status": value(view.invoice?.status), "blocks.damage_diagram": DAMAGE_SLOT, "invoice.total": money(invoiceTotal), "invoice.paid": money(paid), "invoice.balance": money(Math.max(0, invoiceTotal - paid)), "receipt.number": value(view.receipt?.receipt_no),
     "blocks.company_logo": imageBlock(assets.logo, "Company logo"), "blocks.company_stamp": imageBlock(assets.stamp, "Company stamp"), "blocks.authorized_signature": imageBlock(assets.authorizedSignature, "Authorized signature"),
     "company.logo": imageBlock(assets.logo, "Company logo"), "company.stamp": imageBlock(assets.stamp, "Company stamp"), "company.signature": imageBlock(assets.authorizedSignature, "Authorized signature"),
-    "estimate.total": money(subtotal - discount + gst),
+    "estimate.total": money(totals.total),
     "report.subtotal": money(subtotal), "report.discount": discount ? `- ${money(discount)}` : money(0), "report.gst": money(gst),
-    "report.amount_words": rupeesInWords(category === "payment-receipt" ? paid : category === "estimate" ? subtotal - discount + gst : invoiceTotal),
-    "blocks.line_items": table(["Type", "Description", "Qty", "Rate", "Amount"], reportItems.map((item) => [item.kind, item.description, item.qty, money(item.rate), money(item.qty * item.rate)])),
+    "report.amount_words": rupeesInWords(category === "payment-receipt" ? paid : category === "estimate" ? totals.total : invoiceTotal),
+    "blocks.line_items": table(["Type", "Description", "Qty", "Rate", "GST treatment", "GST %", "Amount"], reportItems.map((item) => [item.kind, item.description, item.qty, money(item.rate), item.gst_type ?? (item.gst_rate === 0 ? "No GST" : "CGST+SGST"), `${item.gst_rate ?? fallbackGst}%`, money(item.qty * item.rate)])),
     "blocks.payment_details": category === "invoice" ? paymentDetailsBlock(settings) : "",
     "blocks.payments": table(["Date", "Mode", "Reference", "Amount"], view.payments.map((payment) => [date(payment.created_at), payment.mode, value(payment.reference), money(payment.amount)])),
     "blocks.tasks": table(["Task", "Status", "Notes"], view.tasks.map((task) => [task.title, task.status, value(task.notes)])),
@@ -284,7 +287,7 @@ export function renderReportTemplate(template: Pick<ReportTemplate, "html" | "ca
   return sanitizeReportHtml(scalar(expanded));
 }
 
-export const PRINT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'none'; frame-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'";
+export const PRINT_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'none'; frame-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'";
 
 export function buildPrintDocument(title: string, bodyHtml: string) {
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:white}main{max-width:100%}body{font-family:Arial,sans-serif}img{max-width:100%;height:auto}table{page-break-inside:auto}tr{page-break-inside:avoid}@media print{button{display:none}}</style></head><body>${bodyHtml}</body></html>`;

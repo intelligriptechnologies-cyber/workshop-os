@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 import XLSX from "xlsx";
-import { statSync } from "node:fs";
+import { readFileSync, statSync } from "node:fs";
 
 const roles = [
   ["reception@example.com", ["Today Queue", "Customers", "Vehicles", "Search"]],
@@ -68,15 +68,41 @@ test("desktop navigation scrolls independently in a short viewport", async ({ pa
 test("reception creates a linked customer vehicle visit and job searchable after reload", async ({ page }) => {
   await loginAs(page, "reception@example.com");
   await page.getByRole("button", { name: "Create New Visit" }).click();
-  await page.getByLabel("Customer Name").fill("E2E Customer");
-  await page.getByLabel("Mobile").fill("9000099999");
-  await page.getByLabel("Vehicle Number").fill("OD02E2E9999");
-  await page.getByLabel("Make").fill("Kia");
-  await page.getByLabel("Model").fill("Seltos");
-  await page.getByLabel("ODO meter reading (km)").fill("12000");
-  await page.locator("#create-visit-form .field-pair input").fill("3");
-  await page.getByLabel("Requested Work").fill("E2E coating inspection");
-  await page.getByRole("button", { name: "Create Visit" }).click();
+  const dialog = page.getByRole("dialog", { name: "Create New Visit" });
+  const details = dialog.getByRole("tab", { name: "Details", exact: true });
+  const bodyMark = dialog.getByRole("tab", { name: "Body Mark", exact: true });
+  await expect(details).toHaveAttribute("aria-selected", "true");
+  await expect(dialog.getByRole("tabpanel", { name: "Details" })).toBeVisible();
+  await expect(dialog.getByTestId("damage-diagram")).toHaveCount(0);
+  await dialog.getByLabel("Customer Name").fill("E2E Customer");
+  await dialog.getByLabel("Mobile").fill("9000099999");
+  await dialog.getByLabel("Vehicle Number").fill("OD02E2E9999");
+  await dialog.getByLabel("Make").fill("Kia");
+  await dialog.getByLabel("Model").fill("Seltos");
+  await dialog.getByLabel("ODO meter reading (km)").fill("12000");
+  await dialog.locator("#create-visit-form .field-pair input").fill("3");
+  const requestedWork = dialog.getByLabel("Requested Work");
+  await expect(requestedWork).toHaveAttribute("rows", "3");
+  await requestedWork.fill("E2E coating inspection");
+
+  await bodyMark.click();
+  const bodyMarkPanel = dialog.getByRole("tabpanel", { name: "Body Mark" });
+  const diagram = bodyMarkPanel.getByTestId("damage-diagram");
+  await expect(diagram).toBeVisible();
+  const panelBox = await bodyMarkPanel.boundingBox();
+  const diagramBox = await diagram.boundingBox();
+  expect(panelBox).not.toBeNull();
+  expect(diagramBox).not.toBeNull();
+  expect(Math.abs((diagramBox!.x + diagramBox!.width / 2) - (panelBox!.x + panelBox!.width / 2))).toBeLessThanOrEqual(2);
+  await diagram.locator(".body-mark-canvas").click({ position: { x: 60, y: 60 } });
+  await expect(diagram.getByTestId("damage-mark")).toHaveCount(1);
+
+  await details.click();
+  await expect(requestedWork).toHaveValue("E2E coating inspection");
+  await bodyMark.click();
+  await expect(diagram.getByTestId("damage-mark")).toHaveCount(1);
+  await details.click();
+  await dialog.getByRole("button", { name: "Create Visit" }).click();
   await page.reload();
   await loginAs(page, "reception@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
@@ -270,7 +296,7 @@ test("opening a paginated record and returning preserves list state", async ({ p
   await page.getByRole("button", { name: "Next page", exact: true }).first().click();
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Go Back" }).click();
   await expect(page.getByText(/Showing 11 to 20 of/)).toBeVisible();
   await expect(page.getByLabel("Main status")).toHaveValue("IN_PROGRESS");
 });
@@ -283,7 +309,7 @@ test("job dialogs expose distinct modes, documents, focus return and shared sear
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
   await page.getByRole("tab", { name: "Documents" }).click();
   await expect(page.locator(".document-center")).toBeVisible();
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Go Back" }).click();
   await expect(viewButton).toBeFocused();
 
   await page.locator(".record-card").first().getByRole("button", { name: "Edit", exact: true }).click();
@@ -395,7 +421,7 @@ test("customer and vehicle records use distinct view and edit dialogs on every l
   const vehicleView = page.getByRole("dialog", { name: "View Vehicle" });
   await expect(vehicleView.getByText("Owner", { exact: true })).toBeVisible();
   await expect(vehicleView.getByRole("button", { name: "Save Vehicle" })).toHaveCount(0);
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Go Back" }).click();
   await vehicleRow.getByRole("button", { name: "Edit", exact: true }).click();
   await page.getByRole("dialog", { name: "Edit Vehicle" }).getByRole("button", { name: "Save Vehicle" }).click();
 
@@ -406,7 +432,7 @@ test("customer and vehicle records use distinct view and edit dialogs on every l
     const row = page.getByRole("table", { name: `${category === "customer" ? "Customer" : "Vehicle"} search results` }).locator("tbody tr").first();
     await row.getByRole("button", { name: "View", exact: true }).click();
     await expect(page.getByRole("dialog", { name: `View ${category === "customer" ? "Customer" : "Vehicle"}` })).toBeVisible();
-    await page.getByRole("button", { name: "Close dialog" }).click();
+    await page.getByRole("button", { name: "Go Back" }).click();
     await row.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.getByRole("dialog", { name: `Edit ${category === "customer" ? "Customer" : "Vehicle"}` })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -418,7 +444,7 @@ test("customer and vehicle records use distinct view and edit dialogs on every l
     const record = page.getByRole("tabpanel").locator(".managed-record").first();
     await record.getByRole("button", { name: "View", exact: true }).click();
     await expect(page.getByRole("dialog", { name: `View ${tab.slice(0, -1)}` })).toBeVisible();
-    await page.getByRole("button", { name: "Close dialog" }).click();
+    await page.getByRole("button", { name: "Go Back" }).click();
     await record.getByRole("button", { name: "Edit", exact: true }).click();
     await expect(page.getByRole("dialog", { name: `Edit ${tab.slice(0, -1)}` })).toBeVisible();
     await page.keyboard.press("Escape");
@@ -584,7 +610,7 @@ test("Manage Job Cards uses view and edit dialogs with documents and confirmed a
 
   await page.getByRole("button", { name: "Create Job Card", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "Create Job Card" })).toBeVisible();
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Go Back" }).click();
   await expect(page.getByRole("dialog", { name: "Create Job Card" })).toBeHidden();
 
   const table = page.getByRole("table", { name: "Managed job cards" });
@@ -599,7 +625,7 @@ test("Manage Job Cards uses view and edit dialogs with documents and confirmed a
   const pdfPromise = page.waitForEvent("download");
   await page.locator(".document-row").filter({ has: page.getByText("Estimate", { exact: true }) }).getByRole("button", { name: "Download PDF" }).click();
   expect((await pdfPromise).suggestedFilename()).toMatch(/-estimate\.pdf$/);
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Go Back" }).click();
 
   await firstRow.getByRole("button", { name: "Edit", exact: true }).click();
   await expect(page.getByRole("button", { name: "Save Job Card" })).toBeVisible();
@@ -670,6 +696,47 @@ test("store stock and material requests combine search with domain filters", asy
   await page.getByLabel("Search material requests").fill("nano");
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Material Requests results" }).getByRole("cell", { name: "JC-2026-001246" })).toBeVisible();
+});
+
+test("stock quick add records inward, creates priced SKUs, and edits details on mobile", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
+  const quickAdd = page.locator(".quick-add-stock");
+
+  await quickAdd.getByLabel("Existing SKU").click();
+  await quickAdd.getByRole("option").first().click();
+  await quickAdd.getByLabel("Inward quantity").fill("2");
+  await quickAdd.getByRole("button", { name: "Record Inward" }).click();
+  await page.getByRole("tab", { name: "Stock Movements" }).click();
+  await page.getByLabel("Search stock movements").fill("Quick inward");
+  await expect(page.getByRole("table", { name: "Stock movement results" })).toContainText("STOCK_IN");
+
+  await page.getByRole("tab", { name: "Inventory List" }).click();
+  await quickAdd.getByRole("button", { name: "Add new SKU" }).click();
+  await quickAdd.getByLabel("New SKU", { exact: true }).fill("QUICK-E2E");
+  await quickAdd.getByLabel("New material name").fill("Quick add film");
+  await quickAdd.getByLabel("New SKU category").fill("E2E");
+  await quickAdd.getByLabel("New SKU unit").fill("piece");
+  await quickAdd.getByLabel("New SKU low-stock threshold").fill("2");
+  await quickAdd.getByLabel("New SKU selling price").fill("325");
+  await quickAdd.getByLabel("Initial inward quantity").fill("4");
+  await quickAdd.getByRole("button", { name: "Create SKU & Record Inward" }).click();
+  await page.getByLabel("Search stock").fill("QUICK-E2E");
+  const stockRow = page.getByRole("table", { name: "Stock results" }).locator("tbody tr").filter({ hasText: "QUICK-E2E" });
+  await expect(stockRow).toContainText("Quick add film");
+  await stockRow.getByRole("button", { name: "Edit" }).click();
+  const dialog = page.getByRole("dialog", { name: "Edit stock details" });
+  await dialog.getByLabel("Edit selling price").fill("400");
+  await dialog.getByRole("button", { name: "Save changes" }).click();
+  await stockRow.getByRole("button", { name: "Edit" }).click();
+  await expect(page.getByRole("dialog", { name: "Edit stock details" }).getByLabel("Edit selling price")).toHaveValue("400");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoPageOverflow(page);
+  const footer = page.getByRole("dialog", { name: "Edit stock details" }).locator(".dialog-footer");
+  const box = await footer.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
 });
 
 test("issue and reconcile lists filter by item, job and reconciliation state", async ({ page }) => {
@@ -963,7 +1030,7 @@ test("job lifecycle editor is ordered, status is read-only, and every action req
   await confirmation.getByRole("button", { name: "Confirm status change" }).click();
   await expect(confirmation.getByRole("alert")).toHaveText("A confirmation note is required.");
   await note.fill("Customer requested cancellation");
-  await confirmation.getByRole("button", { name: "Cancel", exact: true }).click();
+  await confirmation.getByRole("button", { name: "Go Back", exact: true }).click();
   await expect(confirmation).toBeHidden();
 });
 
@@ -1000,9 +1067,7 @@ test("lifecycle surfaces provide keyboard tabs, stacked dialogs, accessible name
   const note = confirmation.getByLabel("Confirmation note");
   await expect(note).toBeFocused();
   await page.keyboard.press("Shift+Tab");
-  await expect(confirmation.getByRole("button", { name: "Close dialog" })).toBeFocused();
-  await page.keyboard.press("Shift+Tab");
-  await expect(confirmation.getByRole("button", { name: "Cancel", exact: true })).toBeFocused();
+  await expect(confirmation.getByRole("button", { name: "Go Back" })).toBeFocused();
   await page.keyboard.press("Escape");
   await expect(confirmation).toBeHidden();
   await expect(jobDialog).toBeVisible();
@@ -1025,7 +1090,8 @@ test("lifecycle surfaces provide keyboard tabs, stacked dialogs, accessible name
   await estimateTrigger.click();
   const estimate = page.getByRole("dialog", { name: /Estimate$/ });
   await expect(estimate.getByLabel("Discount")).toBeVisible();
-  await expect(estimate.getByLabel("Overall GST %")).toBeVisible();
+  await expect(estimate.getByLabel("Item 1 GST type")).toHaveValue("CGST+SGST");
+  await expect(estimate.getByLabel("Item 1 GST rate")).toHaveValue("18%");
   await expectNoPageOverflow(page);
   await page.keyboard.press("Escape");
   await expect(estimateTrigger).toBeFocused();
@@ -1048,7 +1114,7 @@ test("estimate dialog stages item CRUD and persists only on Save", async ({ page
   let dialog = page.getByRole("dialog", { name: "Edit Estimate" });
   const savedDescription = await dialog.getByLabel("Item 1 description").inputValue();
   await dialog.getByLabel("Item 1 description").fill("Unsaved change");
-  await dialog.getByRole("button", { name: "Cancel", exact: true }).click();
+  await dialog.getByRole("button", { name: "Go Back", exact: true }).click();
   await page.getByRole("button", { name: "Edit Estimate" }).click();
   dialog = page.getByRole("dialog", { name: "Edit Estimate" });
   await expect(dialog.getByLabel("Item 1 description")).toHaveValue(savedDescription);
@@ -1057,8 +1123,10 @@ test("estimate dialog stages item CRUD and persists only on Save", async ({ page
   await dialog.getByLabel("Item 2 description").fill("E2E polish");
   await dialog.getByLabel("Item 2 quantity").fill("2");
   await dialog.getByLabel("Item 2 rate").fill("250");
+  await dialog.getByLabel("Item 2 GST type").selectOption("IGST");
+  await dialog.getByLabel("Item 2 GST rate").click();
+  await dialog.getByRole("option", { name: "12%" }).click();
   await dialog.getByLabel("Discount").fill("50");
-  await dialog.getByLabel("Overall GST %").fill("12");
   await dialog.getByLabel("Notes").fill("E2E estimate note");
   await dialog.getByRole("button", { name: "Save Estimate" }).click();
   await expect(dialog).toBeHidden();
@@ -1082,7 +1150,7 @@ test("non-owner roles see lifecycle mutations as read only while the linked advi
   const editor = page.getByRole("dialog", { name: /Edit Job/ });
   await editor.locator("label").filter({ hasText: /^Advisor/ }).locator("select").selectOption({ label: "Other Advisor" });
   await editor.getByRole("button", { name: "Save Job Card" }).click();
-  await editor.getByRole("button", { name: "Close dialog" }).click();
+  await editor.getByRole("button", { name: "Go Back" }).click();
   await page.locator(".logout").click();
   await loginAs(page, "service@example.com");
   await expect(page.getByText(reassignedJob)).toHaveCount(0);
@@ -1166,7 +1234,7 @@ test("linked advisor can change job media while other authorized job viewers are
   let job = page.getByRole("dialog", { name: /View Job/ });
   await job.getByRole("tab", { name: "Photos / Media" }).click();
   await expect(job.getByLabel("Image file")).toBeVisible();
-  await job.getByRole("button", { name: "Close dialog" }).click();
+  await job.getByRole("button", { name: "Go Back" }).click();
   await page.locator(".logout").click();
 
   await loginAs(page, "reception@example.com");
@@ -1198,6 +1266,30 @@ async function readWorksheet(download: import("@playwright/test").Download) {
   return XLSX.utils.sheet_to_json<(string | number)[]>(workbook.Sheets.Report, { header: 1, defval: "" });
 }
 
+async function pngPixels(page: import("@playwright/test").Page, download: import("@playwright/test").Download) {
+  const filePath = await download.path();
+  if (!filePath) throw new Error("Downloaded image was not saved");
+  const png = readFileSync(filePath).toString("base64");
+  return page.evaluate(async (encoded) => {
+    const image = new Image();
+    await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("PNG could not be decoded")); image.src = `data:image/png;base64,${encoded}`; });
+    const canvas = document.createElement("canvas");
+    canvas.width = image.naturalWidth; canvas.height = image.naturalHeight;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Canvas is not available");
+    context.drawImage(image, 0, 0);
+    const pixels = context.getImageData(0, 0, canvas.width, canvas.height).data;
+    let nonWhite = 0;
+    let markerRed = 0;
+    for (let index = 0; index < pixels.length; index += 4) {
+      const [red, green, blue, alpha] = pixels.subarray(index, index + 4);
+      if (alpha > 0 && (red < 245 || green < 245 || blue < 245)) nonWhite += 1;
+      if (red > 180 && green < 110 && blue < 110) markerRed += 1;
+    }
+    return { width: canvas.width, height: canvas.height, nonWhite, markerRed };
+  }, png);
+}
+
 test("job sheet intake fields and damage marks persist through the Job Card edit dialog", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
@@ -1209,13 +1301,29 @@ test("job sheet intake fields and damage marks persist through the Job Card edit
   await sheet.getByRole("button", { name: "Save Job Sheet" }).click();
   await page.getByRole("tab", { name: "Body Mark" }).click();
   const body = page.getByRole("region", { name: "Body mark" });
-  await body.getByRole("img", { name: "Left Front body panel" }).click({ position: { x: 20, y: 30 } });
-  await body.getByRole("img", { name: "Right Rear body panel" }).click({ position: { x: 60, y: 40 } });
+  const diagram = body.getByTestId("damage-diagram");
+  await expect(diagram.getByRole("img", { name: "Vehicle body illustration" })).toHaveAttribute("src", "/car-damage-diagram.png");
+  const blankDownload = page.waitForEvent("download");
+  await body.getByRole("button", { name: "Download image" }).click();
+  const blankPixels = await pngPixels(page, await blankDownload);
+  const canvas = diagram.locator(".body-mark-canvas");
+  const box = await canvas.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.height / box!.width).toBeCloseTo(682 / 511, 1);
+  await canvas.click({ position: { x: box!.width / 2, y: box!.height / 2 } });
+  await canvas.click({ position: { x: box!.width * .25, y: box!.height * .25 } });
   await expect(body.getByTestId("damage-mark")).toHaveCount(2);
   await body.getByTestId("damage-mark").first().click();
   await expect(body.getByTestId("damage-mark")).toHaveCount(1);
+  const markedDownload = page.waitForEvent("download");
+  await body.getByRole("button", { name: "Download image" }).click();
+  const markedPixels = await pngPixels(page, await markedDownload);
+  expect(markedPixels.width).toBeGreaterThan(0);
+  expect(markedPixels.height).toBeGreaterThan(0);
+  expect(markedPixels.nonWhite).toBeGreaterThan(10_000);
+  expect(markedPixels.markerRed).toBeGreaterThan(blankPixels.markerRed + 100);
   await body.getByRole("button", { name: "Save Body Marks" }).click();
-  await page.getByRole("button", { name: "Close dialog" }).click();
+  await page.getByRole("button", { name: "Go Back" }).click();
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   const view = page.getByRole("region", { name: "Job sheet" });
   await expect(view.getByText("ENG-E2E-1")).toBeVisible();
@@ -1292,7 +1400,8 @@ test("estimate approval and invoice creation enable Completed with per-line GST 
   const create = page.getByRole("dialog", { name: "Create Invoice" });
   await create.getByLabel("Invoice item 1 rate").fill("1000");
   await create.getByLabel("Invoice item 1 quantity").fill("1");
-  await create.getByLabel("Invoice item 1 GST").fill("18");
+  await expect(create.getByLabel("Invoice item 1 GST type")).toHaveValue("CGST+SGST");
+  await expect(create.getByLabel("Invoice item 1 GST rate")).toHaveValue("18%");
   await create.getByLabel("Invoice discount").fill("100");
   await expect(create.getByLabel("Invoice totals")).toContainText("Discount");
   await create.getByRole("button", { name: "Save Invoice" }).click();

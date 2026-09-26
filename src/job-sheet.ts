@@ -62,6 +62,8 @@ export function removeDamageMark(marks: DamageMark[], id: number): DamageMark[] 
 
 /** Placeholder emitted by `{{blocks.damage_diagram}}`; swapped for the static SVG after sanitising (SVG is not allowed in templates). */
 export const DAMAGE_SLOT = '<div class="damage-diagram-slot"></div>';
+export const DAMAGE_DIAGRAM_ASSET = "/car-damage-diagram.png";
+export const DAMAGE_DIAGRAM_ASPECT_RATIO = 682 / 511;
 
 /** Inner SVG (viewBox 0 0 120 80) of one body-mark panel: a door/fender side profile. Front of the car is on the left for left views, right for right views. */
 export function bodyPanelShapes(view: BodyView): string {
@@ -92,12 +94,9 @@ export function staticBodyMarksSvg(marks: DamageMark[]): string {
   return `<div style="display:grid;grid-template-columns:repeat(2,170px);gap:8px">${panels.join("")}</div>`;
 }
 
-/** Static (no handlers) vehicle diagram with the recorded marks, inline-styled so it prints and rasterises without app CSS. */
-export function staticDamageDiagramSvg(allMarks: DamageMark[]): string {
-  return staticTopDiagram(allMarks.map(legacyMarkToUnified));
-}
-
-function staticTopDiagram(marks: DamageMark[]): string {
-  const dots = marks.map((mark) => `<g transform="translate(${mark.x} ${mark.y * 2})"><circle r="5" fill="#d64545" stroke="#fff" stroke-width="1"/><text text-anchor="middle" dy="2.5" font-size="6" font-weight="700" font-family="Arial,sans-serif" fill="#fff">${mark.id}</text></g>`).join("");
-  return `<div style="width:130px"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 200" width="130" height="260" role="img" aria-label="Vehicle damage diagram, top view"><rect x="18" y="8" width="64" height="184" rx="26" fill="#f3f5f8" stroke="#7b8794" stroke-width="1.5"/><rect x="26" y="40" width="48" height="34" rx="6" fill="#dfe6ee" stroke="#9aa5b1"/><rect x="26" y="128" width="48" height="26" rx="6" fill="#dfe6ee" stroke="#9aa5b1"/><line x1="18" y1="100" x2="82" y2="100" stroke="#c3cad3"/>${dots}</svg><p style="margin:4px 0 0;font:11px Arial,sans-serif">${marks.length} damage mark${marks.length === 1 ? "" : "s"} recorded</p></div>`;
+/** Static (no handlers) supplied vehicle illustration with recorded marks, inline-styled for printed documents. */
+export function staticDamageDiagramHtml(allMarks: DamageMark[]): string {
+  const marks = allMarks.map(legacyMarkToUnified);
+  const dots = marks.map((mark) => `<span aria-label="Damage mark ${mark.id}" style="position:absolute;left:${mark.x}%;top:${mark.y}%;transform:translate(-50%,-50%);display:flex;width:20px;height:20px;align-items:center;justify-content:center;border:1px solid #fff;border-radius:50%;background:#dc3545;color:#fff;font:700 10px Arial,sans-serif;line-height:1;box-shadow:0 1px 3px rgba(0,0,0,.3)">${mark.id}</span>`).join("");
+  return `<div style="width:220px;max-width:100%"><div style="position:relative;width:100%;line-height:0"><img src="${DAMAGE_DIAGRAM_ASSET}" alt="Vehicle damage diagram" style="display:block;width:100%;height:auto"/>${dots}</div><p style="margin:4px 0 0;font:11px Arial,sans-serif">${marks.length} damage mark${marks.length === 1 ? "" : "s"} recorded</p></div>`;
 }

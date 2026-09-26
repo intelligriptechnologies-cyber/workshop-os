@@ -196,6 +196,7 @@ test("confirmInventoryImport merges valid rows into session inventory only", () 
   assert.equal(imported.importBatches[0].acceptedRows, 2);
   assert.equal(imported.importBatches[0].rejectedRows, 1);
   assert.equal(imported.sessionInventory.every((item) => item.importBatchId === "import-1"), true);
+  assert.equal(imported.sessionInventory.every((item) => item.sellingPrice === 0), true);
 
   const importedAgain = confirmInventoryImport(imported, {
     fileName: "second-batch.xlsx",

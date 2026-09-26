@@ -1,5 +1,5 @@
 import { WORKBOOK_INVENTORY_SEED } from "./inventory-seed";
-import { canCompleteWithInvoice, canCreateInvoice, canEditInvoice, DEFAULT_GST_BY_KIND, invoiceTotals } from "./invoice-math";
+import { canCompleteWithInvoice, canCreateInvoice, canEditInvoice, DEFAULT_GST_BY_KIND, GST_RATES, GST_TYPES, invoiceTotals, normalizeGstLine, type GstType } from "./invoice-math";
 import { serializeDamageMarks, type DamageMark } from "./job-sheet";
 import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
 import { canEditIssuedMaterialRows, canReleaseMaterialRows, canManageMaterialRows, materialRowActions, materialRowStatus, MATERIALS_CHECKLIST_LABELS, materialRowActionsFor, overStockWarning, type MaterialRowAction } from "./materials";
@@ -13,10 +13,16 @@ import type {
   Followup,
   GatePass,
   InventoryItem,
+  InwardPurchase,
+  InwardPurchaseAttachment,
+  InwardPurchaseLine,
+  InwardPurchaseRevision,
   Invoice,
   InvoiceItem,
   JobCard,
   JobView,
+  LocalPurchase,
+  MaterialPurchaseRequest,
   MainStatus,
   MaterialEvent,
   InvoiceEvent,
@@ -33,6 +39,8 @@ import type {
   SearchResult,
   StatusHistory,
   SubStatus,
+  Supplier,
+  SupplierStatus,
   Task,
   TaskStatus,
   User,
@@ -108,6 +116,12 @@ export function readState(db: Database): WorkshopState {
   const vehicles = all<Vehicle>(db, "select * from vehicles where archived_at is null order by id");
   const visits = all<Visit>(db, "select * from visits where archived_at is null order by id desc");
   const inventory = all<InventoryItem>(db, "select i.*, i.stock_qty - coalesce((select sum(l.qty) from stock_ledger l where l.item_id=i.id),0) as stock_qty from inventory i where i.archived_at is null order by i.category, i.name");
+  // Keep archived suppliers in the read model so historical receipts never lose their supplier identity.
+  const suppliers = all<Supplier>(db, "select * from suppliers order by name");
+  const inward_purchases = all<InwardPurchase>(db, "select * from inward_purchases order by coalesce(submitted_at, created_at) desc, id desc");
+  const inward_purchase_lines = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines order by id");
+  const inward_purchase_attachments = all<InwardPurchaseAttachment>(db, "select * from inward_purchase_attachments order by id");
+  const inward_purchase_revisions = all<InwardPurchaseRevision>(db, "select * from inward_purchase_revisions order by purchase_id, revision_no");
   const jobRows = all<JobCard>(db, "select * from job_cards where archived_at is null order by id desc");
   const byId = <T extends { id: number }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
   const groupBy = <T>(rows: T[], key: (row: T) => number) => {
@@ -125,6 +139,8 @@ export function readState(db: Database): WorkshopState {
   const estimatesByJob = groupBy(estimates, (row) => row.job_card_id);
   const estimateItemsByEstimate = groupBy(all<EstimateItem>(db, "select * from estimate_items where archived_at is null"), (row) => row.estimate_id);
   const materialByJob = groupBy(all<MaterialRequest>(db, "select * from material_requests where archived_at is null"), (row) => row.job_card_id);
+  const localPurchasesByJob = groupBy(all<LocalPurchase>(db, "select * from local_purchases where archived_at is null order by id desc"), (row) => row.job_card_id);
+  const purchaseRequestsByJob = groupBy(all<MaterialPurchaseRequest>(db, "select * from material_purchase_requests order by id desc"), (row) => row.job_card_id);
   const tasksByJob = groupBy(all<Task>(db, "select * from tasks where archived_at is null"), (row) => row.job_card_id);
   const allInvoices = all<Invoice>(db, "select * from invoices order by id");
   const invoicesByJob = groupBy(allInvoices.filter((row) => !row.voided_at), (row) => row.job_card_id);
@@ -177,6 +193,8 @@ export function readState(db: Database): WorkshopState {
       estimate,
       estimate_items,
       material_requests,
+      local_purchases: localPurchasesByJob.get(job.id) ?? [],
+      material_purchase_requests: purchaseRequestsByJob.get(job.id) ?? [],
       material_events: jobMaterialEvents,
       invoice_events: invoiceEventsByJob.get(job.id) ?? [],
       inventory: materialInventory,
@@ -202,7 +220,7 @@ export function readState(db: Database): WorkshopState {
     };
   });
   const attendance = all<AdvisorAttendance>(db, "select user_id, date, present from advisor_attendance order by date, user_id");
-  return { users, customers, vehicles, visits, jobs, inventory, attendance };
+  return { users, customers, vehicles, visits, jobs, inventory, attendance, suppliers, inward_purchases, inward_purchase_lines, inward_purchase_attachments, inward_purchase_revisions };
 }
 
 /** Placeholder shown while a job is waiting for Reception to map a Service Advisor (advisor_id 0). */
@@ -594,7 +612,14 @@ export interface EstimateDraftInput {
   discount: number;
   gst_rate: number;
   notes: string;
-  items: Array<Pick<EstimateItem, "kind" | "description" | "qty" | "rate">>;
+  items: Array<Pick<EstimateItem, "kind" | "description" | "qty" | "rate" | "gst_type" | "gst_rate">>;
+}
+
+function normalizeAndValidateGst(gst_type: GstType | null | undefined, gst_rate: number | null | undefined, fallbackRate: number) {
+  if (gst_type !== undefined && gst_type !== null && !GST_TYPES.includes(gst_type)) throw new Error("GST type must be CGST+SGST, IGST, or No GST.");
+  const normalized = normalizeGstLine(gst_type, gst_rate, fallbackRate);
+  if (normalized.gst_type !== "No GST" && !GST_RATES.includes(normalized.gst_rate as typeof GST_RATES[number])) throw new Error("GST rate must be 5%, 9%, 12%, 18%, or 28%.");
+  return normalized;
 }
 
 export function saveEstimateForActor(db: Database, jobId: number, actorId: number, draft: EstimateDraftInput) {
@@ -606,6 +631,7 @@ export function saveEstimateForActor(db: Database, jobId: number, actorId: numbe
     if (!item.description.trim()) throw new Error("Every estimate item needs a description.");
     if (!Number.isFinite(item.qty) || item.qty <= 0) throw new Error("Item quantity must be greater than zero.");
     if (!Number.isFinite(item.rate) || item.rate < 0) throw new Error("Item rate must be zero or greater.");
+    normalizeAndValidateGst(item.gst_type, item.gst_rate, draft.gst_rate);
   });
   db.run("savepoint save_estimate");
   try {
@@ -615,7 +641,10 @@ export function saveEstimateForActor(db: Database, jobId: number, actorId: numbe
       db.run("update estimates set discount=?,gst_rate=?,approval_note=?,updated_at=datetime('now') where id=?", [draft.discount, draft.gst_rate, draft.notes.trim(), estimateId]);
       db.run("update estimate_items set archived_at=datetime('now'),archived_reason='Replaced by estimate edit',updated_at=datetime('now') where estimate_id=? and archived_at is null", [estimateId]);
     }
-    draft.items.forEach((item) => createEstimateItem(db, { estimate_id: estimateId, kind: item.kind, description: item.description.trim(), qty: item.qty, rate: item.rate }));
+    draft.items.forEach((item) => {
+      const tax = normalizeAndValidateGst(item.gst_type, item.gst_rate, draft.gst_rate);
+      createEstimateItem(db, { estimate_id: estimateId, kind: item.kind, description: item.description.trim(), qty: item.qty, rate: item.rate, ...tax });
+    });
     reconcileArtifactChecklist(db, jobId, actorId);
     db.run("release savepoint save_estimate");
     return estimateId;
@@ -682,20 +711,41 @@ export interface JobSheetInput {
   address?: string;
 }
 
+export interface JobDetailsInput extends JobSheetInput {
+  advisor_id?: number;
+  technician_id?: number;
+  work_list?: string;
+  promised_at?: string;
+  advisor_notes?: string;
+  customer_instructions?: string;
+  internal_instructions?: string;
+}
+
+/** Saves all Details-tab fields as a single transaction across job, visit, vehicle and customer. */
+export function saveJobDetailsForActor(db: Database, jobId: number, actorId: number, input: JobDetailsInput) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  db.run("savepoint save_job_details");
+  try {
+    updateJobCard(db, jobId, input);
+    const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
+    const visit = one<Visit>(db, "select * from visits where id=?", [job.visit_id]);
+    db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, updated_at=datetime('now') where id=?", [
+      input.service_type ?? job.service_type ?? "", input.pickup_drop ?? job.pickup_drop ?? "", input.estimated_delivery ?? job.estimated_delivery ?? "", jobId,
+    ]);
+    db.run("update visits set fuel=?, accessories=?, updated_at=datetime('now') where id=?", [input.fuel ?? visit.fuel, input.accessories ?? visit.accessories, visit.id]);
+    if (input.engine_no !== undefined) db.run("update vehicles set engine_no=?, updated_at=datetime('now') where id=?", [input.engine_no.trim(), visit.vehicle_id]);
+    if (input.address !== undefined) db.run("update customers set address=?, updated_at=datetime('now') where id=?", [input.address.trim(), visit.customer_id]);
+    db.run("release savepoint save_job_details");
+  } catch (error) {
+    db.run("rollback to savepoint save_job_details");
+    db.run("release savepoint save_job_details");
+    throw error;
+  }
+}
+
 /** Saves the paper job-sheet intake fields across the Job Card, its Visit, Vehicle and Customer. */
 export function updateJobSheetForActor(db: Database, jobId: number, actorId: number, input: JobSheetInput) {
-  assertJobLifecycleMutationAccess(db, jobId, actorId);
-  const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
-  const visit = one<Visit>(db, "select * from visits where id=?", [job.visit_id]);
-  db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, updated_at=datetime('now') where id=?", [
-    input.service_type ?? job.service_type ?? "",
-    input.pickup_drop ?? job.pickup_drop ?? "",
-    input.estimated_delivery ?? job.estimated_delivery ?? "",
-    jobId,
-  ]);
-  db.run("update visits set fuel=?, accessories=?, updated_at=datetime('now') where id=?", [input.fuel ?? visit.fuel, input.accessories ?? visit.accessories, visit.id]);
-  if (input.engine_no !== undefined) db.run("update vehicles set engine_no=?, updated_at=datetime('now') where id=?", [input.engine_no.trim(), visit.vehicle_id]);
-  if (input.address !== undefined) db.run("update customers set address=?, updated_at=datetime('now') where id=?", [input.address.trim(), visit.customer_id]);
+  saveJobDetailsForActor(db, jobId, actorId, input);
 }
 
 /** Persists the tap-to-mark damage diagram with the Job Card. */
@@ -759,17 +809,21 @@ export function updateEstimate(db: Database, id: number, payload: Partial<Pick<E
 }
 
 export function createEstimateItem(db: Database, payload: Omit<EstimateItem, "id">) {
-  return insert(db, "insert into estimate_items(estimate_id, kind, description, qty, rate, created_at, updated_at) values (?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
+  const tax = normalizeAndValidateGst(payload.gst_type, payload.gst_rate, DEFAULT_GST_BY_KIND[payload.kind]);
+  return insert(db, "insert into estimate_items(estimate_id, kind, description, qty, rate, gst_type, gst_rate, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
     payload.estimate_id,
     payload.kind,
     payload.description,
     payload.qty,
     payload.rate,
+    tax.gst_type,
+    tax.gst_rate,
   ]);
 }
 
 export function updateEstimateItem(db: Database, id: number, payload: Omit<EstimateItem, "id">) {
-  db.run("update estimate_items set kind=?, description=?, qty=?, rate=?, updated_at=datetime('now') where id=?", [payload.kind, payload.description, payload.qty, payload.rate, id]);
+  const tax = normalizeAndValidateGst(payload.gst_type, payload.gst_rate, DEFAULT_GST_BY_KIND[payload.kind]);
+  db.run("update estimate_items set kind=?, description=?, qty=?, rate=?, gst_type=?, gst_rate=?, updated_at=datetime('now') where id=?", [payload.kind, payload.description, payload.qty, payload.rate, tax.gst_type, tax.gst_rate, id]);
 }
 
 export function archiveEstimateItem(db: Database, id: number, reason: string) {
@@ -822,6 +876,318 @@ export function archiveMaterialRequest(db: Database, id: number, reason: string)
   archive(db, "material_requests", id, reason);
 }
 
+type LocalPurchaseInput = Omit<LocalPurchase, "id" | "archived_at" | "archived_reason" | "created_at" | "updated_at">;
+
+function assertLocalPurchaseInput(db: Database, payload: LocalPurchaseInput) {
+  if (!Number.isInteger(payload.job_card_id) || payload.job_card_id <= 0) throw new Error("A selected job is required.");
+  one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [payload.job_card_id]);
+  if (!payload.item_description.trim()) throw new Error("A local purchase item description is required.");
+  if (!payload.unit.trim()) throw new Error("A local purchase unit is required.");
+  if (!payload.vendor.trim()) throw new Error("A vendor or shop is required.");
+  if (!payload.bill_reference.trim()) throw new Error("A bill or reference is required.");
+  if (!Number.isFinite(payload.quantity) || payload.quantity <= 0) throw new Error("Local purchase quantity must be greater than zero.");
+  if (!Number.isFinite(payload.unit_cost) || payload.unit_cost < 0) throw new Error("Local purchase unit cost cannot be negative.");
+}
+
+/** Records a direct purchase for a job without creating stock, material, or invoice records. */
+export function createLocalPurchase(db: Database, payload: LocalPurchaseInput) {
+  assertLocalPurchaseInput(db, payload);
+  return insert(db, "insert into local_purchases(job_card_id,item_description,quantity,unit,unit_cost,vendor,bill_reference,note,created_at,updated_at) values(?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [
+    payload.job_card_id, payload.item_description.trim(), payload.quantity, payload.unit.trim(), payload.unit_cost,
+    payload.vendor.trim(), payload.bill_reference.trim(), payload.note?.trim() ?? "",
+  ]);
+}
+
+/** Updates tracking details only; it deliberately does not touch stock or invoice data. */
+export function updateLocalPurchase(db: Database, id: number, payload: LocalPurchaseInput) {
+  assertLocalPurchaseInput(db, payload);
+  db.run("update local_purchases set job_card_id=?,item_description=?,quantity=?,unit=?,unit_cost=?,vendor=?,bill_reference=?,note=?,updated_at=datetime('now') where id=? and archived_at is null", [
+    payload.job_card_id, payload.item_description.trim(), payload.quantity, payload.unit.trim(), payload.unit_cost,
+    payload.vendor.trim(), payload.bill_reference.trim(), payload.note?.trim() ?? "", id,
+  ]);
+}
+
+export function archiveLocalPurchase(db: Database, id: number, reason: string) {
+  archive(db, "local_purchases", id, reason);
+}
+
+export interface MaterialPurchaseRequestInput {
+  item_name: string;
+  quantity: number;
+  unit: string;
+}
+
+export interface PurchaseStockAndIssueInput {
+  inventory_item_id?: number;
+  sku?: string;
+  category?: string;
+  unit_cost: number;
+  vendor: string;
+  bill_reference: string;
+  note?: string;
+}
+
+/** Creates an advisor request for an item that does not yet exist in inventory. */
+export function createMaterialPurchaseRequestForActor(db: Database, jobId: number, actorId: number, input: MaterialPurchaseRequestInput) {
+  assertMaterialManager(db, jobId, actorId);
+  if (!input.item_name.trim()) throw new Error("Item name is required.");
+  if (!input.unit.trim()) throw new Error("Unit is required.");
+  if (!Number.isFinite(input.quantity) || input.quantity <= 0) throw new Error("Requested quantity must be greater than zero.");
+  return insert(db, "insert into material_purchase_requests(job_card_id,item_name,quantity,unit,status,created_at,updated_at) values(?,?,?,?, 'Pending',datetime('now'),datetime('now'))", [jobId, input.item_name.trim(), input.quantity, input.unit.trim()]);
+}
+
+/** Store/Owner resolves a free-text request by recording the purchase, stocking it, and issuing it to the job atomically. */
+export function purchaseStockAndIssueForActor(db: Database, requestId: number, actorId: number, input: PurchaseStockAndIssueInput) {
+  const request = one<MaterialPurchaseRequest>(db, "select * from material_purchase_requests where id=?", [requestId]);
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [request.job_card_id]);
+  if (request.status !== "Pending") throw new Error("Only pending purchase requests can be resolved.");
+  if (!(actor.role === "admin" || actor.role === "store")) throw new Error("Only Store or the Owner can purchase, stock and issue an item.");
+  if (!(job.main_status === "IN_PROGRESS" || job.main_status === "HOLD")) throw new Error("Items can only be issued while the job card is IN_PROGRESS or HOLD.");
+  if (!input.vendor.trim()) throw new Error("Vendor or shop is required.");
+  if (!input.bill_reference.trim()) throw new Error("Bill or reference is required.");
+  if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0) throw new Error("Unit cost cannot be negative.");
+  db.run("savepoint purchase_stock_issue");
+  try {
+    let itemId = input.inventory_item_id;
+    if (itemId) {
+      const item = one<InventoryItem>(db, "select * from inventory where id=? and archived_at is null", [itemId]);
+      if (item.unit !== request.unit) throw new Error(`Selected inventory unit (${item.unit}) does not match requested unit (${request.unit}).`);
+    } else {
+      const sku = input.sku?.trim() || `LOCAL-${request.id}`;
+      itemId = createInventoryItem(db, { sku, category: input.category?.trim() || "Local purchase", name: request.item_name, unit: request.unit, stock_qty: 0, low_stock_qty: 0, selling_price: input.unit_cost });
+    }
+    const purchaseId = createLocalPurchase(db, {
+      job_card_id: request.job_card_id, item_description: request.item_name, quantity: request.quantity, unit: request.unit, unit_cost: input.unit_cost,
+      vendor: input.vendor, bill_reference: input.bill_reference, note: input.note ?? `Purchase request #${request.id}`,
+    });
+    ledger(db, 0, 0, itemId, -request.quantity, "adjustment", actorId, `Purchased for job ${job.job_no}: ${input.bill_reference.trim()}`);
+    movement(db, request.job_card_id, itemId, "STOCK_IN", request.quantity, `Purchased for job ${job.job_no}`);
+    const materialRowId = insert(db, "insert into material_requests(job_card_id,item_id,requested_qty,issued_qty,used_qty,returned_qty,wasted_qty,status,created_at,updated_at) values(?,?,?, ?,0,0,0,'Issued',datetime('now'),datetime('now'))", [request.job_card_id, itemId, request.quantity, request.quantity]);
+    ledger(db, request.job_card_id, materialRowId, itemId, request.quantity, "issue", actorId, `Purchased and issued from request #${request.id}`);
+    movement(db, request.job_card_id, itemId, "ISSUE", request.quantity, "Purchased and issued to job");
+    db.run("insert into material_events(job_card_id,material_row_id,kind,by_user,at,note,old_item_id,old_qty,new_item_id,new_qty) values(?,?,?,?,?,?,?,?,?,?)", [request.job_card_id, materialRowId, "release", actorId, new Date().toISOString(), `Purchase request #${request.id} resolved`, null, null, itemId, request.quantity]);
+    db.run("update material_purchase_requests set status='Completed',mapped_inventory_item_id=?,material_request_id=?,local_purchase_id=?,completed_by=?,completed_at=datetime('now'),updated_at=datetime('now') where id=?", [itemId, materialRowId, purchaseId, actorId, requestId]);
+    reconcileArtifactChecklist(db, request.job_card_id, actorId);
+    db.run("release savepoint purchase_stock_issue");
+    return { itemId, materialRowId, purchaseId };
+  } catch (error) {
+    db.run("rollback to savepoint purchase_stock_issue");
+    db.run("release savepoint purchase_stock_issue");
+    throw error;
+  }
+}
+
+export interface SupplierInput {
+  name: string;
+  contact_name?: string;
+  phone?: string;
+  email?: string;
+  gstin?: string;
+  status?: SupplierStatus;
+}
+
+export interface InwardPurchaseLineInput {
+  item_id: number;
+  received_qty: number;
+  unit_cost: number;
+  discount?: number;
+  gst_rate?: number;
+}
+
+export interface InwardPurchaseAttachmentInput {
+  original_name: string;
+  mime_type: string;
+  byte_size: number;
+  /** Production adapters persist this private object key instead of a browser data URL. */
+  document_url: string;
+}
+
+export interface InwardPurchaseDraftInput {
+  supplier_id?: number;
+  supplier_invoice_no?: string;
+  invoice_date?: string;
+  po_number?: string;
+  lines?: InwardPurchaseLineInput[];
+  attachments?: InwardPurchaseAttachmentInput[];
+}
+
+function assertPurchaseActor(db: Database, actorId: number, adminOnly = false) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  if (adminOnly ? actor.role !== "admin" : actor.role !== "admin" && actor.role !== "store") {
+    throw new Error(adminOnly ? "Only Admin can manage suppliers or revise submitted purchases." : "Only Store or Admin can manage inward purchases.");
+  }
+  return actor;
+}
+
+function assertSupplierInput(input: SupplierInput) {
+  if (!input.name?.trim()) throw new Error("Supplier name is required.");
+  if (input.status && !["Active", "On hold", "Archived"].includes(input.status)) throw new Error("Invalid supplier status.");
+}
+
+export function createSupplierForActor(db: Database, actorId: number, input: SupplierInput) {
+  assertPurchaseActor(db, actorId, true);
+  assertSupplierInput(input);
+  return insert(db, "insert into suppliers(name,contact_name,phone,email,gstin,status,created_by,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [
+    input.name.trim(), input.contact_name?.trim() ?? "", input.phone?.trim() ?? "", input.email?.trim() ?? "", input.gstin?.trim() ?? "", input.status ?? "Active", actorId,
+  ]);
+}
+
+export function updateSupplierForActor(db: Database, id: number, actorId: number, input: SupplierInput) {
+  assertPurchaseActor(db, actorId, true);
+  assertSupplierInput(input);
+  one<Supplier>(db, "select * from suppliers where id=?", [id]);
+  db.run("update suppliers set name=?,contact_name=?,phone=?,email=?,gstin=?,status=?,updated_at=datetime('now') where id=?", [
+    input.name.trim(), input.contact_name?.trim() ?? "", input.phone?.trim() ?? "", input.email?.trim() ?? "", input.gstin?.trim() ?? "", input.status ?? "Active", id,
+  ]);
+}
+
+export function archiveSupplierForActor(db: Database, id: number, actorId: number) {
+  assertPurchaseActor(db, actorId, true);
+  db.run("update suppliers set status='Archived',updated_at=datetime('now') where id=?", [id]);
+}
+
+function totalsForPurchaseLine(line: InwardPurchaseLineInput) {
+  const qty = Number(line.received_qty), unitCost = Number(line.unit_cost), discount = Number(line.discount ?? 0), gstRate = Number(line.gst_rate ?? 0);
+  const subtotal = qty * unitCost - discount;
+  return { qty, unitCost, discount, gstRate, subtotal, gstAmount: subtotal * gstRate / 100, total: subtotal * (1 + gstRate / 100) };
+}
+
+function assertPurchaseLine(db: Database, line: InwardPurchaseLineInput) {
+  one<InventoryItem>(db, "select * from inventory where id=? and archived_at is null", [line.item_id]);
+  const total = totalsForPurchaseLine(line);
+  if (!Number.isFinite(total.qty) || total.qty <= 0) throw new Error("Received quantity must be greater than zero.");
+  if (!Number.isFinite(total.unitCost) || total.unitCost < 0) throw new Error("Unit cost before GST cannot be negative.");
+  if (!Number.isFinite(total.discount) || total.discount < 0 || total.discount > total.qty * total.unitCost) throw new Error("Discount must be between zero and the line value.");
+  if (!Number.isFinite(total.gstRate) || total.gstRate < 0 || total.gstRate > 100) throw new Error("GST must be between 0 and 100.");
+  return total;
+}
+
+function assertAttachment(attachment: InwardPurchaseAttachmentInput) {
+  if (!attachment.original_name?.trim() || !attachment.document_url) throw new Error("An invoice scan is required.");
+  if (!["application/pdf", "image/jpeg"].includes(attachment.mime_type)) throw new Error("Invoice scans must be PDF or JPG files.");
+  if (!Number.isFinite(attachment.byte_size) || attachment.byte_size <= 0 || attachment.byte_size > 10 * 1024 * 1024) throw new Error("Invoice scans must be no more than 10 MB.");
+}
+
+function replacePurchaseLines(db: Database, purchaseId: number, lines: readonly InwardPurchaseLineInput[]) {
+  db.run("delete from inward_purchase_lines where purchase_id=?", [purchaseId]);
+  let subtotal = 0, discountTotal = 0, gstTotal = 0, total = 0;
+  for (const line of lines) {
+    const values = assertPurchaseLine(db, line);
+    insert(db, "insert into inward_purchase_lines(purchase_id,item_id,received_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,?,?,?,?)", [
+      purchaseId, line.item_id, values.qty, values.unitCost, values.discount, values.gstRate, values.subtotal, values.gstAmount, values.total,
+    ]);
+    subtotal += values.qty * values.unitCost; discountTotal += values.discount; gstTotal += values.gstAmount; total += values.total;
+  }
+  db.run("update inward_purchases set subtotal=?,discount_total=?,gst_total=?,total=?,updated_at=datetime('now') where id=?", [subtotal, discountTotal, gstTotal, total, purchaseId]);
+}
+
+function addPurchaseAttachments(db: Database, purchaseId: number, actorId: number, attachments: readonly InwardPurchaseAttachmentInput[]) {
+  for (const attachment of attachments) {
+    assertAttachment(attachment);
+    insert(db, "insert into inward_purchase_attachments(purchase_id,original_name,mime_type,byte_size,storage_key,document_url,uploaded_by,uploaded_at) values(?,?,?,?,?,?,?,datetime('now'))", [
+      purchaseId, attachment.original_name.trim(), attachment.mime_type, attachment.byte_size, `private/inward/${purchaseId}/${Date.now()}-${attachment.original_name.trim()}`, attachment.document_url, actorId,
+    ]);
+  }
+}
+
+/** A draft is deliberately incomplete-friendly; submitInwardPurchaseForActor applies the posting rules. */
+export function createInwardPurchaseDraft(db: Database, actorId: number, input: InwardPurchaseDraftInput = {}) {
+  assertPurchaseActor(db, actorId);
+  const id = insert(db, "insert into inward_purchases(supplier_id,supplier_invoice_no,invoice_date,po_number,status,subtotal,discount_total,gst_total,total,created_by,created_at,updated_at) values(?,?,?,?, 'Draft',0,0,0,0,?,datetime('now'),datetime('now'))", [
+    input.supplier_id ?? null, input.supplier_invoice_no?.trim() ?? "", input.invoice_date ?? "", input.po_number?.trim() ?? "", actorId,
+  ]);
+  if (input.lines?.length) replacePurchaseLines(db, id, input.lines);
+  if (input.attachments?.length) addPurchaseAttachments(db, id, actorId, input.attachments);
+  return id;
+}
+
+export function updateInwardPurchaseDraftForActor(db: Database, purchaseId: number, actorId: number, input: InwardPurchaseDraftInput) {
+  assertPurchaseActor(db, actorId);
+  const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+  if (purchase.status !== "Draft") throw new Error("Submitted purchases cannot be edited. Create an Admin revision instead.");
+  if (purchase.created_by !== actorId && one<User>(db, "select * from users where id=?", [actorId]).role !== "admin") throw new Error("Only the draft creator or Admin can edit this draft.");
+  db.run("update inward_purchases set supplier_id=?,supplier_invoice_no=?,invoice_date=?,po_number=?,updated_at=datetime('now') where id=?", [
+    input.supplier_id ?? null, input.supplier_invoice_no?.trim() ?? "", input.invoice_date ?? "", input.po_number?.trim() ?? "", purchaseId,
+  ]);
+  if (input.lines) replacePurchaseLines(db, purchaseId, input.lines);
+  if (input.attachments?.length) addPurchaseAttachments(db, purchaseId, actorId, input.attachments);
+}
+
+function submitPurchaseValidation(db: Database, purchase: InwardPurchase) {
+  if (!purchase.supplier_id) throw new Error("Supplier is required before submission.");
+  const supplier = one<Supplier>(db, "select * from suppliers where id=?", [purchase.supplier_id]);
+  if (supplier.status !== "Active") throw new Error("Select an active supplier before submission.");
+  if (!purchase.supplier_invoice_no.trim()) throw new Error("Supplier invoice number is required before submission.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(purchase.invoice_date)) throw new Error("A valid invoice date is required before submission.");
+  const duplicate = maybe<InwardPurchase>(db, "select * from inward_purchases where supplier_id=? and supplier_invoice_no=? and status='Submitted' and id<>?", [purchase.supplier_id, purchase.supplier_invoice_no.trim(), purchase.id]);
+  if (duplicate) throw new Error("This supplier invoice number has already been submitted.");
+  const lines = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines where purchase_id=?", [purchase.id]);
+  if (!lines.length) throw new Error("At least one inventory line is required before submission.");
+  lines.forEach((line) => assertPurchaseLine(db, line));
+  const attachments = all<InwardPurchaseAttachment>(db, "select * from inward_purchase_attachments where purchase_id=?", [purchase.id]);
+  if (!attachments.length) throw new Error("At least one PDF or JPG invoice scan is required before submission.");
+  attachments.forEach((attachment) => assertAttachment(attachment));
+  return lines;
+}
+
+/** Posts the header, immutable lines and signed inbound ledger rows in one SQL transaction. Safe retries return the already submitted receipt. */
+export function submitInwardPurchaseForActor(db: Database, purchaseId: number, actorId: number) {
+  assertPurchaseActor(db, actorId);
+  const existing = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+  if (existing.status === "Submitted") return purchaseId;
+  db.run("begin immediate transaction");
+  try {
+    const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+    const lines = submitPurchaseValidation(db, purchase);
+    db.run("update inward_purchases set status='Submitted',submitted_by=?,submitted_at=datetime('now'),updated_at=datetime('now') where id=?", [actorId, purchaseId]);
+    for (const line of lines) {
+      db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note,inward_purchase_line_id) values(0,0,?,-?,'inward',?,datetime('now'),?,?)", [line.item_id, line.received_qty, actorId, `Inward receipt #${purchaseId} / ${purchase.supplier_invoice_no}`, line.id]);
+      movement(db, 0, line.item_id, "INWARD_PURCHASE", line.received_qty, `Inward receipt #${purchaseId}`);
+    }
+    insert(db, "insert into inward_purchase_events(purchase_id,kind,actor_id,at,note) values(?,?,?,datetime('now'),?)", [purchaseId, "submitted", actorId, "Posted inbound ledger movements"]);
+    db.run("commit");
+    return purchaseId;
+  } catch (error) { db.run("rollback"); throw error; }
+}
+
+export interface InwardPurchaseRevisionInput { reason: string; lines: InwardPurchaseLineInput[]; }
+
+/** An Admin correction appends a revision snapshot and posts only its signed quantity delta. */
+export function reviseInwardPurchaseForActor(db: Database, purchaseId: number, actorId: number, input: InwardPurchaseRevisionInput) {
+  assertPurchaseActor(db, actorId, true);
+  if (!input.reason?.trim()) throw new Error("A correction reason is required.");
+  const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+  if (purchase.status !== "Submitted") throw new Error("Only submitted purchases can be revised.");
+  if (!input.lines.length) throw new Error("A revision requires one or more inventory lines.");
+  db.run("begin immediate transaction");
+  try {
+    input.lines.forEach((line) => assertPurchaseLine(db, line));
+    const revisionNo = scalar<number>(db, "select coalesce(max(revision_no),0)+1 from inward_purchase_revisions where purchase_id=?", [purchaseId]);
+    const revisionId = insert(db, "insert into inward_purchase_revisions(purchase_id,revision_no,reason,revised_by,revised_at) values(?,?,?,?,datetime('now'))", [purchaseId, revisionNo, input.reason.trim(), actorId]);
+    const priorRevision = maybe<{ id: number }>(db, "select id from inward_purchase_revisions where purchase_id=? and id<>? order by revision_no desc limit 1", [purchaseId, revisionId]);
+    const priorLines = priorRevision
+      ? all<InwardPurchaseLine>(db, "select item_id,received_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total,0 as id,0 as purchase_id from inward_purchase_revision_lines where revision_id=?", [priorRevision.id])
+      : all<InwardPurchaseLine>(db, "select * from inward_purchase_lines where purchase_id=?", [purchaseId]);
+    const previousByItem = new Map(priorLines.map((line) => [line.item_id, line.received_qty]));
+    const nextByItem = new Map<number, number>();
+    for (const line of input.lines) nextByItem.set(line.item_id, (nextByItem.get(line.item_id) ?? 0) + Number(line.received_qty));
+    for (const line of input.lines) {
+      const values = totalsForPurchaseLine(line);
+      insert(db, "insert into inward_purchase_revision_lines(revision_id,item_id,received_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,?,?,?,?)", [revisionId, line.item_id, values.qty, values.unitCost, values.discount, values.gstRate, values.subtotal, values.gstAmount, values.total]);
+    }
+    for (const itemId of new Set([...previousByItem.keys(), ...nextByItem.keys()])) {
+      const delta = (nextByItem.get(itemId) ?? 0) - (previousByItem.get(itemId) ?? 0);
+      if (!delta) continue;
+      db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note,inward_purchase_line_id) values(0,0,?,-?,'inward-revision',?,datetime('now'),?,null)", [itemId, delta, actorId, `Inward receipt #${purchaseId} revision ${revisionNo}: ${input.reason.trim()}`]);
+      movement(db, 0, itemId, "INWARD_REVISION", delta, `Inward receipt #${purchaseId} revision ${revisionNo}`);
+    }
+    insert(db, "insert into inward_purchase_events(purchase_id,kind,actor_id,at,note) values(?,?,?,datetime('now'),?)", [purchaseId, "revised", actorId, input.reason.trim()]);
+    db.run("commit");
+    return revisionId;
+  } catch (error) { db.run("rollback"); throw error; }
+}
+
 export function issueMaterialQty(db: Database, requestId: number, qty: number) {
   const request = one<MaterialRequest>(db, "select * from material_requests where id=?", [requestId]);
   const onHand = materialStockOnHand(db, request.item_id);
@@ -842,7 +1208,7 @@ export function reconcileMaterialQty(db: Database, requestId: number, used: numb
   db.run("update material_requests set used_qty=?, returned_qty=?, wasted_qty=?, updated_at=datetime('now') where id=?", [used, returned, wasted, requestId]);
   const returnDelta = returned - request.returned_qty;
   if (returnDelta > 0) {
-    db.run("update inventory set stock_qty=stock_qty + ?, updated_at=datetime('now') where id=?", [returnDelta, request.item_id]);
+    db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(?,?,?,?,'return',0,datetime('now'),?)", [request.job_card_id, requestId, request.item_id, -returnDelta, "Returned after job reconciliation"]);
     movement(db, request.job_card_id, request.item_id, "RETURN", returnDelta, "Returned after job reconciliation");
   }
   const wasteDelta = wasted - request.wasted_qty;
@@ -978,24 +1344,25 @@ export function cancelMaterialRowForActor(db: Database, rowId: number, actorId: 
 }
 
 export function createInventoryItem(db: Database, payload: Omit<InventoryItem, "id">) {
-  return insert(db, "insert into inventory(sku, category, name, unit, stock_qty, low_stock_qty, created_at, updated_at) values (?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
+  return insert(db, "insert into inventory(sku, category, name, unit, stock_qty, low_stock_qty, selling_price, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))", [
     payload.sku,
     payload.category,
     payload.name,
     payload.unit,
     payload.stock_qty,
     payload.low_stock_qty,
+    payload.selling_price,
   ]);
 }
 
 export function updateInventoryItem(db: Database, id: number, payload: Omit<InventoryItem, "id">) {
-  db.run("update inventory set sku=?, category=?, name=?, unit=?, stock_qty=?, low_stock_qty=?, updated_at=datetime('now') where id=?", [
+  db.run("update inventory set sku=?, category=?, name=?, unit=?, low_stock_qty=?, selling_price=?, updated_at=datetime('now') where id=?", [
     payload.sku,
     payload.category,
     payload.name,
     payload.unit,
-    payload.stock_qty,
     payload.low_stock_qty,
+    payload.selling_price,
     id,
   ]);
 }
@@ -1004,14 +1371,20 @@ export function archiveInventoryItem(db: Database, id: number, reason: string) {
   archive(db, "inventory", id, reason);
 }
 
+/** Manual inward is also a ledger entry; inventory.stock_qty remains opening balance only. */
 export function stockIn(db: Database, itemId: number, qty: number, note: string) {
-  db.run("update inventory set stock_qty=stock_qty + ?, updated_at=datetime('now') where id=?", [qty, itemId]);
+  if (!Number.isFinite(qty) || qty <= 0) throw new Error("Inward quantity must be greater than zero.");
+  one<InventoryItem>(db, "select * from inventory where id=? and archived_at is null", [itemId]);
+  db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,-?,'manual-inward',0,datetime('now'),?)", [itemId, qty, note || "Manual stock-in"]);
   movement(db, 0, itemId, "STOCK_IN", qty, note || "Stock-in");
 }
 
 export function adjustStock(db: Database, itemId: number, qty: number, note: string) {
-  db.run("update inventory set stock_qty=?, updated_at=datetime('now') where id=?", [qty, itemId]);
-  movement(db, 0, itemId, "ADJUSTMENT", qty, note || "Stock adjustment");
+  if (!Number.isFinite(qty) || qty < 0) throw new Error("Adjusted stock must be zero or greater.");
+  const onHand = materialStockOnHand(db, itemId);
+  const delta = onHand - qty;
+  if (delta) db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,?, 'manual-adjustment',0,datetime('now'),?)", [itemId, delta, note || "Stock adjustment"]);
+  movement(db, 0, itemId, "ADJUSTMENT", qty - onHand, note || "Stock adjustment");
 }
 
 export function createTask(db: Database, payload: Omit<Task, "id">) {
@@ -1068,7 +1441,7 @@ export function generateInvoice(db: Database, jobId: number, tally: string) {
   reconcileArtifactChecklist(db, jobId);
 }
 
-export interface InvoiceItemInput { kind: "Service" | "Material"; description: string; qty: number; rate: number; gst_rate?: number; material_row_id?: number }
+export interface InvoiceItemInput { kind: "Service" | "Material"; description: string; qty: number; rate: number; gst_type?: GstType | null; gst_rate?: number | null; material_row_id?: number }
 export interface CreateInvoiceInput { tallyInvoiceNo: string; discount?: number; gstRate?: number; items?: InvoiceItemInput[]; notes: string; documentAvailable: boolean }
 export interface InvoiceFieldsInput { tallyInvoiceNo: string; discount: number; notes: string; documentAvailable: boolean }
 
@@ -1091,7 +1464,7 @@ function validateInvoiceItem(input: InvoiceItemInput) {
   if (!input.description.trim()) throw new Error("Invoice item description is required.");
   if (!Number.isFinite(input.qty) || input.qty <= 0) throw new Error("Invoice item quantity must be greater than zero.");
   if (!Number.isFinite(input.rate) || input.rate < 0) throw new Error("Invoice item rate cannot be negative.");
-  if (input.gst_rate !== undefined && (!Number.isFinite(input.gst_rate) || input.gst_rate < 0 || input.gst_rate > 100)) throw new Error("Invoice item GST must be between 0 and 100.");
+  normalizeAndValidateGst(input.gst_type, input.gst_rate, DEFAULT_GST_BY_KIND[input.kind]);
 }
 
 function activeInvoiceItems(db: Database, invoiceId: number) {
@@ -1100,7 +1473,7 @@ function activeInvoiceItems(db: Database, invoiceId: number) {
 
 function recalculateInvoice(db: Database, invoiceId: number) {
   const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
-  const totals = invoiceTotals(activeInvoiceItems(db, invoiceId).map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? invoice.gst_rate })), invoice.discount);
+  const totals = invoiceTotals(activeInvoiceItems(db, invoiceId).map((item) => ({ qty: item.qty, rate: item.rate, ...normalizeGstLine(item.gst_type, item.gst_rate, invoice.gst_rate) })), invoice.discount);
   db.run("update invoices set subtotal=?,gst_amount=?,total=?,updated_at=datetime('now') where id=?", [totals.subtotal, totals.gst, totals.total, invoiceId]);
 }
 
@@ -1139,7 +1512,8 @@ export function createInvoiceItem(db: Database, invoiceId: number, input: Invoic
   validateInvoiceItem(input);
   const invoice = one<Invoice>(db, "select * from invoices where id=?", [invoiceId]);
   if (input.material_row_id) pickUpMaterialRow(db, invoice.job_card_id, input.material_row_id, invoiceId);
-  const id = insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [invoiceId, input.kind, input.description.trim(), input.qty, input.rate, input.gst_rate ?? DEFAULT_GST_BY_KIND[input.kind], input.material_row_id ?? null]);
+  const tax = normalizeAndValidateGst(input.gst_type, input.gst_rate, DEFAULT_GST_BY_KIND[input.kind]);
+  const id = insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_type,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [invoiceId, input.kind, input.description.trim(), input.qty, input.rate, tax.gst_type, tax.gst_rate, input.material_row_id ?? null]);
   recalculateInvoice(db, invoiceId);
   return id;
 }
@@ -1148,7 +1522,8 @@ export function updateInvoiceItem(db: Database, itemId: number, input: InvoiceIt
   const item = one<InvoiceItem>(db, "select * from invoice_items where id=? and archived_at is null", [itemId]);
   assertInvoiceFinancialsEditable(db, item.invoice_id);
   validateInvoiceItem(input);
-  db.run("update invoice_items set kind=?,description=?,qty=?,rate=?,gst_rate=?,updated_at=datetime('now') where id=?", [input.kind, input.description.trim(), input.qty, input.rate, input.gst_rate ?? item.gst_rate ?? DEFAULT_GST_BY_KIND[input.kind], itemId]);
+  const tax = normalizeAndValidateGst(input.gst_type ?? item.gst_type, input.gst_rate ?? item.gst_rate, DEFAULT_GST_BY_KIND[input.kind]);
+  db.run("update invoice_items set kind=?,description=?,qty=?,rate=?,gst_type=?,gst_rate=?,updated_at=datetime('now') where id=?", [input.kind, input.description.trim(), input.qty, input.rate, tax.gst_type, tax.gst_rate, itemId]);
   recalculateInvoice(db, item.invoice_id);
 }
 
@@ -1175,7 +1550,7 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
   if (existing) return existing.id;
   const estimate = one<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [jobId]);
   const estimateItems = all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id]);
-  const items: InvoiceItemInput[] = input.items ?? estimateItems.map((item) => ({ kind: item.kind, description: item.description, qty: item.qty, rate: item.rate }));
+  const items: InvoiceItemInput[] = input.items ?? estimateItems.map((item) => ({ kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_type: item.gst_type ?? undefined, gst_rate: item.gst_rate ?? undefined }));
   const discount = input.discount ?? estimate.discount;
   const fallbackGst = input.gstRate ?? estimate.gst_rate;
   if (items.length === 0) throw new Error("An invoice requires at least one item.");
@@ -1183,12 +1558,12 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
   items.forEach(validateInvoiceItem);
   db.run("savepoint create_invoice");
   try {
-    const priced = items.map((item) => ({ ...item, gst_rate: item.gst_rate ?? fallbackGst ?? DEFAULT_GST_BY_KIND[item.kind] }));
+    const priced = items.map((item) => ({ ...item, ...normalizeAndValidateGst(item.gst_type, item.gst_rate, fallbackGst ?? DEFAULT_GST_BY_KIND[item.kind]) }));
     const totals = invoiceTotals(priced, discount);
     const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, nextDocumentNumber(db, "invoices", "invoice_no", "INV-", 8900 + jobId, 5), input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
     for (const item of priced) {
       if (item.material_row_id) pickUpMaterialRow(db, jobId, item.material_row_id, id);
-      insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description.trim(), item.qty, item.rate, item.gst_rate, item.material_row_id ?? null]);
+      insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_type,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description.trim(), item.qty, item.rate, item.gst_type, item.gst_rate, item.material_row_id ?? null]);
     }
     invoiceEvent(db, { id, job_card_id: jobId }, "create", actorId, "", null, totals.total, `${priced.length} line${priced.length === 1 ? "" : "s"}, ${priced.filter((item) => item.material_row_id).length} material row(s) picked up`);
     reconcileArtifactChecklist(db, jobId);
@@ -1223,7 +1598,7 @@ function changeSummary(old: InvoiceItem[], next: Array<InvoiceItemInput & { id?:
   for (const item of next) {
     const saved = item.id ? oldById.get(item.id) : undefined;
     if (!saved) parts.push(`added ${item.description.trim()} x ${item.qty}${item.material_row_id ? " (late material)" : ""}`);
-    else if (saved.qty !== item.qty || saved.rate !== item.rate || (item.gst_rate ?? saved.gst_rate ?? fallbackGst) !== (saved.gst_rate ?? fallbackGst) || saved.description !== item.description.trim() || saved.kind !== item.kind) parts.push(`changed ${saved.description}: ${saved.qty} x ${saved.rate} @${saved.gst_rate ?? fallbackGst}% -> ${item.qty} x ${item.rate} @${item.gst_rate ?? saved.gst_rate ?? fallbackGst}%`);
+    else if (saved.qty !== item.qty || saved.rate !== item.rate || (item.gst_rate ?? saved.gst_rate ?? fallbackGst) !== (saved.gst_rate ?? fallbackGst) || (item.gst_type ?? "CGST+SGST") !== (saved.gst_type ?? "CGST+SGST") || saved.description !== item.description.trim() || saved.kind !== item.kind) parts.push(`changed ${saved.description}: ${saved.qty} x ${saved.rate} @${saved.gst_type ?? "CGST+SGST"} ${saved.gst_rate ?? fallbackGst}% -> ${item.qty} x ${item.rate} @${item.gst_type ?? saved.gst_type ?? "CGST+SGST"} ${item.gst_rate ?? saved.gst_rate ?? fallbackGst}%`);
   }
   const kept = new Set(next.flatMap((item) => item.id ? [item.id] : []));
   for (const item of old) if (!kept.has(item.id)) parts.push(`removed ${item.description}`);
@@ -1477,10 +1852,15 @@ export interface JobPhotoInput {
   height: number;
 }
 
-function assertJobMediaMutationAccess(db: Database, jobId: number, actorId: number) {
+function assertJobMediaMutationAccess(db: Database, jobId: number, actorId: number, category: JobMediaCategory) {
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
   const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
   if (!canMutateJobLifecycle(actor, job)) throw new Error("Only the Owner or the linked Service Advisor can change job media.");
+  const allowed = category === "Before Work" ? job.main_status === "NEW" : job.main_status === "IN_PROGRESS" || job.main_status === "COMPLETED";
+  if (!allowed) {
+    const phase = category === "Before Work" ? "Before photos can only be changed while the job is NEW." : "After photos can only be changed while the job is IN_PROGRESS or COMPLETED.";
+    throw new Error(phase);
+  }
 }
 
 function validatePhotoMetadata(label: string, category: string) {
@@ -1491,7 +1871,7 @@ function validatePhotoMetadata(label: string, category: string) {
 }
 
 export function saveJobPhotoForActor(db: Database, jobId: number, actorId: number, input: JobPhotoInput) {
-  assertJobMediaMutationAccess(db, jobId, actorId);
+  assertJobMediaMutationAccess(db, jobId, actorId, input.category);
   const metadata = validatePhotoMetadata(input.label, input.category);
   const image = validateMediaDataUrl(input.src);
   if (!Number.isFinite(input.width) || input.width < 1 || !Number.isFinite(input.height) || input.height < 1) throw new Error("Image dimensions are invalid.");
@@ -1504,14 +1884,15 @@ export function saveJobPhotoForActor(db: Database, jobId: number, actorId: numbe
 
 export function updateJobPhotoForActor(db: Database, id: number, actorId: number, input: Pick<JobPhotoInput, "label" | "category">) {
   const photo = one<Photo>(db, "select * from photos where id=? and archived_at is null", [id]);
-  assertJobMediaMutationAccess(db, photo.job_card_id, actorId);
+  assertJobMediaMutationAccess(db, photo.job_card_id, actorId, photo.category === "After Work" ? "After Work" : "Before Work");
+  assertJobMediaMutationAccess(db, photo.job_card_id, actorId, input.category);
   const metadata = validatePhotoMetadata(input.label, input.category);
   db.run("update photos set label=?,category=?,updated_at=datetime('now') where id=?", [metadata.label, metadata.category, id]);
 }
 
 export function archiveJobPhotoForActor(db: Database, id: number, actorId: number, reason: string) {
   const photo = one<Photo>(db, "select * from photos where id=? and archived_at is null", [id]);
-  assertJobMediaMutationAccess(db, photo.job_card_id, actorId);
+  assertJobMediaMutationAccess(db, photo.job_card_id, actorId, photo.category === "After Work" ? "After Work" : "Before Work");
   if (!reason.trim()) throw new Error("An archive reason is required.");
   archivePhoto(db, id, reason.trim());
 }
@@ -1579,10 +1960,7 @@ export function paymentStatus(view: JobView): PaymentStatus {
 }
 
 export function invoiceItemsTotal(items: EstimateItem[], estimate?: Estimate) {
-  const subtotal = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
-  const discount = estimate?.discount ?? 0;
-  const gst = estimate?.gst_rate ?? 18;
-  return Math.round(Math.max(0, subtotal - discount) * (1 + gst / 100));
+  return invoiceTotals(items.map((item) => ({ qty: item.qty, rate: item.rate, ...normalizeGstLine(item.gst_type, item.gst_rate, estimate?.gst_rate ?? 18) })), estimate?.discount ?? 0).total;
 }
 
 export function createSchema(db: Database) {
@@ -1596,18 +1974,27 @@ export function createSchema(db: Database) {
     create table if not exists checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number));
     create table if not exists checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, unique(checklist_cycle_id, item_key));
     create table if not exists estimates(id integer primary key, job_card_id integer, status text, discount real, gst_rate real, approval_note text);
-    create table if not exists estimate_items(id integer primary key, estimate_id integer, kind text, description text, qty real, rate real);
+    create table if not exists estimate_items(id integer primary key, estimate_id integer, kind text, description text, qty real, rate real, gst_type text, gst_rate real);
     create table if not exists approvals(id integer primary key, job_card_id integer, approved_by text, note text, created_at text);
     create table if not exists tasks(id integer primary key, job_card_id integer, technician_id integer, title text, status text, notes text);
     create table if not exists qc_checks(id integer primary key, job_card_id integer, label text, passed integer);
     create table if not exists invoices(id integer primary key, job_card_id integer, invoice_no text, tally_invoice_no text, discount real default 0, gst_rate real default 18, subtotal real default 0, gst_amount real default 0, total real, status text, notes text default '', document_available integer default 1, document_generated_at text);
-    create table if not exists invoice_items(id integer primary key, invoice_id integer, kind text, description text, qty real, rate real);
+    create table if not exists invoice_items(id integer primary key, invoice_id integer, kind text, description text, qty real, rate real, gst_type text, gst_rate real);
     create table if not exists payments(id integer primary key, job_card_id integer, invoice_id integer, amount real, mode text, other_detail text default '', reference text, notes text default '');
     create table if not exists receipts(id integer primary key, job_card_id integer, invoice_id integer, receipt_no text, voided_at text, void_reason text, created_at text);
     create table if not exists gate_passes(id integer primary key, job_card_id integer, invoice_id integer, gate_pass_no text, voided_at text, void_reason text, created_at text);
-    create table if not exists inventory(id integer primary key, sku text, category text, name text, unit text, stock_qty real, low_stock_qty real);
+    create table if not exists inventory(id integer primary key, sku text, category text, name text, unit text, stock_qty real, low_stock_qty real, selling_price real default 0);
     create table if not exists material_requests(id integer primary key, job_card_id integer, item_id integer, requested_qty real, issued_qty real, used_qty real, returned_qty real, wasted_qty real);
+    create table if not exists local_purchases(id integer primary key, job_card_id integer, item_description text, quantity real, unit text, unit_cost real, vendor text, bill_reference text, note text, archived_at text, archived_reason text, created_at text, updated_at text);
+    create table if not exists material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text);
     create table if not exists material_movements(id integer primary key, job_card_id integer, item_id integer, direction text, qty real, note text, created_at text);
+    create table if not exists suppliers(id integer primary key, name text not null, contact_name text default '', phone text default '', email text default '', gstin text default '', status text not null default 'Active', created_by integer not null, created_at text not null, updated_at text not null);
+    create table if not exists inward_purchases(id integer primary key, supplier_id integer, supplier_invoice_no text default '', invoice_date text default '', po_number text default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, submitted_by integer, submitted_at text, created_at text not null, updated_at text not null);
+    create table if not exists inward_purchase_lines(id integer primary key, purchase_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists inward_purchase_attachments(id integer primary key, purchase_id integer not null, original_name text not null, mime_type text not null, byte_size integer not null, storage_key text not null, document_url text not null, uploaded_by integer not null, uploaded_at text not null);
+    create table if not exists inward_purchase_revisions(id integer primary key, purchase_id integer not null, revision_no integer not null, reason text not null, revised_by integer not null, revised_at text not null, unique(purchase_id, revision_no));
+    create table if not exists inward_purchase_revision_lines(id integer primary key, revision_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
     create table if not exists followups(id integer primary key, job_card_id integer, note text, due_at text, done integer);
   `);
@@ -1617,13 +2004,32 @@ export function migrateSchema(db: Database) {
   db.run("create table if not exists advisor_attendance(user_id integer not null, date text not null, present integer not null default 1, primary key(user_id, date))");
   db.run("create table if not exists material_events(id integer primary key, job_card_id integer, material_row_id integer, kind text, by_user integer, at text, note text, old_item_id integer, old_qty real, new_item_id integer, new_qty real)");
   db.run("create table if not exists stock_ledger(id integer primary key, job_card_id integer, material_row_id integer, item_id integer, qty real, type text, by_user integer, at text, note text)");
+  ensureColumn(db, "stock_ledger", "inward_purchase_line_id", "integer");
+  db.run("create table if not exists suppliers(id integer primary key, name text not null, contact_name text default '', phone text default '', email text default '', gstin text default '', status text not null default 'Active', created_by integer not null default 0, created_at text not null default '', updated_at text not null default '')");
+  db.run("create table if not exists inward_purchases(id integer primary key, supplier_id integer, supplier_invoice_no text default '', invoice_date text default '', po_number text default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null default 0, submitted_by integer, submitted_at text, created_at text not null default '', updated_at text not null default '')");
+  db.run("create table if not exists inward_purchase_lines(id integer primary key, purchase_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null)");
+  db.run("create table if not exists inward_purchase_attachments(id integer primary key, purchase_id integer not null, original_name text not null, mime_type text not null, byte_size integer not null, storage_key text not null, document_url text not null, uploaded_by integer not null default 0, uploaded_at text not null default '')");
+  db.run("create table if not exists inward_purchase_revisions(id integer primary key, purchase_id integer not null, revision_no integer not null, reason text not null, revised_by integer not null, revised_at text not null, unique(purchase_id, revision_no))");
+  db.run("create table if not exists inward_purchase_revision_lines(id integer primary key, revision_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null)");
+  db.run("create table if not exists inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null)");
+  db.run("create unique index if not exists inward_supplier_invoice_submitted on inward_purchases(supplier_id, supplier_invoice_no) where status='Submitted'");
+  db.run("create table if not exists local_purchases(id integer primary key, job_card_id integer, item_description text, quantity real, unit text, unit_cost real, vendor text, bill_reference text, note text, archived_at text, archived_reason text, created_at text, updated_at text)");
+  db.run("create table if not exists material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text)");
   ensureColumn(db, "material_requests", "status", "text not null default 'Requested'");
   ensureColumn(db, "material_requests", "invoiced_in", "integer");
+  ensureColumn(db, "estimate_items", "gst_type", "text");
+  ensureColumn(db, "estimate_items", "gst_rate", "real");
+  ensureColumn(db, "invoice_items", "gst_type", "text");
   ensureColumn(db, "invoice_items", "gst_rate", "real");
   ensureColumn(db, "invoice_items", "material_row_id", "integer");
   db.run("create table if not exists invoice_events(id integer primary key, job_card_id integer, invoice_id integer, kind text, by_user integer, at text, note text, old_total real, new_total real, detail text)");
+  db.run("update estimate_items set gst_rate=(select gst_rate from estimates where estimates.id=estimate_items.estimate_id) where gst_rate is null");
   db.run("update invoice_items set gst_rate=(select gst_rate from invoices where invoices.id=invoice_items.invoice_id) where gst_rate is null");
+  db.run("update estimate_items set gst_type=case when coalesce(gst_rate, 18)=0 then 'No GST' else 'CGST+SGST' end where gst_type is null");
+  db.run("update invoice_items set gst_type=case when coalesce(gst_rate, 18)=0 then 'No GST' else 'CGST+SGST' end where gst_type is null");
   ensureColumn(db, "material_requests", "note", "text");
+  ensureColumn(db, "inventory", "selling_price", "real default 0");
+  db.run("update inventory set selling_price=0 where selling_price is null");
   db.run("update material_requests set status='Issued' where status='Requested' and issued_qty>0 and issued_qty>=requested_qty");
   ["users", "customers", "vehicles", "visits", "job_cards", "estimates", "estimate_items", "invoice_items", "tasks", "inventory", "material_requests", "photos", "followups"].forEach((table) => {
     ensureColumn(db, table, "archived_at", "text");
@@ -1631,6 +2037,8 @@ export function migrateSchema(db: Database) {
     ensureColumn(db, table, "created_at", "text");
     ensureColumn(db, table, "updated_at", "text");
   });
+  ["archived_at", "archived_reason", "created_at", "updated_at"].forEach((column) => ensureColumn(db, "local_purchases", column, "text"));
+  ensureColumn(db, "local_purchases", "note", "text");
   ["invoices", "payments"].forEach((table) => {
     ensureColumn(db, table, "voided_at", "text");
     ensureColumn(db, table, "void_reason", "text");

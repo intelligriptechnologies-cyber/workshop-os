@@ -1,6 +1,6 @@
 import { Download, X } from "lucide-react";
 import { useState } from "react";
-import { addDamageMark, removeDamageMark, staticDamageDiagramSvg, type DamageMark } from "./job-sheet";
+import { addDamageMark, DAMAGE_DIAGRAM_ASSET, legacyMarkToUnified, removeDamageMark, type DamageMark } from "./job-sheet";
 
 export interface BodyMarkMeta {
   jobNo?: string;
@@ -9,33 +9,44 @@ export interface BodyMarkMeta {
   regNo: string;
 }
 
-const esc = (value: string) => value.replace(/[&<>"]/g, (ch) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[ch] ?? ch);
-
 /** Renders the annotated combined vehicle sheet to a PNG and downloads it. */
 export async function downloadBodyMarkImage(marks: DamageMark[], meta: BodyMarkMeta) {
-  const width = 400;
+  const width = 600;
+  const padding = 24;
+  const headerHeight = 128;
   const line = [meta.jobNo ? `Job Card: ${meta.jobNo}` : "Job Card: (new)", `Vehicle: ${meta.vehicleName || "-"}`, `Colour: ${meta.color || "-"}`, `Reg No: ${meta.regNo || "-"}`];
-  const height = 390;
-  const diagram = staticDamageDiagramSvg(marks).replace(/width="130" height="260"/, 'x="135" y="96" width="130" height="260"');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="${width}" height="${height}" viewBox="0 0 ${width} ${height}"><rect width="100%" height="100%" fill="#fff"/><text x="8" y="22" font-size="15" font-weight="700" font-family="Arial,sans-serif">Body Mark</text>${line.map((text, i) => `<text x="8" y="${42 + i * 16}" font-size="12" font-family="Arial,sans-serif">${esc(text)}</text>`).join("")}${diagram}</svg>`;
-  const scale = 3;
   const image = new Image();
-  const url = URL.createObjectURL(new Blob([svg], { type: "image/svg+xml;charset=utf-8" }));
-  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Could not render body mark image.")); image.src = url; });
+  await new Promise<void>((resolve, reject) => { image.onload = () => resolve(); image.onerror = () => reject(new Error("Could not load body mark illustration.")); image.src = DAMAGE_DIAGRAM_ASSET; });
+  const diagramWidth = width - padding * 2;
+  const diagramHeight = Math.round(diagramWidth * (image.naturalHeight / image.naturalWidth));
+  const height = headerHeight + diagramHeight + padding;
+  const scale = 2;
   const canvas = document.createElement("canvas");
   canvas.width = width * scale; canvas.height = height * scale;
   const context = canvas.getContext("2d");
   if (!context) throw new Error("Canvas is not available.");
-  context.fillStyle = "#fff"; context.fillRect(0, 0, canvas.width, canvas.height);
-  context.drawImage(image, 0, 0, canvas.width, canvas.height);
-  URL.revokeObjectURL(url);
+  context.scale(scale, scale);
+  context.fillStyle = "#fff"; context.fillRect(0, 0, width, height);
+  context.fillStyle = "#18222d"; context.font = "700 20px Arial,sans-serif"; context.fillText("Body Mark", padding, 30);
+  context.font = "14px Arial,sans-serif";
+  line.forEach((text, index) => context.fillText(text, padding, 54 + index * 18));
+  context.drawImage(image, padding, headerHeight, diagramWidth, diagramHeight);
+  marks.map(legacyMarkToUnified).forEach((mark) => {
+    const x = padding + diagramWidth * mark.x / 100;
+    const y = headerHeight + diagramHeight * mark.y / 100;
+    context.beginPath(); context.arc(x, y, 14, 0, Math.PI * 2);
+    context.fillStyle = "#dc3545"; context.fill();
+    context.lineWidth = 2; context.strokeStyle = "#fff"; context.stroke();
+    context.fillStyle = "#fff"; context.font = "700 12px Arial,sans-serif"; context.textAlign = "center"; context.textBaseline = "middle"; context.fillText(String(mark.id), x, y + .5);
+  });
   const blob = await new Promise<Blob | null>((resolve) => canvas.toBlob(resolve, "image/png"));
   if (!blob) throw new Error("Could not create image.");
   const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
+  const url = URL.createObjectURL(blob);
+  link.href = url;
   link.download = `body-mark-${(meta.jobNo || meta.regNo || "vehicle").replace(/[^\w-]+/g, "_")}.png`;
   document.body.appendChild(link); link.click(); link.remove();
-  window.setTimeout(() => URL.revokeObjectURL(link.href), 1000);
+  window.setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
 
 /** Combined vehicle illustration with normalized, removable damage markers. */
@@ -48,7 +59,7 @@ export function BodyMarkDiagram({ marks, onChange, meta, hideDownload = false }:
         const rect = event.currentTarget.getBoundingClientRect();
         onChange(addDamageMark(marks, ((event.clientX - rect.left) / rect.width) * 100, ((event.clientY - rect.top) / rect.height) * 100));
       } : undefined}>
-        <img src="/body-mark-vehicle.svg" alt="Vehicle body illustration" />
+        <img src={DAMAGE_DIAGRAM_ASSET} alt="Vehicle body illustration" />
         {marks.map((mark) => <button key={mark.id} type="button" className="damage-marker" data-testid="damage-mark" style={{ left: `${mark.x}%`, top: `${mark.y}%` }} aria-label={`Remove damage mark ${mark.id}`} title={`Remove damage mark ${mark.id}`} onClick={(event) => { event.stopPropagation(); onChange?.(removeDamageMark(marks, mark.id)); }} disabled={!onChange}>{mark.id}<X size={10} aria-hidden="true" /></button>)}
       </div>
       <div className="body-mark-footer">

@@ -55,21 +55,25 @@ test("owner and linked advisor can save metadata while other roles cannot mutate
   assert.throws(() => saveJobPhotoForActor(db, 1, 3, { label: "Before", category: "Before Work", src: PNG_DATA_URL, originalName: "before.png", width: 1, height: 1 }), /Owner or the linked Service Advisor/);
   assert.throws(() => saveJobPhotoForActor(db, 1, 4, { label: "Before", category: "Before Work", src: PNG_DATA_URL, originalName: "before.png", width: 1, height: 1 }), /Owner or the linked Service Advisor/);
 
-  const id = saveJobPhotoForActor(db, 1, 2, { label: " Before repair ", category: "Before Work", src: PNG_DATA_URL, originalName: "before.png", width: 1, height: 1 });
+  db.run("update job_cards set main_status='NEW' where id=1");
+  const beforeId = saveJobPhotoForActor(db, 1, 2, { label: " Before repair ", category: "Before Work", src: PNG_DATA_URL, originalName: "before.png", width: 1, height: 1 });
   assert.deepEqual(row(db, "select label,category,mime_type,byte_size,original_name,width,height from photos where id=1"), {
     label: "Before repair", category: "Before Work", mime_type: "image/png", byte_size: 68, original_name: "before.png", width: 1, height: 1,
   });
+  assert.equal(beforeId, 1);
+  db.run("update job_cards set main_status='IN_PROGRESS' where id=1");
+  const id = saveJobPhotoForActor(db, 1, 2, { label: "After repair", category: "After Work", src: PNG_DATA_URL, originalName: "after.png", width: 1, height: 1 });
   assert.equal(row<{ main_status: string }>(db, "select main_status from job_cards where id=1").main_status, "IN_PROGRESS");
   assert.ok(row<{ checked_at: string | null }>(db, "select checked_at from checklist_items where job_card_id=1 and label='Photos Shared'").checked_at);
 
   updateJobPhotoForActor(db, id, 1, { label: "Inspection view", category: "After Work" });
-  assert.deepEqual(row(db, "select label,category,src from photos where id=1"), { label: "Inspection view", category: "After Work", src: PNG_DATA_URL });
+  assert.deepEqual(row(db, `select label,category,src from photos where id=${id}`), { label: "Inspection view", category: "After Work", src: PNG_DATA_URL });
   assert.throws(() => updateJobPhotoForActor(db, id, 3, { label: "Denied", category: "After Work" }), /linked Service Advisor/);
   assert.throws(() => archiveJobPhotoForActor(db, id, 4, "No"), /linked Service Advisor/);
   archiveJobPhotoForActor(db, id, 2, "Duplicate image");
-  assert.deepEqual(row(db, "select archived_at is not null as archived,archived_reason from photos where id=1"), { archived: 1, archived_reason: "Duplicate image" });
+  assert.deepEqual(row(db, `select archived_at is not null as archived,archived_reason from photos where id=${id}`), { archived: 1, archived_reason: "Duplicate image" });
   assert.equal(row<{ main_status: string }>(db, "select main_status from job_cards where id=1").main_status, "IN_PROGRESS");
-  assert.equal(row<{ checked_at: string | null }>(db, "select checked_at from checklist_items where job_card_id=1 and label='Photos Shared'").checked_at, null);
+  assert.ok(row<{ checked_at: string | null }>(db, "select checked_at from checklist_items where job_card_id=1 and label='Photos Shared'").checked_at, "the remaining Before photo keeps photo evidence complete");
 });
 
 test("media stays in the live SQL.js session but is stripped from the localStorage snapshot", async () => {

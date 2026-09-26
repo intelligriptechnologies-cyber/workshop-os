@@ -697,7 +697,7 @@ function InventoryImportTab({ adminState, commit, actingUser, state }: { adminSt
 
   const confirmImport = () => {
     if (!preview || preview.validRows.length === 0) return;
-    const validRows = preview.validRows.map((row) => ({ sku: row.item.sku, name: row.item.name, category: row.item.category, unit: row.item.unit, stockQty: row.item.stock_qty, lowStockQty: row.item.low_stock_qty }));
+    const validRows = preview.validRows.map((row) => ({ sku: row.item.sku, name: row.item.name, category: row.item.category, unit: row.item.unit, stockQty: row.item.stock_qty, lowStockQty: row.item.low_stock_qty, sellingPrice: row.item.selling_price }));
     let batchId = "";
     commit((current) => {
       const before = current.importBatches.length;

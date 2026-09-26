@@ -29,7 +29,7 @@ import {
 } from "lucide-react";
 import type { Database } from "sql.js";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
-import { JobPicker } from "./job-picker";
+import { JobPicker, todayJobPeriod, type JobPeriod } from "./job-picker";
 import {
   addFollowup,
   adjustStock,
@@ -40,6 +40,7 @@ import {
   archiveEstimateItem,
   archiveFollowup,
   archiveInventoryItem,
+  archiveLocalPurchase,
   archiveMaterialRequest,
   archiveJobPhotoForActor,
   archiveJobCardForActor,
@@ -53,6 +54,9 @@ import {
   createEstimateItem,
   createFollowup,
   createInventoryItem,
+  createInwardPurchaseDraft,
+  createSupplierForActor,
+  createLocalPurchase,
   createMaterialRequest,
   createTask,
   createUser,
@@ -85,6 +89,11 @@ import {
   transitionJobStatusForActor,
   searchJobs,
   stockIn,
+  submitInwardPurchaseForActor,
+  updateInwardPurchaseDraftForActor,
+  updateSupplierForActor,
+  archiveSupplierForActor,
+  reviseInwardPurchaseForActor,
   updateCustomer,
   updateEstimate,
   updateEstimateItem,
@@ -92,7 +101,10 @@ import {
   updateInventoryItem,
   updateJobCard,
   updateJobCardForActor,
+  saveJobDetailsForActor,
+  purchaseStockAndIssueForActor,
   updateMaterialRequest,
+  updateLocalPurchase,
   updateJobPhotoForActor,
   updateQcCheck,
   updateTask,
@@ -106,14 +118,15 @@ import {
   ADVISOR_NOT_MAPPED_LABEL,
   setDamageMarksForActor,
 } from "./db";
-import type { ChecklistItem, Customer, EstimateItem, Followup, InventoryItem, JobView, MainStatus, MaterialMovement, MaterialRequest, Photo, QcCheck, Role, SearchCriteria, SubStatus, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
+import type { InwardPurchaseAttachmentInput, InwardPurchaseLineInput } from "./db";
+import type { ChecklistItem, Customer, EstimateItem, Followup, InventoryItem, InwardPurchase, JobView, LocalPurchase, MainStatus, MaterialMovement, MaterialPurchaseRequest, MaterialRequest, Photo, QcCheck, Role, SearchCriteria, SubStatus, Supplier, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
 import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, pageNumbers, paginate } from "./list-utils";
 import type { ExportColumn } from "./export-utils";
 import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
 import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
 import { JobSheetSection } from "./job-sheet-ui";
 import { BodyMarkDiagram } from "./body-mark";
-import { FUEL_LEVELS, parseDamageMarks, serializeDamageMarks, type DamageMark } from "./job-sheet";
+import { FUEL_LEVELS, PICKUP_DROP_OPTIONS, SERVICE_TYPES, parseDamageMarks, serializeDamageMarks, type DamageMark } from "./job-sheet";
 import { JobMaterialsPanel } from "./materials-ui";
 import { MATERIALS_CHECKLIST_LABELS } from "./materials";
 import { JOB_CARD_TABS, isStubTab, type JobCardTabKey } from "./job-card-layout";
@@ -124,7 +137,7 @@ import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUM
 import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
 import { renderHtmlToPdf } from "./pdf-render";
 import { buildDataFlowTimeline, buildStageRows, summarizeJobLifecycle, buildGhostSteps, type DataFlowEvent, dataFlowDates, dataFlowMonths, filterDataFlowJobs } from "./data-flow";
-import { canCompleteWithInvoice } from "./invoice-math";
+import { canCompleteWithInvoice, GST_RATES, invoiceTotals, type GstType } from "./invoice-math";
 import { BillingManager, InvoiceDialog, JobInvoicePanel, JobPaymentPanel, type BillingMode } from "./billing-manager";
 import { compressMediaFile, type JobMediaCategory, type PreparedJobMedia } from "./job-media";
 
@@ -164,6 +177,7 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Issue Material", icon: <Package size={18} /> },
     { label: "Reconcile", icon: <Check size={18} /> },
     { label: "Stock", icon: <Boxes size={18} /> },
+    { label: "Inward Purchases", icon: <ReceiptText size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
   ],
   tech: [
@@ -187,6 +201,8 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Vehicles", icon: <Car size={18} /> },
     { label: "Media", icon: <Camera size={18} /> },
     { label: "Masters", icon: <Boxes size={18} /> },
+    { label: "Suppliers", icon: <UserRound size={18} /> },
+    { label: "Inward Purchases", icon: <ReceiptText size={18} /> },
     { label: "Manage", icon: <ShieldCheck size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
     { label: "Admin Console", icon: <Settings size={18} /> },
@@ -678,10 +694,12 @@ function RoleWorkspace({
   if (activeMenuItem === "Customers") return <EntityList kind="customers" state={state} mutate={mutate} actor={user} initialSelectedId={searchNavigate?.kind === "customers" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Vehicles") return <EntityList kind="vehicles" state={state} mutate={mutate} actor={user} initialSelectedId={searchNavigate?.kind === "vehicles" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Media") return <EntityList kind="media" state={state} mutate={mutate} actor={user} />;
+  if (activeMenuItem === "Inward Purchases" && (user.role === "store" || user.role === "admin")) return <InwardPurchasesWorkspace state={state} actor={user} mutate={mutate} />;
+  if (activeMenuItem === "Suppliers" && user.role === "admin") return <SupplierMasterWorkspace state={state} actor={user} mutate={mutate} />;
 
   if (user.role === "reception") return <Reception activeMenuItem={activeMenuItem} state={state} mutate={mutate} user={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "service") return <ServiceAdvisor activeMenuItem={activeMenuItem} state={state} view={selected?.job.advisor_id === user.id ? selected : state.jobs.find((item) => item.job.advisor_id === user.id)} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} />;
-  if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
+  if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "tech") return <Technician activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "accounts") return <Accounts activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} actor={user} />;
   return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} />;
@@ -792,10 +810,10 @@ function SearchPortal({
 }
 
 function SearchResultsTable({ category, rows, onOpenRecord }: { category: SearchTableCategory; rows: JobView[]; onOpenRecord: (view: JobView, category: SearchTableCategory, mode: "view" | "edit") => void }) {
-  const headers = category === "job" ? ["Job #", "Vehicle", "Customer", "Status", "Total"]
-    : category === "customer" ? ["Name", "Mobile", "Type"]
-    : category === "vehicle" ? ["Registration", "Make / Model", "Customer"]
-    : ["Invoice #", "Job", "Customer", "Amount", "Status"];
+  const headers = category === "job" ? ["Job #", "Vehicle", "Customer", "Status", "Total", "Actions"]
+    : category === "customer" ? ["Name", "Mobile", "Type", "Actions"]
+    : category === "vehicle" ? ["Registration", "Make / Model", "Customer", "Actions"]
+    : ["Invoice #", "Job", "Customer", "Amount", "Status", "Actions"];
   return (
     <div className="table-wrap">
       <table aria-label={`${SEARCH_CATEGORY_LABELS[category]} search results`}>
@@ -827,7 +845,7 @@ function SearchResultsTable({ category, rows, onOpenRecord }: { category: Search
                 <td>{money(view.invoice?.total ?? jobTotal(view))}</td>
                 <td>{view.invoice?.status ?? "Not generated"}</td>
               </>}
-              <td><RecordActions onView={() => onOpenRecord(view, category, "view")} onEdit={category === "job" || category === "customer" || category === "vehicle" ? () => onOpenRecord(view, category, "edit") : undefined} /></td>
+              <td><RecordActions inGrid onView={() => onOpenRecord(view, category, "view")} onEdit={category === "job" || category === "customer" || category === "vehicle" ? () => onOpenRecord(view, category, "edit") : undefined} /></td>
             </tr>
           ))}
         </tbody>
@@ -879,14 +897,22 @@ function Reception({
   const today = todayKey();
   const [creating, setCreating] = useState(false);
   const [createdJobNo, setCreatedJobNo] = useState("");
-  const todayQueue = state.jobs.filter((item) => item.job.main_status !== "CLOSED" && item.job.main_status !== "CANCELLED" && item.visit.received_at.slice(0, 10) === today);
+  const openQueue = state.jobs
+    .filter((item) => item.job.main_status !== "CLOSED" && item.job.main_status !== "CANCELLED")
+    .sort((left, right) => {
+      const leftIsCarryForward = left.visit.received_at.slice(0, 10) !== today;
+      const rightIsCarryForward = right.visit.received_at.slice(0, 10) !== today;
+      if (leftIsCarryForward !== rightIsCarryForward) return leftIsCarryForward ? -1 : 1;
+      return left.visit.received_at.localeCompare(right.visit.received_at);
+    });
+  const [selectedAdvisorId, setSelectedAdvisorId] = useState<number>();
   return <section className="workspace two-panel reception-queue">
     <div className="desk-panel">
-      <div className="queue-heading"><PanelTitle icon={<Car />} title="Today Queue" subtitle={`${today} · open reception visits`} /><button className="primary-action" onClick={() => setCreating(true)}><Plus size={18} />Create New Visit</button></div>
-      <div className="queue-summary"><span><strong>{todayQueue.length}</strong> open visits</span><span><strong>{todayQueue.filter((item) => !item.job.advisor_id).length}</strong> unassigned</span></div>
+      <div className="queue-heading"><PanelTitle icon={<Car />} title="Reception Queue" subtitle={`${today} · all open reception visits`} /><button className="primary-action" onClick={() => setCreating(true)}><Plus size={18} />Create New Visit</button></div>
+      <div className="queue-summary"><span><strong>{openQueue.length}</strong> open visits</span><span><strong>{openQueue.filter((item) => !item.job.advisor_id).length}</strong> unassigned</span></div>
       {createdJobNo && <p className="permission-note" role="status">Visit created: {createdJobNo} is now selected.</p>}
-      <AdvisorAttendancePanel state={state} today={today} mutate={mutate} />
-      <ReceptionQueueRows jobs={todayQueue} users={state.users} selectedJobId={selected?.job.id} onSelect={setSelectedJobId} />
+      <AdvisorAttendancePanel state={state} jobs={openQueue} today={today} selectedAdvisorId={selectedAdvisorId} onSelectAdvisor={setSelectedAdvisorId} mutate={mutate} />
+      <ReceptionQueueRows jobs={openQueue} users={state.users} today={today} selectedAdvisorId={selectedAdvisorId} selectedJobId={selected?.job.id} onSelect={setSelectedJobId} />
     </div>
     <div className="desk-panel">
       <PanelTitle icon={<FileText />} title="Job Detail" subtitle={selected?.job.job_no ?? "Select a job"} />
@@ -896,13 +922,59 @@ function Reception({
   </section>;
 }
 
-function AdvisorAttendancePanel({ state, today, mutate }: { state: WorkshopState; today: string; mutate: Mutate }) {
+function AdvisorAttendancePanel({ state, jobs, today, selectedAdvisorId, onSelectAdvisor, mutate }: { state: WorkshopState; jobs: JobView[]; today: string; selectedAdvisorId?: number; onSelectAdvisor: (advisorId?: number) => void; mutate: Mutate }) {
   const advisors = state.users.filter((item) => item.role === "service");
   const present = new Set(presentAdvisors(advisors, state.attendance, today).map((item) => item.id));
-  return <section className="advisor-attendance" aria-label="Service advisor availability"><div className="advisor-roster-heading"><strong>Advisor availability</strong><span>{today}</span></div><div className="advisor-roster">{advisors.map((advisor) => <div key={advisor.id} className={`advisor-card ${present.has(advisor.id) ? "present" : "away"}`}><div><strong>{advisor.name}</strong><span>{present.has(advisor.id) ? "Present" : "Away"}</span></div><button type="button" className={present.has(advisor.id) ? "secondary-action" : "primary-action"} onClick={() => mutate((db) => setAdvisorPresent(db, advisor.id, !present.has(advisor.id), today))}>{present.has(advisor.id) ? "Mark Away" : "Mark Present"}</button></div>)}</div></section>;
+  const [page, setPage] = useState(0);
+  const advisorsPerPage = 6;
+  const pageCount = Math.max(1, Math.ceil(advisors.length / advisorsPerPage));
+  const visibleAdvisors = advisors.slice(page * advisorsPerPage, page * advisorsPerPage + advisorsPerPage);
+  useEffect(() => { if (page >= pageCount) setPage(pageCount - 1); }, [page, pageCount]);
+  const availabilityCount = advisors.filter((advisor) => present.has(advisor.id)).length;
+  return <section className="advisor-attendance" aria-label="Service advisor availability">
+    <div className="advisor-roster-heading">
+      <div><strong>Advisor availability</strong><span>{availabilityCount} of {advisors.length} advisors available today</span></div>
+      <div className="advisor-roster-actions"><button type="button" className={selectedAdvisorId === undefined ? "advisor-reset active" : "advisor-reset"} onClick={() => onSelectAdvisor(undefined)}>All advisors</button>{pageCount > 1 && <div className="advisor-page-controls" aria-label="Advisor pages"><button type="button" aria-label="Previous advisors" title="Previous advisors" disabled={page === 0} onClick={() => setPage((current) => current - 1)}><ChevronLeft aria-hidden="true" size={16} /></button><span>{page + 1} / {pageCount}</span><button type="button" aria-label="Next advisors" title="Next advisors" disabled={page === pageCount - 1} onClick={() => setPage((current) => current + 1)}><ChevronRight aria-hidden="true" size={16} /></button></div>}</div>
+    </div>
+    <div className="advisor-roster">{visibleAdvisors.map((advisor) => {
+      const isPresent = present.has(advisor.id);
+      const activeJobs = jobs.filter((job) => job.job.advisor_id === advisor.id).length;
+      return <article key={advisor.id} className={`advisor-card ${isPresent ? "present" : "away"} ${selectedAdvisorId === advisor.id ? "selected" : ""}`}>
+        <button type="button" className="advisor-card-select" aria-pressed={selectedAdvisorId === advisor.id} onClick={() => onSelectAdvisor(selectedAdvisorId === advisor.id ? undefined : advisor.id)}><strong>{advisor.name}</strong><span>{isPresent ? "Present" : "Away"} · {activeJobs} open</span></button>
+        <button type="button" className={isPresent ? "advisor-availability-toggle present" : "advisor-availability-toggle away"} aria-label={`Mark ${advisor.name} ${isPresent ? "away" : "present"}`} aria-pressed={isPresent} onClick={() => mutate((db) => setAdvisorPresent(db, advisor.id, !isPresent, today))}><span aria-hidden="true" />{isPresent ? "Present" : "Away"}</button>
+      </article>;
+    })}</div>
+  </section>;
 }
 
-function ReceptionQueueRows({ jobs, users, selectedJobId, onSelect }: { jobs: JobView[]; users: User[]; selectedJobId?: number; onSelect: (id: number) => void }) {
+function ReceptionQueueRows({ jobs, users, today, selectedAdvisorId, selectedJobId, onSelect }: { jobs: JobView[]; users: User[]; today: string; selectedAdvisorId?: number; selectedJobId?: number; onSelect: (id: number) => void }) {
+    const [search, setSearch] = useState("");
+    const [status, setStatus] = useState<"ALL" | "NEW" | "IN_PROGRESS" | "COMPLETED" | "UNASSIGNED">("ALL");
+    const needle = normalizeSearch(search);
+    const filtered = jobs.filter((row) => {
+      const advisor = users.find((user) => user.id === row.job.advisor_id);
+      const matchesSearch = !needle || normalizeSearch(`${row.job.job_no} ${row.vehicle.number} ${row.customer.name} ${row.customer.mobile} ${advisor?.name ?? "Unassigned"} ${row.visit.requested_work}`).includes(needle);
+      const matchesStatus = status === "ALL" || (status === "UNASSIGNED" ? !row.job.advisor_id : row.job.main_status === status);
+      return matchesSearch && matchesStatus && (selectedAdvisorId === undefined || row.job.advisor_id === selectedAdvisorId);
+    });
+    const reset = () => { setSearch(""); setStatus("ALL"); };
+    return <div className="embedded-list reception-queue-list">
+      <div className="queue-filter-bar"><label className="list-search">Search<input aria-label="Search reception queue" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Job, vehicle, customer or requested work" /></label><label className="queue-status-select">Status<select aria-label="Reception queue status" value={status} onChange={(event) => setStatus(event.target.value as typeof status)}><option value="ALL">All open</option><option value="NEW">New</option><option value="IN_PROGRESS">In Progress</option><option value="COMPLETED">Completed</option><option value="UNASSIGNED">Unassigned</option></select></label><button type="button" className="secondary-action" onClick={reset} disabled={!search && status === "ALL"}>Clear</button></div>
+      <div className="reception-list-summary" role="status">{filtered.length} of {jobs.length} open jobs{selectedAdvisorId !== undefined ? " for selected advisor" : ""}</div>
+      {filtered.length ? <div className="reception-visit-rows" aria-label="Reception queue jobs">{filtered.map((row) => {
+        const advisor = users.find((user) => user.id === row.job.advisor_id);
+        const receivedDate = row.visit.received_at.slice(0, 10);
+        const isCarryForward = receivedDate !== today;
+        return <button type="button" key={row.job.id} className={selectedJobId === row.job.id ? "reception-visit-row active" : "reception-visit-row"} onClick={() => onSelect(row.job.id)}>
+          <div className="reception-job-identity"><strong>{row.job.job_no}</strong><span>{row.vehicle.number} · {row.customer.name}</span></div>
+          <div className="reception-job-meta"><span className={advisor ? "advisor-name" : "advisor-name unassigned"}>{advisor?.name ?? "Unassigned"}</span><Status status={row.job.main_status} sub={row.job.sub_status} /></div>
+          <div className="reception-job-received"><strong className={isCarryForward ? "carry-forward" : "today-marker"}>{isCarryForward ? "Carry-forward" : "Today"}</strong><span>{isCarryForward ? receptionAgeLabel(receivedDate, today) : "Received today"} · {receivedDate}</span></div>
+          <p title={row.visit.requested_work}>{row.visit.requested_work}</p>
+        </button>;
+      })}</div> : <div className="list-empty"><h3>No matching open jobs</h3><button type="button" onClick={reset}>Clear filters</button></div>}
+    </div>;
+  /* Previous paginated queue implementation, disabled by the contained-scroll redesign. */
+  /*
   const [search, setSearch] = useState(""); const [status, setStatus] = useState("ALL"); const [page, setPage] = useState(1); const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const statuses = ["ALL", "NEW", "IN_PROGRESS", "COMPLETED"];
   const filtered = jobs.filter((row) => (!normalizeSearch(search) || normalizeSearch(`${row.job.job_no} ${row.vehicle.number} ${row.customer.name} ${row.customer.mobile}`).includes(normalizeSearch(search))) && (status === "ALL" || row.job.main_status === status));
@@ -910,16 +982,59 @@ function ReceptionQueueRows({ jobs, users, selectedJobId, onSelect }: { jobs: Jo
   const reset = () => { setSearch(""); setStatus("ALL"); setPage(1); };
   const columns: ExportColumn<JobView>[] = [{ header: "Job", value: (row) => row.job.job_no }, { header: "Registration", value: (row) => row.vehicle.number }, { header: "Customer", value: (row) => row.customer.name }, { header: "Mobile", value: (row) => row.customer.mobile }, { header: "Advisor", value: (row) => users.find((user) => user.id === row.job.advisor_id)?.name ?? "Unassigned" }, { header: "Status", value: (row) => row.job.main_status }, { header: "Requested work", value: (row) => row.visit.requested_work }];
   return <div className="embedded-list reception-queue-list"><div className="queue-filter-bar"><label className="list-search">Search<input aria-label="Search today's queue" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Job, registration, customer or mobile" /></label><div className="queue-statuses" aria-label="Today Queue status filters">{statuses.map((value) => <button key={value} type="button" className={status === value ? "active" : ""} onClick={() => { setStatus(value); setPage(1); }}>{value === "ALL" ? "All" : value.replaceAll("_", " ")} <span>{value === "ALL" ? jobs.length : jobs.filter((row) => row.job.main_status === value).length}</span></button>)}</div><ListSearchActions onClear={reset} /></div><div className="list-result-controls"><ListExportControls report={{ title: "Today Queue", filters: activeFilterSummary({ Search: search.trim(), Status: status }), columns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><PageSizeSelect ariaLabel="Today Queue records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div><ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />{paged.totalCount ? <div className="reception-visit-rows">{paged.items.map((row) => { const advisor = users.find((user) => user.id === row.job.advisor_id); return <button type="button" key={row.job.id} className={selectedJobId === row.job.id ? "reception-visit-row active" : "reception-visit-row"} onClick={() => onSelect(row.job.id)}><div><strong>{row.job.job_no}</strong><span>{row.customer.name} · {row.customer.mobile}</span></div><div><strong>{row.vehicle.number}</strong><span>{row.vehicle.make} {row.vehicle.model}</span></div><div><span className={advisor ? "advisor-name" : "advisor-name unassigned"}>{advisor?.name ?? "Unassigned"}</span><Status status={row.job.main_status} sub={row.job.sub_status} unmapped={!advisor} /></div><p>{row.visit.requested_work}</p></button>; })}</div> : <div className="list-empty"><h3>No matching visits</h3><button type="button" onClick={reset}>Clear filters</button></div>}<ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} /></div>;
+  */
+}
+
+function receptionAgeLabel(receivedDate: string, today: string) {
+  const age = Math.max(1, Math.round((Date.parse(`${today}T00:00:00Z`) - Date.parse(`${receivedDate}T00:00:00Z`)) / 86_400_000));
+  return `${age} day${age === 1 ? "" : "s"} old`;
 }
 
 function CreateVisitDialog({ state, mutate, actor, onClose, onCreated }: { state: WorkshopState; mutate: Mutate; actor: User; onClose: () => void; onCreated: (jobId: number, jobNo: string) => void }) {
-  const today = todayKey(); const [marks, setMarks] = useState<DamageMark[]>([]); const [error, setError] = useState("");
+  const today = todayKey();
+  const [tab, setTab] = useState<"details" | "body-mark">("details");
+  const [marks, setMarks] = useState<DamageMark[]>([]);
+  const [error, setError] = useState("");
   const [form, setForm] = useState({ customerId: 0, vehicleId: 0, customerName: "", mobile: "", customerType: "Individual", vehicleNo: "", make: "", model: "", color: "", odoReading: "", fuelLevelValue: "", fuelLevelUnit: "bars" as "bars" | "%" | "litres" | "Other", keys: "", accessories: "", requestedWork: "", advisorId: 0 });
   const selectCustomer = (id: number) => { const customer = state.customers.find((item) => item.id === id); const vehicle = state.vehicles.find((item) => item.customer_id === id); if (!customer) return; setForm((current) => ({ ...current, customerId: id, vehicleId: vehicle?.id ?? 0, customerName: customer.name, mobile: customer.mobile, customerType: customer.type, vehicleNo: vehicle?.number ?? current.vehicleNo, make: vehicle?.make ?? current.make, model: vehicle?.model ?? current.model, color: vehicle?.color ?? current.color, odoReading: String(vehicle?.km ?? current.odoReading) })); };
   const selectVehicle = (id: number) => { const vehicle = state.vehicles.find((item) => item.id === id); const customer = state.customers.find((item) => item.id === vehicle?.customer_id); if (!vehicle) return; setForm((current) => ({ ...current, vehicleId: id, customerId: customer?.id ?? current.customerId, customerName: customer?.name ?? current.customerName, mobile: customer?.mobile ?? current.mobile, customerType: customer?.type ?? current.customerType, vehicleNo: vehicle.number, make: vehicle.make, model: vehicle.model, color: vehicle.color, odoReading: String(vehicle.km) })); };
-  const submit = (event: FormEvent) => { event.preventDefault(); setError(""); const odoReading = Number(form.odoReading); if (!Number.isFinite(odoReading) || odoReading < 0) { setError("Enter the ODO meter reading in km."); return; } if (!form.fuelLevelValue.trim()) { setError("Enter the fuel or battery level."); return; } const fuel = form.fuelLevelUnit === "Other" ? form.fuelLevelValue : `${form.fuelLevelValue} ${form.fuelLevelUnit}`; let jobId = 0; let jobNo = ""; if (mutate((db) => { jobId = receiveVehicle(db, { customerId: form.customerId || undefined, vehicleId: form.vehicleId || undefined, customerName: form.customerName, mobile: form.mobile, customerType: form.customerType, vehicleNo: form.vehicleNo, make: form.make, model: form.model, color: form.color, km: odoReading, odoReading, fuel, fuelLevelValue: form.fuelLevelValue, fuelLevelUnit: form.fuelLevelUnit, keys: form.keys, accessories: form.accessories, requestedWork: form.requestedWork, advisorId: form.advisorId || undefined, receptionId: actor.id, damageMarks: serializeDamageMarks(marks) }); jobNo = String(db.exec("select job_no from job_cards where id=?", [jobId])[0]?.values[0]?.[0] ?? ""); }, setError)) onCreated(jobId, jobNo); };
-  const present = presentAdvisors(state.users, state.attendance, today); const advisors = [...present, ...state.users.filter((user) => user.role === "service" && !present.some((item) => item.id === user.id))];
-  return <Dialog wide title="Create New Visit" subtitle="Link an existing customer and vehicle, or enter new details" onClose={onClose} footer={<div className="dialog-footer-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary-action" form="create-visit-form">Create Visit</button></div>}><form id="create-visit-form" onSubmit={submit}><div className="form-grid"><label>Existing customer<select aria-label="Existing customer" value={form.customerId} onChange={(event) => selectCustomer(Number(event.target.value))}><option value={0}>New customer</option>{state.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.mobile}</option>)}</select></label><label>Existing vehicle<select aria-label="Existing vehicle" value={form.vehicleId} onChange={(event) => selectVehicle(Number(event.target.value))}><option value={0}>New vehicle</option>{state.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.number} · {vehicle.make} {vehicle.model}</option>)}</select></label><label>Customer Name<input required value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} /></label><label>Mobile<input required value={form.mobile} onChange={(event) => setForm({ ...form, mobile: event.target.value })} /></label><label>Vehicle Number<input required value={form.vehicleNo} onChange={(event) => setForm({ ...form, vehicleNo: event.target.value })} /></label><label>Make<input required value={form.make} onChange={(event) => setForm({ ...form, make: event.target.value })} /></label><label>Model<input required value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} /></label><label>Color<input value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })} /></label><label>ODO meter reading (km)<input required type="number" min="0" value={form.odoReading} onChange={(event) => setForm({ ...form, odoReading: event.target.value })} /></label><label>Fuel / battery level<div className="field-pair"><input required value={form.fuelLevelValue} onChange={(event) => setForm({ ...form, fuelLevelValue: event.target.value })} /><select value={form.fuelLevelUnit} onChange={(event) => setForm({ ...form, fuelLevelUnit: event.target.value as typeof form.fuelLevelUnit })}><option value="bars">bars</option><option value="%">%</option><option value="litres">litres</option><option value="Other">Other</option></select></div></label><label>Keys<input value={form.keys} onChange={(event) => setForm({ ...form, keys: event.target.value })} /></label><label>Accessories<input value={form.accessories} onChange={(event) => setForm({ ...form, accessories: event.target.value })} /></label><label>Advisor<select value={form.advisorId} onChange={(event) => setForm({ ...form, advisorId: Number(event.target.value) })}><option value={0}>Assign later</option>{advisors.map((advisor) => <option key={advisor.id} value={advisor.id}>{advisor.name}{present.some((item) => item.id === advisor.id) ? " (Present)" : " (Away)"}</option>)}</select></label></div><label>Requested Work<textarea required value={form.requestedWork} onChange={(event) => setForm({ ...form, requestedWork: event.target.value })} /></label><div className="damage-capture"><strong>Body mark</strong><BodyMarkDiagram marks={marks} onChange={setMarks} hideDownload meta={{ vehicleName: `${form.make} ${form.model}`, color: form.color, regNo: form.vehicleNo }} /></div>{error && <p role="alert" className="form-error">{error}</p>}</form></Dialog>;
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (![form.customerName, form.mobile, form.vehicleNo, form.make, form.model, form.odoReading, form.fuelLevelValue, form.requestedWork].every((value) => value.trim())) {
+      setTab("details");
+      setError("Complete all required visit details before creating the visit.");
+      return;
+    }
+    const odoReading = Number(form.odoReading);
+    if (!Number.isFinite(odoReading) || odoReading < 0) { setTab("details"); setError("Enter the ODO meter reading in km."); return; }
+    const fuel = form.fuelLevelUnit === "Other" ? form.fuelLevelValue : `${form.fuelLevelValue} ${form.fuelLevelUnit}`;
+    let jobId = 0;
+    let jobNo = "";
+    if (mutate((db) => {
+      jobId = receiveVehicle(db, { customerId: form.customerId || undefined, vehicleId: form.vehicleId || undefined, customerName: form.customerName, mobile: form.mobile, customerType: form.customerType, vehicleNo: form.vehicleNo, make: form.make, model: form.model, color: form.color, km: odoReading, odoReading, fuel, fuelLevelValue: form.fuelLevelValue, fuelLevelUnit: form.fuelLevelUnit, keys: form.keys, accessories: form.accessories, requestedWork: form.requestedWork, advisorId: form.advisorId || undefined, receptionId: actor.id, damageMarks: serializeDamageMarks(marks) });
+      jobNo = String(db.exec("select job_no from job_cards where id=?", [jobId])[0]?.values[0]?.[0] ?? "");
+    }, setError)) onCreated(jobId, jobNo);
+  };
+  const present = presentAdvisors(state.users, state.attendance, today);
+  const advisors = [...present, ...state.users.filter((user) => user.role === "service" && !present.some((item) => item.id === user.id))];
+  const tabId = (name: "details" | "body-mark") => `create-visit-${name}-tab`;
+  const panelId = (name: "details" | "body-mark") => `create-visit-${name}-panel`;
+
+  return <Dialog wide title="Create New Visit" subtitle="Link an existing customer and vehicle, or enter new details" onClose={onClose} footer={<button className="primary-action" form="create-visit-form">Create Visit</button>}>
+    <form id="create-visit-form" onSubmit={submit}>
+      <div className="sub-tabs create-visit-tabs" role="tablist" aria-label="Create visit sections" onKeyDown={handleTabListKeyDown}>
+        {(["details", "body-mark"] as const).map((item) => <button type="button" id={tabId(item)} aria-controls={panelId(item)} tabIndex={tab === item ? 0 : -1} key={item} role="tab" aria-selected={tab === item} className={tab === item ? "active" : ""} onClick={() => setTab(item)}>{item === "details" ? "Details" : "Body Mark"}</button>)}
+      </div>
+      {tab === "details" ? <div id={panelId("details")} role="tabpanel" aria-labelledby={tabId("details")} className="create-visit-tab-panel">
+        <div className="form-grid"><label>Existing customer<select aria-label="Existing customer" value={form.customerId} onChange={(event) => selectCustomer(Number(event.target.value))}><option value={0}>New customer</option>{state.customers.map((customer) => <option key={customer.id} value={customer.id}>{customer.name} · {customer.mobile}</option>)}</select></label><label>Existing vehicle<select aria-label="Existing vehicle" value={form.vehicleId} onChange={(event) => selectVehicle(Number(event.target.value))}><option value={0}>New vehicle</option>{state.vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.number} · {vehicle.make} {vehicle.model}</option>)}</select></label><label>Customer Name<input required value={form.customerName} onChange={(event) => setForm({ ...form, customerName: event.target.value })} /></label><label>Mobile<input required value={form.mobile} onChange={(event) => setForm({ ...form, mobile: event.target.value })} /></label><label>Vehicle Number<input required value={form.vehicleNo} onChange={(event) => setForm({ ...form, vehicleNo: event.target.value })} /></label><label>Make<input required value={form.make} onChange={(event) => setForm({ ...form, make: event.target.value })} /></label><label>Model<input required value={form.model} onChange={(event) => setForm({ ...form, model: event.target.value })} /></label><label>Color<input value={form.color} onChange={(event) => setForm({ ...form, color: event.target.value })} /></label><label>ODO meter reading (km)<input required type="number" min="0" value={form.odoReading} onChange={(event) => setForm({ ...form, odoReading: event.target.value })} /></label><label>Fuel / battery level<div className="field-pair"><input required value={form.fuelLevelValue} onChange={(event) => setForm({ ...form, fuelLevelValue: event.target.value })} /><select value={form.fuelLevelUnit} onChange={(event) => setForm({ ...form, fuelLevelUnit: event.target.value as typeof form.fuelLevelUnit })}><option value="bars">bars</option><option value="%">%</option><option value="litres">litres</option><option value="Other">Other</option></select></div></label><label>Keys<input value={form.keys} onChange={(event) => setForm({ ...form, keys: event.target.value })} /></label><label>Accessories<input value={form.accessories} onChange={(event) => setForm({ ...form, accessories: event.target.value })} /></label><label>Advisor<select value={form.advisorId} onChange={(event) => setForm({ ...form, advisorId: Number(event.target.value) })}><option value={0}>Assign later</option>{advisors.map((advisor) => <option key={advisor.id} value={advisor.id}>{advisor.name}{present.some((item) => item.id === advisor.id) ? " (Present)" : " (Away)"}</option>)}</select></label></div>
+        <label>Requested Work<textarea required rows={3} value={form.requestedWork} onChange={(event) => setForm({ ...form, requestedWork: event.target.value })} /></label>
+      </div> : <div id={panelId("body-mark")} role="tabpanel" aria-labelledby={tabId("body-mark")} className="create-visit-tab-panel create-visit-body-mark-panel">
+        <div className="damage-capture"><strong>Body mark</strong><BodyMarkDiagram marks={marks} onChange={setMarks} hideDownload meta={{ vehicleName: `${form.make} ${form.model}`, color: form.color, regNo: form.vehicleNo }} /></div>
+      </div>}
+      {error && <p role="alert" className="form-error">{error}</p>}
+    </form>
+  </Dialog>;
 }
 
 function ServiceAdvisor({
@@ -993,9 +1108,12 @@ function ServiceAdvisor({
   );
 }
 
-function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { activeMenuItem: string; state: WorkshopState; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
+function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId }: { activeMenuItem: string; state: WorkshopState; actor: User; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
   const [stockTab, setStockTab] = useState<"Inventory List" | "Low Stock" | "Stock Movements">("Inventory List");
+  const [editingStock, setEditingStock] = useState<InventoryItem>();
   const requests = state.jobs.flatMap((view) => view.material_requests.map((request) => ({ view, request, item: state.inventory.find((item) => item.id === request.item_id) })));
+  const localPurchases = state.jobs.flatMap((view) => view.local_purchases.map((purchase) => ({ view, purchase })));
+  const purchaseRequests = state.jobs.flatMap((view) => view.material_purchase_requests.map((purchaseRequest) => ({ view, purchaseRequest })));
   if (activeMenuItem === "Stock") {
     const lowStock = state.inventory.filter((item) => item.stock_qty < item.low_stock_qty);
     return (
@@ -1005,24 +1123,25 @@ function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { active
           <div className="sub-tabs" role="tablist" aria-label="Stock views">
             {(["Inventory List", "Low Stock", "Stock Movements"] as const).map((tab) => <button key={tab} role="tab" aria-selected={stockTab === tab} className={stockTab === tab ? "active" : ""} onClick={() => setStockTab(tab)}>{tab}</button>)}
           </div>
-          <div className="stock-kpis">
-            <Kpi icon={<Boxes />} label="Total SKUs" value={state.inventory.length} />
-            <Kpi icon={<Package />} label="Total Units" value={state.inventory.reduce((sum, item) => sum + item.stock_qty, 0)} />
-            <Kpi icon={<ClipboardCheck />} label="Low Stock" value={lowStock.length} />
-            <Kpi icon={<ShieldCheck />} label="Out of Stock" value={state.inventory.filter((item) => item.stock_qty <= 0).length} />
+          <div className="stock-summary" aria-label="Stock summary">
+            <span><Boxes size={16} /><strong>{state.inventory.length}</strong> Total SKUs</span>
+            <span><Package size={16} /><strong>{state.inventory.reduce((sum, item) => sum + item.stock_qty, 0)}</strong> Total Units</span>
+            <span><ClipboardCheck size={16} /><strong>{lowStock.length}</strong> Low Stock</span>
+            <span><ShieldCheck size={16} /><strong>{state.inventory.filter((item) => item.stock_qty <= 0).length}</strong> Out of Stock</span>
           </div>
         </div>
-        {stockTab === "Inventory List" && <div className="workspace two-panel embedded-workspace"><StoreList key="stock" kind="stock" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} /><InventoryEditor state={state} mutate={mutate} /></div>}
+        {stockTab === "Inventory List" && <div className="stock-main-grid"><StoreList key="stock" kind="stock" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} onEditStock={setEditingStock} /><QuickAddStock inventory={state.inventory} mutate={mutate} /></div>}
         {stockTab === "Low Stock" && <StoreList key="low-stock" kind="stock" inventory={lowStock} requests={requests} onOpenJob={setSelectedJobId} />}
         {stockTab === "Stock Movements" && <StockMovementHistory state={state} />}
+        {editingStock && <EditStockDetailsDialog item={editingStock} mutate={mutate} onClose={() => setEditingStock(undefined)} />}
       </section>
     );
   }
   if (activeMenuItem === "Material Requests") {
     return (
       <section className="workspace two-panel">
-        <StoreList key="requests" kind="requests" inventory={state.inventory} requests={requests} onOpenJob={setSelectedJobId} />
-        <MaterialRequestEditor state={state} mutate={mutate} />
+        <StoreList key="requests" kind="requests" inventory={state.inventory} requests={requests} purchases={localPurchases} purchaseRequests={purchaseRequests} onOpenJob={setSelectedJobId} />
+        <div className="store-request-actions"><PurchaseStockIssueEditor state={state} actor={actor} purchaseRequests={purchaseRequests} mutate={mutate} /><MaterialRequestEditor state={state} mutate={mutate} store /></div>
       </section>
     );
   }
@@ -1032,6 +1151,92 @@ function StoreDesk({ activeMenuItem, state, mutate, setSelectedJobId }: { active
       {activeMenuItem === "Issue Material" ? <IssueMaterialEditor requests={requests} mutate={mutate} /> : <ReconcileEditor requests={requests} mutate={mutate} />}
     </section>
   );
+}
+
+function PurchaseStockIssueEditor({ state, actor, purchaseRequests, mutate }: { state: WorkshopState; actor: User; purchaseRequests: Array<{ view: JobView; purchaseRequest: MaterialPurchaseRequest }>; mutate: Mutate }) {
+  const pending = purchaseRequests.filter(({ purchaseRequest }) => purchaseRequest.status === "Pending");
+  const [requestId, setRequestId] = useState(pending[0]?.purchaseRequest.id ?? 0);
+  const [itemId, setItemId] = useState(0);
+  const [sku, setSku] = useState(""); const [category, setCategory] = useState("Local purchase"); const [unitCost, setUnitCost] = useState(0); const [vendor, setVendor] = useState(""); const [billReference, setBillReference] = useState(""); const [note, setNote] = useState(""); const [error, setError] = useState("");
+  const selected = pending.find((row) => row.purchaseRequest.id === requestId);
+  const save = (event: FormEvent) => { event.preventDefault(); if (!requestId) { setError("Choose a pending request."); return; } setError(""); if (mutate((db) => purchaseStockAndIssueForActor(db, requestId, actor.id, { inventory_item_id: itemId || undefined, sku, category, unit_cost: unitCost, vendor, bill_reference: billReference, note }), setError)) { setVendor(""); setBillReference(""); setNote(""); setItemId(0); } };
+  return <form className="desk-panel" onSubmit={save}><PanelTitle icon={<PackageCheck />} title="Purchase, Stock & Issue" subtitle="Complete a requested new item in one audited operation" />
+    {!pending.length ? <p className="empty-state">No pending new-item requests.</p> : <><label>Pending request<select value={requestId} onChange={(event) => setRequestId(Number(event.target.value))}>{pending.map(({ view, purchaseRequest }) => <option key={purchaseRequest.id} value={purchaseRequest.id}>{view.job.job_no} · {purchaseRequest.item_name} · {purchaseRequest.quantity} {purchaseRequest.unit}</option>)}</select></label><label>Map to inventory item (optional)<select value={itemId} onChange={(event) => setItemId(Number(event.target.value))}><option value={0}>Create inventory item</option>{state.inventory.filter((item) => item.unit === selected?.purchaseRequest.unit).map((item) => <option key={item.id} value={item.id}>{item.name} · {item.sku}</option>)}</select></label>{!itemId && <div className="form-grid"><label>SKU<input value={sku} onChange={(event) => setSku(event.target.value)} placeholder={`LOCAL-${requestId}`} /></label><label>Category<input value={category} onChange={(event) => setCategory(event.target.value)} /></label></div>}<div className="form-grid"><label>Unit cost<input required type="number" min="0" step="0.01" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label><label>Vendor / shop<input required value={vendor} onChange={(event) => setVendor(event.target.value)} /></label><label>Bill / reference<input required value={billReference} onChange={(event) => setBillReference(event.target.value)} /></label></div><label>Note (optional)<textarea value={note} onChange={(event) => setNote(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}<button className="primary-action">Purchase, Stock & Issue</button></>}
+  </form>;
+}
+
+type PurchaseFormLine = InwardPurchaseLineInput & { key: string };
+
+function InwardPurchasesWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
+  const [selectedId, setSelectedId] = useState<number | undefined>();
+  const [supplierId, setSupplierId] = useState(0);
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [poNumber, setPoNumber] = useState("");
+  const [lines, setLines] = useState<PurchaseFormLine[]>(() => state.inventory[0] ? [{ key: crypto.randomUUID(), item_id: state.inventory[0].id, received_qty: 1, unit_cost: 0, discount: 0, gst_rate: 0 }] : []);
+  const [attachments, setAttachments] = useState<InwardPurchaseAttachmentInput[]>([]);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [revisionReason, setRevisionReason] = useState("");
+  const selected = state.inward_purchases.find((purchase) => purchase.id === selectedId);
+  const selectedLines = selected ? state.inward_purchase_lines.filter((line) => line.purchase_id === selected.id) : [];
+  const selectedAttachments = selected ? state.inward_purchase_attachments.filter((attachment) => attachment.purchase_id === selected.id) : [];
+
+  useEffect(() => {
+    if (!selected) return;
+    setSupplierId(selected.supplier_id ?? 0); setInvoiceNo(selected.supplier_invoice_no); setInvoiceDate(selected.invoice_date || new Date().toISOString().slice(0, 10)); setPoNumber(selected.po_number ?? "");
+    setLines(selectedLines.map((line) => ({ key: String(line.id), item_id: line.item_id, received_qty: line.received_qty, unit_cost: line.unit_cost, discount: line.discount, gst_rate: line.gst_rate })));
+    setAttachments([]); setRevisionReason("");
+  // Selected records are intentionally copied into editable draft state only when selection changes.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [selectedId]);
+
+  const reset = () => { setSelectedId(undefined); setSupplierId(0); setInvoiceNo(""); setInvoiceDate(new Date().toISOString().slice(0, 10)); setPoNumber(""); setLines(state.inventory[0] ? [{ key: crypto.randomUUID(), item_id: state.inventory[0].id, received_qty: 1, unit_cost: 0, discount: 0, gst_rate: 0 }] : []); setAttachments([]); setRevisionReason(""); };
+  const draftInput = () => ({ supplier_id: supplierId || undefined, supplier_invoice_no: invoiceNo, invoice_date: invoiceDate, po_number: poNumber, lines: lines.map(({ key: _key, ...line }) => line), attachments });
+  const saveDraft = () => {
+    let newId = selectedId;
+    if (mutate((db) => { if (selectedId) updateInwardPurchaseDraftForActor(db, selectedId, actor.id, draftInput()); else newId = createInwardPurchaseDraft(db, actor.id, draftInput()); })) setSelectedId(newId);
+  };
+  const addLine = () => { if (state.inventory[0]) setLines((current) => [...current, { key: crypto.randomUUID(), item_id: state.inventory[0].id, received_qty: 1, unit_cost: 0, discount: 0, gst_rate: 0 }]); };
+  const updateLine = (key: string, patch: Partial<InwardPurchaseLineInput>) => setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line));
+  const selectFile = async (file?: File) => {
+    if (!file) return;
+    if (!(file.type === "application/pdf" || file.type === "image/jpeg") || file.size > 10 * 1024 * 1024) { window.alert("Use a PDF or JPG invoice scan no larger than 10 MB."); return; }
+    const document_url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+    setAttachments((current) => [...current, { original_name: file.name, mime_type: file.type, byte_size: file.size, document_url }]);
+  };
+  const supplierName = (id: number) => state.suppliers.find((supplier) => supplier.id === id)?.name ?? "Unknown supplier";
+  const filtered = state.inward_purchases.filter((purchase) => (status === "ALL" || purchase.status === status) && (!search.trim() || normalizeSearch(`${supplierName(purchase.supplier_id)} ${purchase.supplier_invoice_no} ${purchase.po_number}`).includes(normalizeSearch(search))));
+  const editable = !selected || selected.status === "Draft";
+  const total = lines.reduce((sum, line) => { const base = line.received_qty * line.unit_cost - (line.discount ?? 0); return sum + base * (1 + (line.gst_rate ?? 0) / 100); }, 0);
+
+  return <section className="workspace two-panel">
+    <div className="desk-panel store-list-page">
+      <PanelTitle icon={<ReceiptText />} title="Inward Purchases" subtitle="Invoice-based goods receipts and item purchase history" />
+      <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search inward purchases" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Supplier, invoice or PO" /></label><label>Status<select aria-label="Inward purchase status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option><option>Draft</option><option>Submitted</option></select></label><ListSearchActions onClear={() => { setSearch(""); setStatus("ALL"); }} /></div>
+      <div className="action-row"><button className="primary-action" onClick={reset}><Plus size={16} /> New inward purchase</button><ListExportControls report={{ title: "Inward Purchases", filters: activeFilterSummary({ Search: search, Status: status }), columns: [{ header: "Invoice date", value: (row: InwardPurchase) => row.invoice_date }, { header: "Supplier", value: (row: InwardPurchase) => supplierName(row.supplier_id) }, { header: "Invoice", value: (row: InwardPurchase) => row.supplier_invoice_no }, { header: "Status", value: (row: InwardPurchase) => row.status }, { header: "Total", value: (row: InwardPurchase) => row.total }], rows: filtered }} /></div>
+      <div className="table-wrap"><table aria-label="Inward purchase register"><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>PO</th><th>Total</th><th>Status</th><th>Scan</th></tr></thead><tbody>{filtered.map((purchase) => { const attachment = state.inward_purchase_attachments.find((item) => item.purchase_id === purchase.id); return <tr key={purchase.id} className="clickable-row" onClick={() => setSelectedId(purchase.id)}><td>{purchase.invoice_date || "—"}</td><td>{supplierName(purchase.supplier_id)}</td><td>{purchase.supplier_invoice_no || "—"}</td><td>{purchase.po_number || "—"}</td><td>{money(purchase.total)}</td><td><span className="status-badge">{purchase.status}</span></td><td>{attachment ? <a href={attachment.document_url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open</a> : "—"}</td></tr>; })}</tbody></table></div>
+    </div>
+    <form className="desk-panel" onSubmit={(event) => { event.preventDefault(); saveDraft(); }}>
+      <PanelTitle icon={<PackageCheck />} title={selected ? `Receipt #${selected.id}` : "New receipt draft"} subtitle={selected?.status === "Submitted" ? "Posted receipt is immutable; Admin corrections append a revision." : "Save a draft, attach the supplier invoice, then submit."} />
+      <label>Supplier<select aria-label="Purchase supplier" disabled={!editable} required value={supplierId} onChange={(event) => setSupplierId(Number(event.target.value))}><option value={0}>Select active supplier</option>{state.suppliers.filter((supplier) => supplier.status === "Active" || supplier.id === supplierId).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}{supplier.status === "On hold" ? " (On hold)" : ""}</option>)}</select></label>
+      <div className="form-grid"><label>Supplier invoice no.<input aria-label="Supplier invoice number" disabled={!editable} value={invoiceNo} onChange={(event) => setInvoiceNo(event.target.value)} /></label><label>Invoice date<input aria-label="Invoice date" type="date" disabled={!editable} value={invoiceDate} onChange={(event) => setInvoiceDate(event.target.value)} /></label><label>PO number (optional)<input aria-label="PO number" disabled={!editable} value={poNumber} onChange={(event) => setPoNumber(event.target.value)} /></label></div>
+      <h4>Receipt lines</h4>{lines.map((line) => <div className="form-grid" key={line.key}><label>Item<select disabled={!editable} value={line.item_id} onChange={(event) => updateLine(line.key, { item_id: Number(event.target.value) })}>{state.inventory.map((item) => <option key={item.id} value={item.id}>{item.sku} · {item.name}</option>)}</select></label><label>Received qty<input aria-label="Received quantity" disabled={!editable} type="number" min="0.01" step="0.01" value={line.received_qty} onChange={(event) => updateLine(line.key, { received_qty: Number(event.target.value) })} /></label><label>Unit cost (pre-GST)<input aria-label="Unit cost before GST" disabled={!editable} type="number" min="0" step="0.01" value={line.unit_cost} onChange={(event) => updateLine(line.key, { unit_cost: Number(event.target.value) })} /></label><label>Discount<input disabled={!editable} type="number" min="0" step="0.01" value={line.discount} onChange={(event) => updateLine(line.key, { discount: Number(event.target.value) })} /></label><label>GST %<input disabled={!editable} type="number" min="0" max="100" step="0.01" value={line.gst_rate} onChange={(event) => updateLine(line.key, { gst_rate: Number(event.target.value) })} /></label>{editable && <button type="button" className="danger-action" onClick={() => setLines((current) => current.filter((item) => item.key !== line.key))}>Remove</button>}</div>)}
+      {editable && <button type="button" onClick={addLine}>Add line</button>}<p className="permission-note">Computed receipt total: {money(total)}</p>
+      {editable && <><label className="file-upload-button">Attach invoice scan (PDF/JPG, max 10 MB)<input aria-label="Invoice scan" type="file" accept="application/pdf,image/jpeg" onChange={(event) => { void selectFile(event.target.files?.[0]); event.target.value = ""; }} hidden /></label>{[...selectedAttachments, ...attachments].map((attachment) => <small key={`${attachment.original_name}-${attachment.byte_size}`}>{attachment.original_name}</small>)}</>}
+      {selected?.status === "Submitted" && actor.role === "admin" && <><label>Admin correction reason<input aria-label="Correction reason" value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} placeholder="Required reason for stock delta" /></label><button type="button" onClick={() => mutate((db) => reviseInwardPurchaseForActor(db, selected.id, actor.id, { reason: revisionReason, lines: lines.map(({ key: _key, ...line }) => line) }))}>Post revision delta</button></>}
+      {editable && <div className="action-row"><button className="primary-action">Save draft</button>{selected && <button type="button" className="primary-action" onClick={() => mutate((db) => submitInwardPurchaseForActor(db, selected.id, actor.id))}>Submit receipt</button>}</div>}
+    </form>
+  </section>;
+}
+
+function SupplierMasterWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
+  const [selectedId, setSelectedId] = useState<number | undefined>();
+  const selected = state.suppliers.find((supplier) => supplier.id === selectedId);
+  const [draft, setDraft] = useState({ name: "", contact_name: "", phone: "", email: "", gstin: "", status: "Active" as Supplier["status"] });
+  useEffect(() => { if (selected) setDraft({ name: selected.name, contact_name: selected.contact_name, phone: selected.phone, email: selected.email, gstin: selected.gstin, status: selected.status }); }, [selected]);
+  const reset = () => { setSelectedId(undefined); setDraft({ name: "", contact_name: "", phone: "", email: "", gstin: "", status: "Active" }); };
+  return <section className="workspace two-panel"><div className="desk-panel"><PanelTitle icon={<UserRound />} title="Supplier Master" subtitle="Admin-managed suppliers; only active suppliers are available on goods receipts." /><div className="table-wrap"><table aria-label="Supplier master"><thead><tr><th>Supplier</th><th>Contact</th><th>GSTIN</th><th>Status</th></tr></thead><tbody>{state.suppliers.map((supplier) => <tr key={supplier.id} className="clickable-row" onClick={() => setSelectedId(supplier.id)}><td>{supplier.name}</td><td>{supplier.contact_name || supplier.phone || "—"}</td><td>{supplier.gstin || "—"}</td><td>{supplier.status}</td></tr>)}</tbody></table></div><button onClick={reset}>New supplier</button></div><form className="desk-panel" onSubmit={(event) => { event.preventDefault(); if (selected) mutate((db) => updateSupplierForActor(db, selected.id, actor.id, draft)); else { let id = 0; if (mutate((db) => { id = createSupplierForActor(db, actor.id, draft); })) setSelectedId(id); } }}><PanelTitle icon={<UserRound />} title={selected ? "Edit supplier" : "Add supplier"} subtitle="Hold and archive preserve purchase history." /><label>Name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><label>Contact name<input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} /></label><label>Phone<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></label><label>Email<input type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label><label>GSTIN<input value={draft.gstin} onChange={(event) => setDraft({ ...draft, gstin: event.target.value })} /></label><label>Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Supplier["status"] })}><option>Active</option><option>On hold</option></select></label><div className="action-row"><button className="primary-action">Save supplier</button>{selected && <button type="button" className="danger-action" onClick={() => { if (mutate((db) => archiveSupplierForActor(db, selected.id, actor.id))) reset(); }}>Archive supplier</button>}</div></form></section>;
 }
 
 function StockMovementHistory({ state }: { state: WorkshopState }) {
@@ -1073,6 +1278,10 @@ function StockMovementHistory({ state }: { state: WorkshopState }) {
 
 type StoreListKind = "stock" | "requests" | "issue" | "reconcile";
 type StoreRequestRow = { view: JobView; request: MaterialRequest; item?: InventoryItem };
+type StorePurchaseRow = { view: JobView; purchase: LocalPurchase };
+type StoreHistoryRow = StoreRequestRow | StorePurchaseRow;
+
+function isLocalPurchase(row: StoreHistoryRow): row is StorePurchaseRow { return "purchase" in row; }
 
 function requestState(row: StoreRequestRow) {
   const { request } = row;
@@ -1088,7 +1297,7 @@ function reconciliationState(row: StoreRequestRow) {
   return request.issued_qty > 0 && Math.abs(request.issued_qty - request.used_qty - request.returned_qty - request.wasted_qty) < 0.001 ? "Matched" : "Open";
 }
 
-function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKind; inventory: InventoryItem[]; requests: StoreRequestRow[]; onOpenJob: (id: number) => void }) {
+function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests = [], onOpenJob, onEditStock }: { kind: StoreListKind; inventory: InventoryItem[]; requests: StoreRequestRow[]; purchases?: StorePurchaseRow[]; purchaseRequests?: Array<{ view: JobView; purchaseRequest: MaterialPurchaseRequest }>; onOpenJob: (id: number) => void; onEditStock?: (item: InventoryItem) => void }) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
   const [primary, setPrimary] = useState("ALL");
@@ -1109,20 +1318,26 @@ function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKi
       && (unit === "ALL" || row.unit === unit);
   }), [inventory, needle, primary, job, unit]);
 
-  const requestRows = useMemo(() => requests.filter((row) => {
+  const history = kind === "requests" ? [...requests, ...purchases] : requests;
+  const filteredPurchaseRequests = useMemo(() => purchaseRequests.filter(({ view, purchaseRequest }) => (!needle || normalizeSearch(`${view.job.job_no} ${view.vehicle.number} ${purchaseRequest.item_name} ${purchaseRequest.status}`).includes(needle)) && (primary === "ALL" || primary === "New item request" || primary === purchaseRequest.status) && (job === "ALL" || String(view.job.id) === job)), [purchaseRequests, needle, primary, job]);
+  const requestRows = useMemo(() => history.filter((row) => {
+    if (isLocalPurchase(row)) return (!needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.purchase.item_description} ${row.purchase.vendor} ${row.purchase.bill_reference}`).includes(needle))
+      && (primary === "ALL" || primary === "Local purchase")
+      && (job === "ALL" || String(row.view.job.id) === job)
+      && item === "ALL";
     const state = kind === "reconcile" ? reconciliationState(row) : requestState(row);
     return (!needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.item?.sku ?? ""} ${row.item?.name ?? ""}`).includes(needle))
       && (primary === "ALL" || state === primary)
       && (job === "ALL" || String(row.view.job.id) === job)
       && (item === "ALL" || String(row.request.item_id) === item);
-  }), [requests, kind, needle, primary, job, item]);
+  }), [history, kind, needle, primary, job, item]);
 
-  const filtered: Array<InventoryItem | StoreRequestRow> = kind === "stock" ? stockRows : requestRows;
-  const paged = paginate<InventoryItem | StoreRequestRow>(filtered, page, pageSize);
+  const filtered: Array<InventoryItem | StoreHistoryRow> = kind === "stock" ? stockRows : requestRows;
+  const paged = paginate<InventoryItem | StoreHistoryRow>(filtered, page, pageSize);
   useEffect(() => { if (paged.page !== page) setPage(paged.page); }, [paged.page, page]);
   const categories = Array.from(new Set(inventory.map((row) => row.category))).sort();
   const units = Array.from(new Set(inventory.map((row) => row.unit))).sort();
-  const uniqueJobs = Array.from(new Map(requests.map((row) => [row.view.job.id, row.view])).values());
+  const uniqueJobs = Array.from(new Map(history.map((row) => [row.view.job.id, row.view])).values());
   const activeFilters = activeFilterSummary(kind === "stock"
     ? { Search: search.trim(), Category: primary, "Stock status": job === "LOW" ? "Low stock" : job === "OK" ? "In stock" : "ALL", Unit: unit }
     : { Search: search.trim(), [kind === "reconcile" ? "Reconciliation state" : "Request status"]: primary, Job: job === "ALL" ? "ALL" : uniqueJobs.find((row) => String(row.job.id) === job)?.job.job_no ?? job, Item: item === "ALL" ? "ALL" : inventory.find((row) => String(row.id) === item)?.name ?? item });
@@ -1133,14 +1348,15 @@ function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKi
     { header: "Unit", value: (row) => row.unit }, { header: "Minimum", value: (row) => row.low_stock_qty },
     { header: "Status", value: (row) => row.stock_qty < row.low_stock_qty ? "Low stock" : "In stock" },
   ];
-  const requestColumns: ExportColumn<StoreRequestRow>[] = [
+  const requestColumns: ExportColumn<StoreHistoryRow>[] = [
     { header: "Job", value: (row) => row.view.job.job_no }, { header: "Vehicle", value: (row) => row.view.vehicle.number },
-    { header: "Item", value: (row) => row.item?.name ?? "Unknown" }, { header: "Requested", value: (row) => row.request.requested_qty },
-    { header: "Issued", value: (row) => row.request.issued_qty },
+    ...(kind === "requests" ? [{ header: "Type", value: (row: StoreHistoryRow) => isLocalPurchase(row) ? "Local purchase" : "Inventory" }] : []),
+    { header: "Item", value: (row) => isLocalPurchase(row) ? row.purchase.item_description : row.item?.name ?? "Unknown" }, { header: "Requested", value: (row) => isLocalPurchase(row) ? `${row.purchase.quantity} ${row.purchase.unit}` : row.request.requested_qty },
+    { header: "Issued", value: (row) => isLocalPurchase(row) ? "—" : row.request.issued_qty },
     ...(kind === "reconcile" ? [
-      { header: "Used", value: (row: StoreRequestRow) => row.request.used_qty }, { header: "Returned", value: (row: StoreRequestRow) => row.request.returned_qty },
-      { header: "Wasted", value: (row: StoreRequestRow) => row.request.wasted_qty }, { header: "State", value: reconciliationState },
-    ] : [{ header: "Status", value: requestState }]),
+      { header: "Used", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.used_qty : "—" }, { header: "Returned", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.returned_qty : "—" },
+      { header: "Wasted", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.wasted_qty : "—" }, { header: "State", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? reconciliationState(row) : "—" },
+    ] : [{ header: "Status", value: (row: StoreHistoryRow) => isLocalPurchase(row) ? "Local purchase" : requestState(row) }]),
   ];
   const exportReport = kind === "stock"
     ? { title, filters: activeFilters, columns: stockColumns, rows: stockRows }
@@ -1148,6 +1364,8 @@ function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKi
 
   return <div className="desk-panel store-list-page">
     <PanelTitle icon={kind === "stock" ? <Boxes /> : kind === "issue" ? <Package /> : kind === "reconcile" ? <Check /> : <PackageCheck />} title={title} subtitle="Search, filter and export the current list" />
+    {kind === "requests" && purchaseRequests.length > 0 && <p className="permission-note">{filteredPurchaseRequests.length} new-item purchase request{filteredPurchaseRequests.length === 1 ? "" : "s"} match the current filters. Use Purchase, Stock & Issue to complete a pending request.</p>}
+    {kind === "requests" && purchaseRequests.length > 0 && <section className="purchase-request-list" aria-label="New item purchase requests"><h3>New-item purchase requests</h3><table><thead><tr><th>Job</th><th>Item</th><th>Qty</th><th>Status</th><th>Trail</th></tr></thead><tbody>{purchaseRequests.map(({ view, purchaseRequest }) => <tr key={purchaseRequest.id} className="clickable-row" onClick={() => onOpenJob(view.job.id)}><td>{view.job.job_no}</td><td>{purchaseRequest.item_name}</td><td>{purchaseRequest.quantity} {purchaseRequest.unit}</td><td>{purchaseRequest.status}</td><td>{purchaseRequest.status === "Completed" ? `Inventory #${purchaseRequest.mapped_inventory_item_id} · issued row #${purchaseRequest.material_request_id}` : "Awaiting purchase"}</td></tr>)}</tbody></table></section>}
     <div className="store-filter-grid">
       <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={kind === "stock" ? "SKU, item, category or unit" : "Job, vehicle or item"} /></label>
       {kind === "stock" ? <>
@@ -1155,7 +1373,7 @@ function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKi
         <label>Stock status<select aria-label="Stock status" value={job} onChange={(event) => { setJob(event.target.value); setPage(1); }}><option value="ALL">All stock</option><option value="LOW">Low stock</option><option value="OK">In stock</option></select></label>
         <label>Unit<select aria-label="Stock unit" value={unit} onChange={(event) => { setUnit(event.target.value); setPage(1); }}><option value="ALL">All units</option>{units.map((value) => <option key={value}>{value}</option>)}</select></label>
       </> : <>
-        <label>{kind === "reconcile" ? "Reconciliation state" : "Request status"}<select aria-label={kind === "reconcile" ? "Reconciliation state" : "Request status"} value={primary} onChange={(event) => { setPrimary(event.target.value); setPage(1); }}><option value="ALL">All states</option>{(kind === "reconcile" ? ["Matched", "Open"] : ["Pending", "Partially issued", "Issued", "Reconciled"]).map((value) => <option key={value}>{value}</option>)}</select></label>
+        <label>{kind === "reconcile" ? "Reconciliation state" : "Request status"}<select aria-label={kind === "reconcile" ? "Reconciliation state" : "Request status"} value={primary} onChange={(event) => { setPrimary(event.target.value); setPage(1); }}><option value="ALL">All states</option>{(kind === "reconcile" ? ["Matched", "Open"] : ["Pending", "Partially issued", "Issued", "Reconciled", ...(purchases.length ? ["Local purchase"] : []), ...(purchaseRequests.length ? ["New item request", "Completed"] : [])]).map((value) => <option key={value}>{value}</option>)}</select></label>
         <label>Job<select aria-label={`${title} job`} value={job} onChange={(event) => { setJob(event.target.value); setPage(1); }}><option value="ALL">All jobs</option>{uniqueJobs.map((row) => <option key={row.job.id} value={row.job.id}>{row.job.job_no}</option>)}</select></label>
         <label>Item<select aria-label={`${title} item`} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="ALL">All items</option>{inventory.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
       </>}
@@ -1168,7 +1386,7 @@ function StoreList({ kind, inventory, requests, onOpenJob }: { kind: StoreListKi
     </div>
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
     {paged.totalCount === 0 ? <div className="list-empty"><h3>No matching records</h3><p>Adjust the search or clear the filters.</p><button onClick={clearFilters}>Clear filters</button></div> :
-      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}</tr>) : (paged.items as StoreRequestRow[]).map((row) => <tr key={row.request.id} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}</tr>)}</tbody></table></div>}
+      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}{kind === "stock" && onEditStock && <th>Action</th>}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}{onEditStock && <td><button type="button" className="secondary-action" onClick={() => onEditStock(row)}>Edit</button></td>}</tr>) : (paged.items as StoreHistoryRow[]).map((row) => <tr key={isLocalPurchase(row) ? `purchase-${row.purchase.id}` : `request-${row.request.id}`} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}</tr>)}</tbody></table></div>}
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
   </div>;
 }
@@ -1428,7 +1646,7 @@ function VisitJobManager({ state, mutate, actingUser, selected, setSelectedJobId
     <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search job cards" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Job card, vehicle or customer" /></label><label>Status<select aria-label="Job status filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label><ListSearchActions onClear={() => { setSearch(""); setStatus("ALL"); setPage(1); }} /></div>
     <div className="list-result-controls"><DownloadMenu report={{ title: "Job Cards", filters: activeFilterSummary({ Search: search.trim(), Status: status }), columns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><PageSizeSelect ariaLabel="Job card records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
-    {paged.totalCount > 0 && <div className="table-wrap manage-job-table"><table aria-label="Managed job cards"><thead><tr>{["Job Card", "Vehicle", "Customer", "Status", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{paged.items.map((row) => <tr key={row.job.id}><td>{row.job.job_no}</td><td>{row.vehicle.number} · {row.vehicle.make} {row.vehicle.model}</td><td>{row.customer.name}</td><td><Status status={row.job.main_status} sub={row.job.sub_status} /></td><td><RecordActions onView={() => setRecord({ id: row.job.id, mode: "view" })} onEdit={() => setRecord({ id: row.job.id, mode: "edit" })} /></td></tr>)}</tbody></table></div>}
+    {paged.totalCount > 0 && <div className="table-wrap manage-job-table"><table aria-label="Managed job cards"><thead><tr>{["Job Card", "Vehicle", "Customer", "Status", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{paged.items.map((row) => <tr key={row.job.id}><td>{row.job.job_no}</td><td>{row.vehicle.number} · {row.vehicle.make} {row.vehicle.model}</td><td>{row.customer.name}</td><td><Status status={row.job.main_status} sub={row.job.sub_status} /></td><td><RecordActions inGrid onView={() => setRecord({ id: row.job.id, mode: "view" })} onEdit={() => setRecord({ id: row.job.id, mode: "edit" })} /></td></tr>)}</tbody></table></div>}
     {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={() => { setSearch(""); setStatus("ALL"); setPage(1); }}>Clear filters</button></div>}
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
   </div>;
@@ -1737,12 +1955,21 @@ function JobEditor({ view, users, mutate, actor, embedded = false }: { view: Job
     advisor_notes: view.job.advisor_notes ?? "",
     customer_instructions: view.job.customer_instructions ?? "",
     internal_instructions: view.job.internal_instructions ?? "",
+    service_type: view.job.service_type ?? "",
+    pickup_drop: view.job.pickup_drop ?? "",
+    estimated_delivery: view.job.estimated_delivery ?? "",
+    fuel: view.visit.fuel ?? "",
+    accessories: view.visit.accessories ?? "",
+    engine_no: view.vehicle.engine_no ?? "",
+    address: view.customer.address ?? "",
   });
+  const [error, setError] = useState("");
   return (
     <>
       <form onSubmit={(event) => {
         event.preventDefault();
-        mutate((db) => updateJobCardForActor(db, view.job.id, actor.id, draft));
+        setError("");
+        mutate((db) => saveJobDetailsForActor(db, view.job.id, actor.id, draft), setError);
       }}>
         <div className="form-grid">
           <label>Advisor<select value={draft.advisor_id} onChange={(event) => setDraft({ ...draft, advisor_id: Number(event.target.value) })}>{users.filter((item) => item.role === "service").map((advisor) => <option key={advisor.id} value={advisor.id}>{advisor.name}</option>)}</select></label>
@@ -1754,10 +1981,22 @@ function JobEditor({ view, users, mutate, actor, embedded = false }: { view: Job
         <label>Customer Instructions<input value={draft.customer_instructions} onChange={(event) => setDraft({ ...draft, customer_instructions: event.target.value })} /></label>
         <label>Internal Instructions<input value={draft.internal_instructions} onChange={(event) => setDraft({ ...draft, internal_instructions: event.target.value })} /></label>
         <label>Advisor Notes<input value={draft.advisor_notes} onChange={(event) => setDraft({ ...draft, advisor_notes: event.target.value })} /></label>
-        <button className="primary-action">Save Job Card</button>
+        <h4>Job Sheet</h4>
+        <div className="form-grid">
+          <label>Service Type<select value={draft.service_type} onChange={(event) => setDraft({ ...draft, service_type: event.target.value })}><option value="">—</option>{SERVICE_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Pickup / Drop<select value={draft.pickup_drop} onChange={(event) => setDraft({ ...draft, pickup_drop: event.target.value })}><option value="">—</option>{PICKUP_DROP_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Estimated Delivery<input value={draft.estimated_delivery} onChange={(event) => setDraft({ ...draft, estimated_delivery: event.target.value })} /></label>
+          <label>Fuel<select value={draft.fuel} onChange={(event) => setDraft({ ...draft, fuel: event.target.value })}>{[...new Set([draft.fuel, ...FUEL_LEVELS])].filter(Boolean).map((item) => <option key={item}>{item}</option>)}</select></label>
+          <label>Accessories<input value={draft.accessories} onChange={(event) => setDraft({ ...draft, accessories: event.target.value })} /></label>
+          <label>Engine Number<input value={draft.engine_no} onChange={(event) => setDraft({ ...draft, engine_no: event.target.value })} /></label>
+        </div>
+        <label>Address<input value={draft.address} onChange={(event) => setDraft({ ...draft, address: event.target.value })} /></label>
+        {error && <p className="error-text" role="alert">{error}</p>}
+        <button className="primary-action">Save Job Details</button>
       </form>
+      {embedded && <JobLifecyclePanel view={view} users={users} actor={actor} mutate={mutate} visible />}
       {!embedded && <>
-        <JobLifecyclePanel view={view} users={users} actor={actor} mutate={mutate} />
+        <JobLifecyclePanel view={view} users={users} actor={actor} mutate={mutate} visible />
         <section className="editor-block job-card-documents" aria-label="Current job documents">
           <PanelTitle icon={<FileText />} title="Current Documents" subtitle="Only active records are available" />
           <JobDocuments view={view} actor={actor} mutate={mutate} />
@@ -1767,7 +2006,8 @@ function JobEditor({ view, users, mutate, actor, embedded = false }: { view: Job
   );
 }
 
-function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; users: User[]; actor: User; mutate: Mutate }) {
+function JobLifecyclePanel({ view, users, actor, mutate, visible = false }: { view: JobView; users: User[]; actor: User; mutate: Mutate; visible?: boolean }) {
+  if (!visible) return null;
   const [target, setTarget] = useState<MainStatus>();
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
@@ -1815,7 +2055,7 @@ function JobLifecyclePanel({ view, users, actor, mutate }: { view: JobView; user
     </ol>
     {terminal && <p className="permission-note">This job is {view.job.main_status} and read-only.</p>}
     {!terminal && !canMutate && allowed.length === 0 && <p className="permission-note">Read only. Lifecycle changes are limited to the Owner and the linked Service Advisor.</p>}
-    {target && <Dialog title={`${lifecycleActionLabel(view.job.main_status, target)}?`} subtitle={`${view.job.job_no}: ${view.job.main_status} → ${target}`} onClose={() => { setTarget(undefined); setError(""); }}><form onSubmit={confirm}><label>Confirmation note<textarea data-dialog-initial-focus aria-describedby="lifecycle-note-help" value={note} onChange={(event) => setNote(event.target.value)} /></label><p id="lifecycle-note-help" className="field-help">Required. This note is recorded in status history.</p>{error && <p className="error-text" role="alert">{error}</p>}<div className="action-row"><button className="primary-action">Confirm status change</button><button type="button" onClick={() => setTarget(undefined)}>Cancel</button></div></form></Dialog>}
+    {target && <Dialog title={`${lifecycleActionLabel(view.job.main_status, target)}?`} subtitle={`${view.job.job_no}: ${view.job.main_status} → ${target}`} onClose={() => { setTarget(undefined); setError(""); }} footer={<button className="primary-action" type="submit" form="lifecycle-confirm-form">Confirm status change</button>}><form id="lifecycle-confirm-form" onSubmit={confirm}><label>Confirmation note<textarea data-dialog-initial-focus aria-describedby="lifecycle-note-help" value={note} onChange={(event) => setNote(event.target.value)} /></label><p id="lifecycle-note-help" className="field-help">Required. This note is recorded in status history.</p>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>}
   </section>;
 }
 
@@ -1826,7 +2066,7 @@ function ApproveEstimateDialog({ view, actor, mutate, onClose }: { view: JobView
     event.preventDefault(); setError("");
     if (mutate((db) => approveEstimateForActor(db, view.job.id, actor.id, note), setError)) onClose();
   };
-  return <Dialog title="Approve Estimate?" subtitle={`${view.job.job_no} · Approval records the customer confirmation`} onClose={onClose}><form onSubmit={submit}><label>Approval note<textarea data-dialog-initial-focus value={note} onChange={(event) => setNote(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary-action" type="submit">Approve Estimate</button></div></form></Dialog>;
+  return <Dialog title="Approve Estimate?" subtitle={`${view.job.job_no} · Approval records the customer confirmation`} onClose={onClose} footer={<button className="primary-action" type="submit" form="approve-estimate-form">Approve Estimate</button>}><form id="approve-estimate-form" onSubmit={submit}><label>Approval note<textarea data-dialog-initial-focus value={note} onChange={(event) => setNote(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>;
 }
 
 function lifecycleActionLabel(from: MainStatus, to: MainStatus) {
@@ -1852,32 +2092,31 @@ function EstimateEditor({ view, mutate, actor }: { view: JobView; mutate: Mutate
       <PanelTitle icon={<ReceiptText />} title="Estimate" subtitle={view.estimate ? `${view.estimate.status} · ${view.estimate_items.length} items` : "Not created"} />
       {view.estimate_items.map((existing) => (
         <div className="row" key={existing.id}>
-          <strong>{existing.description}</strong><span>{existing.kind}</span><span>{money(existing.qty * existing.rate)}</span>
+          <strong>{existing.description}</strong><span>{existing.kind} · {existing.gst_type ?? (existing.gst_rate === 0 ? "No GST" : "CGST+SGST")} {existing.gst_rate ?? view.estimate?.gst_rate ?? 18}%</span><span>{money(existing.qty * existing.rate)}</span>
         </div>
       ))}
-      {view.estimate && <><Info label="Discount" value={money(view.estimate.discount)} /><Info label="GST" value={`${view.estimate.gst_rate}%`} /><Info label="Notes" value={view.estimate.approval_note || "—"} /><Info label="Total" value={money(invoiceItemsTotal(view.estimate_items, view.estimate))} /></>}
+      {view.estimate && <><Info label="Discount" value={money(view.estimate.discount)} /><Info label="Notes" value={view.estimate.approval_note || "—"} /><Info label="Total" value={money(invoiceItemsTotal(view.estimate_items, view.estimate))} /></>}
       {canMutate ? <button className="primary-action" onClick={() => setOpen(true)}>{view.estimate ? "Edit Estimate" : "Create Estimate"}</button> : <p className="permission-note">Read only. Estimate changes are limited to the Owner and the linked Service Advisor.</p>}
       {open && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setOpen(false)} />}
     </div>
   );
 }
 
-type EstimateDraftRow = { key: string; kind: "Service" | "Material"; description: string; qty: number; rate: number };
+type EstimateDraftRow = { key: string; kind: "Service" | "Material"; description: string; qty: number; rate: number; gst_type: GstType; gst_rate: number };
+const GST_RATE_OPTIONS = GST_RATES.map((rate) => ({ value: rate, label: `${rate}%` }));
 
 function EstimateDialog({ view, actor, mutate, onClose }: { view: JobView; actor: User; mutate: Mutate; onClose: () => void }) {
-  const [items, setItems] = useState<EstimateDraftRow[]>(view.estimate_items.map((item) => ({ key: `saved-${item.id}`, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate })));
+  const [items, setItems] = useState<EstimateDraftRow[]>(view.estimate_items.map((item) => ({ key: `saved-${item.id}`, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_type: item.gst_type ?? (item.gst_rate === 0 ? "No GST" : "CGST+SGST"), gst_rate: item.gst_rate ?? view.estimate?.gst_rate ?? 18 })));
   const [discount, setDiscount] = useState(view.estimate?.discount ?? 0);
-  const [gst, setGst] = useState(view.estimate?.gst_rate ?? 18);
   const [notes, setNotes] = useState(view.estimate?.approval_note ?? "");
   const [error, setError] = useState("");
-  const subtotal = items.reduce((sum, item) => sum + item.qty * item.rate, 0);
-  const total = Math.max(0, subtotal - discount) * (1 + gst / 100);
+  const totals = invoiceTotals(items, discount);
   const updateItem = (key: string, patch: Partial<EstimateDraftRow>) => setItems((rows) => rows.map((row) => row.key === key ? { ...row, ...patch } : row));
   const save = (event: FormEvent) => {
     event.preventDefault(); setError("");
-    if (mutate((db) => saveEstimateForActor(db, view.job.id, actor.id, { discount, gst_rate: gst, notes, items }), setError)) onClose();
+    if (mutate((db) => saveEstimateForActor(db, view.job.id, actor.id, { discount, gst_rate: view.estimate?.gst_rate ?? 18, notes, items }), setError)) onClose();
   };
-  return <Dialog wide title={`${view.estimate ? "Edit" : "Create"} Estimate`} subtitle={`${view.job.job_no} · Changes apply only when saved`} onClose={onClose}><form onSubmit={save} className="estimate-dialog-form"><div className="estimate-items"><div className="estimate-item estimate-item-heading"><span>Kind</span><span>Description</span><span>Quantity</span><span>Rate</span><span>Action</span></div>{items.map((item, index) => <div className="estimate-item" key={item.key}><select aria-label={`Item ${index + 1} kind`} value={item.kind} onChange={(event) => updateItem(item.key, { kind: event.target.value as EstimateDraftRow["kind"] })}><option>Service</option><option>Material</option></select><input data-dialog-initial-focus={index === 0 ? true : undefined} aria-label={`Item ${index + 1} description`} value={item.description} onChange={(event) => updateItem(item.key, { description: event.target.value })} /><input aria-label={`Item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} onChange={(event) => updateItem(item.key, { qty: Number(event.target.value) })} /><input aria-label={`Item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} onChange={(event) => updateItem(item.key, { rate: Number(event.target.value) })} /><button type="button" className="danger-action" aria-label={`Remove item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((row) => row.key !== item.key))}>Remove</button></div>)}</div><button type="button" className="add-line-item" onClick={() => setItems((rows) => [...rows, { key: `new-${Date.now()}-${rows.length}`, kind: "Service", description: "", qty: 1, rate: 0 }])}>+ Add Line Item</button><div className="form-grid"><label>Discount<input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} /></label><label>Overall GST %<input type="number" min="0" step="0.01" value={gst} onChange={(event) => setGst(Number(event.target.value))} /></label></div><label>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label><div className="estimate-total"><span>Subtotal {money(subtotal)}</span><strong>Total {money(total)}</strong></div>{error && <p className="error-text" role="alert">{error}</p>}<div className="action-row"><button className="primary-action">Save Estimate</button><button type="button" onClick={onClose}>Cancel</button></div></form></Dialog>;
+  return <Dialog wide title={`${view.estimate ? "Edit" : "Create"} Estimate`} subtitle={`${view.job.job_no} · Changes apply only when saved`} onClose={onClose} footer={<button className="primary-action" type="submit" form="estimate-dialog-form">Save Estimate</button>}><form id="estimate-dialog-form" onSubmit={save} className="estimate-dialog-form"><div className="estimate-items"><div className="line-items-header"><strong>Estimate items</strong><button type="button" className="add-line-item" onClick={() => setItems((rows) => [...rows, { key: `new-${Date.now()}-${rows.length}`, kind: "Service", description: "", qty: 1, rate: 0, gst_type: "CGST+SGST", gst_rate: 18 }])}>+ Add Item</button></div><div className="estimate-item estimate-item-heading"><span>Kind</span><span>Description</span><span>Quantity</span><span>Rate</span><span>GST type</span><span>GST rate</span><span>Action</span></div>{items.map((item, index) => <div className="estimate-item" key={item.key}><select aria-label={`Item ${index + 1} kind`} value={item.kind} onChange={(event) => updateItem(item.key, { kind: event.target.value as EstimateDraftRow["kind"] })}><option>Service</option><option>Material</option></select><input data-dialog-initial-focus={index === 0 ? true : undefined} aria-label={`Item ${index + 1} description`} value={item.description} onChange={(event) => updateItem(item.key, { description: event.target.value })} /><input aria-label={`Item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} onChange={(event) => updateItem(item.key, { qty: Number(event.target.value) })} /><input aria-label={`Item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} onChange={(event) => updateItem(item.key, { rate: Number(event.target.value) })} /><select aria-label={`Item ${index + 1} GST type`} value={item.gst_type} onChange={(event) => updateItem(item.key, { gst_type: event.target.value as GstType, ...(event.target.value === "No GST" ? { gst_rate: 0 } : { gst_rate: item.gst_rate || 18 }) })}><option>CGST+SGST</option><option>IGST</option><option>No GST</option></select>{item.gst_type === "No GST" ? <span className="gst-no-rate">0%</span> : <SearchSelect label={`Item ${index + 1} GST rate`} options={GST_RATE_OPTIONS} value={item.gst_rate} onChange={(value) => updateItem(item.key, { gst_rate: Number(value) })} placeholder="GST rate" />}<button type="button" className="link-action line-remove" aria-label={`Remove item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((row) => row.key !== item.key))}>Remove</button></div>)}</div><div className="form-grid"><label>Discount<input type="number" min="0" step="0.01" value={discount} onChange={(event) => setDiscount(Number(event.target.value))} /></label></div><label>Notes<textarea value={notes} onChange={(event) => setNotes(event.target.value)} /></label><div className="estimate-total"><span>Subtotal {money(totals.subtotal)}</span><span>GST {money(totals.gst)}</span><strong>Total {money(totals.total)}</strong></div>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>;
 }
 
 function FollowupEditor({ view, mutate }: { view: JobView; mutate: Mutate }) {
@@ -1912,7 +2151,9 @@ function JobMediaPanel({ view, actor, mutate, embedded = false }: { view: JobVie
   const [editing, setEditing] = useState<Photo>();
   const [archiveTarget, setArchiveTarget] = useState<Photo>();
   const [archiveReason, setArchiveReason] = useState("");
-  const canMutate = canMutateJobLifecycle(actor, view.job);
+  const categoryStatusAllowed = category === "Before Work" ? view.job.main_status === "NEW" : view.job.main_status === "IN_PROGRESS" || view.job.main_status === "COMPLETED";
+  const canMutate = canMutateJobLifecycle(actor, view.job) && categoryStatusAllowed;
+  const mediaLockMessage = category === "Before Work" ? "Before Photos are locked after the job leaves NEW." : view.job.main_status === "HOLD" || view.job.main_status === "CLOSED" || view.job.main_status === "CANCELLED" ? "After Photos are locked while this job is on hold, closed, or cancelled." : "After Photos can be added or changed only while the job is IN_PROGRESS or COMPLETED.";
   const rows = view.photos.filter((photo) => photo.category === category && photo.src);
   const chooseFile = async (file?: File) => {
     setPrepared(undefined);
@@ -1955,7 +2196,7 @@ function JobMediaPanel({ view, actor, mutate, embedded = false }: { view: JobVie
       {prepared && <p className="media-ready" aria-live="polite">Ready: {prepared.width} × {prepared.height} · {Math.ceil(prepared.byteSize / 1024)} KB</p>}
       {error && <p className="error-text" role="alert">{error}</p>}
       <button className="primary-action" disabled={busy}>{busy ? "Compressing…" : `Upload to ${category}`}</button>
-    </form> : <p className="permission-note">Read only. Media changes are limited to the Owner and the linked Service Advisor.</p>}
+    </form> : <p className="permission-note">{canMutateJobLifecycle(actor, view.job) ? mediaLockMessage : "Read only. Media changes are limited to the Owner and the linked Service Advisor."}</p>}
     {rows.length ? <div className="job-media-gallery" data-testid="job-media-gallery">
       {rows.map((photo) => <article className="job-media-card" key={photo.id}>
         <img src={photo.src} alt={photo.label} />
@@ -1964,7 +2205,7 @@ function JobMediaPanel({ view, actor, mutate, embedded = false }: { view: JobVie
       </article>)}
     </div> : <p className="empty-state">No {category.toLocaleLowerCase()} images yet.</p>}
     {editing && <MediaMetadataDialog photo={editing} actor={actor} mutate={mutate} onClose={() => setEditing(undefined)} />}
-    {archiveTarget && <Dialog title="Archive photo?" subtitle={archiveTarget.label} onClose={() => setArchiveTarget(undefined)}><form onSubmit={(event) => { event.preventDefault(); setError(""); if (mutate((db) => archiveJobPhotoForActor(db, archiveTarget.id, actor.id, archiveReason), setError)) setArchiveTarget(undefined); }}><label>Archive reason<textarea data-dialog-initial-focus required value={archiveReason} onChange={(event) => setArchiveReason(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" onClick={() => setArchiveTarget(undefined)}>Cancel</button><button className="danger-action">Archive photo</button></div></form></Dialog>}
+    {archiveTarget && <Dialog title="Archive photo?" subtitle={archiveTarget.label} onClose={() => setArchiveTarget(undefined)} footer={<button className="danger-action" type="submit" form="archive-photo-form">Archive photo</button>}><form id="archive-photo-form" onSubmit={(event) => { event.preventDefault(); setError(""); if (mutate((db) => archiveJobPhotoForActor(db, archiveTarget.id, actor.id, archiveReason), setError)) setArchiveTarget(undefined); }}><label>Archive reason<textarea data-dialog-initial-focus required value={archiveReason} onChange={(event) => setArchiveReason(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>}
     </div>
   </section>;
 }
@@ -1973,34 +2214,65 @@ function MediaMetadataDialog({ photo, actor, mutate, onClose }: { photo: Photo; 
   const [label, setLabel] = useState(photo.label);
   const [category, setCategory] = useState<JobMediaCategory>(photo.category === "After Work" ? "After Work" : "Before Work");
   const [error, setError] = useState("");
-  return <Dialog title="Edit photo metadata" subtitle={photo.original_name || photo.label} onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); if (mutate((db) => updateJobPhotoForActor(db, photo.id, actor.id, { label, category }), setError)) onClose(); }}><label>Photo label<input data-dialog-initial-focus value={label} onChange={(event) => setLabel(event.target.value)} /></label><label>Work phase<select value={category} onChange={(event) => setCategory(event.target.value as JobMediaCategory)}><option>Before Work</option><option>After Work</option></select></label>{error && <p className="error-text" role="alert">{error}</p>}<div className="dialog-actions"><button type="button" onClick={onClose}>Cancel</button><button className="primary-action">Save metadata</button></div></form></Dialog>;
+  return <Dialog title="Edit photo metadata" subtitle={photo.original_name || photo.label} onClose={onClose} footer={<button className="primary-action" type="submit" form="media-metadata-form">Save metadata</button>}><form id="media-metadata-form" onSubmit={(event) => { event.preventDefault(); if (mutate((db) => updateJobPhotoForActor(db, photo.id, actor.id, { label, category }), setError)) onClose(); }}><label>Photo label<input data-dialog-initial-focus value={label} onChange={(event) => setLabel(event.target.value)} /></label><label>Work phase<select value={category} onChange={(event) => setCategory(event.target.value as JobMediaCategory)}><option>Before Work</option><option>After Work</option></select></label>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>;
 }
 
-function MaterialRequestEditor({ state, mutate, embedded = false }: { state: WorkshopState; mutate: Mutate; embedded?: boolean }) {
-  const [draft, setDraft] = useState<MaterialRequest>({ id: 0, job_card_id: state.jobs[0]?.job.id ?? 0, item_id: state.inventory[0]?.id ?? 0, requested_qty: 1, issued_qty: 0, used_qty: 0, returned_qty: 0, wasted_qty: 0 });
+function MaterialRequestEditor({ state, mutate, embedded = false, store = false }: { state: WorkshopState; mutate: Mutate; embedded?: boolean; store?: boolean }) {
+  const emptyRequest = (): MaterialRequest => ({ id: 0, job_card_id: store ? 0 : state.jobs[0]?.job.id ?? 0, item_id: state.inventory[0]?.id ?? 0, requested_qty: 1, issued_qty: 0, used_qty: 0, returned_qty: 0, wasted_qty: 0 });
+  const emptyPurchase = (): LocalPurchase => ({ id: 0, job_card_id: 0, item_description: "", quantity: 1, unit: "piece", unit_cost: 0, vendor: "", bill_reference: "", note: "" });
+  const [source, setSource] = useState<"inventory" | "local">("inventory");
+  const [draft, setDraft] = useState<MaterialRequest>(emptyRequest);
+  const [purchase, setPurchase] = useState<LocalPurchase>(emptyPurchase);
+  const [period, setPeriod] = useState<JobPeriod>(todayJobPeriod);
+  const [error, setError] = useState("");
   const requests = state.jobs.flatMap((view) => view.material_requests.map((request) => ({ ...request, job_card_id: view.job.id })));
-  return (
-    <form className={embedded ? "" : "desk-panel"} onSubmit={(event) => {
-      event.preventDefault();
-      mutate((db) => (draft.id ? updateMaterialRequest(db, draft.id, draft) : createMaterialRequest(db, draft)));
-    }}>
-      {!embedded && <PanelTitle icon={<PackageCheck />} title="Request Form" subtitle="Job-linked material request" />}
-      <select value={draft.id} onChange={(event) => setDraft(requests.find((item) => item.id === Number(event.target.value)) ?? { ...draft, id: 0 })}><option value={0}>New request</option>{requests.map((request) => <option key={request.id} value={request.id}>Request #{request.id}</option>)}</select>
-      <label>Job<select value={draft.job_card_id} onChange={(event) => setDraft({ ...draft, job_card_id: Number(event.target.value) })}>{state.jobs.map((job) => <option key={job.job.id} value={job.job.id}>{job.job.job_no}</option>)}</select></label>
+  const purchases = state.jobs.flatMap((view) => view.local_purchases);
+  const current = source === "inventory" ? draft : purchase;
+  const setJob = (id?: number) => source === "inventory" ? setDraft({ ...draft, job_card_id: id ?? 0 }) : setPurchase({ ...purchase, job_card_id: id ?? 0 });
+  const setPeriodForJob = (jobId: number) => {
+    const received = state.jobs.find((view) => view.job.id === jobId)?.visit.received_at;
+    if (!received) return;
+    const date = received.slice(0, 10);
+    setPeriod({ date, month: date.slice(5, 7), year: date.slice(0, 4) });
+  };
+  const selectRequest = (id: number) => {
+    const next = requests.find((item) => item.id === id);
+    setDraft(next ?? emptyRequest());
+    if (next) setPeriodForJob(next.job_card_id);
+  };
+  const selectPurchase = (id: number) => {
+    const next = purchases.find((item) => item.id === id);
+    setPurchase(next ?? emptyPurchase());
+    if (next) setPeriodForJob(next.job_card_id);
+  };
+  const save = () => {
+    setError("");
+    if (!current.job_card_id) { setError("Choose a matching job before saving."); return; }
+    if (source === "inventory") {
+      if (mutate((db) => (draft.id ? updateMaterialRequest(db, draft.id, draft) : createMaterialRequest(db, draft)), setError) && !draft.id) setDraft(emptyRequest());
+    } else if (mutate((db) => (purchase.id ? updateLocalPurchase(db, purchase.id, purchase) : createLocalPurchase(db, purchase)), setError) && !purchase.id) setPurchase(emptyPurchase());
+  };
+  return <form className={embedded ? "" : "desk-panel"} onSubmit={(event) => { event.preventDefault(); save(); }}>
+    {!embedded && <PanelTitle icon={<PackageCheck />} title="Request Form" subtitle={store ? "Inventory request or tracking-only local purchase" : "Job-linked material request"} />}
+    {store && <fieldset className="source-toggle"><legend>Source</legend><label><input type="radio" checked={source === "inventory"} onChange={() => { setSource("inventory"); setError(""); }} />Inventory</label><label><input type="radio" checked={source === "local"} onChange={() => { setSource("local"); setError(""); }} />Local purchase</label></fieldset>}
+    {source === "inventory" ? <><label>Request<select value={draft.id} onChange={(event) => selectRequest(Number(event.target.value))}><option value={0}>New request</option>{requests.map((request) => <option key={request.id} value={request.id}>Request #{request.id}</option>)}</select></label>
+      {store ? <JobPicker jobs={state.jobs} selectedJobId={draft.job_card_id || undefined} onSelect={setJob} label="Material request job" period={period} onPeriodChange={setPeriod} /> : <label>Job<select value={draft.job_card_id} onChange={(event) => setDraft({ ...draft, job_card_id: Number(event.target.value) })}>{state.jobs.map((job) => <option key={job.job.id} value={job.job.id}>{job.job.job_no}</option>)}</select></label>}
       <label>Item<select value={draft.item_id} onChange={(event) => setDraft({ ...draft, item_id: Number(event.target.value) })}>{state.inventory.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>Requested Qty<input type="number" value={draft.requested_qty} onChange={(event) => setDraft({ ...draft, requested_qty: Number(event.target.value) })} /></label>
-      <div className="action-row">
-        <button className="primary-action">Save Request</button>
-        {draft.id > 0 && <button type="button" className="danger-action" onClick={() => mutate((db) => archiveMaterialRequest(db, draft.id, "Archived material request"))}>Archive</button>}
-      </div>
-    </form>
-  );
+      <label>Requested Qty<input type="number" min="0.01" step="0.01" value={draft.requested_qty} onChange={(event) => setDraft({ ...draft, requested_qty: Number(event.target.value) })} /></label>
+    </> : <><label>Local purchase<select value={purchase.id} onChange={(event) => selectPurchase(Number(event.target.value))}><option value={0}>New local purchase</option>{purchases.map((item) => <option key={item.id} value={item.id}>{item.item_description} · {item.bill_reference}</option>)}</select></label>
+      <JobPicker jobs={state.jobs} selectedJobId={purchase.job_card_id || undefined} onSelect={setJob} label="Local purchase job" period={period} onPeriodChange={setPeriod} />
+      <div className="form-grid"><label>Item description<input required value={purchase.item_description} onChange={(event) => setPurchase({ ...purchase, item_description: event.target.value })} /></label><label>Quantity<input required type="number" min="0.01" step="0.01" value={purchase.quantity} onChange={(event) => setPurchase({ ...purchase, quantity: Number(event.target.value) })} /></label><label>Unit<input required value={purchase.unit} onChange={(event) => setPurchase({ ...purchase, unit: event.target.value })} /></label><label>Unit cost<input required type="number" min="0" step="0.01" value={purchase.unit_cost} onChange={(event) => setPurchase({ ...purchase, unit_cost: Number(event.target.value) })} /></label><label>Vendor / shop<input required value={purchase.vendor} onChange={(event) => setPurchase({ ...purchase, vendor: event.target.value })} /></label><label>Bill / reference<input required value={purchase.bill_reference} onChange={(event) => setPurchase({ ...purchase, bill_reference: event.target.value })} /></label></div>
+      <label>Note (optional)<textarea value={purchase.note ?? ""} onChange={(event) => setPurchase({ ...purchase, note: event.target.value })} /></label>
+    </>}
+    {error && <p className="error-text" role="alert">{error}</p>}
+    <div className="action-row"><button className="primary-action">{source === "local" ? "Save Local Purchase" : "Save Request"}</button>{source === "inventory" && draft.id > 0 && <button type="button" className="danger-action" onClick={() => mutate((db) => archiveMaterialRequest(db, draft.id, "Archived material request"), setError)}>Archive</button>}{source === "local" && purchase.id > 0 && <button type="button" className="danger-action" onClick={() => mutate((db) => archiveLocalPurchase(db, purchase.id, "Archived local purchase"), setError)}>Archive</button>}</div>
+  </form>;
 }
 
 function IssueMaterialEditor({ requests, mutate }: { requests: { view: JobView; request: MaterialRequest; item?: InventoryItem }[]; mutate: Mutate }) {
   const [requestId, setRequestId] = useState(requests[0]?.request.id ?? 0);
   const [qty, setQty] = useState(1);
-  return <form className="desk-panel" onSubmit={(event) => { event.preventDefault(); mutate((db) => issueMaterialQty(db, requestId, qty)); }}><PanelTitle icon={<Package />} title="Issue Quantity" subtitle="Validated against stock" /><select value={requestId} onChange={(event) => setRequestId(Number(event.target.value))}>{requests.map(({ view, request, item }) => <option key={request.id} value={request.id}>{view.job.job_no} / {item?.name}</option>)}</select><label>Issue Qty<input type="number" value={qty} onChange={(event) => setQty(Number(event.target.value))} /></label><button className="primary-action">Issue Material</button></form>;
+  return <form className="desk-panel" onSubmit={(event) => { event.preventDefault(); mutate((db) => issueMaterialQty(db, requestId, qty)); }}><PanelTitle icon={<Package />} title="Release to Job" subtitle="Validated against stock" /><select value={requestId} onChange={(event) => setRequestId(Number(event.target.value))}>{requests.map(({ view, request, item }) => <option key={request.id} value={request.id}>{view.job.job_no} / {item?.name}</option>)}</select><label>Qty<input type="number" value={qty} onChange={(event) => setQty(Number(event.target.value))} /></label><button className="primary-action">Release to Job</button></form>;
 }
 
 function ReconcileEditor({ requests, mutate }: { requests: { view: JobView; request: MaterialRequest; item?: InventoryItem }[]; mutate: Mutate }) {
@@ -2014,16 +2286,87 @@ function ReconcileEditor({ requests, mutate }: { requests: { view: JobView; requ
   return <form className="desk-panel" onSubmit={(event) => { event.preventDefault(); mutate((db) => reconcileMaterialQty(db, requestId, used, returned, wasted)); }}><PanelTitle icon={<Check />} title="Reconcile Material" subtitle={`Variance ${variance}`} /><select value={requestId} onChange={(event) => setRequestId(Number(event.target.value))}>{requests.map(({ view, request: item, item: stock }) => <option key={item.id} value={item.id}>{view.job.job_no} / {stock?.name}</option>)}</select><div className="form-grid"><label>Used<input type="number" value={used} onChange={(event) => setUsed(Number(event.target.value))} /></label><label>Returned<input type="number" value={returned} onChange={(event) => setReturned(Number(event.target.value))} /></label><label>Wasted<input type="number" value={wasted} onChange={(event) => setWasted(Number(event.target.value))} /></label></div><button className="primary-action">Save Reconciliation</button></form>;
 }
 
+const emptyInventoryItem = (): InventoryItem => ({ id: 0, sku: "", category: "", name: "", unit: "piece", stock_qty: 0, low_stock_qty: 0, selling_price: 0 });
+
+function QuickAddStock({ inventory, mutate }: { inventory: InventoryItem[]; mutate: Mutate }) {
+  const [addingNew, setAddingNew] = useState(false);
+  const [selectedId, setSelectedId] = useState<number>(inventory[0]?.id ?? 0);
+  const [inwardQty, setInwardQty] = useState(1);
+  const [draft, setDraft] = useState<InventoryItem>(emptyInventoryItem);
+  const selected = inventory.find((item) => item.id === selectedId);
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    const saved = mutate((db) => addingNew
+      ? (() => { const id = createInventoryItem(db, { ...draft, stock_qty: 0 }); if (inwardQty > 0) stockIn(db, id, inwardQty, "Initial inward"); })()
+      : stockIn(db, selectedId, inwardQty, "Quick inward"));
+    if (saved) {
+      setInwardQty(1);
+      if (addingNew) { setAddingNew(false); setDraft(emptyInventoryItem()); }
+    }
+  };
+  return <form className="desk-panel quick-add-stock" onSubmit={submit}>
+    <PanelTitle icon={<Plus />} title="Quick Add Stock" subtitle={addingNew ? "Create a new SKU and record its opening inward" : "Record an inward against an existing SKU"} />
+    {!addingNew ? <>
+      <SearchSelect label="Existing SKU" options={inventory.map((item) => ({ value: item.id, label: `${item.sku} · ${item.name}` }))} value={selectedId || undefined} onChange={(value) => setSelectedId(Number(value))} placeholder="Search SKU or material" />
+      {selected && <p className="quick-add-selected">{selected.name} · {selected.stock_qty} {selected.unit} on hand</p>}
+      <label>Inward quantity<input aria-label="Inward quantity" type="number" min="0.01" step="0.01" required value={inwardQty} onChange={(event) => setInwardQty(Number(event.target.value))} /></label>
+      <div className="quick-add-actions"><button type="button" className="link-action" onClick={() => setAddingNew(true)}>Add new SKU</button><button className="primary-action" disabled={!selectedId}>Record Inward</button></div>
+    </> : <>
+      <div className="form-grid">
+        <label>SKU<input aria-label="New SKU" required value={draft.sku} onChange={(event) => setDraft({ ...draft, sku: event.target.value })} /></label>
+        <label>Material name<input aria-label="New material name" required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+        <label>Category<input aria-label="New SKU category" required value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
+        <label>Unit<input aria-label="New SKU unit" required value={draft.unit} onChange={(event) => setDraft({ ...draft, unit: event.target.value })} /></label>
+        <label>Low-stock threshold<input aria-label="New SKU low-stock threshold" type="number" min="0" step="0.01" required value={draft.low_stock_qty} onChange={(event) => setDraft({ ...draft, low_stock_qty: Number(event.target.value) })} /></label>
+        <label>Default selling price (₹)<input aria-label="New SKU selling price" type="number" min="0" step="0.01" required value={draft.selling_price} onChange={(event) => setDraft({ ...draft, selling_price: Number(event.target.value) })} /></label>
+        <label>Initial inward quantity<input aria-label="Initial inward quantity" type="number" min="0" step="0.01" required value={inwardQty} onChange={(event) => setInwardQty(Number(event.target.value))} /></label>
+      </div>
+      <div className="quick-add-actions"><button type="button" className="link-action" onClick={() => setAddingNew(false)}>Choose existing SKU</button><button className="primary-action">Create SKU &amp; Record Inward</button></div>
+    </>}
+  </form>;
+}
+
+function EditStockDetailsDialog({ item, mutate, onClose }: { item: InventoryItem; mutate: Mutate; onClose: () => void }) {
+  const [draft, setDraft] = useState(item);
+  const [confirmingArchive, setConfirmingArchive] = useState(false);
+  const save = (event: FormEvent) => {
+    event.preventDefault();
+    if (mutate((db) => updateInventoryItem(db, item.id, draft))) onClose();
+  };
+  const archive = () => {
+    if (!confirmingArchive) { setConfirmingArchive(true); return; }
+    if (mutate((db) => archiveInventoryItem(db, item.id, "Archived from stock details"))) onClose();
+  };
+  return <Dialog title="Edit stock details" subtitle={`${item.sku} · ${item.stock_qty} ${item.unit} on hand`} onClose={onClose} footer={<><button type="button" className="danger-action" onClick={archive}>{confirmingArchive ? "Confirm archive" : "Archive"}</button><button className="primary-action" type="submit" form="edit-stock-details">Save changes</button></>}>
+    <form id="edit-stock-details" className="stock-edit-form" onSubmit={save}>
+      <p className="muted">Stock quantity is changed only by an inward or stock movement.</p>
+      <div className="form-grid">
+        <label>SKU<input data-dialog-initial-focus aria-label="Edit SKU" required value={draft.sku} onChange={(event) => setDraft({ ...draft, sku: event.target.value })} /></label>
+        <label>Material name<input aria-label="Edit material name" required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label>
+        <label>Category<input aria-label="Edit category" required value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
+        <label>Unit<input aria-label="Edit unit" required value={draft.unit} onChange={(event) => setDraft({ ...draft, unit: event.target.value })} /></label>
+        <label>Low-stock threshold<input aria-label="Edit low-stock threshold" type="number" min="0" step="0.01" required value={draft.low_stock_qty} onChange={(event) => setDraft({ ...draft, low_stock_qty: Number(event.target.value) })} /></label>
+        <label>Default selling price (₹)<input aria-label="Edit selling price" type="number" min="0" step="0.01" required value={draft.selling_price} onChange={(event) => setDraft({ ...draft, selling_price: Number(event.target.value) })} /></label>
+      </div>
+      {confirmingArchive && <p className="error-text" role="alert">Archive this SKU? It will no longer be available for new material requests.</p>}
+    </form>
+  </Dialog>;
+}
+
 function InventoryEditor({ state, mutate, embedded = false }: { state: WorkshopState; mutate: Mutate; embedded?: boolean }) {
-  const [draft, setDraft] = useState<InventoryItem>(state.inventory[0] ?? { id: 0, sku: "", category: "", name: "", unit: "", stock_qty: 0, low_stock_qty: 0 });
+  const [draft, setDraft] = useState<InventoryItem>(state.inventory[0] ?? emptyInventoryItem());
   const [movementQty, setMovementQty] = useState(1);
+  const purchaseHistory = state.inward_purchase_lines
+    .filter((line) => line.item_id === draft.id)
+    .map((line) => ({ line, purchase: state.inward_purchases.find((purchase) => purchase.id === line.purchase_id) }))
+    .filter((row): row is { line: typeof row.line; purchase: InwardPurchase } => Boolean(row.purchase));
   return (
     <form className={embedded ? "" : "desk-panel"} onSubmit={(event) => {
       event.preventDefault();
       mutate((db) => (draft.id ? updateInventoryItem(db, draft.id, draft) : createInventoryItem(db, draft)));
     }}>
       {!embedded && <PanelTitle icon={<Boxes />} title="Stock Form" subtitle="Master, stock-in and adjustment" />}
-      <select value={draft.id} onChange={(event) => setDraft(state.inventory.find((item) => item.id === Number(event.target.value)) ?? { id: 0, sku: "", category: "", name: "", unit: "piece", stock_qty: 0, low_stock_qty: 0 })}><option value={0}>New item</option>{state.inventory.map((item) => <option key={item.id} value={item.id}>{item.sku}</option>)}</select>
+      <select value={draft.id} onChange={(event) => setDraft(state.inventory.find((item) => item.id === Number(event.target.value)) ?? emptyInventoryItem())}><option value={0}>New item</option>{state.inventory.map((item) => <option key={item.id} value={item.id}>{item.sku}</option>)}</select>
       <div className="form-grid">
         <label>SKU<input value={draft.sku} onChange={(event) => setDraft({ ...draft, sku: event.target.value })} /></label>
         <label>Category<input value={draft.category} onChange={(event) => setDraft({ ...draft, category: event.target.value })} /></label>
@@ -2031,6 +2374,7 @@ function InventoryEditor({ state, mutate, embedded = false }: { state: WorkshopS
         <label>Unit<input value={draft.unit} onChange={(event) => setDraft({ ...draft, unit: event.target.value })} /></label>
         <label>Stock<input type="number" value={draft.stock_qty} onChange={(event) => setDraft({ ...draft, stock_qty: Number(event.target.value) })} /></label>
         <label>Low Stock<input type="number" value={draft.low_stock_qty} onChange={(event) => setDraft({ ...draft, low_stock_qty: Number(event.target.value) })} /></label>
+        <label>Selling Price<input type="number" min="0" step="0.01" value={draft.selling_price} onChange={(event) => setDraft({ ...draft, selling_price: Number(event.target.value) })} /></label>
       </div>
       <label>Movement Qty<input type="number" value={movementQty} onChange={(event) => setMovementQty(Number(event.target.value))} /></label>
       <div className="action-row">
@@ -2039,6 +2383,7 @@ function InventoryEditor({ state, mutate, embedded = false }: { state: WorkshopS
         {draft.id > 0 && <button type="button" onClick={() => mutate((db) => adjustStock(db, draft.id, movementQty, "Manual adjustment"))}>Set Stock</button>}
         {draft.id > 0 && <button type="button" className="danger-action" onClick={() => mutate((db) => archiveInventoryItem(db, draft.id, "Archived inventory item"))}>Archive</button>}
       </div>
+      {draft.id > 0 && <section className="local-purchase-records" aria-label="Item purchase history"><h4>Item purchase history</h4>{purchaseHistory.length === 0 ? <p className="empty-state">No inward purchase receipts for this item.</p> : <ul className="material-rows">{purchaseHistory.map(({ line, purchase }) => <li key={line.id} className="material-row"><div className="material-row-main"><strong>{purchase.invoice_date} · {state.suppliers.find((supplier) => supplier.id === purchase.supplier_id)?.name ?? "Archived supplier"}</strong><span>{line.received_qty} {draft.unit} · {money(line.unit_cost)} pre-GST · GST {line.gst_rate}%</span><small>Invoice {purchase.supplier_invoice_no} · {purchase.po_number ? `PO ${purchase.po_number} · ` : ""}{purchase.status}</small></div></li>)}</ul>}</section>}
     </form>
   );
 }
@@ -2268,7 +2613,7 @@ function AddJobCardDialog({ state, mutate, actor, onClose }: { state: WorkshopSt
     const fuel = form.fuelLevelUnit === "Other" ? form.fuelLevelValue : `${form.fuelLevelValue} ${form.fuelLevelUnit}`;
     if (mutate((db) => receiveVehicle(db, { customerId: customer.id, vehicleId: vehicle.id, customerName: customer.name, mobile: customer.mobile, customerType: customer.type, vehicleNo: vehicle.number, make: vehicle.make, model: vehicle.model, color: vehicle.color, km: odoReading, odoReading, fuel, fuelLevelValue: form.fuelLevelValue, fuelLevelUnit: form.fuelLevelUnit, keys: form.keys, accessories: form.accessories, requestedWork: form.requestedWork, advisorId, receptionId: actor.id }), setError)) onClose();
   };
-  return <Dialog wide title="Add Job Card" subtitle="Check in a vehicle with its ODO and fuel or battery level" onClose={onClose} footer={<div className="dialog-footer-actions"><button type="button" className="back-action" onClick={onClose}>Go back</button><button form="add-job-card-form" className="primary-action">Create Job Card</button></div>}>
+  return <Dialog wide title="Add Job Card" subtitle="Check in a vehicle with its ODO and fuel or battery level" onClose={onClose} footer={<button form="add-job-card-form" className="primary-action">Create Job Card</button>}>
     <form id="add-job-card-form" onSubmit={submit}>
       <div className="form-grid">
         <div className="field-with-action"><SearchSelect label="Customer" options={state.customers.map((item) => ({ value: item.id, label: `${item.name} / ${item.mobile}` }))} value={customerId || undefined} onChange={(value) => { setCustomerId(Number(value)); setVehicleId(0); }} placeholder="Search customer or mobile" /><button type="button" className="link-action" onClick={() => setQuickAdd("customer")}>+ Add new customer</button></div>
@@ -2307,8 +2652,7 @@ function JobRecordDialog({ view, state, mutate, actor, mode, onClose, onAdminArc
     if (onAdminArchive()) onClose();
   };
   const panelId = `job-record-${view.job.id}-${tab}`;
-  const dialogFooter = <div className="dialog-footer-actions"><button type="button" onClick={onClose}>Close</button></div>;
-  return <Dialog wide className="dialog-job" title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose} footer={dialogFooter}>{mode === "edit" && <JobLifecyclePanel view={view} users={state.users} actor={actor} mutate={mutate} />}<div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{JOB_CARD_TABS.map((item) => <button id={`job-record-tab-${view.job.id}-${item.key}`} aria-controls={`job-record-${view.job.id}-${item.key}`} tabIndex={tab === item.key ? 0 : -1} key={item.key} role="tab" aria-selected={tab === item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <section className="editor-block job-card-documents" aria-label="Current job documents"><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section> : tab === "bodymark" ? <JobBodyMarkPanel view={view} actor={actor} mutate={mutate} editable={mode === "edit"} /> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : tab === "materials" ? <JobMaterialsPanel view={view} inventory={state.inventory} actor={actor} mutate={mutate} /> : tab === "payment" ? <JobPaymentPanel view={view} actor={actor} mutate={mutate} /> : tab === "invoice" ? <JobInvoicePanel view={view} actor={actor} mutate={mutate} onOpen={() => setDocumentEditor("invoice")} onEstimate={() => setDocumentEditor("approve-estimate")} /> : isStubTab(tab) ? <p className="empty-state job-card-stub">{JOB_CARD_TABS.find((item) => item.key === tab)?.label} is coming soon.</p> : mode === "edit" ? <><JobEditor embedded key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} /><JobSheetSection key={`sheet-${view.job.updated_at}`} view={view} actor={actor} mutate={mutate} editable />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobSheetSection view={view} actor={actor} mutate={mutate} /></div>}{tab === "details" && <section className="editor-block job-card-documents job-documents-block" aria-label="Current job documents"><h4>Current Documents</h4><p className="muted">Only active records are available</p><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section>}</div>{tab !== "documents" && tab !== "details" && documentEditor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && tab !== "details" && documentEditor === "approve-estimate" && <ApproveEstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && tab !== "details" && documentEditor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}</Dialog>;
+  return <Dialog wide className="dialog-job" title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose}>{mode === "edit" && <JobLifecyclePanel view={view} users={state.users} actor={actor} mutate={mutate} />}<div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{JOB_CARD_TABS.map((item) => <button id={`job-record-tab-${view.job.id}-${item.key}`} aria-controls={`job-record-${view.job.id}-${item.key}`} tabIndex={tab === item.key ? 0 : -1} key={item.key} role="tab" aria-selected={tab === item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <section className="editor-block job-card-documents" aria-label="Current job documents"><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section> : tab === "bodymark" ? <JobBodyMarkPanel view={view} actor={actor} mutate={mutate} editable={mode === "edit"} /> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : tab === "materials" ? <JobMaterialsPanel view={view} inventory={state.inventory} actor={actor} mutate={mutate} /> : tab === "payment" ? <JobPaymentPanel view={view} actor={actor} mutate={mutate} /> : tab === "invoice" ? <JobInvoicePanel view={view} actor={actor} mutate={mutate} onOpen={() => setDocumentEditor("invoice")} onEstimate={() => setDocumentEditor("approve-estimate")} /> : isStubTab(tab) ? <p className="empty-state job-card-stub">{JOB_CARD_TABS.find((item) => item.key === tab)?.label} is coming soon.</p> : mode === "edit" ? <><JobEditor embedded key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} /><JobSheetSection key={`sheet-${view.job.updated_at}`} view={view} actor={actor} mutate={mutate} editable />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobSheetSection view={view} actor={actor} mutate={mutate} /></div>}{tab === "details" && <section className="editor-block job-card-documents job-documents-block" aria-label="Current job documents"><h4>Current Documents</h4><p className="muted">Only active records are available</p><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section>}</div>{tab !== "documents" && tab !== "details" && documentEditor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && tab !== "details" && documentEditor === "approve-estimate" && <ApproveEstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && tab !== "details" && documentEditor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}</Dialog>;
 }
 
 function CustomerRecordDialog({ customer, state, mutate, mode, onClose }: { customer: Customer; state: WorkshopState; mutate: Mutate; mode: "view" | "edit"; onClose: () => void }) {
@@ -2477,7 +2821,7 @@ function DuplicateLinkedRecords({ view }: { view: JobView }) {
 }
 
 function DuplicateInventoryEditor({ state, mutate }: { state: WorkshopState; mutate: Mutate }) {
-  const first = state.inventory[0] ?? { id: 0, sku: "SKU", category: "General", name: "New Item", unit: "unit", stock_qty: 0, low_stock_qty: 0 };
+  const first = state.inventory[0] ?? { ...emptyInventoryItem(), sku: "SKU", category: "General", name: "New Item", unit: "unit" };
   const [item, setItem] = useState<InventoryItem>(first);
   const [qty, setQty] = useState(1);
   return (
@@ -2490,7 +2834,7 @@ function DuplicateInventoryEditor({ state, mutate }: { state: WorkshopState; mut
         <button onClick={() => mutate((db) => updateInventoryItem(db, item.id, item))}>Save Item</button>
         <button onClick={() => mutate((db) => stockIn(db, item.id, qty, "Manual stock-in"))}>Stock In</button>
         <button onClick={() => mutate((db) => adjustStock(db, item.id, qty, "Manual adjustment"))}>Adjust</button>
-        <button onClick={() => mutate((db) => createInventoryItem(db, { sku: `${item.sku}-NEW`, category: item.category, name: item.name, unit: item.unit, stock_qty: qty, low_stock_qty: item.low_stock_qty }))}>Duplicate New</button>
+        <button onClick={() => mutate((db) => createInventoryItem(db, { sku: `${item.sku}-NEW`, category: item.category, name: item.name, unit: item.unit, stock_qty: qty, low_stock_qty: item.low_stock_qty, selling_price: item.selling_price }))}>Duplicate New</button>
         <button className="danger-action" onClick={() => mutate((db) => archiveInventoryItem(db, item.id, "Archived from stock desk"))}>Archive</button>
       </div>
     </div>
@@ -2498,18 +2842,7 @@ function DuplicateInventoryEditor({ state, mutate }: { state: WorkshopState; mut
 }
 
 function DuplicateMaterialRequestEditor({ state, mutate }: { state: WorkshopState; mutate: Mutate }) {
-  const [jobId, setJobId] = useState(state.jobs[0]?.job.id ?? 0);
-  const [itemId, setItemId] = useState(state.inventory[0]?.id ?? 0);
-  const [qty, setQty] = useState(1);
-  return (
-    <div className="desk-panel">
-      <PanelTitle icon={<PackageCheck />} title="Request Editor" subtitle="Create a job-linked material request" />
-      <label>Job<select value={jobId} onChange={(event) => setJobId(Number(event.target.value))}>{state.jobs.map((view) => <option key={view.job.id} value={view.job.id}>{view.job.job_no}</option>)}</select></label>
-      <label>Item<select value={itemId} onChange={(event) => setItemId(Number(event.target.value))}>{state.inventory.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-      <label>Requested Qty<input type="number" value={qty} onChange={(event) => setQty(Number(event.target.value))} /></label>
-      <button onClick={() => mutate((db) => createMaterialRequest(db, { job_card_id: jobId, item_id: itemId, requested_qty: qty, issued_qty: 0, used_qty: 0, returned_qty: 0, wasted_qty: 0 }))}>Create Request</button>
-    </div>
-  );
+  return <MaterialRequestEditor state={state} mutate={mutate} store />;
 }
 
 function DuplicateIssueMaterialEditor({ requests, mutate }: { requests: { request: MaterialRequest; item?: InventoryItem }[]; mutate: Mutate }) {
@@ -2823,7 +3156,7 @@ function EntityResults({ kind, rows, state, viewMode, role, actor, openRecord, m
   return <><div className="mobile-table-fallback">{cards}</div><div className="table-wrap"><table><thead><tr>{tableHeaders(kind).map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{rows.map((raw) => <EntityTableRow key={rowId(kind, raw)} kind={kind} raw={raw} state={state} canArchive={canArchive} canManageJob={kind === "jobs" && canManageJob(raw as JobView)} openRecord={openRecord} archive={archive} />)}</tbody></table></div></>;
 }
 
-function RecordActions({ onView, onEdit, onArchive }: { onView: () => void; onEdit?: () => void; onArchive?: () => void }) { return <div className="record-actions"><button onClick={(event) => { event.stopPropagation(); onView(); }}>View</button>{onEdit && <button onClick={(event) => { event.stopPropagation(); onEdit(); }}>Edit</button>}{onArchive && <button className="danger-action" onClick={(event) => { event.stopPropagation(); onArchive(); }}>Archive</button>}</div>; }
+function RecordActions({ onView, onEdit, onArchive, inGrid = false }: { onView: () => void; onEdit?: () => void; onArchive?: () => void; inGrid?: boolean }) { const actionClass = inGrid ? "grid-action" : undefined; return <div className={inGrid ? "grid-actions" : "record-actions"}><button type="button" className={actionClass} onClick={(event) => { event.stopPropagation(); onView(); }}>View</button>{onEdit && <button type="button" className={actionClass} onClick={(event) => { event.stopPropagation(); onEdit(); }}>Edit</button>}{onArchive && <button type="button" className={inGrid ? "grid-action grid-action-danger" : "danger-action"} onClick={(event) => { event.stopPropagation(); onArchive(); }}>Archive</button>}</div>; }
 function CustomerDetail({ customer, mutate }: { customer: Customer; mutate: Mutate }) { const [draft, setDraft] = useState(customer); return <CustomerEditor value={draft} setValue={setDraft} mutate={mutate} />; }
 function tableHeaders(kind: EntityKind) { return kind === "jobs" ? ["Job", "Vehicle", "Customer", "Status", "Total", "Actions"] : kind === "customers" ? ["Customer", "Mobile", "Type", "Vehicles", "Open Jobs", "Actions"] : kind === "vehicles" ? ["Registration", "Make / Model", "Color", "Customer", "KM", "Actions"] : ["Preview", "Label", "Category", "Vehicle / Job", "Actions"]; }
 function rowId(kind: EntityKind, raw: unknown) { return kind === "jobs" ? (raw as JobView).job.id : kind === "media" ? (raw as { photo: Photo }).photo.id : (raw as Customer | Vehicle).id; }
@@ -2833,7 +3166,7 @@ function EntityTableRow({ kind, raw, state, canArchive, canManageJob, openRecord
   else if (kind === "customers") { const row = raw as Customer; cells = [row.name, row.mobile, row.type, state.vehicles.filter((item) => item.customer_id === row.id).length, state.jobs.filter((item) => item.customer.id === row.id && item.job.main_status !== "CLOSED").length]; }
   else if (kind === "vehicles") { const row = raw as Vehicle; cells = [row.number, `${row.make} ${row.model}`, row.color, state.customers.find((item) => item.id === row.customer_id)?.name ?? "—", row.km.toLocaleString("en-IN")]; }
   else { const { photo, job } = raw as { photo: Photo; job: JobView }; cells = [<img className="table-thumb" src={photo.src || "/media-placeholder.svg"} alt="" />, photo.label, photo.category || "General", `${job.vehicle.number} · ${job.job.job_no}`]; }
-  return <tr>{cells.map((cell, index) => <td key={index}>{cell}</td>)}<td><RecordActions onView={() => openRecord(id, "view")} onEdit={kind === "jobs" ? canManageJob ? () => openRecord(id, "edit") : undefined : (kind === "customers" || kind === "vehicles") && canArchive ? () => openRecord(id, "edit") : undefined} onArchive={kind === "jobs" ? canManageJob ? () => archive(id) : undefined : canArchive ? () => archive(id) : undefined} /></td></tr>;
+  return <tr>{cells.map((cell, index) => <td key={index}>{cell}</td>)}<td><RecordActions inGrid onView={() => openRecord(id, "view")} onEdit={kind === "jobs" ? canManageJob ? () => openRecord(id, "edit") : undefined : (kind === "customers" || kind === "vehicles") && canArchive ? () => openRecord(id, "edit") : undefined} onArchive={kind === "jobs" ? canManageJob ? () => archive(id) : undefined : canArchive ? () => archive(id) : undefined} /></td></tr>;
 }
 
 const CHIP_LABELS: Record<string, string> = { estimate: "Est", invoice: "Inv", "payment-receipt": "Rcpt", "gate-pass": "GP" };

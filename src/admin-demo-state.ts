@@ -232,6 +232,7 @@ export interface SessionInventoryItem {
   unit: string;
   stockQty: number;
   lowStockQty: number;
+  sellingPrice: number;
   importedAt: string;
 }
 
@@ -767,6 +768,7 @@ export interface InventoryImportRowInput {
   unit: string;
   stockQty: number;
   lowStockQty: number;
+  sellingPrice?: number;
 }
 
 function nextImportBatchId(batches: readonly DemoImportBatch[]): string {
@@ -814,6 +816,7 @@ export function confirmInventoryImport(
       unit: row.unit,
       stockQty: row.stockQty,
       lowStockQty: row.lowStockQty,
+      sellingPrice: row.sellingPrice ?? 0,
       importedAt: timestamp,
     });
   }

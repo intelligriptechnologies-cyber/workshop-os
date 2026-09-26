@@ -1,11 +1,20 @@
 import type { JobView, MainStatus, User } from "./types";
 
 export type BillingKind = "Service" | "Material";
+export type GstType = "CGST+SGST" | "IGST" | "No GST";
 
 /** Default GST rate per line kind (editable per line). No CGST/SGST split. */
 export const DEFAULT_GST_BY_KIND: Record<BillingKind, number> = { Service: 18, Material: 18 };
+export const GST_RATES = [5, 9, 12, 18, 28] as const;
+export const GST_TYPES: readonly GstType[] = ["CGST+SGST", "IGST", "No GST"];
 
-export interface PricedLine { qty: number; rate: number; gst_rate: number }
+/** Normalizes legacy records and prevents a taxable rate from being retained on a No-GST line. */
+export function normalizeGstLine(gstType: GstType | null | undefined, gstRate: number | null | undefined, fallbackRate = 18): { gst_type: GstType; gst_rate: number } {
+  const gst_type = gstType ?? (gstRate === 0 ? "No GST" : "CGST+SGST");
+  return { gst_type, gst_rate: gst_type === "No GST" ? 0 : gstRate ?? fallbackRate };
+}
+
+export interface PricedLine { qty: number; rate: number; gst_rate: number; gst_type?: GstType | null }
 
 export interface PricedLineTotals { amount: number; discount: number; taxable: number; gst: number; total: number }
 
@@ -35,20 +44,20 @@ export function invoiceTotals(lines: readonly PricedLine[], flatDiscount: number
   return { lines: rows, subtotal, discount, taxable, gst, total: round2(taxable + gst) };
 }
 
-export interface InvoiceDraftLine { kind: BillingKind; description: string; qty: number; rate: number; gst_rate: number; material_row_id?: number }
+export interface InvoiceDraftLine { kind: BillingKind; description: string; qty: number; rate: number; gst_type: GstType; gst_rate: number; material_row_id?: number }
 
 export interface InvoiceDraft { lines: InvoiceDraftLine[]; unissuedRows: number; discount: number }
 
 /** Fresh-document pre-fill: the approved Estimate's Service lines plus Issued, not-yet-invoiced material rows. Prices stay to be typed. */
 export function buildInvoiceDraft(view: Pick<JobView, "estimate" | "estimate_items" | "material_requests" | "inventory">): InvoiceDraft {
-  const lines: InvoiceDraftLine[] = view.estimate_items.filter((item) => item.kind === "Service").map((item) => ({ kind: "Service", description: item.description, qty: item.qty, rate: item.rate, gst_rate: DEFAULT_GST_BY_KIND.Service }));
+  const lines: InvoiceDraftLine[] = view.estimate_items.filter((item) => item.kind === "Service").map((item) => ({ kind: "Service", description: item.description, qty: item.qty, rate: item.rate, ...normalizeGstLine(item.gst_type, item.gst_rate, view.estimate?.gst_rate ?? DEFAULT_GST_BY_KIND.Service) }));
   let unissuedRows = 0;
   for (const row of view.material_requests) {
     if (row.archived_at || row.status === "Cancelled") continue;
     if (row.status === "Issued") {
       if (row.invoiced_in) continue;
       const item = view.inventory.find((candidate) => candidate.id === row.item_id);
-      lines.push({ kind: "Material", description: item?.name ?? `Item ${row.item_id}`, qty: row.issued_qty || row.requested_qty, rate: 0, gst_rate: DEFAULT_GST_BY_KIND.Material, material_row_id: row.id });
+      lines.push({ kind: "Material", description: item?.name ?? `Item ${row.item_id}`, qty: row.issued_qty || row.requested_qty, rate: item?.selling_price ?? 0, gst_type: "CGST+SGST", gst_rate: DEFAULT_GST_BY_KIND.Material, material_row_id: row.id });
     } else unissuedRows += 1;
   }
   return { lines, unissuedRows, discount: view.estimate?.discount ?? 0 };

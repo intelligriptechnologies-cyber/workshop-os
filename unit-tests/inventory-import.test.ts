@@ -59,6 +59,7 @@ test("normalizes valid rows and assigns deterministic session IDs", () => {
     unit: "roll",
     stock_qty: 1250,
     low_stock_qty: 5,
+    selling_price: 0,
   });
   assert.ok(first.validRows[0].item.id < 0);
   assert.equal(first.validRows[0].item.id, second.validRows[0].item.id);
@@ -131,6 +132,7 @@ test("sheet-per-category workbooks without SKU/unit columns import with derived 
   assert.equal(ppf.category, "PPF");
   assert.equal(ppf.stock_qty, 0);
   assert.equal(ppf.low_stock_qty, 0);
+  assert.equal(ppf.selling_price, 0);
   assert.equal(clear.category, "paint");
   assert.equal(clear.stock_qty, 20);
   assert.equal(clear.unit, "ltr");
