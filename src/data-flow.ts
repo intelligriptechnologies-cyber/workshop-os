@@ -92,7 +92,8 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
     if (hasTime(cycle.completed_at)) events.push({ id: `cycle-complete-${cycle.id}`, kind: "checklist", timestamp: cycle.completed_at, title: `${cycle.stage} checklist completed`, detail: `Cycle ${cycle.cycle_number}`, actor: "System" });
   }
   view.checklist_items.forEach((item) => events.push(...checklistEvents(item, users)));
-  view.status_history.forEach((item) => events.push({ id: `status-${item.id}`, kind: "status", timestamp: item.created_at, title: `Status changed to ${item.main_status}`, detail: `${item.sub_status} · ${item.note}` }));
+  const firstStatusId = [...view.status_history].sort((a, b) => a.created_at.localeCompare(b.created_at) || a.id - b.id)[0]?.id;
+  view.status_history.forEach((item) => events.push({ id: `status-${item.id}`, kind: "status", timestamp: item.created_at, title: `Status changed to ${item.main_status}`, detail: `${item.sub_status} · ${item.note}`, document: item.id === firstStatusId ? { kind: "job-card", number: view.job.job_no } : undefined }));
 
   for (const estimate of view.estimate_history ?? (view.estimate ? [view.estimate] : [])) {
     if (hasTime(estimate.created_at)) events.push({ id: `estimate-create-${estimate.id}`, kind: "estimate", timestamp: estimate.created_at, title: "Estimate created", detail: `${estimate.status} · GST ${estimate.gst_rate}%`, state: estimate.archived_at ? "historical" : "current", document: estimate.archived_at ? undefined : { kind: "estimate", number: view.estimate?.id === estimate.id ? documentNumber("estimate", view) : "" } });
@@ -177,6 +178,7 @@ export function buildGhostSteps(view: JobView, snapshots: readonly DocumentSnaps
         .forEach((item) => ghosts.push({ id: `ghost-checklist-${item.id}`, kind: "checklist", title: item.label, reason: `${cycle.stage} checklist${item.required ? "" : " (optional)"}` }));
     }
   }
+  if (view.job.main_status === "CANCELLED") return ghosts;
   for (const doc of resolveJobDocuments(view, snapshots)) {
     if (!doc.available) ghosts.push({ id: `ghost-document-${doc.kind}`, kind: "document", title: doc.label, reason: doc.message ?? `${doc.label} not created` });
   }

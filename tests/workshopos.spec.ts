@@ -215,8 +215,8 @@ test("job card document actions stack editors, replace creation actions after sa
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Invoices", exact: true }).click();
   const invoiceManager = page.getByRole("table", { name: "Invoices manager" });
-  const openInvoiceRow = invoiceManager.locator("tbody tr:not(.billing-detail-row)").filter({ hasText: "Open" }).first();
-  await openInvoiceRow.getByRole("button", { name: "Details" }).click();
+  const openInvoiceRow = invoiceManager.locator("tbody tr:not(.billing-detail-row)").filter({ hasText: "Unpaid" }).first();
+  await openInvoiceRow.click();
   await expect(invoiceManager.getByRole("table", { name: "Invoice lines" })).toContainText("%");
   await invoiceManager.getByRole("button", { name: "Void Invoice" }).click();
   await invoiceManager.getByLabel("Void Invoice reason").fill("Recreate from job card E2E");
@@ -357,8 +357,8 @@ test("Data Flow cascades visit filters and supports keyboard, mouse, empty, clea
   await page.keyboard.press("ArrowDown");
   await page.keyboard.press("Enter");
   await expect(page.locator(".data-flow-line .timeline-event").first()).toBeVisible();
-  await expect(page.getByRole("region", { name: "Active lifecycle stage" })).toContainText("Active stage");
-  await expect(page.getByRole("region", { name: "Active lifecycle stage" })).toContainText("Ordered remaining steps");
+  await expect(page.locator(".data-flow-line .timeline-event.latest")).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Active lifecycle stage" })).toHaveCount(0);
   await expect(page.getByRole("separator", { name: "Not yet" })).toBeVisible();
   await expect(page.locator(".data-flow-line .timeline-event.ghost").first()).toBeVisible();
   const timeline = page.getByRole("region", { name: "Chronological data flow" });
@@ -434,12 +434,12 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await page.getByLabel("Search invoices").fill("INV-");
   await page.locator('[data-billing-manager="Invoices"]').getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText(/Showing 1 to .* of/)).toBeVisible();
-  await page.getByLabel("Invoices status filter").selectOption("Open");
+  await page.getByLabel("Invoices status filter").selectOption("Unpaid");
   await page.locator('[data-billing-manager="Invoices"]').getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first()).toContainText("Open");
+  await expect(page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first()).toContainText("Unpaid");
   const next = page.getByRole("navigation", { name: "Billing results pagination" }).first().getByRole("button", { name: "Next page" });
   if (await next.isEnabled()) { await next.click(); await expect(page.getByText(/Page 2 of/).first()).toBeVisible(); }
-  await page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first().getByRole("button", { name: "Details" }).click();
+  await page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first().click();
   await expect(page.getByRole("table", { name: "Invoice lines" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
 
@@ -463,7 +463,7 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   const paymentRow = paymentsTable.locator("tbody tr:not(.billing-detail-row)").filter({ hasText: "WP6-E2E" });
   await expect(paymentRow).toHaveCount(1);
   await expect(paymentRow).toContainText("Received");
-  await paymentRow.getByRole("button", { name: "Details" }).click();
+  await paymentRow.click();
   await paymentsTable.getByRole("button", { name: "Void Payment" }).click();
   await paymentsTable.getByLabel("Void Payment reason").fill("E2E correction");
   await paymentsTable.getByRole("button", { name: "Confirm Void Payment" }).click();
@@ -948,7 +948,6 @@ test("lifecycle surfaces provide keyboard tabs, stacked dialogs, accessible name
   await page.keyboard.press("ArrowDown");
   await expect(combobox).toHaveAttribute("aria-activedescendant", /data-flow-job-/);
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("region", { name: "Active lifecycle stage" })).toBeVisible();
   await expect(page.getByRole("region", { name: "Chronological data flow" })).toBeVisible();
   await expectNoPageOverflow(page);
 });

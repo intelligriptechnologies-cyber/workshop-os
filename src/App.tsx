@@ -113,7 +113,7 @@ import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type
 import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
 import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
 import { renderHtmlToPdf } from "./pdf-render";
-import { buildDataFlowTimeline, buildGhostSteps, type DataFlowEvent, dataFlowDates, dataFlowMonths, filterDataFlowJobs, summarizeJobLifecycle } from "./data-flow";
+import { buildDataFlowTimeline, buildGhostSteps, type DataFlowEvent, dataFlowDates, dataFlowMonths, filterDataFlowJobs } from "./data-flow";
 import { canCompleteWithInvoice } from "./invoice-math";
 import { BillingManager, InvoiceDialog, JobInvoicePanel, JobPaymentPanel, type BillingMode } from "./billing-manager";
 import { compressMediaFile, type JobMediaCategory, type PreparedJobMedia } from "./job-media";
@@ -2255,13 +2255,13 @@ function DataFlowWorkspace({ jobs, users }: { jobs: JobView[]; users: User[] }) 
         <label>Visit month
           <select aria-label="Visit month" value={month} onChange={(event) => { setMonth(event.target.value); setDate(""); setQuery(""); setSelectedId(undefined); setOpen(false); }}>
             <option value="">All months</option>
-            {months.map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString(undefined, { month: "long", year: "numeric" })}</option>)}
+            {months.map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}
           </select>
         </label>
         <label>Visit date
           <select aria-label="Visit date" value={date} onChange={(event) => { const next = event.target.value; setDate(next); if (next) setMonth(next.slice(0, 7)); setQuery(""); setSelectedId(undefined); setOpen(false); }}>
             <option value="">All dates</option>
-            {dates.map((value) => <option key={value} value={value}>{value}</option>)}
+            {dates.map((value) => <option key={value} value={value}>{new Date(`${value}T00:00:00`).toLocaleDateString("en-IN", { day: "numeric", month: "short", year: "numeric" })}</option>)}
           </select>
         </label>
         <div className="data-flow-combobox">
@@ -2278,7 +2278,7 @@ function DataFlowWorkspace({ jobs, users }: { jobs: JobView[]; users: User[] }) 
   </section>;
 }
 
-function DocumentDownloadButton({ kind, view, className = "document-download", label, snapshotId }: { kind: DocumentKind; view: JobView; className?: string; label?: string; snapshotId?: string }) {
+function DocumentDownloadButton({ kind, view, className = "document-download", label, snapshotId, showPrint = true }: { kind: DocumentKind; view: JobView; className?: string; label?: string; snapshotId?: string; showPrint?: boolean }) {
   const [status, setStatus] = useState<"idle" | "preparing" | "done" | "error">("idle");
   const [errorMessage, setErrorMessage] = useState("");
   const resolve = (): RenderedDocument => {
@@ -2319,21 +2319,11 @@ function DocumentDownloadButton({ kind, view, className = "document-download", l
       else { setErrorMessage(result.error ?? "Document generation failed."); setStatus("error"); }
     }
   };
-  return <><button type="button" className={className} disabled={status === "preparing"} aria-busy={status === "preparing"} onClick={download}><Download size={15} />{status === "preparing" ? "Preparing…" : status === "done" ? "Downloaded ✓" : label ?? "Download PDF"}</button><button type="button" className="document-print" onClick={print}>Print</button>{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
+  return <><button type="button" className={className} disabled={status === "preparing"} aria-busy={status === "preparing"} onClick={download}><Download size={15} />{status === "preparing" ? "Preparing…" : status === "done" ? "Downloaded ✓" : label ?? "Download PDF"}</button>{showPrint && <button type="button" className="document-print" onClick={print}>Print</button>}{status === "error" && <span className="document-error" role="alert">{errorMessage}</span>}</>;
 }
 
 function DataFlow({ view, users }: { view: JobView; users: User[] }) {
-  const lifecycle = summarizeJobLifecycle(view);
-  return (
-    <>
-      <section className="lifecycle-summary" aria-label="Active lifecycle stage">
-        <div><span>Active stage</span><strong>{lifecycle.stage}{lifecycle.cycle ? ` · cycle ${lifecycle.cycle}` : ""}</strong></div>
-        <div><span>Current step</span><strong>{lifecycle.activeStep}</strong></div>
-        <div className="lifecycle-summary-remaining"><span>Ordered remaining steps</span><strong>{lifecycle.remainingSteps.length ? lifecycle.remainingSteps.join(" → ") : "None"}</strong></div>
-      </section>
-      <DataFlowLine view={view} users={users} />
-    </>
-  );
+  return <DataFlowLine view={view} users={users} />;
 }
 
 function DataFlowLine({ view, users }: { view: JobView; users: User[] }) {
@@ -2344,12 +2334,12 @@ function DataFlowLine({ view, users }: { view: JobView; users: User[] }) {
     if (!event.document) return null;
     const snap = event.document.void ? snapshots.find((item) => item.jobId === view.job.id && item.kind === event.document!.kind && item.number === event.document!.number && item.state === "void") : undefined;
     if (event.document.void && !snap) return null;
-    return <DocumentDownloadButton kind={event.document.kind} view={view} snapshotId={snap?.id} />;
+    return <DocumentDownloadButton kind={event.document.kind} view={view} snapshotId={snap?.id} label="PDF" showPrint={false} />;
   };
   return <section className="data-flow-timeline data-flow-line" aria-label="Chronological data flow">
-    <PanelTitle icon={<ClipboardCheck />} title="Data Flow" subtitle={`${events.length} done event${events.length === 1 ? "" : "s"}`} />
+    <div className="data-flow-head"><h2>{view.job.job_no}</h2><span>{view.vehicle.number} · {view.vehicle.make} {view.vehicle.model} · {view.customer.name}</span><span className={`data-flow-pill ${view.job.main_status.toLowerCase()}`}>{view.job.main_status.replace("_", " ")}</span><span className="data-flow-count">{events.length} done event{events.length === 1 ? "" : "s"}</span></div>
     <ol>
-      {events.map((event) => <li key={event.id} className={`timeline-event ${event.state ?? ""}`} data-event-kind={event.kind}><time dateTime={event.timestamp}>{formatTimestamp(event.timestamp)}</time><div><strong>{event.title}</strong><span>{event.detail}</span>{event.actor && <small>Actor: {event.actor}</small>}{pdf(event)}</div>{event.state && <span className="timeline-state">{event.state}</span>}</li>)}
+      {events.map((event, index) => <li key={event.id} className={`timeline-event ${event.state ?? ""}${index === events.length - 1 ? " latest" : ""}`} aria-current={index === events.length - 1 ? "step" : undefined} data-event-kind={event.kind}><time dateTime={event.timestamp}>{formatTimestamp(event.timestamp)}</time><div><strong>{event.title}</strong><span>{event.detail}</span>{event.actor && <small>Actor: {event.actor}</small>}{pdf(event)}</div>{event.state && <span className="timeline-state">{event.state}</span>}</li>)}
       <li className="not-yet-divider" role="separator" aria-label="Not yet"><span>Not yet</span></li>
       {ghosts.length ? ghosts.map((ghost) => <li key={ghost.id} className="timeline-event ghost" data-ghost-kind={ghost.kind}><div><strong>{ghost.title}</strong><span>{ghost.reason}</span></div></li>) : <li className="timeline-event ghost none"><div><span>Nothing outstanding.</span></div></li>}
     </ol>
@@ -2386,7 +2376,7 @@ function JobRecordDialog({ view, state, mutate, actor, mode, onClose, onAdminArc
   const panelId = `job-record-${view.job.id}-${tab}`;
   const footer = resolveJobCardFooter(view, actor);
   const actionLabels: Record<FooterAction, string> = { "create-estimate": "Create Estimate", "edit-estimate": "Edit Estimate", "approve-estimate": "Approve Estimate", "create-invoice": "Create Invoice", "edit-invoice": "Edit Invoice" };
-  const dialogFooter = <><div className="dialog-footer-actions" role="group" aria-label="Job actions">{footer.actions.map((action) => <button type="button" key={action} className={action.startsWith("create") ? "primary-action" : ""} onClick={() => setDocumentEditor(action === "approve-estimate" ? "approve-estimate" : action.endsWith("estimate") ? "estimate" : "invoice")}>{actionLabels[action]}</button>)}</div><div className="dialog-footer-downloads" role="group" aria-label="Downloads"><span className="dialog-footer-label">Downloads</span>{footer.downloads.map((download) => download.enabled ? <DocumentDownloadButton key={download.kind} kind={download.kind} view={view} className="document-download" label={download.label} /> : <button type="button" key={download.kind} disabled title={download.reason} aria-label={`${download.label} download unavailable: ${download.reason}`}><Download size={15} />{download.label}</button>)}</div></>;
+  const dialogFooter = <><div className="dialog-footer-actions" role="group" aria-label="Job actions">{footer.actions.map((action) => <button type="button" key={action} className={action.startsWith("create") ? "primary-action" : ""} onClick={() => setDocumentEditor(action === "approve-estimate" ? "approve-estimate" : action.endsWith("estimate") ? "estimate" : "invoice")}>{actionLabels[action]}</button>)}</div><div className="dialog-footer-downloads" role="group" aria-label="Downloads"><span className="dialog-footer-label">Downloads</span>{footer.downloads.map((download) => download.enabled ? <DocumentDownloadButton key={download.kind} kind={download.kind} view={view} className="document-download" label={download.label} showPrint={false} /> : <button type="button" key={download.kind} disabled title={download.reason} aria-label={`${download.label} download unavailable: ${download.reason}`}><Download size={15} />{download.label}</button>)}</div></>;
   return <Dialog wide title={`${mode === "view" ? "View" : "Edit"} Job ${view.job.job_no}`} subtitle={`${view.vehicle.number} · ${view.customer.name}`} onClose={onClose} footer={dialogFooter}>{mode === "edit" && <JobLifecyclePanel view={view} users={state.users} actor={actor} mutate={mutate} />}<div className="sub-tabs" role="tablist" aria-label="Job record sections" onKeyDown={handleTabListKeyDown}>{JOB_CARD_TABS.map((item) => <button id={`job-record-tab-${view.job.id}-${item.key}`} aria-controls={`job-record-${view.job.id}-${item.key}`} tabIndex={tab === item.key ? 0 : -1} key={item.key} role="tab" aria-selected={tab === item.key} className={tab === item.key ? "active" : ""} onClick={() => setTab(item.key)}>{item.label}</button>)}</div><div id={panelId} role="tabpanel" aria-labelledby={`job-record-tab-${view.job.id}-${tab}`}>{tab === "documents" ? <section className="editor-block job-card-documents" aria-label="Current job documents"><JobDocuments view={view} actor={actor} mutate={mutate} editor={documentEditor} setEditor={setDocumentEditor} /></section> : tab === "media" ? <JobMediaPanel embedded view={view} actor={actor} mutate={mutate} /> : tab === "materials" ? <JobMaterialsPanel view={view} inventory={state.inventory} actor={actor} mutate={mutate} /> : tab === "payment" ? <JobPaymentPanel view={view} actor={actor} mutate={mutate} /> : tab === "invoice" ? <JobInvoicePanel view={view} actor={actor} mutate={mutate} onOpen={() => setDocumentEditor("invoice")} onEstimate={() => setDocumentEditor("approve-estimate")} /> : isStubTab(tab) ? <p className="empty-state job-card-stub">{JOB_CARD_TABS.find((item) => item.key === tab)?.label} is coming soon.</p> : mode === "edit" ? <><JobEditor embedded key={view.job.updated_at} view={view} users={state.users} mutate={mutate} actor={actor} /><JobSheetSection key={`sheet-${view.job.updated_at}`} view={view} actor={actor} mutate={mutate} editable />{onAdminArchive && <div className="admin-archive-action"><button type="button" className="danger-action" onClick={archive}>Archive Job</button></div>}</> : <div className="record-view"><JobSnapshot view={view} /><Info label="Requested work" value={view.visit.requested_work} /><Info label="Work completed" value={view.job.work_list || "—"} /><Info label="Advisor" value={view.advisor.name} /><Info label="Technician" value={view.technician.name} /><JobSheetSection view={view} actor={actor} mutate={mutate} /></div>}</div>{tab !== "documents" && documentEditor === "estimate" && <EstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && documentEditor === "approve-estimate" && <ApproveEstimateDialog view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}{tab !== "documents" && documentEditor === "invoice" && <InvoiceDialog fixedJob action={view.invoice ? "edit" : "create"} view={view} actor={actor} mutate={mutate} onClose={() => setDocumentEditor(undefined)} />}</Dialog>;
 }
 

@@ -1244,10 +1244,10 @@ export function voidInvoiceForActor(db: Database, invoiceId: number, actorId: nu
 
 /** Single full payment: mode + reference only; the amount is always the invoice total. */
 export interface PaymentInput { mode: PaymentMode; otherDetail: string; reference: string; notes?: string }
-const PAYMENT_MODES: readonly PaymentMode[] = ["UPI", "Cash", "Card", "Other"];
+const PAYMENT_MODES: readonly PaymentMode[] = ["UPI", "Cash", "Card", "Bank transfer", "Other"];
 
 function validatePaymentInput(input: PaymentInput) {
-  if (!PAYMENT_MODES.includes(input.mode)) throw new Error("Payment mode must be UPI, Cash, Card, or Other.");
+  if (!PAYMENT_MODES.includes(input.mode)) throw new Error("Payment mode must be UPI, Cash, Card, Bank transfer, or Other.");
   if (input.mode === "Other" && !input.otherDetail.trim()) throw new Error("Other payment detail is required.");
 }
 

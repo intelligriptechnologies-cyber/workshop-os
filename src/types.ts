@@ -25,7 +25,7 @@ export type SubStatus =
 export type TaskStatus = "Pending" | "Started" | "Paused" | "Completed";
 export type QcStatus = "Pending" | "Pass" | "Fail";
 export type PaymentStatus = "Pending" | "Partial" | "Paid";
-export type PaymentMode = "UPI" | "Cash" | "Card" | "Other";
+export type PaymentMode = "UPI" | "Cash" | "Card" | "Bank transfer" | "Other";
 export type ViewMode = "grid" | "table";
 
 export interface ListQuery {

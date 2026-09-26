@@ -1,5 +1,5 @@
 import type { Database } from "sql.js";
-import { Fragment, useMemo, useState, type FormEvent } from "react";
+import { Fragment, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
 import {
   canMutateBilling,
   createInvoiceForActor,
@@ -39,7 +39,7 @@ function recordsFor(mode: BillingMode, jobs: JobView[], includeUnpaid: boolean):
 }
 
 function invoiceStatus(view: JobView) {
-  return view.invoice ? (view.invoice.voided_at ? "Void" : view.invoice.status) : "Not created";
+  return view.invoice ? (view.invoice.voided_at ? "Void" : view.invoice.status === "Open" ? "Unpaid" : view.invoice.status) : "Not created";
 }
 
 function paymentStatus(record: BillingRecord) {
@@ -70,7 +70,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
     return (!needle || searchText(record).includes(needle)) && (status === "ALL" || recordStatus(record) === status);
   });
   const paged = paginate(filtered, page, pageSize);
-  const statusOptions = mode === "Invoices" ? ["Open", "Cleared", "Void"] : mode === "Payments" ? (panel ? ["Unpaid", "Received", "Void"] : ["Received", "Void"]) : ["Pending", "Delivered"];
+  const statusOptions = mode === "Invoices" ? ["Unpaid", "Cleared", "Void"] : mode === "Payments" ? (panel ? ["Unpaid", "Received", "Void"] : ["Received", "Void"]) : ["Pending", "Delivered"];
   const clear = () => { setSearchDraft(""); setSearch(""); setStatusDraft("ALL"); setStatus("ALL"); setPage(1); };
   const apply = () => { setSearch(searchDraft); setStatus(statusDraft); setPage(1); };
   const columns: ExportColumn<BillingRecord>[] = mode === "Invoices"
@@ -86,7 +86,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
       <div className={panel ? "desk-panel" : "manager-panel"} role={panel ? undefined : "tabpanel"}>
         <div className="panel-actions"><div><h2>{mode}</h2><p>{mode === "Payments" && panel ? "Unpaid invoices first, then received and void payments" : "All workshop jobs"}</p></div></div>
         {!editable && <p className="permission-note">Read-only billing access. Owner/Admin or Accounts is required to make changes.</p>}
-        {inline && <p className="permission-note" role="note">Open a row for lines, GST and totals. Create or edit invoices from the Job Card.</p>}
+        {inline && <p className="permission-note" role="note">Click a row for lines, GST and totals. Create or edit invoices from the Job Card.</p>}
         <div className="store-filter-grid" onKeyDown={(event) => { if (event.key === "Enter") { event.preventDefault(); apply(); } }}>
           <label className="list-search">Search {mode.toLowerCase()}<input aria-label={`Search ${mode.toLowerCase()}`} value={searchDraft} onChange={(event) => setSearchDraft(event.target.value)} placeholder="Job, invoice, customer, vehicle or reference" /></label>
           <label>Status<select aria-label={`${mode} status filter`} value={statusDraft} onChange={(event) => setStatusDraft(event.target.value)}><option value="ALL">All</option>{statusOptions.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -94,16 +94,14 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
         </div>
         <div className="list-result-controls"><DownloadMenu report={{ title: mode, filters: activeFilterSummary({ Search: search.trim(), Status: status }), columns, rows: filtered }} /><span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span><PageSizeSelect ariaLabel={`${mode} records per page`} value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
         <BillingPagination page={paged.page} count={paged.pageCount} onChange={setPage} />
-        <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}<th>Actions</th></tr></thead><tbody>{paged.items.map((record) => {
+        <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}{(!inline || panel) && <th>{inline ? "" : "Actions"}</th>}</tr></thead><tbody>{paged.items.map((record) => {
           const open = expanded === record.key;
           const recordRow = record.kind === "unpaid" && canRecordOrVoidPayment(actor, record.view.job);
           return <Fragment key={record.key}>
-            <tr className={record.kind === "void" || (mode === "Invoices" && record.view.invoice?.voided_at) ? "billing-row-void" : undefined}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}<td><div className="action-row">
-              {inline
-                ? <button type="button" className={recordRow ? "primary-action" : undefined} aria-expanded={open} aria-controls={`billing-detail-${record.key}`} onClick={() => toggle(record.key)}>{recordRow ? "Record Payment" : open ? "Hide" : "Details"}</button>
-                : <><button onClick={() => setEditor({ action: "view", record })}>View</button>{editable && <><button onClick={() => setEditor({ action: "edit", record })}>Edit</button>{!delivered(record.view) && <button className="primary-action" onClick={() => setEditor({ action: "deliver", record })}>Delivered</button>}</>}</>}
-            </div></td></tr>
-            {inline && open && <tr className="billing-detail-row"><td colSpan={columns.length + 1} id={`billing-detail-${record.key}`}><BillingDetail record={record} actor={actor} mutate={mutate} /></td></tr>}
+            <tr className={[record.kind === "void" || (mode === "Invoices" && record.view.invoice?.voided_at) ? "billing-row-void" : "", inline ? "billing-row-click" : ""].filter(Boolean).join(" ") || undefined} {...(inline ? { tabIndex: 0, "aria-expanded": open, "aria-controls": `billing-detail-${record.key}`, onClick: () => toggle(record.key), onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggle(record.key); } } } : {})}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}{inline ? (panel && <td>{recordRow && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); setExpanded(record.key); }}>Record Payment</button>}</td>) : <td><div className="action-row">
+              <button onClick={() => setEditor({ action: "view", record })}>View</button>{editable && <><button onClick={() => setEditor({ action: "edit", record })}>Edit</button>{!delivered(record.view) && <button className="primary-action" onClick={() => setEditor({ action: "deliver", record })}>Delivered</button>}</>}
+            </div></td>}</tr>
+            {inline && open && <tr className="billing-detail-row"><td colSpan={columns.length + (!inline || panel ? 1 : 0)} id={`billing-detail-${record.key}`}><BillingDetail record={record} actor={actor} mutate={mutate} /></td></tr>}
           </Fragment>;
         })}</tbody></table></div>
         {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><button onClick={clear}>Clear filters</button></div>}
@@ -122,7 +120,7 @@ function BillingDetail({ record, actor, mutate }: { record: BillingRecord; actor
   const terminal = view.job.main_status === "CLOSED" || view.job.main_status === "CANCELLED";
   const receipt = view.receipt && payment && view.receipt.invoice_id === payment.invoice_id ? view.receipt : undefined;
   const totals = invoice ? invoiceTotals(view.invoice_items.map((item) => ({ qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? invoice.gst_rate })), invoice.discount) : undefined;
-  const status = payment ? (payment.voided_at ? "Void" : "Received") : invoice ? (invoice.voided_at ? "Void" : invoice.status) : "Not created";
+  const status = payment ? (payment.voided_at ? "Void" : "Received") : invoiceStatus(view);
   return <div className="billing-detail" aria-label={`${view.job.job_no} detail`}>
     <div className="panel-actions"><div><h3>{payment ? "Payment" : "Invoice"} · {invoice?.invoice_no ?? view.job.job_no} <span className={`status-pill status-${status.toLowerCase()}`}>{status}</span></h3><p>{view.job.job_no} · {view.vehicle.number} · {view.customer.name}{invoice?.tally_invoice_no ? ` · Tally ${invoice.tally_invoice_no}` : ""}</p></div></div>
     {payment && <div className="linked-grid"><div><span>Invoice</span><strong>{invoice?.invoice_no ?? "-"}</strong></div><div><span>Mode</span><strong>{payment.mode === "Other" ? `Other (${payment.other_detail})` : payment.mode}</strong></div><div><span>Reference</span><strong>{payment.reference || "-"}</strong></div><div><span>Receipt</span><strong>{receipt?.receipt_no ?? "-"}</strong></div><div><span>Amount</span><strong>{money(payment.amount)}</strong></div>{payment.voided_at && <div><span>Void reason</span><strong>{payment.void_reason}</strong></div>}</div>}
@@ -166,7 +164,7 @@ function RecordPaymentForm({ invoice, actor, mutate }: { invoice: { id: number; 
     mutate((db) => { recordPaymentForActor(db, invoice.id, actor.id, { mode, otherDetail, reference }); }, setError);
   };
   return <form className="billing-dialog-form" onSubmit={record} aria-label="Record payment">
-    <div className="form-grid"><label>Amount<input aria-label="Payment amount" value={money(invoice.total)} disabled readOnly /></label><label>Mode<select aria-label="Payment mode" value={mode} onChange={(event) => setMode(event.target.value as PaymentMode)}>{(["UPI", "Cash", "Card", "Other"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>{mode === "Other" && <label>Other detail<input aria-label="Other payment detail" value={otherDetail} onChange={(event) => setOtherDetail(event.target.value)} /></label>}<label>Reference<input aria-label="Payment reference" value={reference} onChange={(event) => setReference(event.target.value)} /></label></div>
+    <div className="form-grid"><label>Amount<input aria-label="Payment amount" value={money(invoice.total)} disabled readOnly /></label><label>Mode<select aria-label="Payment mode" value={mode} onChange={(event) => setMode(event.target.value as PaymentMode)}>{(["UPI", "Cash", "Card", "Bank transfer", "Other"] as const).map((value) => <option key={value}>{value}</option>)}</select></label>{mode === "Other" && <label>Other detail<input aria-label="Other payment detail" value={otherDetail} onChange={(event) => setOtherDetail(event.target.value)} /></label>}<label>Reference<input aria-label="Payment reference" value={reference} onChange={(event) => setReference(event.target.value)} /></label></div>
     {error && <p className="error-text" role="alert">{error}</p>}
     <div className="action-row"><button type="submit" className="primary-action">Record Payment</button></div>
   </form>;

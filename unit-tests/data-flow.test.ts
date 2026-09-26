@@ -126,3 +126,13 @@ test("document-creating events carry a document reference; void ones are flagged
   const docs = buildDataFlowTimeline(view).filter((event) => event.document);
   assert.deepEqual(docs.map((event) => [event.title, event.document!.kind, Boolean(event.document!.void)]), [["Invoice PDF voided", "invoice", true]]);
 });
+
+test("cancelled jobs emit no ghost steps at all", () => {
+  const view = {
+    ...job(8, "2026-09-01T08:00:00.000Z", "JC-008", "Ravi", "OD02AB0008"),
+    job: { id: 8, job_no: "JC-008", main_status: "CANCELLED", sub_status: "Cancelled" },
+    estimate: undefined, invoice: undefined, receipt: undefined, gate_pass: undefined,
+    checklist_cycles: [], checklist_items: [],
+  } as unknown as JobView;
+  assert.deepEqual(buildGhostSteps(view), []);
+});
