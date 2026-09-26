@@ -1,5 +1,5 @@
 import type { Role } from "./types";
-import { findUnsupportedPlaceholders, seedReportTemplates, type CompanyAssets, type ReportCategory, type ReportTemplate } from "./report-templates";
+import { DEFAULT_TEMPLATE_VERSION, findUnsupportedPlaceholders, seedReportTemplates, type CompanyAssets, type ReportCategory, type ReportTemplate } from "./report-templates";
 
 export type { CompanyAssets, ReportCategory, ReportTemplate } from "./report-templates";
 
@@ -433,7 +433,14 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
   const storedTemplates = Array.isArray(saved.reportTemplates) ? saved.reportTemplates : [];
   const reportTemplates = categories.flatMap((category) => {
     const candidates = storedTemplates.filter((template): template is ReportTemplate => Boolean(template && typeof template === "object" && template.category === category && template.id && template.name && template.html));
-    const templates = candidates.length ? candidates : base.reportTemplates.filter((template) => template.category === category);
+    const seeded = base.reportTemplates.filter((template) => template.category === category);
+    // A stale seeded default (older design, never edited) is replaced by the current one; edited or custom templates are kept.
+    const upgraded = candidates.map((template) => {
+      const fresh = seeded.find((item) => item.id === template.id);
+      const stale = fresh && (template.seedVersion ?? 0) < DEFAULT_TEMPLATE_VERSION && template.createdAt === template.updatedAt;
+      return stale ? { ...fresh, active: template.active, createdAt: template.createdAt } : template;
+    });
+    const templates = upgraded.length ? upgraded : seeded;
     const activeId = templates.find((template) => template.active)?.id ?? templates[0].id;
     return templates.map((template) => ({ ...template, active: template.id === activeId }));
   });

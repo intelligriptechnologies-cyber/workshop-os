@@ -13,6 +13,8 @@ export interface ReportTemplate {
   active: boolean;
   createdAt: string;
   updatedAt: string;
+  /** Set on seeded defaults: the DEFAULT_TEMPLATE_VERSION they were generated from. */
+  seedVersion?: number;
 }
 
 export interface CompanyAssets {
@@ -31,7 +33,7 @@ export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
 
 const COMMON_PLACEHOLDERS = [
   "company.name", "company.legal_name", "company.address", "company.phone", "company.email", "company.gstin", "company.footer",
-  "report.title", "report.number", "report.date",
+  "report.title", "report.number", "report.date", "report.subtotal", "report.discount", "report.gst", "report.amount_words",
   "job.number", "job.status", "job.sub_status", "job.work_list",
   "customer.name", "customer.mobile", "customer.type",
   "vehicle.registration", "vehicle.description", "vehicle.make", "vehicle.model", "vehicle.color", "vehicle.km",
@@ -49,7 +51,7 @@ const CATEGORY_PLACEHOLDERS: Record<ReportCategory, readonly string[]> = {
   estimate: ["estimate.total", "blocks.line_items", "blocks.company_stamp", "company.stamp"],
   invoice: ["company.bank_account_holder", "company.bank_name", "company.bank_account_number", "company.bank_ifsc", "company.bank_branch", "company.upi_id", "invoice.total", "invoice.paid", "invoice.balance", "blocks.line_items", "blocks.payments", "blocks.payment_details", "blocks.company_stamp", "company.stamp"],
   "gate-pass": ["invoice.status", "blocks.tasks", "blocks.qc_rows", "blocks.company_stamp"],
-  "job-card": ["blocks.line_items", "blocks.tasks", "blocks.qc_rows", "blocks.damage_diagram"],
+  "job-card": ["blocks.line_items", "blocks.tasks", "blocks.qc_rows", "blocks.damage_diagram", "blocks.company_stamp"],
   "payment-receipt": ["receipt.number", "invoice.total", "invoice.paid", "invoice.balance", "blocks.payments", "blocks.company_stamp"],
 };
 
@@ -57,19 +59,51 @@ export const REPORT_PLACEHOLDERS: Record<ReportCategory, readonly string[]> = Ob
   (Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[]).map((category) => [category, [...COMMON_PLACEHOLDERS, ...CATEGORY_PLACEHOLDERS[category]]]),
 ) as unknown as Record<ReportCategory, readonly string[]>;
 
+/** Bumped whenever the seeded default designs change; stale, unedited seeded defaults in a stored session are replaced. */
+export const DEFAULT_TEMPLATE_VERSION = 2;
+
+const ACCENT = "#1f5f99";
+const INK = "#18222d";
+const MUTED = "#5d6b79";
+const LINE = "#d5dce3";
+
+const th = (align: "left" | "right", label: string) => `<th style="background:${ACCENT};color:#fff;padding:7px 9px;text-align:${align};font-size:11px;font-weight:700">${label}</th>`;
+const td = (align: "left" | "right", body: string) => `<td style="border-bottom:1px solid ${LINE};padding:7px 9px;text-align:${align};vertical-align:top">${body}</td>`;
+const heading = (label: string) => `<div style="font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:${MUTED};margin-bottom:4px">${label}</div>`;
+const card = (label: string, body: string) => `<div style="flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px">${heading(label)}${body}</div>`;
+const cards = (...cells: string[]) => `<div style="display:flex;gap:16px;margin-bottom:14px">${cells.join("")}</div>`;
+const parties = (customerHeading: string) => cards(
+  card(customerHeading, "<strong>{{customer.name}}</strong><br>{{customer.mobile}}"),
+  card("Vehicle", "<strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}"),
+);
+const lineItems = `<table style="width:100%;border-collapse:collapse;margin:0 0 12px"><thead><tr>${th("left", "Description")}${th("right", "Qty")}${th("right", "Rate")}${th("right", "Amount")}</tr></thead><tbody>{{#lines}}<tr>${td("left", `{{line.description}}<br><span style="font-size:10px;color:${MUTED}">{{line.kind}}</span>`)}${td("right", "{{line.qty}}")}${td("right", "{{line.rate}}")}${td("right", "{{line.amount}}")}</tr>{{/lines}}</tbody></table>`;
+const totalRow = (label: string, key: string) => `<div style="display:flex;justify-content:space-between;padding:3px 0"><span>${label}</span><span>{{${key}}}</span></div>`;
+const totals = (totalKey: string) => `<div style="width:270px;margin-left:auto;margin-bottom:10px">${totalRow("Subtotal", "report.subtotal")}${totalRow("Discount", "report.discount")}${totalRow("GST", "report.gst")}<div style="display:flex;justify-content:space-between;border-top:2px solid ${INK};font-weight:700;font-size:14px;margin-top:4px;padding-top:6px"><span>Total</span><span>{{${totalKey}}}</span></div></div>`;
+const words = `<p style="margin:8px 0;color:${MUTED}">Amount in words: <strong style="color:${INK}">{{report.amount_words}}</strong></p>`;
+const signOff = `<div style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px"><div>{{blocks.company_stamp}}</div><div style="text-align:center"><div style="min-height:44px;display:flex;align-items:flex-end;justify-content:center">{{blocks.authorized_signature}}</div><div style="border-top:1px solid ${INK};padding-top:4px;font-size:11px;width:180px">Authorised signatory<br>{{company.name}}</div></div></div>`;
+const footer = `<p style="border-top:1px solid ${LINE};margin:14px 0 0;padding-top:8px;font-size:10.5px;color:${MUTED}">{{company.footer}}</p>`;
+const section = (label: string, body: string) => `<div style="margin-bottom:6px">${heading(label)}${body}</div>`;
+
+/** Layout B, "Modern band": accent header band (company left, title + number/date right), body cards, sign-off at the foot. */
+function layout(title: string, meta: string, body: string) {
+  const company = `<div style="display:flex;align-items:center;gap:14px;min-width:0;flex:1">{{blocks.company_logo}}<div style="min-width:0"><div style="font-size:16px;font-weight:700">{{company.name}}</div><div style="font-size:10.5px;line-height:1.5">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div>`;
+  const right = `<div style="text-align:right;flex:none"><h1 style="margin:0;font-size:24px;letter-spacing:.04em">${title}</h1><div style="font-size:11.5px;margin-top:3px">${meta}</div></div>`;
+  return `<main style="box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:${INK};display:flex;flex-direction:column"><header style="box-sizing:border-box;background:${ACCENT};color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px">${company}${right}</header><div style="box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column"><div style="flex:1">${body}</div>${signOff}${footer}</div></main>`;
+}
+
 const DEFAULT_TEMPLATE_HTML: Record<ReportCategory, string> = {
-  estimate: `<main style="font-family:Arial,sans-serif;color:#17202a"><header style="background:#0f766e;color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px">{{blocks.company_logo}}<div style="text-align:right;margin-left:auto"><h1 style="margin:0;font-size:28px">ESTIMATE</h1><p style="margin:4px 0 0">{{report.number}} · {{report.date}}</p></div></header><div style="padding:24px 28px"><section><h2 style="margin:0">{{company.name}}</h2><p>{{company.address}} · {{company.phone}} · {{company.email}}<br>GSTIN: {{company.gstin}}</p></section><section style="display:flex;justify-content:space-between"><p><strong>Prepared for</strong><br>{{customer.name}}<br>{{customer.mobile}}</p><p><strong>Vehicle</strong><br>{{vehicle.registration}}<br>{{vehicle.description}}</p></section><table style="width:100%;border-collapse:collapse;margin:12px 0"><thead><tr><th style="background:#0f766e;color:#fff;padding:7px;text-align:left">Description</th><th style="background:#0f766e;color:#fff;padding:7px;text-align:right">Qty</th><th style="background:#0f766e;color:#fff;padding:7px;text-align:right">Rate</th><th style="background:#0f766e;color:#fff;padding:7px;text-align:right">Amount</th></tr></thead><tbody>{{#lines}}<tr><td style="border-bottom:1px solid #cbd5e1;padding:7px">{{line.description}}</td><td style="border-bottom:1px solid #cbd5e1;padding:7px;text-align:right">{{line.qty}}</td><td style="border-bottom:1px solid #cbd5e1;padding:7px;text-align:right">{{line.rate}}</td><td style="border-bottom:1px solid #cbd5e1;padding:7px;text-align:right">{{line.amount}}</td></tr>{{/lines}}</tbody></table><p style="text-align:right">Estimated total (incl. GST): <strong>{{estimate.total}}</strong></p><p>Valid for 7 days from the date above.</p><footer style="display:flex;justify-content:space-between;align-items:flex-end;margin-top:40px">{{blocks.company_stamp}}{{blocks.authorized_signature}}</footer><p style="border-top:1px solid #cbd5e1;margin-top:16px;padding-top:8px;font-size:12px;color:#475569">{{company.footer}}</p></div></main>`,
-  invoice: `<main style="font-family:Arial,sans-serif;color:#17202a"><header style="background:#0f766e;color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px">{{blocks.company_logo}}<div style="text-align:right;margin-left:auto;max-width:100%"><h1 style="margin:0;font-size:30px">INVOICE</h1><p>{{report.number}}<br>{{report.date}}</p></div></header><div style="padding:24px 28px"><section><h2>{{company.name}}</h2><p>{{company.address}} · {{company.phone}} · {{company.email}}<br>GSTIN: {{company.gstin}}</p></section><section style="display:flex;justify-content:space-between"><p><strong>Bill to</strong><br>{{customer.name}}<br>{{customer.mobile}}</p><p><strong>Vehicle</strong><br>{{vehicle.registration}}<br>{{vehicle.description}}</p></section>{{blocks.line_items}}<section style="text-align:right"><p>Total: <strong>{{invoice.total}}</strong><br>Paid: {{invoice.paid}}<br>Balance: {{invoice.balance}}</p></section>{{blocks.payments}}{{blocks.payment_details}}<footer style="display:flex;justify-content:flex-end;gap:28px;margin-top:40px">{{blocks.company_stamp}}{{blocks.authorized_signature}}</footer><p style="border-top:1px solid #cbd5e1;margin-top:16px;padding-top:8px;font-size:12px;color:#475569">{{company.footer}}</p></div></main>`,
-  "gate-pass": `<main style="font-family:Arial,sans-serif;color:#17202a"><header style="background:#0f766e;color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px">{{blocks.company_logo}}<div style="text-align:right;margin-left:auto;max-width:100%"><h1 style="margin:0;font-size:30px">GATE PASS</h1><p>{{report.number}}</p></div></header><div style="padding:24px 28px"><h2>{{company.name}}</h2><p><strong>Job:</strong> {{job.number}} · <strong>Date:</strong> {{report.date}}</p><p><strong>Customer:</strong> {{customer.name}} · {{customer.mobile}}</p><p><strong>Vehicle:</strong> {{vehicle.registration}} · {{vehicle.description}} · {{vehicle.km}} km</p><h3>Completed work</h3><p>{{job.work_list}}</p><h3>Tasks</h3>{{blocks.tasks}}<h3>Quality checks</h3>{{blocks.qc_rows}}<p><strong>Payment:</strong> {{invoice.status}}</p><footer style="display:flex;justify-content:space-between;align-items:end;margin-top:42px"><p>Customer acknowledgement<br><br>____________________</p><div>{{blocks.company_stamp}}{{blocks.authorized_signature}}</div></footer><p style="border-top:1px solid #cbd5e1;margin-top:16px;padding-top:8px;font-size:12px;color:#475569">{{company.footer}}</p></div></main>`,
-  "job-card": `<main style="font-family:Arial,sans-serif;color:#17202a"><header style="background:#0f766e;color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px">{{blocks.company_logo}}<div style="text-align:right;margin-left:auto;max-width:100%"><h1 style="margin:0;font-size:30px">JOB CARD</h1><p>{{job.number}}</p></div></header><div style="padding:24px 28px"><h2>{{company.name}}</h2><section style="display:grid;grid-template-columns:1fr 1fr;gap:8px"><p><strong>Customer</strong><br>{{customer.name}} · {{customer.mobile}}</p><p><strong>Vehicle</strong><br>{{vehicle.registration}} · {{vehicle.description}}</p><p><strong>Received</strong><br>{{dates.received}}</p><p><strong>Promised</strong><br>{{dates.promised}}</p><p><strong>Advisor</strong><br>{{staff.advisor}}</p><p><strong>Technician</strong><br>{{staff.technician}}</p></section><h3>Requested / approved work</h3><p>{{job.work_list}}</p>{{blocks.line_items}}<h3>Vehicle damage</h3>{{blocks.damage_diagram}}<h3>Tasks</h3>{{blocks.tasks}}<h3>Quality checks</h3>{{blocks.qc_rows}}<footer style="display:flex;justify-content:flex-end;margin-top:36px">{{blocks.authorized_signature}}</footer><p style="border-top:1px solid #cbd5e1;margin-top:16px;padding-top:8px;font-size:12px;color:#475569">{{company.footer}}</p></div></main>`,
-  "payment-receipt": `<main style="font-family:Arial,sans-serif;color:#17202a"><header style="background:#0f766e;color:#fff;padding:22px 28px;display:flex;justify-content:space-between;align-items:center;gap:16px">{{blocks.company_logo}}<div style="text-align:right;margin-left:auto;max-width:100%"><h1 style="margin:0;font-size:28px">PAYMENT RECEIPT</h1><p>{{receipt.number}}<br>{{report.date}}</p></div></header><div style="padding:24px 28px"><h2>{{company.name}}</h2><p>{{company.address}} · {{company.phone}}</p><p>Received from <strong>{{customer.name}}</strong> for job <strong>{{job.number}}</strong> / vehicle <strong>{{vehicle.registration}}</strong>.</p>{{blocks.payments}}<section style="text-align:right"><p>Invoice total: {{invoice.total}}<br>Total paid: <strong>{{invoice.paid}}</strong><br>Balance: {{invoice.balance}}</p></section><footer style="display:flex;justify-content:flex-end;gap:28px;margin-top:40px">{{blocks.company_stamp}}{{blocks.authorized_signature}}</footer><p style="border-top:1px solid #cbd5e1;margin-top:16px;padding-top:8px;font-size:12px;color:#475569">{{company.footer}}</p></div></main>`,
+  estimate: layout("ESTIMATE", "{{report.number}} · {{report.date}}", `${parties("Prepared for")}${lineItems}${totals("estimate.total")}<p style="margin:12px 0;color:${MUTED}">Valid for 7 days from the date above. Estimate only; final charges are per the Tax Invoice.</p>${words}`),
+  invoice: layout("TAX INVOICE", "{{report.number}} · {{report.date}}", `${parties("Bill to")}${lineItems}${totals("invoice.total")}${words}<p style="margin:4px 0;text-align:right">Paid: {{invoice.paid}} · Balance: <strong>{{invoice.balance}}</strong></p>{{blocks.payments}}{{blocks.payment_details}}`),
+  "payment-receipt": layout("PAYMENT RECEIPT", "{{receipt.number}} · {{report.date}}", `${parties("Received from")}<div style="margin:6px 0 14px;padding:14px 16px;border:1.5px solid ${INK};border-radius:6px"><div style="color:${MUTED}">Amount received</div><div style="font-size:26px;font-weight:700">{{invoice.paid}}</div><div style="color:${MUTED}">{{report.amount_words}}</div></div>{{blocks.payments}}${cards(card("Invoice total", "{{invoice.total}}"), card("Balance", "<strong>{{invoice.balance}}</strong>"))}`),
+  "gate-pass": layout("GATE PASS", "{{report.number}} · {{report.date}}", `${parties("Released to")}<div style="margin:6px 0 14px;padding:14px;border:1.5px solid ${INK};border-radius:6px;text-align:center"><div style="color:${MUTED};letter-spacing:.06em">AUTHORISED TO EXIT PREMISES</div><div style="font-size:22px;font-weight:700;letter-spacing:.08em;margin:4px 0">{{vehicle.registration}}</div><div>Released on {{report.date}} · Payment: <strong>{{invoice.status}}</strong></div></div>${cards(card("Completed work", "{{job.work_list}}"), card("Received by", `<div style="height:46px"></div><div style="border-top:1px solid ${INK};padding-top:4px;font-size:11px">Customer signature · {{customer.name}}</div>`))}${section("Tasks", "{{blocks.tasks}}")}${section("Quality checks", "{{blocks.qc_rows}}")}`),
+  "job-card": layout("JOB CARD", "{{job.number}} · {{report.date}}", `${parties("Customer")}${cards(card("Intake", "Received: {{dates.received}}<br>Promised: {{dates.promised}}<br>Advisor: {{staff.advisor}}<br>Technician: {{staff.technician}}"), card("Work requested / approved", "{{job.work_list}}"))}${cards(card("Damage diagram", "{{blocks.damage_diagram}}"), `<div style="flex:1;min-width:0">${section("Tasks", "{{blocks.tasks}}")}${section("Quality checks", "{{blocks.qc_rows}}")}</div>`)}`),
 };
 
 export function seedReportTemplates(now: Date | string = new Date()): ReportTemplate[] {
   const timestamp = new Date(now).toISOString();
   return (Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[]).map((category) => ({
     id: `template-${category}-default`, category, name: `Standard ${REPORT_CATEGORY_LABELS[category]}`,
-    html: DEFAULT_TEMPLATE_HTML[category], active: true, createdAt: timestamp, updatedAt: timestamp,
+    html: DEFAULT_TEMPLATE_HTML[category], active: true, createdAt: timestamp, updatedAt: timestamp, seedVersion: DEFAULT_TEMPLATE_VERSION,
   }));
 }
 
@@ -88,6 +122,22 @@ export function findUnsupportedPlaceholders(html: string, category: ReportCatego
 
 const escapeHtml = (value: unknown) => String(value ?? "—").replace(/[&<>"']/g, (character) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]!);
 const value = (input: string | number | null | undefined) => input === null || input === undefined || String(input).trim() === "" ? "—" : String(input);
+export function rupeesInWords(amount: number): string {
+  const ones = ["", "One", "Two", "Three", "Four", "Five", "Six", "Seven", "Eight", "Nine", "Ten", "Eleven", "Twelve", "Thirteen", "Fourteen", "Fifteen", "Sixteen", "Seventeen", "Eighteen", "Nineteen"];
+  const tens = ["", "", "Twenty", "Thirty", "Forty", "Fifty", "Sixty", "Seventy", "Eighty", "Ninety"];
+  const below100 = (n: number) => n < 20 ? ones[n] : `${tens[Math.floor(n / 10)]}${n % 10 ? ` ${ones[n % 10]}` : ""}`;
+  const below1000 = (n: number) => `${n >= 100 ? `${ones[Math.floor(n / 100)]} Hundred${n % 100 ? " " : ""}` : ""}${below100(n % 100)}`;
+  const total = Math.round(Math.max(0, amount) * 100);
+  let rupees = Math.floor(total / 100);
+  const paise = total % 100;
+  const parts: string[] = [];
+  for (const [size, name] of [[10000000, "Crore"], [100000, "Lakh"], [1000, "Thousand"]] as const) {
+    if (rupees >= size) { parts.push(`${below1000(Math.floor(rupees / size))} ${name}`); rupees %= size; }
+  }
+  if (rupees) parts.push(below1000(rupees));
+  const text = parts.join(" ") || "Zero";
+  return `Rupees ${text}${paise ? ` and ${below100(paise)} Paise` : ""} Only`;
+}
 const money = (amount: number) => new Intl.NumberFormat("en-IN", { style: "currency", currency: "INR" }).format(amount);
 const date = (input?: string) => {
   if (!input?.trim()) return "—";
@@ -99,7 +149,7 @@ const imageBlock = (src: string | null, alt: string) => src && IMAGE_SRC.test(sr
 
 function table(headers: string[], rows: Array<Array<string | number>>) {
   if (!rows.length) return "<p>—</p>";
-  return `<table style="width:100%;border-collapse:collapse;margin:12px 0"><thead><tr>${headers.map((header) => `<th style="border:1px solid #0f766e;background:#0f766e;color:#fff;padding:7px;text-align:left">${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td style="border:1px solid #cbd5e1;padding:7px">${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
+  return `<table style="width:100%;border-collapse:collapse;margin:12px 0"><thead><tr>${headers.map((header) => `<th style="border:1px solid ${ACCENT};background:${ACCENT};color:#fff;padding:7px;text-align:left">${escapeHtml(header)}</th>`).join("")}</tr></thead><tbody>${rows.map((row) => `<tr>${row.map((cell) => `<td style="border:1px solid ${LINE};padding:7px">${escapeHtml(cell)}</td>`).join("")}</tr>`).join("")}</tbody></table>`;
 }
 
 function paymentDetailsBlock(settings: WorkshopBusinessSettings) {
@@ -113,7 +163,7 @@ function paymentDetailsBlock(settings: WorkshopBusinessSettings) {
     ["UPI ID", settings.billing.upiId],
   ].filter((row) => row[1].trim());
   if (!rows.length) return "";
-  return `<section style="margin-top:20px"><h3>Tax &amp; Payment Details</h3>${table(["Detail", "Value"], rows)}</section>`;
+  return `<section style="margin-top:20px"><h3 style="margin:0 0 4px;font-size:12px">Tax &amp; Payment Details</h3>${table(["Detail", "Value"], rows)}</section>`;
 }
 
 export function reportAvailable(category: ReportCategory, view: JobView) {
@@ -147,6 +197,8 @@ export function buildReportValues(category: ReportCategory, view: JobView, setti
     "blocks.company_logo": imageBlock(assets.logo, "Company logo"), "blocks.company_stamp": imageBlock(assets.stamp, "Company stamp"), "blocks.authorized_signature": imageBlock(assets.authorizedSignature, "Authorized signature"),
     "company.logo": imageBlock(assets.logo, "Company logo"), "company.stamp": imageBlock(assets.stamp, "Company stamp"), "company.signature": imageBlock(assets.authorizedSignature, "Authorized signature"),
     "estimate.total": money(subtotal - discount + gst),
+    "report.subtotal": money(subtotal), "report.discount": discount ? `- ${money(discount)}` : money(0), "report.gst": money(gst),
+    "report.amount_words": rupeesInWords(category === "payment-receipt" ? paid : category === "estimate" ? subtotal - discount + gst : invoiceTotal),
     "blocks.line_items": table(["Type", "Description", "Qty", "Rate", "Amount"], reportItems.map((item) => [item.kind, item.description, item.qty, money(item.rate), money(item.qty * item.rate)])),
     "blocks.payment_details": category === "invoice" ? paymentDetailsBlock(settings) : "",
     "blocks.payments": table(["Date", "Mode", "Reference", "Amount"], view.payments.map((payment) => [date(payment.created_at), payment.mode, value(payment.reference), money(payment.amount)])),
@@ -172,18 +224,18 @@ export function sampleReportValues(category: ReportCategory): Record<string, str
   const scalar: Record<string, string> = Object.fromEntries(REPORT_PLACEHOLDERS[category].map((name) => [name, `Sample ${name.split(".").at(-1)?.replaceAll("_", " ")}`]));
   return {
     ...scalar,
-    "company.name": "WorkshopOS Demo Studio", "company.legal_name": "WorkshopOS Automotive Services", "company.address": "Bhubaneswar, Odisha", "company.phone": "+91 98765 43210", "company.email": "hello@workshopos.demo", "company.gstin": "21ABCDE1234F1Z5", "company.footer": "Thank you for your business.", "estimate.total": "₹11,800.00",
-    "company.logo": `<div style="font-weight:bold;font-size:20px;color:#0f766e">WorkshopOS</div>`, "company.stamp": `<div style="border:2px solid #15803d;border-radius:50%;padding:15px;color:#15803d">STAMP</div>`, "company.signature": `<div style="min-width:140px;text-align:center"><em>Authorized signature</em><hr></div>`,
+    "company.name": "WorkshopOS Demo Studio", "company.legal_name": "WorkshopOS Automotive Services", "company.address": "Bhubaneswar, Odisha", "company.phone": "+91 98765 43210", "company.email": "hello@workshopos.demo", "company.gstin": "21ABCDE1234F1Z5", "company.footer": "Thank you for your business.", "estimate.total": "₹11,800.00", "report.subtotal": "₹10,000.00", "report.discount": "- ₹0.00", "report.gst": "₹1,800.00", "report.amount_words": "Rupees Eleven Thousand Eight Hundred Only",
+    "company.logo": `<div style="font-weight:bold;font-size:20px;color:#fff">WorkshopOS</div>`, "company.stamp": `<div style="border:2px solid #15803d;border-radius:50%;padding:15px;color:#15803d">STAMP</div>`, "company.signature": `<div style="min-width:140px;text-align:center"><em>Authorized signature</em><hr></div>`,
     "company.bank_account_holder": "WorkshopOS Automotive Services", "company.bank_name": "State Bank of India", "company.bank_account_number": "001234567890", "company.bank_ifsc": "SBIN0001234", "company.bank_branch": "Bhubaneswar Main Branch", "company.upi_id": "workshopos@sbi",
     "report.title": REPORT_CATEGORY_LABELS[category], "report.number": category === "invoice" ? "INV-2026-0042" : category === "gate-pass" ? "GP-2026-0042" : category === "payment-receipt" ? "REC-2026-0042" : "JC-2026-0042", "report.date": "24/09/2026",
     "job.number": "JC-2026-0042", "job.status": "COMPLETED", "job.sub_status": "Invoice Ready", "job.work_list": "Ceramic coating and interior detailing",
     "customer.name": "Aarav Sharma", "customer.mobile": "98765 00042", "customer.type": "Individual", "vehicle.registration": "OD02AB0042", "vehicle.description": "Honda City", "vehicle.make": "Honda", "vehicle.model": "City", "vehicle.color": "White", "vehicle.km": "42,125",
     "dates.received": "22/09/2026", "dates.promised": "24/09/2026", "dates.delivered": "24/09/2026", "staff.advisor": "Meera Das", "staff.technician": "Rohan Singh",
     "invoice.status": "Cleared", "blocks.damage_diagram": DAMAGE_SLOT, "invoice.total": "₹11,800.00", "invoice.paid": "₹8,000.00", "invoice.balance": "₹3,800.00", "receipt.number": "REC-2026-0042",
-    "blocks.company_logo": `<div style="font-weight:bold;font-size:20px;color:#0f766e">WorkshopOS</div>`, "blocks.company_stamp": `<div style="border:2px solid #15803d;border-radius:50%;padding:15px;color:#15803d">STAMP</div>`, "blocks.authorized_signature": `<div style="min-width:140px;text-align:center"><em>Authorized signature</em><hr></div>`,
+    "blocks.company_logo": `<div style="font-weight:bold;font-size:20px;color:#fff">WorkshopOS</div>`, "blocks.company_stamp": `<div style="border:2px solid #15803d;border-radius:50%;padding:15px;color:#15803d">STAMP</div>`, "blocks.authorized_signature": `<div style="min-width:140px;text-align:center"><em>Authorized signature</em><hr></div>`,
     "blocks.line_items": table(["Type", "Description", "Qty", "Rate", "Amount"], [["Service", "Ceramic coating", 1, "₹8,000.00", "₹8,000.00"], ["Service", "Interior detailing", 1, "₹2,000.00", "₹2,000.00"]]),
     "blocks.payments": table(["Date", "Mode", "Reference", "Amount"], [["24/09/2026", "UPI", "UPI-0042", "₹8,000.00"]]),
-    "blocks.payment_details": `<section><h3>Tax &amp; Payment Details</h3>${table(["Detail", "Value"], [["GSTIN", "21ABCDE1234F1Z5"], ["Bank", "State Bank of India"], ["UPI ID", "workshopos@sbi"]])}</section>`,
+    "blocks.payment_details": `<section><h3 style="margin:0 0 4px;font-size:12px">Tax &amp; Payment Details</h3>${table(["Detail", "Value"], [["GSTIN", "21ABCDE1234F1Z5"], ["Bank", "State Bank of India"], ["UPI ID", "workshopos@sbi"]])}</section>`,
     "blocks.tasks": table(["Task", "Status", "Notes"], [["Ceramic coating", "Completed", "Final coat cured"], ["Interior detailing", "Completed", "Quality checked"]]),
     "blocks.qc_rows": table(["Check", "Result"], [["Surface finish", "Pass"], ["Customer items", "Pass"]]),
   };
@@ -235,5 +287,5 @@ export function renderReportTemplate(template: Pick<ReportTemplate, "html" | "ca
 export const PRINT_CSP = "default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'none'; frame-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'";
 
 export function buildPrintDocument(title: string, bodyHtml: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:12mm}html,body{margin:0;background:white}body{font-family:Arial,sans-serif}img{max-width:100%;height:auto}table{page-break-inside:auto}tr{page-break-inside:avoid}@media print{button{display:none}}</style></head><body>${bodyHtml}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:white}main{max-width:100%}body{font-family:Arial,sans-serif}img{max-width:100%;height:auto}table{page-break-inside:auto}tr{page-break-inside:avoid}@media print{button{display:none}}</style></head><body>${bodyHtml}</body></html>`;
 }
