@@ -75,22 +75,42 @@ export function unissuedWarning(count: number) {
 type Actor = Pick<User, "id" | "role">;
 type JobRef = { advisor_id: number; main_status: MainStatus };
 
-/** Owner and the linked Advisor from IN_PROGRESS; Owner and Accounts from COMPLETED (#22). */
+/** Owner/Admin and the linked Service Advisor may invoice active work; Accounts may invoice completed work. */
 export function canCreateInvoice(actor: Actor, job: JobRef) {
-  if (job.main_status === "IN_PROGRESS") return actor.role === "admin" || (actor.role === "service" && actor.id === job.advisor_id);
-  if (job.main_status === "COMPLETED") return actor.role === "admin" || actor.role === "accounts";
-  return false;
+  const eligibleStatus = job.main_status === "IN_PROGRESS" || job.main_status === "COMPLETED";
+  return eligibleStatus && (
+    actor.role === "admin"
+    || (actor.role === "service" && actor.id === job.advisor_id)
+    || (actor.role === "accounts" && job.main_status === "COMPLETED")
+  );
 }
 
-/** Owner, Accounts and the linked Advisor may edit an unpaid invoice until the job is finished. */
+/** Pending invoices are editable only by Owner/Admin and their linked Service Advisor. */
 export function canEditInvoice(actor: Actor, job: JobRef) {
-  const who = actor.role === "admin" || actor.role === "accounts" || (actor.role === "service" && actor.id === job.advisor_id);
+  const who = actor.role === "admin" || (actor.role === "service" && actor.id === job.advisor_id);
   return who && job.main_status !== "CLOSED" && job.main_status !== "CANCELLED" && job.main_status !== "NEW";
 }
 
 /** Completed is enabled only once a (non-voided) Invoice exists. */
 export function canCompleteWithInvoice(view: Pick<JobView, "invoice">) {
   return Boolean(view.invoice && !view.invoice.voided_at);
+}
+
+/** Current-artifact handover state used by Accounts; historical voids never satisfy a requirement. */
+export function billingReconciliation(view: JobView) {
+  const invoice = view.invoice && !view.invoice.voided_at ? view.invoice : undefined;
+  const payment = invoice && view.payments.find((item) => item.invoice_id === invoice.id && !item.voided_at);
+  const receipt = invoice && view.receipt && !view.receipt.voided_at && view.receipt.invoice_id === invoice.id ? view.receipt : undefined;
+  const gatePass = invoice && view.gate_pass && !view.gate_pass.voided_at && view.gate_pass.invoice_id === invoice.id ? view.gate_pass : undefined;
+  const deliveryAcknowledged = Boolean(view.job.delivery_by?.trim() && view.job.acknowledgement?.trim());
+  const missing = [
+    !invoice && "Invoice",
+    !payment && "Payment",
+    !receipt && "Receipt",
+    !gatePass && "Gate pass",
+    !deliveryAcknowledged && "Delivery acknowledgement",
+  ].filter((item): item is string => Boolean(item));
+  return { invoice, payment, receipt, gatePass, deliveryAcknowledged, missing, complete: missing.length === 0 };
 }
 
 export type PaymentListKind = "unpaid" | "received" | "void";
@@ -112,9 +132,9 @@ export function mixedPaymentRows<V extends Pick<JobView, "invoice" | "payments">
   return [...unpaid, ...received, ...voided];
 }
 
-/** Recording or voiding a payment is Owner/Accounts only and blocked once the job is CLOSED or CANCELLED. */
+/** Recording a full payment is Owner/Accounts only, for a completed job awaiting handover. */
 export function canRecordOrVoidPayment(actor: Pick<User, "role">, job: Pick<JobRef, "main_status">) {
-  return (actor.role === "admin" || actor.role === "accounts") && job.main_status !== "CLOSED" && job.main_status !== "CANCELLED";
+  return (actor.role === "admin" || actor.role === "accounts") && job.main_status === "COMPLETED";
 }
 
 /** An invoice may be voided (Owner/Accounts) only while unpaid and the job is not terminal. */

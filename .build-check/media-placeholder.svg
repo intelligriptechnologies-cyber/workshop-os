@@ -1,0 +1,4 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 520">
+  <defs><linearGradient id="g" x1="0" y1="0" x2="1" y2="1"><stop stop-color="#dff7ed"/><stop offset="1" stop-color="#dbeafe"/></linearGradient></defs>
+  <rect width="800" height="520" fill="url(#g)"/><path d="M135 350l125-120 88 78 105-112 212 194H135z" fill="#15616d" opacity=".48"/><circle cx="600" cy="135" r="55" fill="#f4b942" opacity=".8"/><text x="400" y="460" text-anchor="middle" font-family="system-ui" font-size="32" fill="#31545a">WorkshopOS vehicle media</text>
+</svg>

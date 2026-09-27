@@ -4,6 +4,7 @@ import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
 import {
   archiveJobPhotoForActor,
+  archiveJobCardForActor,
   createSchema,
   exportPersistableDatabase,
   migrateSchema,
@@ -72,6 +73,9 @@ test("owner and linked advisor can save metadata while other roles cannot mutate
   assert.throws(() => archiveJobPhotoForActor(db, id, 4, "No"), /linked Service Advisor/);
   archiveJobPhotoForActor(db, id, 2, "Duplicate image");
   assert.deepEqual(row(db, `select archived_at is not null as archived,archived_reason from photos where id=${id}`), { archived: 1, archived_reason: "Duplicate image" });
+  const history = readState(db).jobs[0];
+  assert.equal(history.photos.some((photo) => photo.id === id), false, "archived media must not leak into active job media");
+  assert.equal(history.photo_history?.find((photo) => photo.id === id)?.archived_reason, "Duplicate image");
   assert.equal(row<{ main_status: string }>(db, "select main_status from job_cards where id=1").main_status, "IN_PROGRESS");
   assert.ok(row<{ checked_at: string | null }>(db, "select checked_at from checklist_items where job_card_id=1 and label='Photos Shared'").checked_at, "the remaining Before photo keeps photo evidence complete");
 });
@@ -86,4 +90,17 @@ test("media stays in the live SQL.js session but is stripped from the localStora
   assert.equal(row<{ count: number }>(restored, "select count(*) as count from photos").count, 0);
   assert.equal(row<{ checked_at: string | null }>(restored, "select checked_at from checklist_items where job_card_id=1 and label='Photos Shared'").checked_at, null);
   assert.ok(!Buffer.from(snapshot).includes(Buffer.from("iVBORw0KGgo")));
+});
+
+test("readState keeps archived jobs separate while retaining their photo audit history", async () => {
+  const { db } = await database();
+  db.run("update job_cards set main_status='NEW' where id=1");
+  const photoId = saveJobPhotoForActor(db, 1, 2, { label: "Historical", category: "Before Work", src: PNG_DATA_URL, originalName: "before.png", width: 1, height: 1 });
+  archiveJobPhotoForActor(db, photoId, 2, "Superseded");
+  archiveJobCardForActor(db, 1, 1, "Customer cancelled");
+  const state = readState(db);
+  assert.equal(state.jobs.length, 0);
+  assert.equal(state.archived_jobs.length, 1);
+  assert.equal(state.archived_jobs[0].job.archived_reason, "Customer cancelled");
+  assert.equal(state.archived_jobs[0].photo_history?.find((photo) => photo.id === photoId)?.archived_reason, "Superseded");
 });

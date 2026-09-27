@@ -10,9 +10,11 @@ import {
   MAIN_STATUS_TRANSITIONS,
   migrateLifecycleStorage,
   migrateSchema,
+  readState,
   setChecklistItemChecked,
   updateJobCard,
 } from "../src/db";
+import { billingReconciliation } from "../src/invoice-math";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
@@ -88,4 +90,13 @@ test("large demo lifecycle seeds are deterministic and contain no HOLD status", 
   assert.equal(rows(first, "select * from job_cards where main_status='HOLD'").length, 0);
   assert.equal(rows(first, "select * from checklist_cycles").length, 144);
   assert.deepEqual(snapshot(first), snapshot(second));
+});
+
+test("every CLOSED large-demo job has a complete billing handover", async () => {
+  const db = await database();
+  loadLargeDemoDataset(db);
+
+  const closed = readState(db).jobs.filter((view) => view.job.main_status === "CLOSED");
+  assert.ok(closed.length > 0);
+  assert.ok(closed.every((view) => billingReconciliation(view).complete));
 });

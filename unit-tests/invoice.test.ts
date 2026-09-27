@@ -20,7 +20,7 @@ import {
   transitionJobStatusForActor,
   voidInvoiceForActor,
 } from "../src/db";
-import { buildInvoiceDraft, canCompleteWithInvoice, invoiceTotals } from "../src/invoice-math";
+import { buildInvoiceDraft, canCompleteWithInvoice, canCreateInvoice, invoiceTotals } from "../src/invoice-math";
 import { buildDataFlowTimeline } from "../src/data-flow";
 import { materialRowActionsFor } from "../src/materials";
 
@@ -147,6 +147,25 @@ test("creating an invoice locks picked-up rows with the invoice id and needs Own
   assert.throws(() => editIssuedMaterialRowForActor(db, issued, 6, 1, 4, "more"), /cannot be edited/);
   assert.deepEqual({ subtotal: v.invoice?.subtotal, discount: v.invoice?.discount, gst: v.invoice?.gst_amount, total: v.invoice?.total }, { subtotal: 1600, discount: 100, gst: 270, total: 1770 });
   assert.deepEqual(v.invoice_items.map((item) => item.gst_rate), [18, 18]);
+});
+
+test("Accounts may create invoices only for completed jobs", async () => {
+  const db = await database();
+  const accounts = { id: 4, role: "accounts" as const };
+  const job = view(db).job;
+  assert.equal(canCreateInvoice(accounts, job), false);
+  assert.equal(canCreateInvoice({ id: 2, role: "service" }, job), true);
+  db.run("update job_cards set main_status='COMPLETED' where id=1");
+  assert.equal(canCreateInvoice(accounts, view(db).job), true);
+  db.run("update job_cards set main_status='CLOSED' where id=1");
+  assert.equal(canCreateInvoice(accounts, view(db).job), false);
+  db.run("update job_cards set main_status='CANCELLED' where id=1");
+  assert.equal(canCreateInvoice(accounts, view(db).job), false);
+  db.run("update job_cards set main_status='COMPLETED' where id=1");
+  assert.throws(() => createInvoiceForActor(db, 1, 4, invoiceInput([{ kind: "Service", description: "Labour", qty: 1, rate: 100, gst_rate: 18 }])), /Approve the Estimate/);
+  estimate(db);
+  approveEstimateForActor(db, 1, 2, "approved");
+  assert.doesNotThrow(() => createInvoiceForActor(db, 1, 4, invoiceInput([{ kind: "Service", description: "Labour", qty: 1, rate: 100, gst_rate: 18 }])));
 });
 
 test("Completed is enabled only once an invoice exists, and voiding it disables Completed again", async () => {

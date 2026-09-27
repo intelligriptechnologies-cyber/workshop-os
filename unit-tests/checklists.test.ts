@@ -84,6 +84,6 @@ test("Estimate and Invoice ticks refuse without a saved document, and ticks need
 
 test("Close is blocked until the COMPLETED checklist is fully ticked", async () => {
   const db = await database("COMPLETED", "Customer Verification");
-  assert.throws(() => transitionJobStatusForActor(db, 1, 4, "CLOSED", "Handed over"), /Complete the COMPLETED checklist/);
+  assert.throws(() => transitionJobStatusForActor(db, 1, 4, "CLOSED", "Handed over"), /only close when a valid payment/);
   assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "COMPLETED");
 });

@@ -17,6 +17,7 @@ import {
   passQc,
   setChecklistItemChecked,
   transitionJobStatus,
+  transitionJobStatusForActor,
   updateTask,
 } from "../src/db";
 import type { MainStatus, SubStatus } from "../src/types";
@@ -58,7 +59,7 @@ test("central transition API enforces the complete allowed-transition table", as
     NEW: ["IN_PROGRESS", "CANCELLED"],
     IN_PROGRESS: ["COMPLETED", "HOLD", "CANCELLED"],
     HOLD: ["IN_PROGRESS", "CANCELLED"],
-    COMPLETED: ["IN_PROGRESS", "CLOSED"],
+    COMPLETED: ["IN_PROGRESS"],
     CANCELLED: [],
     CLOSED: [],
   });
@@ -108,14 +109,21 @@ test("every transition requires a note, cancellation bypasses gates, and CLOSED 
   assert.throws(() => transitionJobStatus(db, 1, "IN_PROGRESS", "try reopen"), /Cannot move.*CANCELLED/);
 });
 
-test("CLOSED is terminal", async () => {
+test("direct closure is rejected, including through the central transition API", async () => {
   const db = await database();
   insertJob(db, "IN_PROGRESS", "Material Requested");
   completeActiveCycle(db);
   transitionJobStatus(db, 1, "COMPLETED", "Work complete");
   completeActiveCycle(db);
-  transitionJobStatus(db, 1, "CLOSED", "Vehicle released");
-  assert.throws(() => transitionJobStatus(db, 1, "IN_PROGRESS", "try reopen"), /Cannot move.*CLOSED/);
+  assert.throws(() => transitionJobStatus(db, 1, "CLOSED", "Vehicle released"), /only close when a valid payment/);
+  assert.equal(rows<{ main_status: MainStatus }>(db, "select main_status from job_cards")[0].main_status, "COMPLETED");
+});
+
+test("an Admin cannot manually close a completed job", async () => {
+  const db = await database();
+  insertJob(db, "COMPLETED", "Customer Verification");
+  db.run("insert into users(id,email,name,role,password) values(1,'admin@example.com','Admin','admin','x')");
+  assert.throws(() => transitionJobStatusForActor(db, 1, 1, "CLOSED", "Manual close"), /only close when a valid payment/);
 });
 
 test("HOLD pauses without a checklist gate and resumes the same IN_PROGRESS cycle", async () => {
@@ -162,7 +170,7 @@ test("completed-job rework creates fresh stage cycles and preserves prior histor
   ]);
 });
 
-test("non-billing artifacts never advance main status; full payment does not close and manual Close creates the Gate Pass", async () => {
+test("non-billing artifacts never advance main status; valid payment closes and creates handover artifacts", async () => {
   const db = await database();
   insertJob(db, "NEW", "Gather Requirements");
   db.run("insert into inventory(id,sku,name,stock_qty,archived_at) values(1,'MAT-1','Material',100,null)");
@@ -189,12 +197,10 @@ test("non-billing artifacts never advance main status; full payment does not clo
   const total = rows<{ total: number }>(db, "select total from invoices where job_card_id=1")[0].total;
   assert.ok(total > 0);
   recordPayment(db, rows<{ id: number }>(db, "select id from invoices where job_card_id=1")[0].id, { mode: "UPI", otherDetail: "", reference: "PAY-1" });
-  assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "COMPLETED");
-  transitionJobStatus(db, 1, "CLOSED", "Handed over");
   assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "CLOSED");
   assert.deepEqual(rows(db, "select label,checked_at is not null as checked from checklist_items where checklist_cycle_id=(select max(id) from checklist_cycles) order by sort_order"), [
     { label: "Receipt Generated", checked: 1 },
     { label: "Gate Pass Generated", checked: 1 },
-    { label: "Delivered", checked: 0 },
+    { label: "Delivered", checked: 1 },
   ]);
 });

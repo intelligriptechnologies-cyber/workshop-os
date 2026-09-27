@@ -123,6 +123,9 @@ export function readState(db: Database): WorkshopState {
   const inward_purchase_attachments = all<InwardPurchaseAttachment>(db, "select * from inward_purchase_attachments order by id");
   const inward_purchase_revisions = all<InwardPurchaseRevision>(db, "select * from inward_purchase_revisions order by purchase_id, revision_no");
   const jobRows = all<JobCard>(db, "select * from job_cards where archived_at is null order by id desc");
+  const archivedJobRows = all<JobCard>(db, "select * from job_cards where archived_at is not null order by id desc");
+  const archived_customers = all<Customer>(db, "select * from customers where archived_at is not null order by id");
+  const archived_vehicles = all<Vehicle>(db, "select * from vehicles where archived_at is not null order by id");
   const byId = <T extends { id: number }>(rows: T[]) => new Map(rows.map((row) => [row.id, row]));
   const groupBy = <T>(rows: T[], key: (row: T) => number) => {
     const grouped = new Map<number, T[]>();
@@ -169,7 +172,7 @@ export function readState(db: Database): WorkshopState {
   const movements = all<MaterialMovement>(db, "select * from material_movements order by id desc");
   const movementsByJob = groupBy(movements, (row) => row.job_card_id);
   const globalMovements = movementsByJob.get(0) ?? [];
-  const jobs: JobView[] = jobRows.map((job) => {
+  const jobViews = (rows: JobCard[]): JobView[] => rows.map((job) => {
     const visit = allVisits.get(job.visit_id)!;
     const customer = allCustomers.get(visit.customer_id)!;
     const vehicle = allVehicles.get(visit.vehicle_id)!;
@@ -219,8 +222,12 @@ export function readState(db: Database): WorkshopState {
       photo_history: photoHistoryByJob.get(job.id) ?? [],
     };
   });
+  const jobs = jobViews(jobRows);
+  // Historical jobs intentionally resolve through the all-record maps above: their visit,
+  // customer and vehicle may themselves have been archived.
+  const archived_jobs = jobViews(archivedJobRows);
   const attendance = all<AdvisorAttendance>(db, "select user_id, date, present from advisor_attendance order by date, user_id");
-  return { users, customers, vehicles, visits, jobs, inventory, attendance, suppliers, inward_purchases, inward_purchase_lines, inward_purchase_attachments, inward_purchase_revisions };
+  return { users, customers, vehicles, visits, jobs, archived_customers, archived_vehicles, archived_jobs, inventory, attendance, suppliers, inward_purchases, inward_purchase_lines, inward_purchase_attachments, inward_purchase_revisions };
 }
 
 /** Placeholder shown while a job is waiting for Reception to map a Service Advisor (advisor_id 0). */
@@ -253,6 +260,19 @@ export function ensureDemoAdvisors(db: Database) {
   [["advisor.aa@example.com", "Service advisor AA"], ["advisor.bb1@example.com", "Service advisor BB1"]].forEach(([email, name]) => {
     if (scalar<number>(db, "select count(*) from users where email=?", [email]) === 0) db.run("insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service', 'admin123', datetime('now'), datetime('now'))", [email, name]);
   });
+  // A fresh (or older persisted) demo used one advisor for every seeded job.
+  // Rebalance only that unmistakable demo shape, so real assignments stay intact.
+  const advisors = all<{ id: number }>(db, "select id from users where email in ('service@example.com','advisor.aa@example.com','advisor.bb1@example.com') order by email");
+  const jobCount = scalar<number>(db, "select count(*) from job_cards");
+  const primaryId = advisors.find((advisor) => scalar<string>(db, "select email from users where id=?", [advisor.id]) === "service@example.com")?.id;
+  if (primaryId && advisors.length === 3 && jobCount > 0 && scalar<number>(db, "select count(*) from job_cards where advisor_id=?", [primaryId]) === jobCount) {
+    const jobs = all<{ id: number; visit_id: number }>(db, "select id, visit_id from job_cards order by id");
+    jobs.forEach((job, index) => {
+      const advisorId = advisors[index % advisors.length].id;
+      db.run("update job_cards set advisor_id=? where id=?", [advisorId, job.id]);
+      db.run("update visits set advisor_id=? where id=?", [advisorId, job.visit_id]);
+    });
+  }
 }
 
 export function loadLargeDemoDataset(db: Database) {
@@ -290,7 +310,7 @@ export function loadLargeDemoDataset(db: Database) {
       const date = `2026-${String(((i - 1) % 8) + 1).padStart(2, "0")}-${String(((i * 5) % 27) + 1).padStart(2, "0")}T${String(8 + (i % 9)).padStart(2, "0")}:00:00.000Z`;
       const work = ["Full body PPF", "Ceramic coating", "Paint correction", "Interior detailing"][i % 4];
       const visitId = insert(db, "insert into visits(customer_id,vehicle_id,advisor_id,received_by,received_at,fuel,keys,accessories,requested_work,photos_note,created_at,updated_at) values(?,?,?,?,?,'Half','2 keys','Mats',?,'Offline demo media',?,?)", [customerId, vehicleId, 2, 3, date, work, date, date]);
-      const jobId = insert(db, "insert into job_cards(job_no,visit_id,advisor_id,technician_id,main_status,sub_status,work_list,promised_at,qc_status,washing_needed,closed_at,advisor_notes,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [`JC-2026-${String(2000 + i).padStart(6, "0")}`, visitId, 2, 6, main, sub, work, "Next business day", main === "NEW" || main === "IN_PROGRESS" ? "Pending" : "Pass", i % 3 === 0 ? 1 : 0, main === "CLOSED" ? date : "", "Deterministic large demo", date, date]);
+      const jobId = insert(db, "insert into job_cards(job_no,visit_id,advisor_id,technician_id,main_status,sub_status,work_list,promised_at,qc_status,washing_needed,closed_at,advisor_notes,delivery_by,final_km,acknowledgement,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)", [`JC-2026-${String(2000 + i).padStart(6, "0")}`, visitId, 2, 6, main, sub, work, "Next business day", main === "NEW" || main === "IN_PROGRESS" ? "Pending" : "Pass", i % 3 === 0 ? 1 : 0, main === "CLOSED" ? date : "", "Deterministic large demo", main === "CLOSED" ? "Demo Accounts" : "", main === "CLOSED" ? 5000 + vehicleId * 317 : 0, main === "CLOSED" ? "Vehicle received in good condition" : "", date, date]);
       ensureLifecycleChecklist(db, jobId, main, sub, date);
       const estimateId = insert(db, "insert into estimates(job_card_id,status,discount,gst_rate,approval_note,created_at,updated_at) values(?,?,?,?,?,?,?)", [jobId, subIndex < 2 ? "Draft" : "Approved", i % 4 === 0 ? 500 : 0, 18, subIndex < 2 ? "Awaiting approval" : "Approved for demo", date, date]);
       const rate = 3500 + (i % 12) * 750;
@@ -305,7 +325,7 @@ export function loadLargeDemoDataset(db: Database) {
         const taxable = Math.max(0, rate - invoiceDiscount);
         const gstAmount = Math.round(taxable * 18) / 100;
         const demoTotal = Math.round((taxable + gstAmount) * 100) / 100;
-        invoiceId = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?)", [jobId, `INV-2026-${String(i).padStart(5, "0")}`, `TLY-${String(5000 + i)}`, invoiceDiscount, 18, rate, gstAmount, demoTotal, main === "CLOSED" ? "Cleared" : "Open", "Generated demo invoice", 1, date, date]);
+        invoiceId = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?)", [jobId, `INV-2026-${String(i).padStart(5, "0")}`, `TLY-${String(5000 + i)}`, invoiceDiscount, 18, rate, gstAmount, demoTotal, main === "CLOSED" ? "Cleared" : "Pending", "Generated demo invoice", 1, date, date]);
         insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,'Service',?,1,?,?,?)", [invoiceId, work, rate, date, date]);
       }
       if (main === "CLOSED") {
@@ -319,6 +339,7 @@ export function loadLargeDemoDataset(db: Database) {
       insert(db, "insert into status_history(job_card_id,main_status,sub_status,note,created_at) values(?,?,?,?,?)", [jobId, main, sub, "Generated coherent demo lifecycle", date]);
     }
     validateLargeDemoDataset(db);
+    ensureDemoAdvisors(db);
     db.run("commit");
   } catch (error) {
     db.run("rollback");
@@ -346,9 +367,10 @@ function validateLargeDemoDataset(db: Database) {
   if (orphanCount !== 0) throw new Error("Large demo contains invalid relationships.");
   const incompleteClosures = scalar<number>(db, `select count(*) from job_cards j where j.main_status='CLOSED' and (
     j.closed_at='' or not exists(select 1 from invoices i where i.job_card_id=j.id and i.voided_at is null) or
-    not exists(select 1 from payments p where p.job_card_id=j.id and p.voided_at is null) or
-    not exists(select 1 from receipts r where r.job_card_id=j.id) or
-    not exists(select 1 from gate_passes g where g.job_card_id=j.id))`);
+    not exists(select 1 from payments p join invoices i on i.id=p.invoice_id where p.job_card_id=j.id and p.voided_at is null and i.job_card_id=j.id and i.voided_at is null) or
+    not exists(select 1 from receipts r join invoices i on i.id=r.invoice_id where r.job_card_id=j.id and i.job_card_id=j.id and i.voided_at is null) or
+    not exists(select 1 from gate_passes g join invoices i on i.id=g.invoice_id where g.job_card_id=j.id and i.job_card_id=j.id and i.voided_at is null) or
+    trim(coalesce(j.delivery_by,''))='' or trim(coalesce(j.acknowledgement,''))='')`);
   if (incompleteClosures !== 0 || scalar<number>(db, "select count(distinct main_status) from job_cards") !== 5 || scalar<number>(db, "select count(distinct sub_status) from job_cards") !== 16) {
     throw new Error("Large demo lifecycle records are incomplete.");
   }
@@ -556,13 +578,13 @@ export function receiveVehicle(
 //   NEW -> IN_PROGRESS | CANCELLED
 //   IN_PROGRESS -> COMPLETED | HOLD | CANCELLED
 //   HOLD -> IN_PROGRESS | CANCELLED
-//   COMPLETED -> IN_PROGRESS (rework) | CLOSED
+  //   COMPLETED -> IN_PROGRESS (rework). Closure is only performed by recordPayment.
 // CLOSED and CANCELLED are terminal. Any transition not listed here is rejected.
 export const MAIN_STATUS_TRANSITIONS: Record<MainStatus, MainStatus[]> = {
   NEW: ["IN_PROGRESS", "CANCELLED"],
   IN_PROGRESS: ["COMPLETED", "HOLD", "CANCELLED"],
   HOLD: ["IN_PROGRESS", "CANCELLED"],
-  COMPLETED: ["IN_PROGRESS", "CLOSED"],
+  COMPLETED: ["IN_PROGRESS"],
   CANCELLED: [],
   CLOSED: [],
 };
@@ -575,13 +597,11 @@ export function canMutateJobLifecycle(actor: Pick<User, "id" | "role">, job: Pic
   return actor.role === "admin" || (actor.role === "service" && actor.id === job.advisor_id);
 }
 
-// Per-transition permission: Owner/Admin may do everything; the linked Service Advisor may do
-// everything except Close; Accounts may only Close a COMPLETED card. Cancel is therefore limited
-// to Owner/Admin and the linked Advisor.
+// Owner/Admin may perform lifecycle transitions; the linked Service Advisor may perform their
+// own job's transitions. Accounts completes handover through payment recording, not a status action.
 export function canTransitionJobStatus(actor: Pick<User, "id" | "role">, job: Pick<JobCard, "advisor_id" | "main_status">, to: MainStatus) {
   if (!MAIN_STATUS_TRANSITIONS[job.main_status].includes(to)) return false;
   if (actor.role === "admin") return true;
-  if (to === "CLOSED") return actor.role === "accounts";
   return actor.role === "service" && actor.id === job.advisor_id;
 }
 
@@ -597,9 +617,10 @@ export function assertJobLifecycleMutationAccess(db: Database, jobId: number, ac
 export function transitionJobStatusForActor(db: Database, jobId: number, actorId: number, to: MainStatus, note: string, timestamp = new Date().toISOString()) {
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
   const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (to === "CLOSED") throw new Error("A completed job can only close when a valid payment is recorded.");
   if (!MAIN_STATUS_TRANSITIONS[job.main_status].includes(to)) throw new Error(`Cannot move a job card from ${job.main_status} to ${to}.`);
   if (!canTransitionJobStatus(actor, job, to)) {
-    throw new Error(to === "CANCELLED" ? "Only the Owner or the linked Service Advisor can cancel a job card." : to === "CLOSED" ? "Only the Owner or Accounts can close a job card." : "Only the Owner or the linked Service Advisor can change this job lifecycle.");
+    throw new Error(to === "CANCELLED" ? "Only the Owner or the linked Service Advisor can cancel a job card." : "Only the Owner or the linked Service Advisor can change this job lifecycle.");
   }
   if (to === "COMPLETED") {
     const invoice = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
@@ -1454,7 +1475,14 @@ function assertBillingMutationAccess(db: Database, actorId: number) {
   if (!canMutateBilling(actor)) throw new Error("Only Owner/Admin and Accounts may change billing or delivery records.");
 }
 
+function assertAdminBillingAccess(db: Database, actorId: number) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  if (actor.role !== "admin") throw new Error("Only Owner/Admin may void or manually edit delivery records.");
+}
+
 function assertInvoiceFinancialsEditable(db: Database, invoiceId: number) {
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  if (invoice.status !== "Pending") throw new Error("Only a Pending invoice can be edited.");
   if (scalar<number>(db, "select count(*) from payments where invoice_id=? and voided_at is null", [invoiceId]) > 0) {
     throw new Error("Invoice financial fields are locked after the first active payment.");
   }
@@ -1560,7 +1588,7 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
   try {
     const priced = items.map((item) => ({ ...item, ...normalizeAndValidateGst(item.gst_type, item.gst_rate, fallbackGst ?? DEFAULT_GST_BY_KIND[item.kind]) }));
     const totals = invoiceTotals(priced, discount);
-    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, nextDocumentNumber(db, "invoices", "invoice_no", "INV-", 8900 + jobId, 5), input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Open", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
+    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, nextDocumentNumber(db, "invoices", "invoice_no", "INV-", 8900 + jobId, 5), input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Pending", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
     for (const item of priced) {
       if (item.material_row_id) pickUpMaterialRow(db, jobId, item.material_row_id, id);
       insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_type,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description.trim(), item.qty, item.rate, item.gst_type, item.gst_rate, item.material_row_id ?? null]);
@@ -1586,7 +1614,10 @@ export function createInvoiceForActor(db: Database, jobId: number, actorId: numb
 }
 
 export function updateInvoiceForActor(db: Database, invoiceId: number, actorId: number, input: InvoiceFieldsInput) {
-  assertBillingMutationAccess(db, actorId);
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [invoice.job_card_id]);
+  if (!canEditInvoice(actor, job) || invoice.status !== "Pending") throw new Error("This user cannot edit this invoice.");
   updateInvoiceFields(db, invoiceId, input);
 }
 
@@ -1611,8 +1642,8 @@ export function saveInvoiceForActor(db: Database, invoiceId: number, actorId: nu
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
   const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
   const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
+  if (invoice.status !== "Pending") throw new Error("Only a Pending invoice can be edited; cleared invoices are locked.");
   if (!canEditInvoice(actor, job)) throw new Error("This user cannot edit the invoice for this job card.");
-  if (invoice.status === "Cleared") throw new Error("A Cleared invoice is locked. Void the payment to reopen it.");
   if (input.items.length === 0) throw new Error("An invoice requires at least one item.");
   const existing = activeInvoiceItems(db, invoiceId);
   const existingIds = new Set(existing.map((item) => item.id));
@@ -1657,7 +1688,7 @@ export function voidInvoice(db: Database, invoiceId: number, reason: string, act
 }
 
 export function voidInvoiceForActor(db: Database, invoiceId: number, actorId: number, reason: string) {
-  assertBillingMutationAccess(db, actorId);
+  assertAdminBillingAccess(db, actorId);
   voidInvoice(db, invoiceId, reason, actorId);
 }
 
@@ -1677,7 +1708,7 @@ function activePaidAmount(db: Database, invoiceId: number, excludingPaymentId = 
 function syncInvoicePaymentStatus(db: Database, invoiceId: number) {
   const invoice = one<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
   const paid = activePaidAmount(db, invoiceId);
-  const status = paid <= 0 ? "Open" : paid + 0.001 < invoice.total ? "Partial" : "Cleared";
+  const status = paid <= 0 ? "Pending" : paid + 0.001 < invoice.total ? "Partial" : "Cleared";
   db.run("update invoices set status=?,updated_at=datetime('now') where id=?", [status, invoiceId]);
   reconcileArtifactChecklist(db, invoice.job_card_id);
 }
@@ -1690,14 +1721,16 @@ function nextDocumentNumber(db: Database, table: string, column: string, prefix:
   return format(highest + 1);
 }
 
-/** Record Payment: one full payment plus its Receipt; the Invoice becomes Cleared (locked). It never closes the job. */
+/** Record a full payment and atomically finish the handover. */
 export function recordPayment(db: Database, invoiceId: number, input: PaymentInput, actorId = 0) {
   validatePaymentInput(input);
   const invoice = maybe<Invoice>(db, "select * from invoices where id=? and voided_at is null", [invoiceId]);
   if (!invoice) throw new Error("Record Payment requires a current Invoice.");
   const job = one<JobCard>(db, "select * from job_cards where id=?", [invoice.job_card_id]);
-  if (job.main_status === "CLOSED" || job.main_status === "CANCELLED") throw new Error(`A ${job.main_status} job card is read-only.`);
+  if (job.main_status === "CANCELLED") throw new Error("A CANCELLED job card is read-only.");
+  if (job.main_status !== "COMPLETED") throw new Error("Only a completed job card can be paid and handed over.");
   if (activePaidAmount(db, invoiceId) > 0) throw new Error("This invoice already has a payment. Void it before recording another.");
+  if (invoice.status !== "Pending") throw new Error("Only a Pending invoice can be paid.");
   if (!(invoice.total > 0)) throw new Error("An invoice with no amount due cannot be paid.");
   db.run("savepoint record_payment");
   try {
@@ -1708,6 +1741,14 @@ export function recordPayment(db: Database, invoiceId: number, input: PaymentInp
     }
     db.run("update invoices set status='Cleared',updated_at=datetime('now') where id=?", [invoiceId]);
     reconcileArtifactChecklist(db, invoice.job_card_id, actorId, timestamp);
+    transitionJobStatusInternal(db, invoice.job_card_id, "CLOSED", "Payment received and vehicle handed over", timestamp, true);
+    ensureGatePassOnClose(db, invoice.job_card_id);
+    const actor = actorId ? one<User>(db, "select * from users where id=? and archived_at is null", [actorId]) : undefined;
+    const vehicle = maybe<Vehicle>(db, "select v.* from vehicles v join visits visit on visit.vehicle_id=v.id join job_cards jc on jc.visit_id=visit.id where jc.id=?", [invoice.job_card_id]);
+    updateDeliveryDetails(db, invoice.job_card_id, actor?.name ?? job.delivery_by ?? "Accounts", job.final_km ?? vehicle?.km ?? 0, job.acknowledgement || "Payment confirmed and vehicle handed over");
+    reconcileArtifactChecklist(db, invoice.job_card_id, actorId, timestamp);
+    const deliveredItem = maybe<ChecklistItem>(db, "select * from checklist_items where job_card_id=? and stage='CLOSED' and label='Delivered' order by cycle_number desc,id desc limit 1", [invoice.job_card_id]);
+    if (deliveredItem && !deliveredItem.checked_at) setChecklistItemChecked(db, deliveredItem.id, actorId, true, timestamp);
     db.run("release savepoint record_payment");
     return id;
   } catch (error) {
@@ -1732,7 +1773,7 @@ export function voidPayment(db: Database, id: number, reason: string) {
   try {
     db.run("update payments set voided_at=datetime('now'),void_reason=?,updated_at=datetime('now') where id=?", [reason.trim(), id]);
     db.run("update receipts set voided_at=datetime('now'),void_reason=? where invoice_id=? and voided_at is null", [reason.trim(), payment.invoice_id]);
-    db.run("update invoices set status='Open',updated_at=datetime('now') where id=? and voided_at is null", [payment.invoice_id]);
+    db.run("update invoices set status='Pending',updated_at=datetime('now') where id=? and voided_at is null", [payment.invoice_id]);
     const item = maybe<ChecklistItem>(db, "select * from checklist_items where job_card_id=? and label='Payment Received' and checked_at is not null and checklist_cycle_id=(select max(id) from checklist_cycles where job_card_id=?)", [payment.job_card_id, payment.job_card_id]);
     if (item) writeChecklistItemState(db, item, 0, false, false, new Date().toISOString());
     db.run("release savepoint void_payment");
@@ -1744,7 +1785,7 @@ export function voidPayment(db: Database, id: number, reason: string) {
 }
 
 export function voidPaymentForActor(db: Database, id: number, actorId: number, reason: string) {
-  assertBillingMutationAccess(db, actorId);
+  assertAdminBillingAccess(db, actorId);
   voidPayment(db, id, reason);
 }
 
@@ -1760,14 +1801,14 @@ export function updateDeliveryDetails(db: Database, jobId: number, deliveredBy: 
 }
 
 export function updateDeliveryForActor(db: Database, jobId: number, actorId: number, deliveredBy: string, finalKm: number, acknowledgement: string) {
-  assertBillingMutationAccess(db, actorId);
+  assertAdminBillingAccess(db, actorId);
   if (!deliveredBy.trim()) throw new Error("Delivered by is required.");
   if (!Number.isFinite(finalKm) || finalKm < 0) throw new Error("Final KM cannot be negative.");
   updateDeliveryDetails(db, jobId, deliveredBy.trim(), finalKm, acknowledgement.trim());
 }
 
 export function markJobDeliveredForActor(db: Database, jobId: number, actorId: number, deliveredBy: string, finalKm: number, acknowledgement: string, timestamp = new Date().toISOString()) {
-  assertBillingMutationAccess(db, actorId);
+  assertAdminBillingAccess(db, actorId);
   const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
   if (job.main_status !== "CLOSED") throw new Error("Only a closed job can be marked Delivered.");
   if (!maybe<GatePass>(db, "select * from gate_passes where job_card_id=? and voided_at is null", [jobId])) throw new Error("A current gate pass is required before delivery.");
@@ -1787,11 +1828,7 @@ export function markJobDeliveredForActor(db: Database, jobId: number, actorId: n
 }
 
 export function closeJob(db: Database, jobId: number) {
-  if (closureBlockers(readState(db).jobs.find((job) => job.job.id === jobId) ?? undefined).length > 0) return false;
-  transitionJobStatus(db, jobId, "CLOSED", "Vehicle delivered and job closed");
-  db.run("update job_cards set closed_at=datetime('now'), updated_at=datetime('now') where id=?", [jobId]);
-  reconcileArtifactChecklist(db, jobId);
-  return true;
+  throw new Error("A completed job can only close when a valid payment is recorded.");
 }
 
 export function createFollowup(db: Database, payload: Omit<Followup, "id">) {
@@ -2062,7 +2099,7 @@ export function migrateSchema(db: Database) {
     ensureColumn(db, table, "void_reason", "text");
     ensureColumn(db, table, "created_at", "text");
   }
-  db.run("update invoices set status=case when status in ('Draft','Generated') then 'Open' else status end");
+  db.run("update invoices set status='Pending' where status in ('Open','Draft','Generated')");
   db.run("update payments set invoice_id=(select id from invoices where invoices.job_card_id=payments.job_card_id and invoices.voided_at is null order by id desc limit 1) where invoice_id is null");
   db.run("update receipts set invoice_id=(select id from invoices where invoices.job_card_id=receipts.job_card_id and invoices.voided_at is null order by id desc limit 1) where invoice_id is null");
   db.run("update gate_passes set invoice_id=(select id from invoices where invoices.job_card_id=gate_passes.job_card_id and invoices.voided_at is null order by id desc limit 1) where invoice_id is null");
@@ -2310,7 +2347,7 @@ function makeSeedJob(db: Database, customerId: number, vehicleId: number, jobNo:
     const taxable = Math.max(0, seedRate - 1000);
     const gstAmount = Math.round(taxable * 18) / 100;
     const invoiceTotal = Math.round((taxable + gstAmount) * 100) / 100;
-    invoiceId = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,created_at,updated_at) values(?,'INV-08947','TLY-4451',1000,18,?,?,?,'Open','Seed invoice',1,datetime('now'),datetime('now'))", [jobId, seedRate, gstAmount, invoiceTotal]);
+    invoiceId = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,created_at,updated_at) values(?,'INV-08947','TLY-4451',1000,18,?,?,?,'Pending','Seed invoice',1,datetime('now'),datetime('now'))", [jobId, seedRate, gstAmount, invoiceTotal]);
     insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,created_at,updated_at) values(?,'Service',?,1,?,datetime('now'),datetime('now'))", [invoiceId, work, seedRate]);
   }
   if (paid > 0 && invoiceId) {
@@ -2322,13 +2359,18 @@ function makeSeedJob(db: Database, customerId: number, vehicleId: number, jobNo:
 }
 
 export function transitionJobStatus(db: Database, jobId: number, to: MainStatus, note: string, timestamp = new Date().toISOString()) {
+  return transitionJobStatusInternal(db, jobId, to, note, timestamp);
+}
+
+function transitionJobStatusInternal(db: Database, jobId: number, to: MainStatus, note: string, timestamp = new Date().toISOString(), closingViaPayment = false) {
   const confirmation = note.trim();
   if (!confirmation) throw new Error("A confirmation note is required for every status transition.");
+  if (to === "CLOSED" && !closingViaPayment) throw new Error("A completed job can only close when a valid payment is recorded.");
   db.run("savepoint job_status_transition");
   try {
     const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
     if (job.main_status === to) throw new Error(`Job card is already ${to}.`);
-    assertValidMainStatusTransition(job.main_status, to);
+    if (!closingViaPayment) assertValidMainStatusTransition(job.main_status, to);
 
     const gated = to !== "CANCELLED" && to !== "HOLD" && job.main_status !== "HOLD";
     if (gated) {

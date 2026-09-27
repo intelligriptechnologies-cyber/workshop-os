@@ -86,9 +86,9 @@ test("post-payment invoice is fully locked once Cleared", async () => {
   ] });
   recordPayment(db, invoiceId, { mode: "Cash", otherDetail: "", reference: "" });
   const items = readState(db).jobs[0].invoice_items.map(({ id, kind, description, qty, rate }) => ({ id, kind, description, qty, rate }));
-  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, notes: "Metadata updated", documentAvailable: false, items }), /locked/);
-  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 99, notes: "", documentAvailable: true, items }), /locked/);
-  assert.throws(() => updateInvoiceFields(db, invoiceId, { tallyInvoiceNo: "TLY-X", discount: 0, gstRate: 18, notes: "", documentAvailable: true }), /locked/);
+  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 100, notes: "Metadata updated", documentAvailable: false, items }), /Pending invoice/);
+  assert.throws(() => saveInvoiceForActor(db, invoiceId, 1, { tallyInvoiceNo: "TLY-META", discount: 99, notes: "", documentAvailable: true, items }), /Pending invoice/);
+  assert.throws(() => updateInvoiceFields(db, invoiceId, { tallyInvoiceNo: "TLY-X", discount: 0, gstRate: 18, notes: "", documentAvailable: true }), /Pending invoice/);
 });
 
 test("invoice fields and items recalculate subtotal, overall discount, GST, total, and document availability", async () => {
@@ -96,7 +96,7 @@ test("invoice fields and items recalculate subtotal, overall discount, GST, tota
   insertCompletedJob(db);
   const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-1", notes: "Initial", documentAvailable: true });
   let invoice = readState(db).jobs[0].invoice!;
-  assert.deepEqual({ subtotal: invoice.subtotal, discount: invoice.discount, gst: invoice.gst_amount, total: invoice.total, status: invoice.status }, { subtotal: 1250, discount: 100, gst: 207, total: 1357, status: "Open" });
+  assert.deepEqual({ subtotal: invoice.subtotal, discount: invoice.discount, gst: invoice.gst_amount, total: invoice.total, status: invoice.status }, { subtotal: 1250, discount: 100, gst: 207, total: 1357, status: "Pending" });
 
   const labour = readState(db).jobs[0].invoice_items[0];
   updateInvoiceItem(db, labour.id, { kind: "Service", description: "Revised labour", qty: 3, rate: 400 });
@@ -123,10 +123,10 @@ test("Record Payment validates mode, is a single full payment, and needs an acti
   const view = readState(db).jobs[0];
   assert.equal(view.invoice?.status, "Cleared");
   assert.deepEqual(view.payments.map((payment) => ({ id: payment.id, invoiceId: payment.invoice_id, mode: payment.mode, amount: payment.amount, reference: payment.reference })), [{ id: paymentId, invoiceId, mode: "UPI", amount: 1357, reference: "UPI-1" }]);
-  assert.throws(() => recordPayment(db, invoiceId, { mode: "Card", otherDetail: "", reference: "CARD-X" }), /already has a payment/);
+  assert.throws(() => recordPayment(db, invoiceId, { mode: "Card", otherDetail: "", reference: "CARD-X" }), /completed job card/);
 });
 
-test("Record Payment creates the Receipt, clears the invoice, ticks Payment Received, and does not close the job or create a Gate Pass", async () => {
+test("Record Payment atomically creates payment, receipt, gate pass and delivery acknowledgement, then closes", async () => {
   const db = await database();
   insertCompletedJob(db);
   const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-1", notes: "", documentAvailable: true });
@@ -134,28 +134,25 @@ test("Record Payment creates the Receipt, clears the invoice, ticks Payment Rece
 
   const view = readState(db).jobs[0];
   assert.equal(view.invoice?.status, "Cleared");
-  assert.equal(view.job.main_status, "COMPLETED");
+  assert.equal(view.job.main_status, "CLOSED");
   assert.equal(view.receipt?.invoice_id, invoiceId);
-  assert.equal(view.gate_pass, undefined);
-  const completed = view.checklist_items.filter((item) => item.stage === "COMPLETED").at(-1)?.cycle_number;
-  assert.equal(view.checklist_items.filter((item) => item.stage === "COMPLETED" && item.cycle_number === completed).every((item) => item.checked_at), true);
+  assert.equal(view.gate_pass?.invoice_id, invoiceId);
+  assert.ok(view.job.delivery_by);
+  assert.ok(view.job.acknowledgement);
 });
 
-test("Close is manual: it creates the Gate Pass, ticks Receipt and Gate Pass, and leaves Delivered manual", async () => {
+test("direct manual Close remains forbidden after a payment", async () => {
   const db = await database();
   insertCompletedJob(db);
   const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-1", notes: "", documentAvailable: true });
   recordPayment(db, invoiceId, { mode: "Cash", otherDetail: "", reference: "" });
-  transitionJobStatus(db, 1, "CLOSED", "Vehicle handed over");
-
   const view = readState(db).jobs[0];
   assert.equal(view.job.main_status, "CLOSED");
   assert.equal(view.gate_pass?.invoice_id, invoiceId);
-  const closedItems = view.checklist_items.filter((item) => item.stage === "CLOSED" && item.cycle_number === 1);
-  assert.deepEqual(closedItems.map((item) => [item.label, Boolean(item.checked_at)]), [["Receipt Generated", true], ["Gate Pass Generated", true], ["Delivered", false]]);
+  assert.throws(() => transitionJobStatus(db, 1, "CLOSED", "Vehicle handed over"), /only close when a valid payment|already CLOSED/);
 });
 
-test("a cleared invoice does not auto-close when rework returns to COMPLETED", async () => {
+test("payment is rejected during rework and closes only after the job is completed again", async () => {
   const db = await database();
   insertCompletedJob(db);
   const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-REWORK", notes: "", documentAvailable: true });
@@ -163,18 +160,17 @@ test("a cleared invoice does not auto-close when rework returns to COMPLETED", a
   db.run("update checklist_cycles set completed_at='2026-09-25T09:00:00.000Z' where job_card_id=1 and completed_at is null");
   transitionJobStatus(db, 1, "IN_PROGRESS", "Customer requested rework", "2026-09-25T09:05:00.000Z");
 
-  recordPayment(db, invoiceId, { mode: "UPI", otherDetail: "", reference: "REWORK-FULL" });
+  assert.throws(() => recordPayment(db, invoiceId, { mode: "UPI", otherDetail: "", reference: "REWORK-FULL" }), /completed job card/);
   assert.equal(readState(db).jobs[0].job.main_status, "IN_PROGRESS");
 
   db.run("update checklist_items set checked_at='2026-09-25T10:00:00.000Z',completed_at='2026-09-25T10:00:00.000Z' where checklist_cycle_id=(select id from checklist_cycles where job_card_id=1 order by id desc limit 1) and checked_at is null");
   db.run("update checklist_cycles set completed_at='2026-09-25T10:00:00.000Z' where id=(select id from checklist_cycles where job_card_id=1 order by id desc limit 1)");
   transitionJobStatus(db, 1, "COMPLETED", "Rework verified", "2026-09-25T10:05:00.000Z");
 
+  recordPayment(db, invoiceId, { mode: "UPI", otherDetail: "", reference: "REWORK-FULL" });
   const view = readState(db).jobs[0];
-  assert.equal(view.job.main_status, "COMPLETED");
-  assert.equal(view.gate_pass, undefined);
-  assert.equal(view.checklist_items.filter((item) => item.stage === "COMPLETED").at(-1)?.checked_at !== undefined, true);
-  assert.equal(view.checklist_items.find((item) => item.stage === "COMPLETED" && item.cycle_number === 2 && item.label === "Payment Received")?.checked_at ? true : false, true);
+  assert.equal(view.job.main_status, "CLOSED");
+  assert.equal(view.gate_pass?.invoice_id, invoiceId);
 });
 
 test("Record Payment rolls back payment, receipt and invoice status when a step fails", async () => {
@@ -186,32 +182,21 @@ test("Record Payment rolls back payment, receipt and invoice status when a step 
   assert.throws(() => recordPayment(db, invoiceId, { mode: "UPI", otherDetail: "", reference: "UPI-FULL" }), /receipt unavailable/);
   const view = readState(db).jobs[0];
   assert.equal(view.payments.length, 0);
-  assert.equal(view.invoice?.status, "Open");
+  assert.equal(view.invoice?.status, "Pending");
   assert.equal(view.receipt, undefined);
   assert.equal(view.checklist_items.find((item) => item.label === "Payment Received")?.checked_at, null);
 });
 
-test("voiding a payment needs a reason, voids the Receipt, reopens the invoice, unticks Payment Received and keeps history", async () => {
+test("a payment-created closure is immutable", async () => {
   const db = await database();
   insertCompletedJob(db);
   const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-1", notes: "", documentAvailable: true });
   const paymentId = recordPayment(db, invoiceId, { mode: "Cash", otherDetail: "", reference: "" });
-  const receiptId = readState(db).jobs[0].receipt!.id;
-  assert.throws(() => voidPayment(db, paymentId, " "), /void reason/);
-  voidPayment(db, paymentId, "Cash count correction");
-
-  assert.deepEqual(rows(db, "select void_reason from payments where id=?", [paymentId]), [{ void_reason: "Cash count correction" }]);
+  assert.throws(() => voidPayment(db, paymentId, "Cash count correction"), /read-only/);
   const view = readState(db).jobs[0];
-  assert.equal(view.job.main_status, "COMPLETED");
-  assert.equal(view.invoice?.status, "Open");
-  assert.equal(view.receipt, undefined);
-  assert.equal(view.receipt_history?.find((receipt) => receipt.id === receiptId)?.void_reason, "Cash count correction");
-  assert.equal(view.payments.some((payment) => payment.id === paymentId), false);
-  assert.equal(view.payment_history?.find((payment) => payment.id === paymentId)?.void_reason, "Cash count correction");
-  assert.equal(view.checklist_items.filter((item) => item.stage === "COMPLETED").find((item) => item.label === "Payment Received")?.checked_at, null);
-  // the reopened invoice is editable again and can be paid once more
-  recordPayment(db, invoiceId, { mode: "UPI", otherDetail: "", reference: "AGAIN" });
-  assert.equal(readState(db).jobs[0].invoice?.status, "Cleared");
+  assert.equal(view.job.main_status, "CLOSED");
+  assert.equal(view.invoice?.status, "Cleared");
+  assert.equal(view.receipt?.invoice_id, invoiceId);
 });
 
 test("a closed job's payment can no longer be voided or recorded", async () => {
@@ -219,7 +204,6 @@ test("a closed job's payment can no longer be voided or recorded", async () => {
   insertCompletedJob(db);
   const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-1", notes: "", documentAvailable: true });
   const paymentId = recordPayment(db, invoiceId, { mode: "Cash", otherDetail: "", reference: "" });
-  transitionJobStatus(db, 1, "CLOSED", "Handed over");
   assert.throws(() => voidPayment(db, paymentId, "Too late"), /read-only/);
 });
 
@@ -228,31 +212,29 @@ test("billing actor boundary allows Owner/Admin and Accounts while rejecting eve
   insertCompletedJob(db);
   db.run("insert into users(id,email,name,role,password) values(3,'accounts@example.com','Accounts','accounts','x'),(4,'reception@example.com','Reception','reception','x'),(5,'store@example.com','Store','store','x')");
   const invoiceId = createInvoiceForActor(db, 1, 1, { tallyInvoiceNo: "TLY-AUTH", notes: "", documentAvailable: true });
-  assert.throws(() => voidInvoiceForActor(db, invoiceId, 2, "Not allowed"), /Only Owner\/Admin and Accounts/);
+  assert.throws(() => voidInvoiceForActor(db, invoiceId, 2, "Not allowed"), /Only Owner\/Admin/);
   assert.throws(() => recordPaymentForActor(db, invoiceId, 4, { mode: "Cash", otherDetail: "", reference: "" }), /Only Owner\/Admin and Accounts/);
   assert.throws(() => recordPaymentForActor(db, invoiceId, 5, { mode: "Cash", otherDetail: "", reference: "" }), /Only Owner\/Admin and Accounts/);
   assert.throws(() => recordPaymentForActor(db, invoiceId, 2, { mode: "Cash", otherDetail: "", reference: "" }), /Only Owner\/Admin and Accounts/);
   const paymentId = recordPaymentForActor(db, invoiceId, 3, { mode: "Cash", otherDetail: "", reference: "AUTH" });
   assert.equal(readState(db).jobs[0].payments[0].id, paymentId);
-  assert.throws(() => voidPaymentForActor(db, paymentId, 2, "Advisor"), /Only Owner\/Admin and Accounts/);
-  voidPaymentForActor(db, paymentId, 3, "Accounts void");
+  assert.throws(() => voidPaymentForActor(db, paymentId, 2, "Advisor"), /Only Owner\/Admin/);
+  assert.throws(() => voidPaymentForActor(db, paymentId, 3, "Accounts void"), /Only Owner\/Admin/);
 });
 
-test("manual Delivered action requires a closed gate-passed job and records delivery details atomically", async () => {
+test("Accounts payment records delivery details as part of the handover", async () => {
   const db = await database();
   insertCompletedJob(db);
   db.run("insert into users(id,email,name,role,password) values(3,'accounts@example.com','Accounts','accounts','x')");
   const invoiceId = createInvoiceForActor(db, 1, 1, { tallyInvoiceNo: "TLY-DELIVERY", notes: "", documentAvailable: true });
-  assert.throws(() => markJobDeliveredForActor(db, 1, 3, "Accounts", 150, "Received"), /closed job/);
   recordPaymentForActor(db, invoiceId, 3, { mode: "UPI", otherDetail: "", reference: "FULL" });
-  transitionJobStatusForActor(db, 1, 3, "CLOSED", "Handed over");
-  markJobDeliveredForActor(db, 1, 3, "Accounts Desk", 150, "Customer received vehicle", "2026-09-24T12:00:00.000Z");
   const view = readState(db).jobs[0];
-  assert.deepEqual({ by: view.job.delivery_by, km: view.job.final_km, acknowledgement: view.job.acknowledgement }, { by: "Accounts Desk", km: 150, acknowledgement: "Customer received vehicle" });
+  assert.equal(view.job.main_status, "CLOSED");
+  assert.ok(view.job.delivery_by);
+  assert.ok(view.job.acknowledgement);
   const deliveredItem = view.checklist_items.find((item) => item.stage === "CLOSED" && item.label === "Delivered");
   assert.equal(deliveredItem?.checked_by, 3);
-  assert.equal(deliveredItem?.checked_at, "2026-09-24T12:00:00.000Z");
-  assert.throws(() => markJobDeliveredForActor(db, 1, 3, "Accounts Desk", 151, "Again"), /already marked Delivered/);
+  assert.ok(deliveredItem?.checked_at);
 });
 
 test("payments mixed list orders unpaid, received, then void and gates void/record actions", async () => {

@@ -71,7 +71,7 @@ export function BodyMarkDiagram({ marks, onChange, meta, hideDownload = false }:
       </div>
       <div className="body-mark-footer">
         <p className="damage-hint">{onChange ? "Click the illustration to mark damage; use a numbered marker to remove it." : ""} {marks.length} mark{marks.length === 1 ? "" : "s"} recorded.</p>
-        {!hideDownload && <button type="button" className="document-download" onClick={download}><Download size={15} />Download image</button>}
+        {!hideDownload && <button type="button" className="workflow-action action-document document-download" onClick={download}><Download size={15} />Download image</button>}
       </div>
       {error && <p role="alert" className="form-error">{error}</p>}
     </div>

@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, ShieldCheck, Sliders } from "lucide-react";
 import type { User, WorkshopState } from "./types";
-import { Dialog, DownloadMenu, ListSearchActions, PageSizeSelect } from "./ui-kit";
+import { Dialog, DownloadMenu, FilterClearButton, ListSearchActions } from "./ui-kit";
 import type { ExportColumn } from "./export-utils";
 import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } from "./list-utils";
-import { Info, PanelTitle, ResultPagination, UserManager, roleLabels, type Mutate } from "./App";
+import { Info, PanelTitle, UserManager, roleLabels, type Mutate } from "./App";
+import { PaginationToolbar, ResultPagination } from "./pagination-toolbar";
 import type { CognitoConfig } from "./auth";
 import {
   ADMIN_PAGE_GROUPS,
@@ -200,10 +201,8 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
         <label className="list-search">Search<input aria-label="Search roles" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Role name or description" /></label>
         <label>Status<select aria-label="Filter roles by status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value as typeof statusFilter); setPage(1); }}><option value="ALL">All statuses</option><option value="active">Active</option><option value="archived">Archived</option></select></label>
         <ListSearchActions onClear={() => { setSearch(""); setStatusFilter("ALL"); setPage(1); }} />
-        <DownloadMenu report={{ title: "Roles", filters: activeFilterSummary({ Search: search.trim(), Status: statusFilter }), columns: roleColumns, rows: roles }} />
       </div>
-      <div className="list-result-controls"><span className="result-summary">Showing {pagedRoles.from} to {pagedRoles.to} of {pagedRoles.totalCount}</span><PageSizeSelect ariaLabel="Role records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} /></div>
-      <ResultPagination page={pagedRoles.page} pageCount={pagedRoles.pageCount} onChange={setPage} />
+      <PaginationToolbar controls={<DownloadMenu report={{ title: "Roles", filters: activeFilterSummary({ Search: search.trim(), Status: statusFilter }), columns: roleColumns, rows: roles }} />} from={pagedRoles.from} to={pagedRoles.to} totalCount={pagedRoles.totalCount} page={pagedRoles.page} pageCount={pagedRoles.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Role records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
 
       <div className="role-access-layout">
         <div className="record-list role-list">
@@ -245,7 +244,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
               )}
             </div>
           ))}
-          {roles.length === 0 && <div className="list-empty"><h3>No matching roles</h3><button onClick={() => { setSearch(""); setStatusFilter("ALL"); setPage(1); }}>Clear filters</button></div>}
+          {roles.length === 0 && <div className="list-empty"><h3>No matching roles</h3><FilterClearButton onClick={() => { setSearch(""); setStatusFilter("ALL"); setPage(1); }} label="Clear filters" /></div>}
         </div>
 
         <div className="desk-panel page-access-panel">
@@ -880,13 +879,7 @@ function LogsPanel({ adminState, stream, commit }: { adminState: AdminDemoState;
         <label>Area<select value={area} onChange={(event) => { setArea(event.target.value); setPage(1); }}><option value="ALL">All areas</option>{areas.map((item) => <option key={item} value={item}>{item}</option>)}</select></label>
         <ListSearchActions onClear={clearFilters} />
       </div>
-      <div className="list-result-controls">
-        <DownloadMenu report={{ title: stream === "operational" ? "Daily Operational Logs" : "Feature Activity", filters: activeFilterSummary({ Search: search.trim(), Level: level, Area: area, "Date from": dateFrom, "Date to": dateTo }), columns, rows: filtered }} />
-        <span className="result-summary">Showing {paged.from} to {paged.to} of {paged.totalCount}</span>
-        <PageSizeSelect ariaLabel="Log records per page" value={pageSize} onChange={(value) => { setPageSize(value); setPage(1); }} />
-        <button className="danger-action" onClick={clear} disabled={streamLogs.length === 0}>Clear Logs</button>
-      </div>
-      <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
+      <PaginationToolbar controls={<><DownloadMenu report={{ title: stream === "operational" ? "Daily Operational Logs" : "Feature Activity", filters: activeFilterSummary({ Search: search.trim(), Level: level, Area: area, "Date from": dateFrom, "Date to": dateTo }), columns, rows: filtered }} /><button className="danger-action" onClick={clear} disabled={streamLogs.length === 0}>Clear Logs</button></>} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Log records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
       <LogTable logs={paged.items} onSelect={setSelected} />
       <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
       {selected && (

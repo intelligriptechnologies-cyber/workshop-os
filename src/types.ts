@@ -407,7 +407,8 @@ export interface Invoice {
   subtotal: number;
   gst_amount: number;
   total: number;
-  status: "Open" | "Partial" | "Cleared";
+  /** Partial is retained only for imported/audit history; new invoices are Pending or Cleared. */
+  status: "Pending" | "Partial" | "Cleared";
   notes: string;
   document_available: number;
   document_generated_at?: string;
@@ -609,6 +610,10 @@ export interface WorkshopState {
   vehicles: Vehicle[];
   visits: Visit[];
   jobs: JobView[];
+  /** Historical records are deliberately separate so operational screens stay active-only. */
+  archived_customers: Customer[];
+  archived_vehicles: Vehicle[];
+  archived_jobs: JobView[];
   inventory: InventoryItem[];
   attendance: AdvisorAttendance[];
   suppliers: Supplier[];

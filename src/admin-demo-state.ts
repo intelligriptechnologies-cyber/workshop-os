@@ -287,7 +287,7 @@ export const DEFAULT_ROLE_PAGE_ACCESS: Readonly<RolePageAccess> = {
   store: ["material-requests", "issue-material", "reconcile", "stock", "search"],
   tech: ["my-tasks", "work-update", "qc-prep", "search"],
   accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "data-flow", "jobs", "customers", "vehicles", "media", "masters", "manage", "search", "admin-console"],
+  admin: ["dashboard", "data-flow", "jobs", "customers", "vehicles", "media", "masters", "stock", "manage", "search", "admin-console"],
 };
 
 const DEFAULT_SETTINGS: WorkshopBusinessSettings = {
