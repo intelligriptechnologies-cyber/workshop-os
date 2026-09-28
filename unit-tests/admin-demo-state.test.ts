@@ -56,7 +56,7 @@ test("defaults represent all six WorkshopOS roles and current menu pages", () =>
   assert.deepEqual(resolvePermittedPages(state, "store"), ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"]);
   assert.equal(resolvePermittedPages(state, "admin").includes("admin-console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "inward-purchases"), true);
-  assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "suppliers"), true);
+  assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.label === "Suppliers"), false);
   assert.deepEqual(resolvePermittedPages(state, "admin"), [...ROLE_MENU_PAGE_KEYS.admin, ...ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS]);
   assert.equal(ROLE_MENU_PAGE_KEYS.admin.includes("stock"), false);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Masters"), false);
@@ -70,7 +70,7 @@ test("page catalogue is the source of truth for role menus and Inventory access"
   }
 
   assert.deepEqual(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.map((page) => page.label), [
-    "Material Requests", "Issue Material", "Reconcile", "Stock", "Approvals", "Suppliers", "Purchase Orders",
+    "Material Requests", "Issue Material", "Reconcile", "Stock", "Approvals", "Purchase Orders",
   ]);
 });
 
@@ -84,7 +84,7 @@ test("role menus retain supported boundaries while honoring page access grants",
   const noPages = updateRolePageAccess(defaults, "store", []);
   assert.deepEqual(resolveRoleMenuPageKeys("store", resolvePermittedPages(noPages, "store")), []);
 
-  const crossRoleGrant = updateRolePageAccess(defaults, "store", ["suppliers", "dashboard", "stock"]);
+  const crossRoleGrant = updateRolePageAccess(defaults, "store", ["dashboard", "stock"]);
   assert.deepEqual(resolveRoleMenuPageKeys("store", resolvePermittedPages(crossRoleGrant, "store")), ["stock"]);
 });
 

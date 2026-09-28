@@ -182,7 +182,7 @@ type MenuItem = {
 const MENU_ICON_BY_PAGE_KEY: Partial<Record<AdminPageKey, React.ReactNode>> = {
   "today-queue": <Car size={18} />, customers: <UserRound size={18} />, vehicles: <Car size={18} />, search: <Search size={18} />,
   "my-queue": <ClipboardList size={18} />, "job-card": <FileText size={18} />, estimate: <ReceiptText size={18} />, "follow-ups": <ClipboardCheck size={18} />, media: <Camera size={18} />,
-  "material-requests": <PackageCheck size={18} />, "issue-material": <Package size={18} />, reconcile: <Check size={18} />, stock: <Boxes size={18} />, approvals: <ShieldCheck size={18} />, suppliers: <UserRound size={18} />, "inward-purchases": <ReceiptText size={18} />,
+  "material-requests": <PackageCheck size={18} />, "issue-material": <Package size={18} />, reconcile: <Check size={18} />, stock: <Boxes size={18} />, approvals: <ShieldCheck size={18} />, "inward-purchases": <ReceiptText size={18} />,
   "my-tasks": <Wrench size={18} />, "work-update": <ClipboardCheck size={18} />, "qc-prep": <ShieldCheck size={18} />,
   "ready-to-invoice": <ClipboardList size={18} />, invoice: <ReceiptText size={18} />, payment: <Banknote size={18} />, delivery: <DoorOpen size={18} />,
   dashboard: <Gauge size={18} />, "data-flow": <ClipboardCheck size={18} />, jobs: <FileText size={18} />, manage: <ShieldCheck size={18} />, "admin-console": <Settings size={18} />,
@@ -566,7 +566,7 @@ function App() {
       setSearchDateFilter(drilldown.date ?? "");
       setSearchMonthFilter(drilldown.month ?? "");
       setSearchPaymentMode("ALL");
-      setSearchLowStockOnly(Boolean(drilldown.lowStockOnly));
+      setSearchLowStockOnly(drilldown.category === "stock");
     }
     setActiveMenuItem(drilldown.destination);
   };
@@ -813,6 +813,7 @@ function RoleWorkspace({
         monthFilter={searchMonthFilter}
         paymentMode={searchPaymentMode}
         lowStockOnly={searchLowStockOnly}
+        initialLowStockOnly={dashboardDrilldown?.destination === "Search" && dashboardDrilldown.category === "stock" && Boolean(dashboardDrilldown.lowStockOnly)}
         paymentRows={paymentRows}
         permittedPages={permittedPages}
         actor={user}
@@ -834,7 +835,6 @@ function RoleWorkspace({
   if (activeMenuItem === "Vehicles") return <EntityList key={`vehicles-${dashboardDrilldown?.month ?? ""}`} kind="vehicles" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "vehicles" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "vehicles" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Media") return <EntityList kind="media" state={state} mutate={mutate} actor={user} />;
   if (activeMenuItem === "Purchase Orders" && (user.role === "store" || user.role === "admin")) return <PurchaseOrdersWorkspace state={state} actor={user} mutate={mutate} />;
-  if (activeMenuItem === "Suppliers" && user.role === "admin") return <SupplierMasterWorkspace state={state} actor={user} mutate={mutate} />;
 
   if (user.role === "reception") return <Reception activeMenuItem={activeMenuItem} state={state} mutate={mutate} user={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "service") return <ServiceAdvisor activeMenuItem={activeMenuItem} state={state} view={selected?.job.advisor_id === user.id ? selected : state.jobs.find((item) => item.job.advisor_id === user.id)} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} />;
@@ -858,6 +858,7 @@ function SearchPortal({
   monthFilter,
   paymentMode,
   lowStockOnly,
+  initialLowStockOnly,
   paymentRows,
   permittedPages,
   actor,
@@ -881,6 +882,7 @@ function SearchPortal({
   monthFilter: string;
   paymentMode: "ALL" | PaymentMode;
   lowStockOnly: boolean;
+  initialLowStockOnly: boolean;
   paymentRows: PaymentSearchRow[];
   permittedPages: AdminPageKey[];
   actor: User;
@@ -896,6 +898,8 @@ function SearchPortal({
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [activeLowStockOnly, setActiveLowStockOnly] = useState(lowStockOnly || initialLowStockOnly);
+  useEffect(() => { if (lowStockOnly || initialLowStockOnly) setActiveLowStockOnly(true); }, [lowStockOnly, initialLowStockOnly]);
   const [record, setRecord] = useState<{ view: JobView; category: Exclude<SearchTableCategory, "stock">; mode: "view" | "edit" }>();
 
   // Service Advisors can always search the records they need to advise on, even when
@@ -918,16 +922,16 @@ function SearchPortal({
     .sort((left, right) => right.localeCompare(left));
 
   const changeFilters = (change: () => void) => { change(); setPage(1); };
-  const clearFilters = () => { setQuery(""); setCategory(category === "stock" ? "stock" : ""); setStatus("ALL"); setDateFilter(""); setMonthFilter(""); setPaymentMode("ALL"); setLowStockOnly(false); setPage(1); };
+  const clearFilters = () => { setQuery(""); setCategory(category === "stock" ? "stock" : ""); setStatus("ALL"); setDateFilter(""); setMonthFilter(""); setPaymentMode("ALL"); setLowStockOnly(false); setActiveLowStockOnly(false); setPage(1); };
 
   const paged = paginate(jobs, page, pageSize);
   const stockRows = useMemo(() => {
     const needle = normalizeSearch(query);
     return state.inventory.filter((item) =>
-      (!lowStockOnly || item.stock_qty < item.low_stock_qty)
+      (!activeLowStockOnly || item.stock_qty < item.low_stock_qty)
       && (!needle || normalizeSearch(`${item.sku} ${item.name} ${item.category} ${item.unit}`).includes(needle)),
     );
-  }, [state.inventory, query, lowStockOnly]);
+  }, [state.inventory, query, activeLowStockOnly]);
   const pagedStock = paginate(stockRows, page, pageSize);
   const isStock = category === "stock";
   const isPayment = category === "payment";
@@ -948,12 +952,12 @@ function SearchPortal({
             setCategory(nextCategory);
             if (nextCategory !== "job") setStatus("ALL");
             if (nextCategory !== "payment") setPaymentMode("ALL");
-            if (nextCategory !== "stock") setLowStockOnly(false);
+            if (nextCategory !== "stock") { setLowStockOnly(false); setActiveLowStockOnly(false); }
           })}>
             <option value="">Select a category</option>
             {availableCategories.map((item) => <option key={item} value={item}>{item in ADMIN_OPERATIONAL_SEARCH_LABELS ? ADMIN_OPERATIONAL_SEARCH_LABELS[item as AdminOperationalSearchCategory] : SEARCH_CATEGORY_LABELS[item as SearchTableCategory]}</option>)}
           </select></label>
-          {category === "stock" && lowStockOnly && <span className="search-scope" role="status">Low stock only</span>}
+          {category === "stock" && activeLowStockOnly && <span className="search-scope" role="status">Low stock only</span>}
           {!operationalCategory && category && category !== "stock" && !entityListKind && <>
             {category === "job" && <label>Status<select aria-label="Job status" value={status} onChange={(event) => changeFilters(() => setStatus(event.target.value as SearchCriteria["status"]))}>{SEARCH_STATUS_OPTIONS.map((item) => <option key={item} value={item}>{item === "ALL" ? "All statuses" : item}</option>)}</select></label>}
             {category === "payment" && <label>Payment mode<select aria-label="Payment mode filter" value={paymentMode} onChange={(event) => changeFilters(() => setPaymentMode(event.target.value as "ALL" | PaymentMode))}><option value="ALL">All</option>{(["UPI", "Cash", "Card", "Bank transfer", "Other"] as PaymentMode[]).map((mode) => <option key={mode} value={mode}>{mode}</option>)}</select></label>}
@@ -2048,7 +2052,7 @@ function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onN
   </section>;
 }
 
-const managementAreas = ["Users", "Customers", "Vehicles", "Job Cards", "Estimates", "Invoices", "Payments", "Delivery"] as const;
+const managementAreas = ["Users", "Customers", "Vehicles", "Suppliers", "Job Cards", "Estimates", "Invoices", "Payments", "Delivery"] as const;
 type ManagementArea = (typeof managementAreas)[number];
 
 function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId, cognitoConfig }: { state: WorkshopState; mutate: Mutate; actingUser: User; selected?: JobView; setSelectedJobId: (id: number) => void; cognitoConfig?: CognitoConfig }) {
@@ -2073,6 +2077,7 @@ function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId, 
         {area === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
         {area === "Customers" && <CustomerManager state={state} mutate={mutate} actor={actingUser} />}
         {area === "Vehicles" && <VehicleManager state={state} mutate={mutate} actor={actingUser} />}
+        {area === "Suppliers" && <SupplierMasterWorkspace state={state} actor={actingUser} mutate={mutate} />}
         {area === "Job Cards" && <VisitJobManager state={state} mutate={mutate} actingUser={actingUser} selected={selected} setSelectedJobId={setSelectedJobId} />}
         {area === "Estimates" && <EstimateManager view={managedJob} mutate={mutate} actor={actingUser} />}
         {(area === "Invoices" || area === "Payments" || area === "Delivery") && <BillingManager key={area} mode={area} state={state} actor={actingUser} mutate={mutate} panel={false} />}

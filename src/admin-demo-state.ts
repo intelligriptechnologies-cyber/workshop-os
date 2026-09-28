@@ -31,7 +31,6 @@ export type AdminPageKey =
   | "reconcile"
   | "stock"
   | "approvals"
-  | "suppliers"
   | "inward-purchases"
   | "my-tasks"
   | "work-update"
@@ -92,7 +91,6 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
       { key: "reconcile", label: "Reconcile" },
       { key: "stock", label: "Stock" },
       { key: "approvals", label: "Approvals" },
-      { key: "suppliers", label: "Suppliers" },
       { key: "inward-purchases", label: "Purchase Orders" },
     ],
   },
@@ -134,7 +132,7 @@ export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>
   store: ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"],
   tech: ["my-tasks", "work-update", "qc-prep", "search"],
   accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "suppliers", "inward-purchases", "manage", "search", "admin-console"],
+  admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search", "admin-console"],
 };
 
 /** Sidebar workflows are a role-owned subset of saved Page Access grants. */
