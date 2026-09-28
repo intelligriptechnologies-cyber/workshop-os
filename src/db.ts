@@ -17,6 +17,9 @@ import type {
   InwardPurchaseAttachment,
   InwardPurchaseLine,
   InwardPurchaseRevision,
+  PurchaseOrder,
+  PurchaseOrderLine,
+  StockInward,
   Invoice,
   InvoiceItem,
   JobCard,
@@ -124,6 +127,9 @@ export function readState(db: Database): WorkshopState {
   const inward_purchase_lines = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines order by id");
   const inward_purchase_attachments = all<InwardPurchaseAttachment>(db, "select * from inward_purchase_attachments order by id");
   const inward_purchase_revisions = all<InwardPurchaseRevision>(db, "select * from inward_purchase_revisions order by purchase_id, revision_no");
+  const purchase_orders = all<PurchaseOrder>(db, "select * from purchase_orders order by order_date desc, id desc");
+  const purchase_order_lines = all<PurchaseOrderLine>(db, "select * from purchase_order_lines order by id");
+  const stock_inwards = all<StockInward>(db, "select * from stock_inwards order by received_at desc, id desc");
   const jobRows = all<JobCard>(db, "select * from job_cards where archived_at is null order by id desc");
   const archivedJobRows = all<JobCard>(db, "select * from job_cards where archived_at is not null order by id desc");
   const archived_customers = all<Customer>(db, "select * from customers where archived_at is not null order by id");
@@ -233,7 +239,7 @@ export function readState(db: Database): WorkshopState {
   // customer and vehicle may themselves have been archived.
   const archived_jobs = jobViews(archivedJobRows);
   const attendance = all<AdvisorAttendance>(db, "select user_id, date, present from advisor_attendance order by date, user_id");
-  return { users, customers, vehicles, visits, jobs, archived_customers, archived_vehicles, archived_jobs, inventory, attendance, suppliers, inward_purchases, inward_purchase_lines, inward_purchase_attachments, inward_purchase_revisions };
+  return { users, customers, vehicles, visits, jobs, archived_customers, archived_vehicles, archived_jobs, inventory, attendance, suppliers, inward_purchases, inward_purchase_lines, inward_purchase_attachments, inward_purchase_revisions, purchase_orders, purchase_order_lines, stock_inwards };
 }
 
 /** Placeholder shown while a job is waiting for Reception to map a Service Advisor (advisor_id 0). */
@@ -1155,7 +1161,7 @@ function submitPurchaseValidation(db: Database, purchase: InwardPurchase) {
   if (supplier.status !== "Active") throw new Error("Select an active supplier before submission.");
   if (!purchase.supplier_invoice_no.trim()) throw new Error("Supplier invoice number is required before submission.");
   if (!/^\d{4}-\d{2}-\d{2}$/.test(purchase.invoice_date)) throw new Error("A valid invoice date is required before submission.");
-  const duplicate = maybe<InwardPurchase>(db, "select * from inward_purchases where supplier_id=? and supplier_invoice_no=? and status='Submitted' and id<>?", [purchase.supplier_id, purchase.supplier_invoice_no.trim(), purchase.id]);
+  const duplicate = maybe<InwardPurchase>(db, "select * from inward_purchases where supplier_id=? and supplier_invoice_no=? and status in ('Submitted','Received') and id<>?", [purchase.supplier_id, purchase.supplier_invoice_no.trim(), purchase.id]);
   if (duplicate) throw new Error("This supplier invoice number has already been submitted.");
   const lines = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines where purchase_id=?", [purchase.id]);
   if (!lines.length) throw new Error("At least one inventory line is required before submission.");
@@ -1164,6 +1170,93 @@ function submitPurchaseValidation(db: Database, purchase: InwardPurchase) {
   if (!attachments.length) throw new Error("At least one PDF or JPG invoice scan is required before submission.");
   attachments.forEach((attachment) => assertAttachment(attachment));
   return lines;
+}
+
+/** Validates the immutable order snapshot. Invoice evidence belongs to Receive & Post. */
+function poSubmissionValidation(db: Database, purchase: InwardPurchase) {
+  if (!purchase.supplier_id) throw new Error("Supplier is required before sending for PO approval.");
+  const supplier = one<Supplier>(db, "select * from suppliers where id=?", [purchase.supplier_id]);
+  if (supplier.status !== "Active") throw new Error("Select an active supplier before sending for PO approval.");
+  const lines = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines where purchase_id=?", [purchase.id]);
+  if (!lines.length) throw new Error("At least one inventory line is required before sending for PO approval.");
+  lines.forEach((line) => assertPurchaseLine(db, line));
+  return lines;
+}
+
+/** Creates the linked PO snapshot and freezes the inward draft for Admin approval. */
+export function sendInwardPurchaseForPoApprovalForActor(db: Database, purchaseId: number, actorId: number) {
+  assertPurchaseActor(db, actorId);
+  db.run("begin immediate transaction");
+  try {
+    const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+    if (purchase.status === "Awaiting PO Approval") return purchaseId;
+    if (purchase.status !== "Draft") throw new Error("Only draft purchases can be sent for PO approval.");
+    if (purchase.created_by !== actorId && one<User>(db, "select * from users where id=?", [actorId]).role !== "admin") throw new Error("Only the draft creator or Admin can send this purchase.");
+    const lines = poSubmissionValidation(db, purchase);
+    const poNumber = purchase.po_number?.trim() || `PO-INW-${purchaseId}`;
+    const orderId = insert(db, "insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(?,?,?,?, 'Draft',?,datetime('now'),datetime('now'))", [purchase.supplier_id, poNumber, new Date().toISOString().slice(0, 10), `Linked inward purchase #${purchaseId}`, actorId]);
+    for (const line of lines) {
+      const values = totalsForPurchaseLine(line);
+      const poLineId = insert(db, "insert into purchase_order_lines(purchase_order_id,item_id,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,?,?,?,?)", [orderId, line.item_id, values.qty, values.unitCost, values.discount, values.gstRate, values.subtotal, values.gstAmount, values.total]);
+      db.run("update inward_purchase_lines set purchase_order_line_id=? where id=?", [poLineId, line.id]);
+    }
+    db.run("update purchase_orders set subtotal=?,discount_total=?,gst_total=?,total=? where id=?", [purchase.subtotal, purchase.discount_total, purchase.gst_total, purchase.total, orderId]);
+    db.run("update inward_purchases set po_number=?,purchase_order_id=?,status='Awaiting PO Approval',updated_at=datetime('now') where id=?", [poNumber, orderId, purchaseId]);
+    insert(db, "insert into inward_purchase_events(purchase_id,kind,actor_id,at,note) values(?,?,?,datetime('now'),?)", [purchaseId, "sent-for-po", actorId, `Created PO ${poNumber}`]);
+    db.run("commit"); return purchaseId;
+  } catch (error) { db.run("rollback"); throw error; }
+}
+
+export function approveInwardPurchaseForActor(db: Database, purchaseId: number, actorId: number) {
+  assertPurchaseActor(db, actorId, true);
+  db.run("begin immediate transaction");
+  try {
+    const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+    if (purchase.status === "Approved") return purchaseId;
+    if (purchase.status !== "Awaiting PO Approval" || !purchase.purchase_order_id) throw new Error("Only purchases awaiting PO approval can be approved.");
+    db.run("update purchase_orders set status='Sent',updated_at=datetime('now') where id=? and status='Draft'", [purchase.purchase_order_id]);
+    db.run("update inward_purchases set status='Approved',approved_by=?,approved_at=datetime('now'),updated_at=datetime('now') where id=?", [actorId, purchaseId]);
+    insert(db, "insert into inward_purchase_events(purchase_id,kind,actor_id,at,note) values(?,?,?,datetime('now'),?)", [purchaseId, "approved", actorId, "PO authorized and sent"]);
+    db.run("commit"); return purchaseId;
+  } catch (error) { db.run("rollback"); throw error; }
+}
+
+export function receiveAndPostInwardPurchaseForActor(db: Database, purchaseId: number, actorId: number, input: InwardPurchaseDraftInput = {}) {
+  assertPurchaseActor(db, actorId);
+  db.run("begin immediate transaction");
+  try {
+    const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+    if (purchase.status === "Received") return purchaseId;
+    if (purchase.status !== "Approved" || !purchase.purchase_order_id) throw new Error("Only approved purchases can be received and posted.");
+    if (input.supplier_invoice_no !== undefined || input.invoice_date !== undefined) db.run("update inward_purchases set supplier_invoice_no=?,invoice_date=?,updated_at=datetime('now') where id=?", [input.supplier_invoice_no?.trim() ?? purchase.supplier_invoice_no, input.invoice_date ?? purchase.invoice_date, purchaseId]);
+    if (input.lines) {
+      const current = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines where purchase_id=?", [purchaseId]);
+      if (current.length !== input.lines.length) throw new Error("Receipt lines must exactly match the linked PO lines.");
+      const byPoLine = new Map(current.map((line) => [line.purchase_order_line_id, line]));
+      for (const line of input.lines) {
+        const target = current.find((row) => row.item_id === line.item_id);
+        if (!target || !target.purchase_order_line_id || byPoLine.get(target.purchase_order_line_id) !== target) throw new Error("Receipt lines must exactly match the linked PO lines.");
+        const values = assertPurchaseLine(db, line);
+        db.run("update inward_purchase_lines set received_qty=?,unit_cost=?,discount=?,gst_rate=?,subtotal=?,gst_amount=?,total=? where id=?", [values.qty, values.unitCost, values.discount, values.gstRate, values.subtotal, values.gstAmount, values.total, target.id]);
+      }
+    }
+    if (input.attachments?.length) addPurchaseAttachments(db, purchaseId, actorId, input.attachments);
+    const fresh = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
+    if (!fresh.purchase_order_id) throw new Error("The approved purchase is missing its purchase order link.");
+    const lines = submitPurchaseValidation(db, fresh);
+    for (const line of lines) {
+      if (!line.purchase_order_line_id) throw new Error("Each receipt line must be linked to a PO line.");
+      const poLine = one<PurchaseOrderLine>(db, "select * from purchase_order_lines where id=?", [line.purchase_order_line_id]);
+      if (poLine.purchase_order_id !== fresh.purchase_order_id || poLine.item_id !== line.item_id) throw new Error("Receipt line does not match its linked PO line.");
+      const ledgerId = insert(db, "insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note,inward_purchase_line_id) values(0,0,?,-?,'inward',?,datetime('now'),?,?)", [line.item_id, line.received_qty, actorId, `Inward receipt #${purchaseId} / ${fresh.supplier_invoice_no}`, line.id]);
+      insert(db, "insert into stock_inwards(item_id,qty,note,purchase_order_id,purchase_order_line_id,ledger_id,received_by,received_at) values(?,?,?,?,?,?,?,datetime('now'))", [line.item_id, line.received_qty, `Inward receipt #${purchaseId}`, fresh.purchase_order_id, line.purchase_order_line_id, ledgerId, actorId]);
+      movement(db, 0, line.item_id, "INWARD_PURCHASE", line.received_qty, `Inward receipt #${purchaseId}`);
+    }
+    reconcilePurchaseOrder(db, fresh.purchase_order_id);
+    db.run("update inward_purchases set status='Received',submitted_by=?,submitted_at=datetime('now'),updated_at=datetime('now') where id=?", [actorId, purchaseId]);
+    insert(db, "insert into inward_purchase_events(purchase_id,kind,actor_id,at,note) values(?,?,?,datetime('now'),?)", [purchaseId, "received", actorId, "Posted linked PO receipt"]);
+    db.run("commit"); return purchaseId;
+  } catch (error) { db.run("rollback"); throw error; }
 }
 
 /** Posts the header, immutable lines and signed inbound ledger rows in one SQL transaction. Safe retries return the already submitted receipt. */
@@ -1188,12 +1281,96 @@ export function submitInwardPurchaseForActor(db: Database, purchaseId: number, a
 
 export interface InwardPurchaseRevisionInput { reason: string; lines: InwardPurchaseLineInput[]; }
 
+export interface PurchaseOrderLineInput {
+  item_id: number;
+  ordered_qty: number;
+  unit_cost: number;
+  discount?: number;
+  gst_rate?: number;
+}
+export interface PurchaseOrderInput {
+  supplier_id: number;
+  po_number: string;
+  order_date: string;
+  notes?: string;
+  lines: PurchaseOrderLineInput[];
+}
+
+function assertPurchaseOrderLine(db: Database, line: PurchaseOrderLineInput) {
+  return assertPurchaseLine(db, { ...line, received_qty: line.ordered_qty });
+}
+function replacePurchaseOrderLines(db: Database, purchaseOrderId: number, lines: readonly PurchaseOrderLineInput[]) {
+  if (!lines.length) throw new Error("A purchase order needs at least one item line.");
+  db.run("delete from purchase_order_lines where purchase_order_id=?", [purchaseOrderId]);
+  let subtotal = 0, discountTotal = 0, gstTotal = 0, total = 0;
+  for (const line of lines) {
+    const values = assertPurchaseOrderLine(db, line);
+    insert(db, "insert into purchase_order_lines(purchase_order_id,item_id,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,?,?,?,?)", [purchaseOrderId, line.item_id, values.qty, values.unitCost, values.discount, values.gstRate, values.subtotal, values.gstAmount, values.total]);
+    subtotal += values.qty * values.unitCost; discountTotal += values.discount; gstTotal += values.gstAmount; total += values.total;
+  }
+  db.run("update purchase_orders set subtotal=?,discount_total=?,gst_total=?,total=?,updated_at=datetime('now') where id=?", [subtotal, discountTotal, gstTotal, total, purchaseOrderId]);
+}
+function assertPurchaseOrderInput(db: Database, input: PurchaseOrderInput) {
+  const supplier = one<Supplier>(db, "select * from suppliers where id=?", [input.supplier_id]);
+  if (supplier.status !== "Active") throw new Error("Select an active supplier.");
+  if (!input.po_number?.trim()) throw new Error("PO number is required.");
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.order_date)) throw new Error("A valid order date is required.");
+  if (!input.lines?.length) throw new Error("A purchase order needs at least one item line.");
+}
+export function createPurchaseOrderForActor(db: Database, actorId: number, input: PurchaseOrderInput) {
+  assertPurchaseActor(db, actorId); assertPurchaseOrderInput(db, input);
+  const id = insert(db, "insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(?,?,?,?, 'Draft',?,datetime('now'),datetime('now'))", [input.supplier_id, input.po_number.trim(), input.order_date, input.notes?.trim() ?? "", actorId]);
+  replacePurchaseOrderLines(db, id, input.lines); return id;
+}
+export function updatePurchaseOrderForActor(db: Database, id: number, actorId: number, input: PurchaseOrderInput) {
+  assertPurchaseActor(db, actorId); assertPurchaseOrderInput(db, input);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [id]);
+  if (order.status !== "Draft") throw new Error("Only draft purchase orders can be edited.");
+  db.run("update purchase_orders set supplier_id=?,po_number=?,order_date=?,notes=?,updated_at=datetime('now') where id=?", [input.supplier_id, input.po_number.trim(), input.order_date, input.notes?.trim() ?? "", id]);
+  replacePurchaseOrderLines(db, id, input.lines);
+}
+export function setPurchaseOrderStatusForActor(db: Database, id: number, actorId: number, action: "send" | "cancel" | "close") {
+  assertPurchaseActor(db, actorId);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [id]);
+  if (action === "send" && order.status === "Draft") db.run("update purchase_orders set status='Sent',updated_at=datetime('now') where id=?", [id]);
+  else if (action === "cancel" && ["Draft", "Sent", "Partially Received", "Ready to Close"].includes(order.status)) db.run("update purchase_orders set status='Cancelled',updated_at=datetime('now') where id=?", [id]);
+  else if (action === "close" && ["Partially Received", "Ready to Close", "Sent"].includes(order.status)) db.run("update purchase_orders set status='Closed',updated_at=datetime('now') where id=?", [id]);
+  else throw new Error(`Cannot ${action} a ${order.status} purchase order.`);
+}
+function reconcilePurchaseOrder(db: Database, purchaseOrderId: number) {
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [purchaseOrderId]);
+  if (["Draft", "Cancelled", "Closed"].includes(order.status)) return;
+  const lines = all<PurchaseOrderLine>(db, "select * from purchase_order_lines where purchase_order_id=?", [purchaseOrderId]);
+  const fullyReceived = lines.every((line) => scalar<number>(db, "select coalesce(sum(qty),0) from stock_inwards where purchase_order_line_id=?", [line.id]) >= line.ordered_qty);
+  const receivedAny = lines.some((line) => scalar<number>(db, "select coalesce(sum(qty),0) from stock_inwards where purchase_order_line_id=?", [line.id]) > 0);
+  db.run("update purchase_orders set status=?,updated_at=datetime('now') where id=?", [fullyReceived ? "Ready to Close" : receivedAny ? "Partially Received" : "Sent", purchaseOrderId]);
+}
+export function recordStockInwardForActor(db: Database, actorId: number, input: { item_id: number; qty: number; note?: string; purchase_order_line_id?: number }) {
+  assertPurchaseActor(db, actorId);
+  if (!Number.isFinite(input.qty) || input.qty <= 0) throw new Error("Inward quantity must be greater than zero.");
+  one<InventoryItem>(db, "select * from inventory where id=? and archived_at is null", [input.item_id]);
+  let orderId: number | null = null;
+  if (input.purchase_order_line_id) {
+    const line = one<PurchaseOrderLine>(db, "select * from purchase_order_lines where id=?", [input.purchase_order_line_id]);
+    if (line.item_id !== input.item_id) throw new Error("The selected PO line is for a different inventory item.");
+    const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [line.purchase_order_id]);
+    if (["Draft", "Cancelled", "Closed"].includes(order.status)) throw new Error("Select an open purchase order line.");
+    orderId = order.id;
+  }
+  const note = input.note?.trim() || "Stock inward";
+  const ledgerId = insert(db, "insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,-?,'manual-inward',?,datetime('now'),?)", [input.item_id, input.qty, actorId, note]);
+  const inwardId = insert(db, "insert into stock_inwards(item_id,qty,note,purchase_order_id,purchase_order_line_id,ledger_id,received_by,received_at) values(?,?,?,?,?,?,?,datetime('now'))", [input.item_id, input.qty, note, orderId, input.purchase_order_line_id ?? null, ledgerId, actorId]);
+  movement(db, 0, input.item_id, "STOCK_IN", input.qty, note);
+  if (orderId) reconcilePurchaseOrder(db, orderId);
+  return inwardId;
+}
+
 /** An Admin correction appends a revision snapshot and posts only its signed quantity delta. */
 export function reviseInwardPurchaseForActor(db: Database, purchaseId: number, actorId: number, input: InwardPurchaseRevisionInput) {
   assertPurchaseActor(db, actorId, true);
   if (!input.reason?.trim()) throw new Error("A correction reason is required.");
   const purchase = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);
-  if (purchase.status !== "Submitted") throw new Error("Only submitted purchases can be revised.");
+  if (!["Submitted", "Received"].includes(purchase.status)) throw new Error("Only received purchases can be revised.");
   if (!input.lines.length) throw new Error("A revision requires one or more inventory lines.");
   db.run("begin immediate transaction");
   try {
@@ -1242,14 +1419,18 @@ export function issueMaterial(db: Database, requestId: number) {
 
 export function reconcileMaterialQty(db: Database, requestId: number, used: number, returned: number, wasted: number) {
   const request = one<MaterialRequest>(db, "select * from material_requests where id=?", [requestId]);
+  const quantities = [used, returned, wasted];
+  if (quantities.some((quantity) => !Number.isFinite(quantity) || quantity < 0)) throw new Error("Reconciliation quantities must be finite, non-negative numbers.");
+  if (used + returned + wasted > request.issued_qty) throw new Error(`Reconciliation total cannot exceed the ${request.issued_qty} issued.`);
   db.run("update material_requests set used_qty=?, returned_qty=?, wasted_qty=?, updated_at=datetime('now') where id=?", [used, returned, wasted, requestId]);
   const returnDelta = returned - request.returned_qty;
-  if (returnDelta > 0) {
-    db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(?,?,?,?,'return',0,datetime('now'),?)", [request.job_card_id, requestId, request.item_id, -returnDelta, "Returned after job reconciliation"]);
-    movement(db, request.job_card_id, request.item_id, "RETURN", returnDelta, "Returned after job reconciliation");
+  if (returnDelta !== 0) {
+    const note = returnDelta > 0 ? "Returned after job reconciliation" : "Return reduced after job reconciliation";
+    db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(?,?,?,?,'return-adjustment',0,datetime('now'),?)", [request.job_card_id, requestId, request.item_id, -returnDelta, note]);
+    movement(db, request.job_card_id, request.item_id, "RETURN", returnDelta, note);
   }
   const wasteDelta = wasted - request.wasted_qty;
-  if (wasteDelta > 0) movement(db, request.job_card_id, request.item_id, "WASTAGE", wasteDelta, "Recorded wastage");
+  if (wasteDelta !== 0) movement(db, request.job_card_id, request.item_id, "WASTAGE", wasteDelta, wasteDelta > 0 ? "Recorded wastage" : "Wastage reduced after job reconciliation");
   auditEvidence(db, request.job_card_id, "Material reconciled");
 }
 
@@ -2115,12 +2296,16 @@ export function createSchema(db: Database) {
     create table if not exists material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text);
     create table if not exists material_movements(id integer primary key, job_card_id integer, item_id integer, direction text, qty real, note text, created_at text);
     create table if not exists suppliers(id integer primary key, name text not null, contact_name text default '', phone text default '', email text default '', gstin text default '', status text not null default 'Active', created_by integer not null, created_at text not null, updated_at text not null);
-    create table if not exists inward_purchases(id integer primary key, supplier_id integer, supplier_invoice_no text default '', invoice_date text default '', po_number text default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, submitted_by integer, submitted_at text, created_at text not null, updated_at text not null);
-    create table if not exists inward_purchase_lines(id integer primary key, purchase_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists inward_purchases(id integer primary key, supplier_id integer, supplier_invoice_no text default '', invoice_date text default '', po_number text default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, submitted_by integer, submitted_at text, purchase_order_id integer, approved_by integer, approved_at text, created_at text not null, updated_at text not null);
+    create table if not exists inward_purchase_lines(id integer primary key, purchase_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null, purchase_order_line_id integer);
     create table if not exists inward_purchase_attachments(id integer primary key, purchase_id integer not null, original_name text not null, mime_type text not null, byte_size integer not null, storage_key text not null, document_url text not null, uploaded_by integer not null, uploaded_at text not null);
     create table if not exists inward_purchase_revisions(id integer primary key, purchase_id integer not null, revision_no integer not null, reason text not null, revised_by integer not null, revised_at text not null, unique(purchase_id, revision_no));
     create table if not exists inward_purchase_revision_lines(id integer primary key, revision_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
     create table if not exists inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null);
+    create table if not exists purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null);
+    create unique index if not exists purchase_orders_number_unique on purchase_orders(po_number);
+    create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
     create table if not exists followups(id integer primary key, job_card_id integer, note text, due_at text, done integer);
   `);
@@ -2138,7 +2323,19 @@ export function migrateSchema(db: Database) {
   db.run("create table if not exists inward_purchase_revisions(id integer primary key, purchase_id integer not null, revision_no integer not null, reason text not null, revised_by integer not null, revised_at text not null, unique(purchase_id, revision_no))");
   db.run("create table if not exists inward_purchase_revision_lines(id integer primary key, revision_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null)");
   db.run("create table if not exists inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null)");
+  db.run("create table if not exists purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null)");
+  db.run("create unique index if not exists purchase_orders_number_unique on purchase_orders(po_number)");
+  db.run("create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null)");
+  db.run("create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null)");
   db.run("create unique index if not exists inward_supplier_invoice_submitted on inward_purchases(supplier_id, supplier_invoice_no) where status='Submitted'");
+  ensureColumn(db, "inward_purchases", "purchase_order_id", "integer");
+  ensureColumn(db, "inward_purchases", "approved_by", "integer");
+  ensureColumn(db, "inward_purchases", "approved_at", "text");
+  ensureColumn(db, "inward_purchase_lines", "purchase_order_line_id", "integer");
+  // Legacy posted receipts already affected stock; retain them as read-only received history.
+  db.run("update inward_purchases set status='Received' where status='Submitted'");
+  db.run("drop index if exists inward_supplier_invoice_submitted");
+  db.run("create unique index if not exists inward_supplier_invoice_received on inward_purchases(supplier_id, supplier_invoice_no) where status in ('Received','Submitted')");
   db.run("create table if not exists local_purchases(id integer primary key, job_card_id integer, item_description text, quantity real, unit text, unit_cost real, vendor text, bill_reference text, note text, archived_at text, archived_reason text, created_at text, updated_at text)");
   db.run("create table if not exists material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text)");
   ensureColumn(db, "material_requests", "status", "text not null default 'Requested'");

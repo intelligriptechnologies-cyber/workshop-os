@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { FileSpreadsheet, ShieldCheck, Sliders } from "lucide-react";
 import type { User, WorkshopState } from "./types";
-import { Dialog, DownloadMenu, FilterClearButton, ListSearchActions } from "./ui-kit";
+import { Dialog, DownloadMenu, FilterClearButton, ListSearchActions, SearchSelect } from "./ui-kit";
 import type { ExportColumn } from "./export-utils";
 import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } from "./list-utils";
 import { Info, PanelTitle, UserManager, roleLabels, type Mutate } from "./App";
@@ -23,11 +23,16 @@ import {
   saveAdminDemoState,
   saveCompanyIdentity,
   updateBusinessSettings,
+  updateAppTheme,
   updateReportTemplate,
   updateDemoRole,
   updateRolePageAccess,
   validateBusinessSettings,
   type AdminDemoState,
+  type AppTheme,
+  APP_THEME_FONTS,
+  APP_THEME_PALETTES,
+  DEFAULT_APP_THEME,
   type AdminPageKey,
   type DemoLogEntry,
   type DemoLogStream,
@@ -55,12 +60,12 @@ import { html as htmlLanguage } from "@codemirror/lang-html";
 import { EditorView } from "@codemirror/view";
 import { LINE_PLACEHOLDERS, REPORT_CATEGORY_LABELS, REPORT_PLACEHOLDERS, findUnsupportedPlaceholders, renderReportTemplate, sampleReportLines, sampleReportValues } from "./report-templates";
 
-const ADMIN_TABS = ["Users", "Roles & Page Access", "Business Settings", "Company Settings", "Report Templates", "Inventory Import", "Support & Logs"] as const;
+const ADMIN_TABS = ["Users", "Roles & Page Access", "Business Settings", "App Theme", "Company Settings", "Report Templates", "Inventory Import", "Support & Logs"] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 
 type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
 
-export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { state: WorkshopState; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig }) {
+export function AdminConsole({ state, mutate, actingUser, cognitoConfig, onThemeSaved }: { state: WorkshopState; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig; onThemeSaved?: (theme: AppTheme) => void }) {
   const [tab, setTab] = useState<AdminTab>("Users");
   const [adminState, setAdminState] = useState<AdminDemoState>(() => loadAdminDemoState());
   const [templateDirty, setTemplateDirty] = useState(false);
@@ -103,6 +108,7 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig }: { sta
         {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
         {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Business Settings" && <BusinessSettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
+        {tab === "App Theme" && <AppThemeTab adminState={adminState} commit={commit} actingUser={actingUser} onThemeSaved={onThemeSaved} />}
         {tab === "Company Settings" && <CompanySettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "Report Templates" && <ReportTemplatesTab adminState={adminState} commit={commit} actingUser={actingUser} onDirtyChange={setTemplateDirty} />}
         {tab === "Inventory Import" && <InventoryImportTab adminState={adminState} commit={commit} actingUser={actingUser} state={state} />}
@@ -315,6 +321,38 @@ function GroupFieldset({ group, draftPages, isOwnerRole, onToggleGroup, onToggle
       })}
     </fieldset>
   );
+}
+
+/* ------------------------------------------------------------------------------- App Theme */
+
+function AppThemeTab({ adminState, commit, actingUser, onThemeSaved }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => boolean; actingUser: User; onThemeSaved?: (theme: AppTheme) => void }) {
+  const [draft, setDraft] = useState<AppTheme>(adminState.appTheme);
+  const [justSaved, setJustSaved] = useState(false);
+  useEffect(() => setDraft(adminState.appTheme), [adminState.appTheme]);
+  const dirty = draft.fontId !== adminState.appTheme.fontId || draft.paletteId !== adminState.appTheme.paletteId;
+  const font = APP_THEME_FONTS.find((item) => item.id === draft.fontId) ?? APP_THEME_FONTS[0];
+  const palette = APP_THEME_PALETTES.find((item) => item.id === draft.paletteId) ?? APP_THEME_PALETTES[0];
+  const save = () => {
+    const saved = commit((current) => updateAppTheme(current, draft), {
+      stream: "feature", level: "info", area: "Administration", feature: "App Theme",
+      message: `App theme saved: ${font.label} / ${palette.label}`, userId: String(actingUser.id), userName: actingUser.name,
+    });
+    if (!saved) return;
+    onThemeSaved?.(draft);
+    setJustSaved(true);
+  };
+  return <div className="manager-panel app-theme-tab" role="tabpanel">
+    <div className="panel-actions"><div><h3>App Theme</h3><p>Changes apply to the live application after saving; generated documents keep their own template styling.</p></div><div className="action-row"><button onClick={() => { setDraft(adminState.appTheme); setJustSaved(false); }} disabled={!dirty}>Reset to Saved</button><button onClick={() => { setDraft({ ...DEFAULT_APP_THEME }); setJustSaved(false); }}>Set to Default</button><button className="primary-action" onClick={save} disabled={!dirty}>Save App Theme</button></div></div>
+    {justSaved && !dirty && <p className="save-confirmation">App theme saved for this session.</p>}
+    {dirty && <p className="unsaved-note">Previewing unsaved changes. Save App Theme to apply them globally.</p>}
+    <div className="app-theme-layout">
+      <div className="app-theme-controls">
+        <SearchSelect label="Application font" options={APP_THEME_FONTS.map((item) => ({ value: item.id, label: item.label }))} value={draft.fontId} onChange={(fontId) => { setDraft((current) => ({ ...current, fontId: fontId as AppTheme["fontId"] })); setJustSaved(false); }} placeholder="Search fonts..." />
+        <fieldset className="palette-picker"><legend>Color palette</legend><div className="palette-options">{APP_THEME_PALETTES.map((item) => <button type="button" key={item.id} className={`palette-option${draft.paletteId === item.id ? " selected" : ""}`} aria-pressed={draft.paletteId === item.id} onClick={() => { setDraft((current) => ({ ...current, paletteId: item.id })); setJustSaved(false); }}><span className="palette-swatch" style={{ background: item.tokens.sidebar, borderColor: item.tokens.sidebarBorder }}><i style={{ background: item.tokens.active }} /><i style={{ background: item.tokens.tableHeader }} /><i style={{ background: item.tokens.accent }} /></span><span>{item.label}</span></button>)}</div></fieldset>
+      </div>
+      <section className="app-theme-preview" style={{ fontFamily: font.cssFamily, background: palette.tokens.background, ["--preview-sidebar" as string]: palette.tokens.sidebar, ["--preview-active" as string]: palette.tokens.active, ["--preview-accent" as string]: palette.tokens.accent, ["--preview-header" as string]: palette.tokens.tableHeader }} aria-label="App theme preview"><aside><strong>WorkshopOS</strong><span className="preview-menu-active">Dashboard</span><span>Job Cards</span></aside><div><h2>Theme preview</h2><label>Customer name<input value="Aarav Motors" readOnly /></label><div className="preview-tabs"><button className="active">Overview</button><button>History</button></div><div className="preview-selected-row">Selected job row</div><table><thead><tr><th>Job Card</th><th>Status</th></tr></thead><tbody><tr><td>JC-2026-002144</td><td>In progress</td></tr></tbody></table></div></section>
+    </div>
+  </div>;
 }
 
 /* ------------------------------------------------------------------------- Business Settings */

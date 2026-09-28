@@ -1,8 +1,8 @@
 :root {
   color: #18222d;
-  background: #f4f6f8;
-  --grid-header-background: #d7e7f5;
-  font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background: var(--app-theme-background, #f4f6f8);
+  --grid-header-background: var(--app-theme-table-header, #d7e7f5);
+  font-family: var(--app-font-family, Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif);
   font-synthesis: none;
   text-rendering: optimizeLegibility;
 }
@@ -15,7 +15,7 @@ body {
   margin: 0;
   min-width: 320px;
   min-height: 100vh;
-  background: #f4f6f8;
+  background: var(--app-theme-background, #f4f6f8);
 }
 
 button,
@@ -43,7 +43,7 @@ button:focus-visible,
 input:focus-visible,
 select:focus-visible,
 [tabindex="-1"]:focus-visible {
-  outline: 3px solid rgba(21, 97, 109, 0.35);
+  outline: 3px solid var(--app-theme-focus, rgba(21, 97, 109, 0.35));
   outline-offset: 2px;
 }
 
@@ -232,9 +232,9 @@ form {
   min-height: 0;
   height: 100dvh;
   padding: 18px;
-  background: #e1f1eb;
-  color: #21302e;
-  border-right: 1px solid #c6ded4;
+  background: var(--app-theme-sidebar, #e1f1eb);
+  color: var(--app-theme-sidebar-text, #21302e);
+  border-right: 1px solid var(--app-theme-sidebar-border, #c6ded4);
   position: sticky;
   top: 0;
   overflow: visible;
@@ -246,7 +246,7 @@ form {
 .brand {
   gap: 12px;
   min-height: 60px;
-  color: #15616d;
+  color: var(--app-theme-accent, #15616d);
 }
 
 .brand strong,
@@ -324,9 +324,13 @@ form {
 }
 
 .role-nav button.active {
-  background: #dff7ed;
-  border-color: #9edfc7;
-  color: #145b50;
+  background: var(--app-theme-active, #dff7ed);
+  border-color: var(--app-theme-active-border, #9edfc7);
+  color: var(--app-theme-accent, #145b50);
+}
+
+.role-nav button:hover:not(.active) {
+  background: var(--app-theme-hover, #c6e7b7);
 }
 
 .logout {
@@ -434,7 +438,8 @@ main {
 .add-action:hover { background: #157347; border-color: #146c43; }
 .back-action { min-height: 42px; border: 1px solid #6c757d; border-radius: 8px; background: #6c757d; color: #fff; padding: 0 14px; }
 .primary-action:hover { background: #0b5ed7; }
-.primary-action:focus-visible, .add-action:focus-visible, .back-action:focus-visible { outline-color: rgba(13, 110, 253, .5); }
+.primary-action:focus-visible { outline-color: var(--app-theme-focus, rgba(21, 97, 109, .35)); }
+.add-action:focus-visible, .back-action:focus-visible { outline-color: rgba(13, 110, 253, .5); }
 .secondary-action { min-height: 36px; border: 1px solid #15616d; border-radius: 7px; background: #fff; color: #0e6268; padding: 0 11px; }
 .secondary-action:hover { background: #e8f5f3; }
 .link-action { min-height: 38px; border: 0; background: transparent; color: #0d6efd; padding: 0; text-decoration: underline; text-underline-offset: 3px; }
@@ -634,10 +639,6 @@ main {
 .invoice-draft-heading > div { display: grid; gap: 3px; }
 .invoice-draft-heading span { color: #52616b; }
 
-.masters-grid {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
 .reception-grid {
   grid-template-columns: 1.25fr 0.95fr 0.8fr;
 }
@@ -652,6 +653,17 @@ main {
   grid-column: 1 / -1;
   margin: 0;
 }
+
+.operational-dashboard { display: grid; gap: 1.15rem; grid-template-columns: minmax(0, 1fr); overflow-x: hidden; }
+.command-header { display: flex; align-items: end; justify-content: space-between; gap: 1.5rem; padding: .45rem 0 .3rem; }
+.command-header > div { max-width: 64rem; }.command-kicker { margin: 0 0 .25rem; color: #247e67; font-size: .76rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }.command-header h1 { margin: 0; color: #172033; font-size: clamp(2rem, 4vw, 3.5rem); letter-spacing: -.055em; line-height: .98; }.command-header p:not(.command-kicker) { margin: .55rem 0 0; color: #536174; max-width: 42rem; }.command-header label { display: grid; gap: .35rem; min-width: 190px; color: #536174; font-size: .8rem; font-weight: 750; }
+.operational-dashboard .command-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); grid-auto-rows: 320px; gap: 14px; }
+.operational-dashboard .command-card { display: flex; flex-direction: column; gap: 12px; min-width: 0; height: 100%; padding: 15px; border: 1px solid #d8e0e8; border-radius: 12px; box-shadow: 0 1px 2px rgba(31, 55, 86, .03); cursor: pointer; transition: transform .16s ease, box-shadow .16s ease, border-color .16s ease; }
+.operational-dashboard .command-flow { background: linear-gradient(145deg, #effbf3, #f9fdf9); border-color: #bce6c8; }.operational-dashboard .command-cashflow { background: linear-gradient(145deg, #f0f6ff, #fafcff); border-color: #c9dcf8; }.operational-dashboard .command-reach { background: linear-gradient(145deg, #f5f8fb, #fbfcfd); border-color: #dbe3eb; }.operational-dashboard .command-inventory { background: linear-gradient(145deg, #fff8e5, #fffdf6); border-color: #f1d77c; }
+.operational-dashboard .command-card-heading { display: flex; align-items: start; justify-content: space-between; min-height: 42px; padding-bottom: 10px; border-bottom: 1px solid rgba(101,116,130,.18); }.operational-dashboard .command-card h2 { margin: 0; color: #172033; font-size: 1rem; letter-spacing: -.02em; }.operational-dashboard .command-card-heading p { margin: .22rem 0 0; color: #64748b; font-size: .74rem; line-height: 1.3; }.operational-dashboard .command-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: 7px; }.operational-dashboard .command-metric { display: flex; flex-direction: column; align-items: flex-start; justify-content: space-between; gap: .28rem; min-width: 0; min-height: 52px; padding: .55rem .62rem; border: 1px solid rgba(101,116,130,.14); border-radius: 8px; background: rgba(255,255,255,.56); color: #172033; text-align: left; transition: background .16s ease, border-color .16s ease, transform .16s ease; }.operational-dashboard .command-metric-primary { grid-column: 1 / -1; flex-direction: row; align-items: center; min-height: 48px; background: rgba(255,255,255,.78); }.operational-dashboard .command-metric span { color: #536174; font-size: .69rem; font-weight: 750; line-height: 1.15; }.operational-dashboard .command-metric strong { overflow-wrap: anywhere; font-size: .96rem; line-height: 1.05; }.operational-dashboard .command-metric-primary strong { font-size: 1.12rem; }.operational-dashboard .metric-active strong, .operational-dashboard .metric-closed strong { color: #247e67; }.operational-dashboard .metric-progress strong { color: #3478c5; }.operational-dashboard .metric-hold strong, .operational-dashboard .metric-approvals strong { color: #b66e12; }.operational-dashboard .metric-payments strong, .operational-dashboard .metric-invoices strong { color: #2469b2; }.operational-dashboard .metric-low-stock strong { color: #b94444; }.operational-dashboard .command-card-footer { display: flex; justify-content: flex-end; margin-top: auto; }.operational-dashboard .command-card-open { display: inline-flex; align-items: center; gap: .15rem; min-height: 28px; padding: .25rem .35rem .25rem .5rem; border: 1px solid rgba(101,116,130,.24); border-radius: 999px; background: rgba(255,255,255,.72); color: #24364d; font-size: .69rem; font-weight: 800; line-height: 1; }.operational-dashboard .command-card:hover { border-color: #a9c4bc; box-shadow: 0 8px 18px rgba(31, 55, 86, .1); transform: translateY(-2px); }.operational-dashboard .command-metric:hover { border-color: rgba(73,111,151,.42); background: rgba(255,255,255,.92); transform: translateY(-1px); }.operational-dashboard .command-card-open:hover { border-color: #5f7ea7; background: rgba(255,255,255,.98); }.operational-dashboard .command-card:focus-visible, .operational-dashboard .command-metric:focus-visible, .operational-dashboard .command-card-open:focus-visible { outline: 3px solid #367ecb; outline-offset: 3px; }.dashboard-drilldown { margin: -.45rem 0 0; color: #536174; font-size: .8rem; }
+@media (min-width: 1080px) { .operational-dashboard .command-grid { grid-template-columns: repeat(4, minmax(0, 1fr)); } }
+@media (max-width: 600px) { .command-header { align-items: stretch; flex-direction: column; }.command-header label { min-width: 0; }.operational-dashboard .command-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: 320px; } }
+@media (prefers-reduced-motion: reduce) { .operational-dashboard .command-card, .operational-dashboard .command-metric { transition: none; }.operational-dashboard .command-card:hover, .operational-dashboard .command-metric:hover { transform: none; } }
 
 .board-heading {
   grid-column: 1 / -1;
@@ -1177,8 +1189,8 @@ button.request-line:focus {
   grid-column: 1 / -1;
 }
 
-/* Material request and issue queues are list-first: keep the richer date and job
-   controls within two rows until the small-screen layout takes over. */
+/* Material request and issue queues keep every filter on one desktop row. The
+   compact search field leaves equal room for date, month, status, item and clear. */
 .material-record-filter-grid {
   grid-template-columns: repeat(12, minmax(0, 1fr));
   align-items: end;
@@ -1186,7 +1198,7 @@ button.request-line:focus {
 
 .material-record-filter-grid .list-search,
 .material-record-filter-grid > .job-search-filter {
-  grid-column: span 4;
+  grid-column: span 2;
 }
 
 .material-record-filter-grid > label:not(.list-search):not(.job-search-filter),
@@ -1197,6 +1209,57 @@ button.request-line:focus {
 .material-record-filter-grid > .list-search-actions {
   justify-self: start;
 }
+
+/* Reconcile has only its essential controls, so retain one desktop row. */
+.reconcile-filter-grid {
+  grid-template-columns: minmax(220px, 2fr) minmax(160px, 1fr) minmax(180px, 1fr) auto;
+  align-items: end;
+}
+
+.reconcile-filter-grid .list-search { grid-column: auto; }
+.reconcile-dialog-form { display: grid; gap: 14px; }
+.reconciliation-equation { margin: 0; font-weight: 600; }
+.reconciliation-state { margin: 0; font-weight: 700; }
+.reconciliation-state.matched { color: #18794e; }
+.reconciliation-state.open { color: #9a5b00; }
+
+.store-material-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 30px;
+  padding: 0 10px;
+  border-radius: 999px;
+  font-size: .8rem;
+  font-weight: 700;
+  line-height: 1;
+  white-space: nowrap;
+}
+.store-material-status-pending,
+.store-material-status-requested,
+.store-material-status-re-requested { background: #fff3cf; color: #8a5a00; }
+.store-material-status-needs-approval { background: #eef1f5; color: #4a5565; }
+.store-material-status-partially-issued { background: #e8f1ff; color: #245ea8; }
+.store-material-status-issued { background: #e8f1ff; color: #245ea8; }
+.store-material-status-reconciled { background: #e2f5e9; color: #18794e; }
+.store-material-status-matched { background: #dcfce7; color: #166534; }
+.store-material-status-open { background: #fef3c7; color: #92400e; }
+.store-material-status-local-purchase { background: #f3ebff; color: #6941a5; }
+.store-material-actions { flex-wrap: wrap; gap: 8px; }
+.store-material-action {
+  min-height: 36px;
+  border: 1px solid #b8cadb;
+  border-radius: 7px;
+  background: #fff;
+  color: #31465c;
+  padding: 0 11px;
+  font: inherit;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.store-material-issue-action { border-color: #8cc7c3; color: #0e6268; background: #f3fbfa; }
+.store-material-action:hover:not(:disabled) { background: #edf4f7; }
+.store-material-issue-action:hover:not(:disabled) { background: #e1f3f1; }
+.store-material-action:disabled { border-color: #d8e0e8; background: #f7f9fb; color: #97a4b1; cursor: not-allowed; }
 
 .workflow-disclosure {
   min-width: 0;
@@ -1706,8 +1769,7 @@ th {
     .accounts-layout,
     .admin-room,
     .store-layout,
-    .tech-board,
-    .masters-grid {
+    .tech-board {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -1745,7 +1807,6 @@ th {
     .admin-room,
     .store-layout,
     .tech-board,
-    .masters-grid,
     .form-grid {
     grid-template-columns: 1fr;
   }
@@ -1982,6 +2043,114 @@ th {
 .management-hub .store-filter-grid > .list-search-actions {
   margin-left: auto;
 }
+
+/* Keep the full Job Cards filter set on one desktop row without affecting the
+   Management Hub's other toolbars. */
+.management-hub .job-card-filter-grid {
+  display: flex;
+}
+.management-hub .job-card-filter-grid > label {
+  min-width: 0;
+}
+.management-hub .job-card-filter-grid input,
+.management-hub .job-card-filter-grid select {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+}
+.management-hub .job-card-filter-grid > .list-search {
+  flex: 1 1 16rem;
+  min-width: 10rem;
+}
+.management-hub .job-card-filter-grid > .job-card-status-filter {
+  flex: 0 1 7.5rem;
+  min-width: 6rem;
+}
+.management-hub .job-card-filter-grid > .job-card-date-filter,
+.management-hub .job-card-filter-grid > .job-card-month-filter {
+  flex: 0 1 8.5rem;
+  min-width: 7rem;
+}
+.management-hub .job-card-filter-grid > .job-card-archived-filter {
+  flex: 0 1 auto;
+  min-width: auto;
+}
+.management-hub .job-card-filter-grid > .list-search-actions {
+  flex: 0 0 auto;
+  margin-left: 0;
+}
+
+.management-hub .job-card-filter-grid > .toggle-switch {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  min-height: 42px;
+  gap: .55rem;
+  cursor: pointer;
+}
+.entity-list-page.kind-jobs .direct-job-card-filter-bar {
+  display: block;
+}
+.entity-list-page.kind-jobs .direct-job-card-filter-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: .65rem;
+}
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search { flex: 1 1 16rem; min-width: 14rem; }
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-status-filter { flex: 0 1 9rem; min-width: 8rem; }
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-date-filter { flex: 0 1 10rem; min-width: 9rem; }
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-month-filter { flex: 1 1 13rem; min-width: 11rem; }
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-archived-filter { flex: 0 0 auto; }
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions {
+  flex: 0 0 auto;
+  margin-left: 0;
+  justify-self: start;
+}
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > .toggle-switch {
+  display: inline-flex;
+  position: relative;
+  align-items: center;
+  min-height: 42px;
+  gap: .55rem;
+  cursor: pointer;
+}
+.entity-list-page.kind-jobs .direct-job-card-filter-grid > * { min-width: 0; }
+.entity-list-page.kind-jobs .direct-job-card-filter-grid input,
+.entity-list-page.kind-jobs .direct-job-card-filter-grid select { min-width: 0; width: 100%; max-width: 100%; }
+.toggle-switch > input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  opacity: 0;
+  cursor: pointer;
+}
+.toggle-switch-control {
+  display: inline-flex;
+  align-items: center;
+  width: 2.4rem;
+  height: 1.4rem;
+  padding: 2px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #9aa8b8;
+  box-shadow: inset 0 0 0 1px rgba(24, 42, 60, .2);
+  pointer-events: none;
+  transition: background .15s ease;
+}
+.toggle-switch-control > span {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(24, 42, 60, .3);
+  transition: transform .15s ease;
+}
+.toggle-switch > input:checked + .toggle-switch-control { background: #1769aa; }
+.toggle-switch > input:checked + .toggle-switch-control > span { transform: translateX(1rem); }
+.toggle-switch > input:focus-visible + .toggle-switch-control { outline: 3px solid #7db4e6; outline-offset: 2px; }
 .management-hub .job-selector {
   grid-template-columns: repeat(3, minmax(160px, 1fr));
   align-items: end;
@@ -2052,6 +2221,13 @@ th {
     width: 100%;
   }
 
+  .reconcile-filter-grid .list-search,
+  .reconcile-filter-grid > label,
+  .reconcile-filter-grid > .list-search-actions {
+    grid-column: auto;
+    width: 100%;
+  }
+
   .store-list-header-action {
     flex-basis: 100%;
     margin-left: 0;
@@ -2107,6 +2283,34 @@ th {
   }
   .management-hub .store-filter-grid > .list-search-actions button {
     flex: 1 1 0;
+  }
+  .management-hub .job-card-filter-grid {
+    display: flex;
+  }
+  .management-hub .job-card-filter-grid > .list-search-actions {
+    justify-self: auto;
+  }
+  .management-hub .job-card-filter-grid > .list-search-actions .filter-clear-action {
+    width: 100%;
+  }
+  .entity-list-page.kind-jobs .direct-job-card-filter-grid {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .entity-list-page.kind-jobs {
+    min-width: 0;
+    overflow-x: hidden;
+  }
+  .entity-list-page.kind-jobs .direct-job-card-filter-grid > * {
+    grid-column: 1 / -1 !important;
+  }
+  .entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions {
+    justify-self: auto;
+    width: 100%;
+  }
+  .entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions .filter-clear-action {
+    width: 100%;
   }
   .management-hub .job-selector { grid-template-columns: 1fr; }
   .management-hub .billing-date-filters { grid-template-columns: 1fr; }
@@ -2392,6 +2596,35 @@ th {
 @media (max-width: 760px) { .material-new-item { grid-template-columns: 1fr; } }
 .material-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .material-row { border: 1px solid var(--line, #d0d5dd); border-radius: 8px; padding: 10px; display: grid; gap: 6px; }
+
+.app-theme-layout { display: grid; grid-template-columns: minmax(230px, .65fr) minmax(360px, 1.35fr); gap: 1.25rem; align-items: start; }
+.app-theme-controls { display: grid; gap: 1rem; }
+.palette-picker { margin: 0; border: 1px solid var(--border, #d9dee8); border-radius: 10px; padding: .75rem; }
+.palette-options { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .6rem; margin-top: .4rem; }
+.palette-option { display: grid; grid-template-columns: 52px 1fr; gap: .55rem; align-items: center; min-height: 58px; padding: .45rem; border: 1px solid var(--border, #d9dee8); border-radius: 8px; background: #fff; text-align: left; }
+.palette-option.selected { border-color: var(--app-theme-accent, #15616d); box-shadow: 0 0 0 2px var(--app-theme-focus, rgba(21, 97, 109, .2)); }
+.palette-swatch { display: flex; gap: 3px; height: 34px; padding: 4px; border: 1px solid; border-radius: 5px; }
+.palette-swatch i { flex: 1; border-radius: 2px; }
+.app-theme-preview { display: grid; grid-template-columns: 130px 1fr; min-height: 280px; border: 1px solid #cbd5df; border-radius: 10px; overflow: hidden; color: #18222d; }
+.app-theme-preview aside { display: grid; align-content: start; gap: .55rem; padding: 1rem .65rem; background: var(--preview-sidebar); }
+.app-theme-preview aside span { padding: .45rem; border-radius: 5px; }
+.app-theme-preview .preview-menu-active, .preview-selected-row { background: var(--preview-active); }
+.app-theme-preview > div { padding: 1rem; }
+.app-theme-preview h2 { color: var(--preview-accent); }
+.app-theme-preview input { min-height: 36px; }
+.preview-tabs { display: flex; gap: .3rem; margin: .85rem 0; border-bottom: 1px solid #ccd5df; }
+.preview-tabs button { border: 0; background: transparent; padding: .4rem .6rem; }
+.preview-tabs button.active { border-bottom: 2px solid var(--preview-accent); color: var(--preview-accent); }
+.preview-selected-row { margin: .65rem 0; padding: .5rem; border-radius: 5px; }
+.app-theme-preview table { font-size: .82rem; }
+.app-theme-preview th { background: var(--preview-header); }
+@media (max-width: 760px) { .app-theme-layout { grid-template-columns: 1fr; } }
+
+/* Live application palette hooks. Print/report HTML supplies its own isolated styles. */
+.primary-action { background: var(--app-theme-accent, #15616d); color: #fff; }
+.primary-action:hover { background: var(--app-theme-accent, #15616d); filter: brightness(.92); }
+.management-tabs button.active, .sub-tabs button.active { background: var(--app-theme-active, #e9f5f4); color: var(--app-theme-accent, #0f5c62); border-color: var(--app-theme-active-border, #9ac7c4); border-bottom-color: var(--app-theme-accent, #15616d); box-shadow: inset 0 -1px 0 var(--app-theme-accent, #15616d); }
+.selected-register-row td, .managed-record.active-record { background: var(--app-theme-active, #e8f3ed); border-color: var(--app-theme-active-border, #9edfc7); }
 .material-row-main { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
 .material-status-cancelled { opacity: .7; }
 .material-warning { color: #b54708; }
@@ -2559,6 +2792,45 @@ th {
 .job-status-cancelled { background: #fff4f4; border-color: #f1c5c5; }
 
 .job-card .record-identity { background: transparent; }
+
+/* These rules are deliberately scoped to the Job Cards grid; shared entity cards
+   and table actions retain their existing layout. */
+.record-grid.jobs > .job-card {
+  min-height: 270px;
+  gap: 8px;
+  padding: 12px;
+}
+
+.record-grid.jobs > .job-card .record-identity { gap: 2px; padding-bottom: 8px; }
+.record-grid.jobs > .job-card .record-identity strong { font-size: 1rem; }
+.record-grid.jobs > .job-card h3 { color: #24313d; font-size: .92rem; line-height: 1.2; }
+.record-grid.jobs > .job-card p { color: #566575; font-size: .82rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.record-grid.jobs > .job-card .status { width: fit-content; }
+.record-grid.jobs > .job-card .doc-chips { min-height: 21px; }
+.job-card-spacer { flex: 1 1 auto; min-height: 14px; }
+.job-card-footer { display: flex; align-items: end; justify-content: space-between; gap: 10px; }
+.job-card-footer .info { gap: 2px; }
+.job-card-footer .info strong { color: #24313d; font-size: .94rem; }
+.job-card-actions { display: flex; align-items: center; gap: 5px; flex: 0 0 auto; }
+.job-card-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  min-height: 34px;
+  padding: 0;
+  border: 1px solid #bdcad4;
+  border-radius: 7px;
+  background: rgba(255, 255, 255, .75);
+  color: #245b57;
+}
+.job-card-action:hover, .job-card-action:focus-visible { border-color: #16736b; background: #fff; color: #0f5c55; }
+.job-card-action-danger { border-color: #e3b5b0; color: #a63228; }
+.job-card-action-danger:hover, .job-card-action-danger:focus-visible { border-color: #b94136; background: #fff1ef; color: #8f251d; }
+
+@media (max-width: 720px) {
+  .record-grid.jobs > .job-card { min-height: 248px; }
+}
 .reception-visit-row.job-status-new:hover, .reception-visit-row.job-status-new.active { background: #fff5dc; }
 .reception-visit-row.job-status-in_progress:hover, .reception-visit-row.job-status-in_progress.active { background: #e5f8eb; }
 .reception-visit-row.job-status-completed:hover, .reception-visit-row.job-status-completed.active { background: #e6f0ff; }

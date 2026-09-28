@@ -352,7 +352,7 @@ export interface Supplier {
   updated_at: string;
 }
 
-export type InwardPurchaseStatus = "Draft" | "Submitted";
+export type InwardPurchaseStatus = "Draft" | "Awaiting PO Approval" | "Approved" | "Received" | "Submitted";
 
 export interface InwardPurchase {
   id: number;
@@ -368,6 +368,9 @@ export interface InwardPurchase {
   created_by: number;
   submitted_by: number | null;
   submitted_at: string | null;
+  purchase_order_id: number | null;
+  approved_by: number | null;
+  approved_at: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -383,6 +386,7 @@ export interface InwardPurchaseLine {
   subtotal: number;
   gst_amount: number;
   total: number;
+  purchase_order_line_id: number | null;
 }
 
 /** Demo persistence stores a data URL; production adapters should expose an authorized URL only. */
@@ -405,6 +409,51 @@ export interface InwardPurchaseRevision {
   reason: string;
   revised_by: number;
   revised_at: string;
+}
+
+export type PurchaseOrderStatus = "Draft" | "Sent" | "Partially Received" | "Ready to Close" | "Closed" | "Cancelled";
+
+/** A new purchasing commitment. Legacy inward_purchases remain receipt history. */
+export interface PurchaseOrder {
+  id: number;
+  supplier_id: number;
+  po_number: string;
+  order_date: string;
+  notes: string;
+  status: PurchaseOrderStatus;
+  subtotal: number;
+  discount_total: number;
+  gst_total: number;
+  total: number;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface PurchaseOrderLine {
+  id: number;
+  purchase_order_id: number;
+  item_id: number;
+  ordered_qty: number;
+  unit_cost: number;
+  discount: number;
+  gst_rate: number;
+  subtotal: number;
+  gst_amount: number;
+  total: number;
+}
+
+/** A physical receipt. Its linked ledger row is the sole inventory movement. */
+export interface StockInward {
+  id: number;
+  item_id: number;
+  qty: number;
+  note: string;
+  purchase_order_id: number | null;
+  purchase_order_line_id: number | null;
+  ledger_id: number | null;
+  received_by: number;
+  received_at: string;
 }
 
 export interface Task {
@@ -649,6 +698,9 @@ export interface WorkshopState {
   inward_purchase_lines: InwardPurchaseLine[];
   inward_purchase_attachments: InwardPurchaseAttachment[];
   inward_purchase_revisions: InwardPurchaseRevision[];
+  purchase_orders: PurchaseOrder[];
+  purchase_order_lines: PurchaseOrderLine[];
+  stock_inwards: StockInward[];
 }
 
 export interface AdvisorAttendance {

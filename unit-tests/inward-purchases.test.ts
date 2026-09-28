@@ -4,11 +4,14 @@ import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
 import {
   createInwardPurchaseDraft,
+  createPurchaseOrderForActor,
   createSchema,
   createSupplierForActor,
   materialStockOnHand,
   migrateSchema,
   reviseInwardPurchaseForActor,
+  recordStockInwardForActor,
+  setPurchaseOrderStatusForActor,
   submitInwardPurchaseForActor,
   updateInwardPurchaseDraftForActor,
 } from "../src/db";
@@ -60,4 +63,21 @@ test("an Admin revision retains the original receipt and applies only the quanti
   assert.equal(materialStockOnHand(db, 1), 13);
   assert.equal(db.exec("select * from inward_purchase_revisions")[0].values.length, 1);
   assert.equal(db.exec("select * from inward_purchases where id=1 and status='Submitted'")[0].values.length, 1);
+});
+
+test("purchase orders reconcile linked stock inwards without creating a second receipt movement", async () => {
+  const db = await database();
+  const supplier = createSupplierForActor(db, 1, { name: "Acme Supplies" });
+  const po = createPurchaseOrderForActor(db, 2, { supplier_id: supplier, po_number: "PO-100", order_date: "2026-09-28", lines: [{ item_id: 1, ordered_qty: 5, unit_cost: 100, discount: 0, gst_rate: 18 }] });
+  setPurchaseOrderStatusForActor(db, po, 2, "send");
+  const lineId = Number(db.exec("select id from purchase_order_lines where purchase_order_id=1")[0].values[0][0]);
+  recordStockInwardForActor(db, 2, { item_id: 1, qty: 3, purchase_order_line_id: lineId });
+  assert.equal(materialStockOnHand(db, 1), 13);
+  assert.equal(db.exec("select status from purchase_orders where id=1")[0].values[0][0], "Partially Received");
+  recordStockInwardForActor(db, 2, { item_id: 1, qty: 2, purchase_order_line_id: lineId });
+  assert.equal(materialStockOnHand(db, 1), 15);
+  assert.equal(db.exec("select status from purchase_orders where id=1")[0].values[0][0], "Ready to Close");
+  recordStockInwardForActor(db, 2, { item_id: 1, qty: 1 });
+  assert.equal(db.exec("select count(*) from stock_inwards where purchase_order_line_id is null")[0].values[0][0], 1);
+  assert.equal(db.exec("select count(*) from stock_ledger where type='manual-inward'")[0].values[0][0], 3);
 });

@@ -30,6 +30,9 @@ export type AdminPageKey =
   | "issue-material"
   | "reconcile"
   | "stock"
+  | "approvals"
+  | "suppliers"
+  | "inward-purchases"
   | "my-tasks"
   | "work-update"
   | "qc-prep"
@@ -40,7 +43,6 @@ export type AdminPageKey =
   | "dashboard"
   | "data-flow"
   | "jobs"
-  | "masters"
   | "manage"
   | "admin-console";
 
@@ -89,6 +91,9 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
       { key: "issue-material", label: "Issue Material" },
       { key: "reconcile", label: "Reconcile" },
       { key: "stock", label: "Stock" },
+      { key: "approvals", label: "Approvals" },
+      { key: "suppliers", label: "Suppliers" },
+      { key: "inward-purchases", label: "Inward Purchases" },
     ],
   },
   {
@@ -108,7 +113,6 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
       { key: "dashboard", label: "Dashboard" },
       { key: "data-flow", label: "Data Flow" },
       { key: "jobs", label: "Job Cards" },
-      { key: "masters", label: "Masters" },
       { key: "manage", label: "Manage" },
       { key: "admin-console", label: "Admin Console" },
     ],
@@ -118,6 +122,20 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
 export const PAGE_KEY_BY_MENU_LABEL: Readonly<Record<string, AdminPageKey>> = Object.fromEntries(
   ADMIN_PAGE_GROUPS.flatMap((group) => group.pages.map((page) => [page.label, page.key])),
 ) as Record<string, AdminPageKey>;
+
+export const PAGE_LABEL_BY_KEY: Readonly<Record<AdminPageKey, string>> = Object.fromEntries(
+  ADMIN_PAGE_GROUPS.flatMap((group) => group.pages.map((page) => [page.key, page.label])),
+) as Record<AdminPageKey, string>;
+
+/** The sidebar is generated from these keys, so roles and Page Access share one page catalogue. */
+export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>> = {
+  reception: ["today-queue", "customers", "vehicles", "search"],
+  service: ["my-queue", "job-card", "estimate", "follow-ups", "media", "search"],
+  store: ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"],
+  tech: ["my-tasks", "work-update", "qc-prep", "search"],
+  accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
+  admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "suppliers", "inward-purchases", "stock", "manage", "search", "admin-console"],
+};
 
 export interface DemoRole {
   id: string;
@@ -132,6 +150,26 @@ export interface DemoRole {
 }
 
 export type RolePageAccess = Record<string, AdminPageKey[]>;
+
+export const APP_THEME_FONTS = [
+  { id: "system", label: "System UI", cssFamily: 'Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif' },
+  { id: "arial", label: "Arial", cssFamily: "Arial, sans-serif" },
+  { id: "verdana", label: "Verdana", cssFamily: "Verdana, sans-serif" },
+  { id: "trebuchet", label: "Trebuchet MS", cssFamily: '"Trebuchet MS", sans-serif' },
+  { id: "georgia", label: "Georgia", cssFamily: "Georgia, serif" },
+] as const;
+
+export const APP_THEME_PALETTES = [
+  { id: "go-lite", label: "Go Lite", tokens: { background: "#f4f6f8", sidebar: "#e1f1eb", sidebarBorder: "#c6ded4", sidebarText: "#3f4e58", active: "#c6e7b7", activeBorder: "#9edfc7", hover: "#c6e7b7", accent: "#15616d", focus: "rgba(21, 97, 109, 0.35)", tableHeader: "#c6e7b7" } },
+  { id: "go-yellow", label: "Go Yellow", tokens: { background: "#fffaf0", sidebar: "#fff0bf", sidebarBorder: "#ead18a", sidebarText: "#51451f", active: "#ffe28a", activeBorder: "#d7af38", hover: "#ffe28a", accent: "#976b00", focus: "rgba(151, 107, 0, 0.35)", tableHeader: "#ffebad" } },
+  { id: "go-orange", label: "Go Orange", tokens: { background: "#fff7f2", sidebar: "#ffe3d1", sidebarBorder: "#efbc9c", sidebarText: "#5d3929", active: "#ffd0ad", activeBorder: "#d9824d", hover: "#ffd0ad", accent: "#b94f16", focus: "rgba(185, 79, 22, 0.35)", tableHeader: "#ffdbbf" } },
+  { id: "go-blue", label: "Go Blue", tokens: { background: "#f3f8ff", sidebar: "#dcecff", sidebarBorder: "#b7d0ed", sidebarText: "#263f5a", active: "#c8e1ff", activeBorder: "#7eb5e8", hover: "#c8e1ff", accent: "#1667aa", focus: "rgba(22, 103, 170, 0.35)", tableHeader: "#d4e8fb" } },
+] as const;
+
+export type AppThemeFontId = (typeof APP_THEME_FONTS)[number]["id"];
+export type AppThemePaletteId = (typeof APP_THEME_PALETTES)[number]["id"];
+export interface AppTheme { fontId: AppThemeFontId; paletteId: AppThemePaletteId; }
+export const DEFAULT_APP_THEME: Readonly<AppTheme> = { fontId: "system", paletteId: "go-lite" };
 
 export interface WorkshopBusinessSettings {
   profile: {
@@ -260,6 +298,7 @@ export interface AdminDemoState {
   roles: DemoRole[];
   rolePageAccess: RolePageAccess;
   businessSettings: WorkshopBusinessSettings;
+  appTheme: AppTheme;
   logs: DemoLogEntry[];
   importBatches: DemoImportBatch[];
   sessionInventory: SessionInventoryItem[];
@@ -282,12 +321,12 @@ const OWNER_ROLE_ID: Role = "admin";
 const PROTECTED_OWNER_PAGE: AdminPageKey = "admin-console";
 
 export const DEFAULT_ROLE_PAGE_ACCESS: Readonly<RolePageAccess> = {
-  reception: ["receive-vehicle", "today-queue", "customers", "vehicles", "search"],
-  service: ["my-queue", "job-card", "estimate", "follow-ups", "media", "search"],
-  store: ["material-requests", "issue-material", "reconcile", "stock", "search"],
-  tech: ["my-tasks", "work-update", "qc-prep", "search"],
-  accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "data-flow", "jobs", "customers", "vehicles", "media", "masters", "stock", "manage", "search", "admin-console"],
+  reception: [...ROLE_MENU_PAGE_KEYS.reception],
+  service: [...ROLE_MENU_PAGE_KEYS.service],
+  store: [...ROLE_MENU_PAGE_KEYS.store],
+  tech: [...ROLE_MENU_PAGE_KEYS.tech],
+  accounts: [...ROLE_MENU_PAGE_KEYS.accounts],
+  admin: [...ROLE_MENU_PAGE_KEYS.admin],
 };
 
 const DEFAULT_SETTINGS: WorkshopBusinessSettings = {
@@ -387,12 +426,19 @@ export function createDefaultAdminDemoState(now: Date | string = DEFAULT_TIMESTA
     roles: builtInRoles(timestamp),
     rolePageAccess: clone(DEFAULT_ROLE_PAGE_ACCESS),
     businessSettings: clone(DEFAULT_SETTINGS),
+    appTheme: { ...DEFAULT_APP_THEME },
     logs: defaultLogs(timestamp),
     importBatches: [],
     sessionInventory: [],
     reportTemplates: seedReportTemplates(timestamp),
     companyAssets: { logo: null, stamp: null, authorizedSignature: null },
   };
+}
+
+export function normalizeAppTheme(theme?: Partial<AppTheme>): AppTheme {
+  const fontId = APP_THEME_FONTS.some((font) => font.id === theme?.fontId) ? theme!.fontId! : DEFAULT_APP_THEME.fontId;
+  const paletteId = APP_THEME_PALETTES.some((palette) => palette.id === theme?.paletteId) ? theme!.paletteId! : DEFAULT_APP_THEME.paletteId;
+  return { fontId, paletteId };
 }
 
 export const DEFAULT_ADMIN_DEMO_STATE: Readonly<AdminDemoState> = createDefaultAdminDemoState();
@@ -450,6 +496,7 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
     roles: saved.roles,
     rolePageAccess: access,
     businessSettings: mergeSettings(saved.businessSettings),
+    appTheme: normalizeAppTheme(saved.appTheme),
     logs: saved.logs,
     importBatches: Array.isArray(saved.importBatches) ? saved.importBatches : base.importBatches,
     sessionInventory: Array.isArray(saved.sessionInventory) ? saved.sessionInventory : base.sessionInventory,
@@ -576,6 +623,10 @@ export function resolvePermittedPages(state: AdminDemoState, roleId: string): Ad
 
 export function updateBusinessSettings(state: AdminDemoState, updates: DeepPartial<WorkshopBusinessSettings>): AdminDemoState {
   return { ...state, businessSettings: normalizeBusinessSettings(mergeSettings(updates, state.businessSettings)) };
+}
+
+export function updateAppTheme(state: AdminDemoState, appTheme: Partial<AppTheme>): AdminDemoState {
+  return { ...state, appTheme: normalizeAppTheme(appTheme) };
 }
 
 export function normalizeBusinessSettings(settings: WorkshopBusinessSettings): WorkshopBusinessSettings {

@@ -25,6 +25,7 @@ import {
   submitMaterialApprovalForActor,
   decideMaterialApprovalForActor,
   resubmitMaterialApprovalForActor,
+  reconcileMaterialQty,
 } from "../src/db";
 import { canManageMaterialRows, materialRowActions, overStockWarning } from "../src/materials";
 
@@ -153,6 +154,31 @@ test("Store release writes a signed ledger record, decrements stock and ticks Ma
   assert.equal(ticked(db, "Material Issued"), true);
   assert.throws(() => releaseMaterialRowForActor(db, id, 6), /cannot be released/);
   assert.equal(readState(db).jobs[0].material_events?.[0].kind, "release");
+});
+
+test("reconciliation corrections keep on-hand stock, movement history, and audit history aligned", async () => {
+  const { db, id } = await requested(10);
+  releaseMaterialRowForActor(db, id, 6);
+
+  reconcileMaterialQty(db, id, 6, 3, 1);
+  assert.equal(materialStockOnHand(db, 1), 3, "initial return is restored to stock");
+  assert.deepEqual(rows(db, "select used_qty,returned_qty,wasted_qty from material_requests where id=" + id), [{ used_qty: 6, returned_qty: 3, wasted_qty: 1 }]);
+
+  reconcileMaterialQty(db, id, 5, 4, 1);
+  assert.equal(materialStockOnHand(db, 1), 4, "increasing a return restores one more unit");
+
+  reconcileMaterialQty(db, id, 7, 1, 2);
+  assert.equal(materialStockOnHand(db, 1), 1, "reducing a return creates a compensating stock debit");
+  assert.deepEqual(rows<{ qty: number; direction: string }>(db, "select qty,direction from material_movements order by id"), [
+    { qty: 3, direction: "RETURN" }, { qty: 1, direction: "WASTAGE" },
+    { qty: 1, direction: "RETURN" }, { qty: -3, direction: "RETURN" }, { qty: 1, direction: "WASTAGE" },
+  ]);
+  assert.deepEqual(rows<{ qty: number; type: string }>(db, "select qty,type from stock_ledger order by id"), [
+    { qty: 10, type: "issue" }, { qty: -3, type: "return-adjustment" }, { qty: -1, type: "return-adjustment" }, { qty: 3, type: "return-adjustment" },
+  ]);
+  assert.equal(rows(db, "select note from status_history where job_card_id=1 and note='Material reconciled'").length, 3);
+  assert.throws(() => reconcileMaterialQty(db, id, -1, 0, 0), /non-negative/);
+  assert.throws(() => reconcileMaterialQty(db, id, 9, 2, 0), /cannot exceed/);
 });
 
 test("release over stock is blocked and writes nothing", async () => {

@@ -3,6 +3,8 @@ import test from "node:test";
 import {
   ADMIN_DEMO_STORAGE_KEY,
   ADMIN_PAGE_GROUPS,
+  ROLE_MENU_PAGE_KEYS,
+  DEFAULT_APP_THEME,
   addDemoRole,
   appendDemoLog,
   archiveDemoRole,
@@ -17,6 +19,7 @@ import {
   resolvePermittedPages,
   saveAdminDemoState,
   updateBusinessSettings,
+  updateAppTheme,
   updateDemoRole,
   updateRolePageAccess,
   validateBusinessSettings,
@@ -46,8 +49,31 @@ test("defaults represent all six WorkshopOS roles and current menu pages", () =>
   assert.deepEqual(state.roles.map((role) => role.id), ["admin", "service", "reception", "accounts", "store", "tech"]);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Admin Console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).find((page) => page.key === "jobs")?.label, "Job Cards");
-  assert.deepEqual(resolvePermittedPages(state, "store"), ["material-requests", "issue-material", "reconcile", "stock", "search"]);
+  assert.deepEqual(resolvePermittedPages(state, "store"), ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"]);
   assert.equal(resolvePermittedPages(state, "admin").includes("admin-console"), true);
+  assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "inward-purchases"), true);
+  assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "suppliers"), true);
+  assert.deepEqual(resolvePermittedPages(state, "admin"), ROLE_MENU_PAGE_KEYS.admin);
+  assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Masters"), false);
+});
+
+test("app theme defaults, updates, persists and hydrates legacy sessions", () => {
+  const storage = new MemorySessionStorage();
+  const original = createDefaultAdminDemoState(NOW);
+  assert.deepEqual(original.appTheme, DEFAULT_APP_THEME);
+  const updated = updateAppTheme(original, { fontId: "georgia", paletteId: "go-blue" });
+  assert.deepEqual(updated.appTheme, { fontId: "georgia", paletteId: "go-blue" });
+  assert.deepEqual(original.appTheme, DEFAULT_APP_THEME);
+  saveAdminDemoState(updated, storage, NOW);
+  assert.deepEqual(loadAdminDemoState(storage, NOW).appTheme, updated.appTheme);
+
+  const legacy = createDefaultAdminDemoState(NOW) as unknown as { appTheme?: unknown; rolePageAccess: Record<string, unknown> };
+  delete legacy.appTheme;
+  legacy.rolePageAccess.admin = ["dashboard", "masters", "admin-console"];
+  storage.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(legacy));
+  const hydrated = loadAdminDemoState(storage, NOW);
+  assert.deepEqual(hydrated.appTheme, DEFAULT_APP_THEME);
+  assert.deepEqual(hydrated.rolePageAccess.admin, ["dashboard", "admin-console"]);
 });
 
 test("session persistence is versioned, recoverable and resettable", () => {
