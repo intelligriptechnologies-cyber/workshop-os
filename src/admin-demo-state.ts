@@ -134,8 +134,11 @@ export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>
   store: ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"],
   tech: ["my-tasks", "work-update", "qc-prep", "search"],
   accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "suppliers", "inward-purchases", "stock", "manage", "search", "admin-console"],
+  admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "suppliers", "inward-purchases", "manage", "search", "admin-console"],
 };
+
+/** Admin-only Search workspaces remain granted even though they are not rail entries. */
+export const ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS: readonly AdminPageKey[] = ["material-requests", "issue-material", "reconcile", "stock", "estimate", "follow-ups"];
 
 export interface DemoRole {
   id: string;
@@ -326,7 +329,7 @@ export const DEFAULT_ROLE_PAGE_ACCESS: Readonly<RolePageAccess> = {
   store: [...ROLE_MENU_PAGE_KEYS.store],
   tech: [...ROLE_MENU_PAGE_KEYS.tech],
   accounts: [...ROLE_MENU_PAGE_KEYS.accounts],
-  admin: [...ROLE_MENU_PAGE_KEYS.admin],
+  admin: [...ROLE_MENU_PAGE_KEYS.admin, ...ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS],
 };
 
 const DEFAULT_SETTINGS: WorkshopBusinessSettings = {

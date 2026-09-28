@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import {
   ADMIN_DEMO_STORAGE_KEY,
+  ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS,
   ADMIN_PAGE_GROUPS,
   APP_THEME_PALETTES,
   ROLE_MENU_PAGE_KEYS,
@@ -54,7 +55,8 @@ test("defaults represent all six WorkshopOS roles and current menu pages", () =>
   assert.equal(resolvePermittedPages(state, "admin").includes("admin-console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "inward-purchases"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "suppliers"), true);
-  assert.deepEqual(resolvePermittedPages(state, "admin"), ROLE_MENU_PAGE_KEYS.admin);
+  assert.deepEqual(resolvePermittedPages(state, "admin"), [...ROLE_MENU_PAGE_KEYS.admin, ...ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS]);
+  assert.equal(ROLE_MENU_PAGE_KEYS.admin.includes("stock"), false);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Masters"), false);
 });
 

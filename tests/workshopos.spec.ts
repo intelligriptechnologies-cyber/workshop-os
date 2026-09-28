@@ -97,22 +97,19 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
 
   const dashboard = page.getByRole("region", { name: "Workshop command center" });
   const grid = dashboard.locator(".command-grid");
-  const metrics = ["Active today", "Total visits", "In progress", "Closed", "On hold", "Payments received", "Invoices generated", "Customers served", "Vehicles served", "Low-stock items", "Pending approvals", "Material requests", "Materials issued"];
+  const metrics = ["Active today", "Total visits", "In progress", "Closed", "On hold", "Total collections", "Projected monthly collection", "Payments received", "Invoices generated", "Customers served", "Vehicles served", "Low-stock items", "Pending approvals", "Material requests", "Materials issued"];
   await expect(grid.locator(".command-card")).toHaveCount(4);
-  await expect(grid.locator(".command-metric")).toHaveCount(13);
+  await expect(grid.locator(".command-metric")).toHaveCount(15);
   for (const metric of metrics) await expect(grid.getByRole("button", { name: new RegExp(`Open ${metric}:`) })).toBeVisible();
   expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
   expect(await grid.locator(".command-card").first().evaluate((element) => getComputedStyle(element).height)).toBe(await grid.locator(".command-card").nth(1).evaluate((element) => getComputedStyle(element).height));
   await expect(grid.locator(".command-card-open")).toHaveCount(4);
-  await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "View today's active jobs");
+  await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "View active jobs");
   expect(await grid.locator(".command-flow").evaluate((element) => getComputedStyle(element).backgroundImage)).not.toBe("none");
 
-  const reportingMonth = dashboard.getByLabel("Dashboard reporting month");
-  const options = await reportingMonth.locator("option").count();
-  if (options > 1) {
-    await reportingMonth.selectOption({ index: 1 });
-    await expect(reportingMonth).toHaveValue(await reportingMonth.locator("option").nth(1).getAttribute("value") ?? "");
-  }
+  await expect(dashboard.getByLabel("Dashboard reporting month")).toHaveCount(0);
+  await expect(grid.locator(".command-cashflow .command-metric-primary")).toHaveCount(1);
+  await expect(grid.locator(".command-cashflow .command-metric-projection")).toHaveCount(1);
 
   await grid.getByRole("button", { name: /Open Total visits:/ }).click();
   await expect(page.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
@@ -416,7 +413,7 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByLabel("Customer type")).toBeVisible();
   await expect(page.getByText("No matching records")).toBeVisible();
-  const searchClear = page.getByRole("button", { name: "Clear", exact: true });
+  const searchClear = page.locator(".portal > .list-filter-bar").getByRole("button", { name: "Clear", exact: true });
   await expect(searchClear).toHaveClass(/filter-clear-action/);
   await searchClear.click();
   await expect(page.getByText("Please select a category to activate search")).toBeVisible();
@@ -436,39 +433,42 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await expect(page.getByText("INV-08947")).toBeVisible();
 });
 
-test("admin search finds stock by catalogue fields and opens the selected SKU in Stock", async ({ page }) => {
+test("admin Search exposes operational workspaces without restoring hidden rail entries", async ({ page }) => {
   await loginAs(page, "admin@example.com");
+  const adminRail = page.locator(".role-nav");
+  await expect(adminRail.getByRole("button", { name: "Material Requests", exact: true })).toHaveCount(0);
+  await expect(adminRail.getByRole("button", { name: "Issue Material", exact: true })).toHaveCount(0);
+  await expect(adminRail.getByRole("button", { name: "Stock", exact: true })).toHaveCount(0);
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
-  await page.getByLabel("Search category").selectOption("stock");
-  await expect(page.getByLabel("Search date")).toBeHidden();
-  await expect(page.getByLabel("Search month-year")).toBeHidden();
-  await expect(page.getByLabel("Job status")).toBeHidden();
+  const categorySelect = page.getByLabel("Search category");
+  for (const [value, label] of [["material-requests", "Material Requests"], ["issue-material", "Issue Material"], ["reconcile", "Reconcile Stock"], ["stock", "Stock"], ["estimate", "Estimate"], ["follow-ups", "Follow-ups"]]) {
+    await expect(categorySelect.locator(`option[value="${value}"]`)).toHaveText(label);
+  }
 
-  await page.getByLabel("Search records").fill("PPF-001");
-  const results = page.getByRole("table", { name: "Stock search results" });
-  await expect(results.getByRole("columnheader", { name: "SKU" })).toBeVisible();
-  await expect(results.getByRole("columnheader", { name: "Minimum quantity" })).toBeVisible();
-  await expect(results.getByRole("columnheader", { name: "Stock status" })).toBeVisible();
-  await expect(results.getByText("PPF-001")).toBeVisible();
-  const ppfRow = results.locator("tbody tr").filter({ hasText: "PPF-001" });
-  await expect(ppfRow.getByText("In stock", { exact: true })).toHaveClass(/stock-status-in-stock/);
-
-  await page.getByLabel("Search records").fill("PAINT-031");
-  const lowStockRow = results.locator("tbody tr").filter({ hasText: "PAINT-031" });
-  await expect(lowStockRow.getByText("Low stock", { exact: true })).toHaveClass(/stock-status-low-stock/);
-  await page.getByLabel("Search records").fill("PAINT-032");
-  const outOfStockRow = results.locator("tbody tr").filter({ hasText: "PAINT-032" });
-  await expect(outOfStockRow.getByText("Out of stock", { exact: true })).toHaveClass(/stock-status-out-of-stock/);
-
-  await page.getByLabel("Search records").fill("TPU Gloss PPF");
-  await expect(results.getByText("PPF-001")).toBeVisible();
-  await page.getByLabel("Search records").fill("PPF");
-  await expect(results.locator("tbody tr").first()).toBeVisible();
-  await page.getByLabel("Search records").fill("PPF-001");
-  await results.getByRole("button", { name: "View", exact: true }).click();
+  await categorySelect.selectOption("material-requests");
+  await expect(page.getByRole("heading", { name: "Material Requests", exact: true })).toBeVisible();
+  await categorySelect.selectOption("issue-material");
+  await expect(page.getByRole("heading", { name: "Issue Material", exact: true })).toBeVisible();
+  await categorySelect.selectOption("reconcile");
+  await expect(page.getByRole("heading", { name: "Reconcile", exact: true })).toBeVisible();
+  await categorySelect.selectOption("stock");
   await expect(page.getByRole("heading", { name: "Stock", exact: true }).first()).toBeVisible();
-  await expect(page.getByLabel("Search stock")).toHaveValue("PPF-001");
-  await expect(page.getByRole("table", { name: "Stock results" }).getByText("PPF-001")).toBeVisible();
+  await expect(page.getByLabel("Search records")).toBeHidden();
+  await expect(page.getByRole("table", { name: "Stock results" })).toBeVisible();
+  await categorySelect.selectOption("estimate");
+  await expect(page.getByRole("heading", { name: "Estimates", exact: true })).toBeVisible();
+  await expect(page.getByText("All workshop jobs")).toBeVisible();
+  await categorySelect.selectOption("follow-ups");
+  await expect(page.getByRole("heading", { name: "Follow-ups", exact: true })).toBeVisible();
+});
+
+test("non-admin Search keeps its existing category availability", async ({ page }) => {
+  await loginAs(page, "service@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
+  const categorySelect = page.getByLabel("Search category");
+  for (const category of ["material-requests", "issue-material", "reconcile", "estimate", "follow-ups"]) {
+    await expect(categorySelect.locator(`option[value="${category}"]`)).toHaveCount(0);
+  }
 });
 
 test("admin loads the deterministic large dataset and paginates core lists", async ({ page }) => {
@@ -1227,6 +1227,29 @@ test("issue and reconcile lists filter by item and reconciliation state", async 
   await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(2);
   await page.getByLabel("Reconciliation state").selectOption("Open");
   await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(1);
+});
+
+test("material record queues use compact rows and issue actions do not open their row", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+
+  for (const pageName of ["Material Requests", "Issue Material"] as const) {
+    await page.locator(".role-nav").getByRole("button", { name: pageName, exact: true }).click();
+    const table = page.getByRole("table", { name: `${pageName} results` });
+    await expect(table).toHaveClass(/store-material-record-table/);
+    await expect(table.locator("tbody tr").first().locator("td").first()).toHaveCSS("padding-top", "7px");
+    await expect(table.locator(".store-material-status").first()).toHaveCSS("min-height", "24px");
+  }
+
+  const issueTable = page.getByRole("table", { name: "Issue Material results" });
+  const issueAction = issueTable.getByRole("button", { name: "Issue Material", exact: true }).first();
+  const approvalAction = issueTable.getByRole("button", { name: "Needs Approval", exact: true }).first();
+  await expect(issueAction).toHaveClass(/action-primary/);
+  await expect(approvalAction).toHaveClass(/action-secondary/);
+  await expect(issueAction).toHaveCSS("min-height", "30px");
+  await expect(approvalAction).toHaveCSS("min-height", "30px");
+
+  await approvalAction.click();
+  await expect(page.getByRole("heading", { name: "Job Card", exact: true })).toHaveCount(0);
 });
 
 test("store reconciliation states use status pills and shared table actions", async ({ page }) => {
