@@ -160,7 +160,7 @@ export const APP_THEME_FONTS = [
 ] as const;
 
 export const APP_THEME_PALETTES = [
-  { id: "go-lite", label: "Go Lite", tokens: { background: "#f4f6f8", sidebar: "#e1f1eb", sidebarBorder: "#c6ded4", sidebarText: "#3f4e58", active: "rgba(214, 246, 187, 1)", activeBorder: "#9edfc7", hover: "#c6e7b7", accent: "#15616d", focus: "rgba(21, 97, 109, 0.35)", tableHeader: "rgba(214, 246, 187, 1)" } },
+  { id: "go-lite", label: "Go Lite", tokens: { background: "#f4f6f8", sidebar: "#e1f1eb", sidebarBorder: "#c6ded4", sidebarText: "#3f4e58", active: "rgb(195, 225, 170)", activeBorder: "#9edfc7", hover: "#c6e7b7", accent: "#15616d", focus: "rgba(21, 97, 109, 0.35)", tableHeader: "rgb(195, 225, 170)" } },
   { id: "go-yellow", label: "Go Yellow", tokens: { background: "#fffaf0", sidebar: "#fff0bf", sidebarBorder: "#ead18a", sidebarText: "#51451f", active: "#ffe28a", activeBorder: "#d7af38", hover: "#ffe28a", accent: "#976b00", focus: "rgba(151, 107, 0, 0.35)", tableHeader: "#ffebad" } },
   { id: "go-orange", label: "Go Orange", tokens: { background: "#fff7f2", sidebar: "#ffe3d1", sidebarBorder: "#efbc9c", sidebarText: "#5d3929", active: "#ffd0ad", activeBorder: "#d9824d", hover: "#ffd0ad", accent: "#b94f16", focus: "rgba(185, 79, 22, 0.35)", tableHeader: "#ffdbbf" } },
   { id: "go-blue", label: "Go Blue", tokens: { background: "#f3f8ff", sidebar: "#dcecff", sidebarBorder: "#b7d0ed", sidebarText: "#263f5a", active: "#c8e1ff", activeBorder: "#7eb5e8", hover: "#c8e1ff", accent: "#1667aa", focus: "rgba(22, 103, 170, 0.35)", tableHeader: "#d4e8fb" } },
