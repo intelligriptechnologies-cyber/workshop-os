@@ -97,13 +97,13 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
 
   const dashboard = page.getByRole("region", { name: "Workshop command center" });
   const grid = dashboard.locator(".command-grid");
-  const metrics = ["Active today", "Total visits", "Closed", "In progress", "On hold", "Customers", "Vehicles", "Invoices generated", "Payments received", "Low-stock items", "Material requests", "Materials issued", "Pending approvals"];
+  const metrics = ["Open today", "Received job cards", "Closed", "In progress", "On hold", "Customers", "Vehicles", "Materials requested", "Low-stock items", "Invoices created", "Payments cleared", "Actual monthly collection", "Projected month-end collection"];
   await expect(grid.locator(".command-card")).toHaveCount(4);
   await expect(grid.locator(".command-metric")).toHaveCount(13);
   for (const metric of metrics) await expect(grid.getByRole("button", { name: new RegExp(`Open ${metric}:`) })).toBeVisible();
   expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(4);
   await expect(grid.locator(".command-card-open")).toHaveCount(4);
-  await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "Open today’s jobs");
+  await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "View job cards");
   expect(await grid.locator(".command-flow").evaluate((element) => getComputedStyle(element).backgroundImage)).not.toBe("none");
 
   const reportingMonth = dashboard.getByLabel("Dashboard reporting month");
@@ -113,13 +113,13 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
     await expect(reportingMonth).toHaveValue(await reportingMonth.locator("option").nth(1).getAttribute("value") ?? "");
   }
 
-  await grid.getByRole("button", { name: /Open Total visits:/ }).click();
-  await expect(page.getByText("Search").first()).toBeVisible();
+  await grid.getByRole("button", { name: /Open Received job cards:/ }).click();
+  await expect(page.locator(".record-grid.jobs")).toBeVisible();
   await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
 
   await grid.locator(".command-cashflow").focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByText("Search").first()).toBeVisible();
+  await expect(page.locator(".role-nav").getByRole("button", { name: "Search", exact: true })).toHaveClass(/active/);
 
   await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.emulateMedia({ reducedMotion: "reduce" });

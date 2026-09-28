@@ -93,6 +93,9 @@ import {
   searchJobs,
   stockIn,
   submitInwardPurchaseForActor,
+  sendInwardPurchaseForPoApprovalForActor,
+  approveInwardPurchaseForActor,
+  receiveAndPostInwardPurchaseForActor,
   updateInwardPurchaseDraftForActor,
   updateSupplierForActor,
   archiveSupplierForActor,
@@ -610,6 +613,7 @@ function App() {
           state={state}
           user={user}
           cognitoConfig={authConfig?.mode === "cognito" ? authConfig : undefined}
+          onNavigate={setActiveMenuItem}
         />
       </main>
     </div>
@@ -700,6 +704,7 @@ function RoleWorkspace({
   state,
   user,
   cognitoConfig,
+  onNavigate,
 }: {
   activeMenuItem: string;
   jobs: JobView[];
@@ -729,6 +734,7 @@ function RoleWorkspace({
   state: WorkshopState;
   user: User;
   cognitoConfig?: CognitoConfig;
+  onNavigate: (label: string) => void;
 }) {
   if (activeMenuItem === "Search") {
     return (
@@ -770,7 +776,7 @@ function RoleWorkspace({
   if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "tech") return <Technician activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "accounts") return <Accounts activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} actor={user} />;
-  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} />;
+  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} onNavigate={onNavigate} />;
 }
 
 const SEARCH_STATUS_OPTIONS: (MainStatus | "ALL")[] = ["ALL", "NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"];
@@ -1713,11 +1719,7 @@ function MaterialApprovalQueue({ state, actor, mutate, setSelectedJobId }: { sta
   return <section className="workspace single-panel"><div className="desk-panel"><PanelTitle icon={<ShieldCheck />} title="Approvals" subtitle={`${pending.length} pending job-level material approval${pending.length === 1 ? "" : "s"}`} />{pending.length ? <div className="table-wrap"><table aria-label="Pending material approvals"><thead><tr><th>Job Card</th><th>Vehicle / Customer</th><th>Store user</th><th>Submitted</th><th>Job status</th><th>Outstanding materials</th><th>Actions</th></tr></thead><tbody>{pending.map((view) => { const approval = view.material_approval!; const requester = state.users.find((user) => user.id === approval.submitted_by)?.name ?? "Store"; const materials = view.material_requests.filter((row) => ["Requested", "Re-requested"].includes(row.status ?? "Requested")).map((row) => `${state.inventory.find((item) => item.id === row.item_id)?.name ?? `Item ${row.item_id}`} × ${row.requested_qty}`).join(", "); return <tr key={approval.id}><td><button className="link-action" onClick={() => { setSelectedJobId(view.job.id); setViewing(view); }}>{view.job.job_no}</button></td><td>{view.vehicle.number} · {view.customer.name}</td><td>{requester}</td><td>{formatTimestamp(approval.submitted_at)}</td><td><Status status={view.job.main_status} sub={view.job.sub_status} /></td><td>{materials || "No outstanding rows"}</td><td><button className="primary-action" onClick={() => setReviewing(view)}>Review</button></td></tr>; })}</tbody></table></div> : <div className="list-empty"><h3>No pending approvals</h3><p>Store material approval requests will appear here.</p></div>}</div>{viewing && <JobRecordDialog view={viewing} state={state} mutate={mutate} actor={actor} mode="view" onClose={() => setViewing(undefined)} />}{reviewing && <Dialog title="Review material approval" subtitle={`${reviewing.job.job_no} · decision controls`} onClose={() => setReviewing(undefined)} footer={<><button type="button" className="secondary-action" onClick={() => decide("Approved")}>Approve</button><button type="button" className="danger-action" onClick={() => decide("Rejected")}>Reject</button></>}><p>Approve restores the retained requested rows for Store issue. Reject keeps the job on HOLD for the linked Service Advisor to correct.</p><label>Rejection reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} required placeholder="Required when rejecting" /></label>{error && <p className="error-text" role="alert">{error}</p>}</Dialog>}</section>;
 }
 
-function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User; cognitoConfig?: CognitoConfig }) {
-  const funnel = ["NEW", "IN_PROGRESS", "COMPLETED", "CLOSED"].map((status) => ({
-    status,
-    count: state.jobs.filter((view) => view.job.main_status === status).length,
-  }));
+function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig, onNavigate }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User; cognitoConfig?: CognitoConfig; onNavigate: (label: string) => void }) {
   if (activeMenuItem === "Data Flow") {
     return <DataFlowWorkspace jobs={state.jobs} users={state.users} />;
   }
@@ -1765,27 +1767,62 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user
   if (activeMenuItem === "Admin Console") {
     return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} />;
   }
-  return (
-    <section className="workspace admin-room">
-      <Kpis jobs={state.jobs} inventory={state.inventory} />
-      <div className="desk-panel">
-        <PanelTitle icon={<Gauge />} title="Dashboard" subtitle="Lifecycle, blockers, revenue and inventory alerts" />
-        {funnel.map((item) => (
-          <button className="info-row as-button" key={item.status} onClick={() => setSelectedJobId(state.jobs.find((job) => job.job.main_status === item.status)?.job.id ?? selected?.job.id ?? state.jobs[0]?.job.id)}>
-            <span>{item.status}</span>
-            <strong>{String(item.count)}</strong>
-          </button>
-        ))}
-        {state.inventory
-          .filter((item) => item.stock_qty < item.low_stock_qty)
-          .map((item) => (
-            <p className="blocker-pill" key={item.id}>
-              Low stock: {item.name}
-            </p>
-          ))}
-      </div>
-    </section>
-  );
+  return <OperationalDashboard state={state} onNavigate={onNavigate} />;
+}
+
+type DashboardMetric = { label: string; value: string | number; tone: string; destination: string; primary?: boolean };
+type DashboardCard = { title: string; subtitle: string; tone: string; destination: string; action: string; metrics: DashboardMetric[] };
+
+function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onNavigate: (label: string) => void }) {
+  const today = localCalendarDate();
+  const currentMonth = today.slice(0, 7);
+  const dates = state.jobs.flatMap((view) => [view.visit.received_at, view.job.closed_at, view.invoice?.created_at, ...view.payments.map((payment) => payment.created_at), ...view.material_requests.map((request) => request.created_at)]).filter((value): value is string => Boolean(value));
+  const months = Array.from(new Set([currentMonth, ...dates.map((value) => value.slice(0, 7)).filter(Boolean)])).sort((left, right) => right.localeCompare(left));
+  const [reportingMonth, setReportingMonth] = useState(currentMonth);
+  const inMonth = (value?: string) => Boolean(value && value.slice(0, 7) === reportingMonth);
+  const monthlyJobs = state.jobs.filter((view) => inMonth(view.visit.received_at));
+  const payments = state.jobs.flatMap((view) => view.payments).filter((payment) => !payment.voided_at && inMonth(payment.created_at));
+  const invoicesCreated = state.jobs.filter((view) => !view.invoice?.voided_at && inMonth(view.invoice?.created_at)).length;
+  const materialRequests = state.jobs.flatMap((view) => view.material_requests).filter((request) => inMonth(request.created_at)).length;
+  const actualCollection = payments.reduce((total, payment) => total + payment.amount, 0);
+  const [year, month] = reportingMonth.split("-").map(Number);
+  const daysInReportingMonth = Number.isFinite(year) && Number.isFinite(month) ? new Date(year, month, 0).getDate() : 0;
+  const elapsedDays = reportingMonth === currentMonth ? Number(today.slice(-2)) : daysInReportingMonth;
+  const projectedCollection = elapsedDays > 0 ? actualCollection / elapsedDays * daysInReportingMonth : 0;
+  const monthLabel = new Date(`${reportingMonth}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+  const openToday = state.jobs.filter((view) => view.visit.received_at.slice(0, 10) === today && !["CLOSED", "CANCELLED"].includes(view.job.main_status)).length;
+  const lowStock = state.inventory.filter((item) => item.stock_qty < item.low_stock_qty).length;
+  const cards: DashboardCard[] = [
+    { title: "Job Card Summary", subtitle: `${monthLabel} operational flow`, tone: "flow", destination: "Job Cards", action: "View job cards", metrics: [
+      { label: "Open today", value: openToday, tone: "active", destination: "Job Cards", primary: true },
+      { label: "Received job cards", value: monthlyJobs.length, tone: "received", destination: "Job Cards" },
+      { label: "Closed", value: monthlyJobs.filter((view) => view.job.main_status === "CLOSED").length, tone: "closed", destination: "Job Cards" },
+      { label: "In progress", value: monthlyJobs.filter((view) => view.job.main_status === "IN_PROGRESS").length, tone: "progress", destination: "Job Cards" },
+      { label: "On hold", value: monthlyJobs.filter((view) => view.job.main_status === "HOLD").length, tone: "hold", destination: "Job Cards" },
+    ] },
+    { title: "Customers & Vehicles", subtitle: "Workshop records at a glance", tone: "reach", destination: "Customers", action: "View customer records", metrics: [
+      { label: "Customers", value: state.customers.length, tone: "customers", destination: "Customers", primary: true },
+      { label: "Vehicles", value: state.vehicles.length, tone: "vehicles", destination: "Vehicles" },
+    ] },
+    { title: "Inventory Summary", subtitle: "Stock and request attention", tone: "inventory", destination: "Stock", action: "View inventory blockers", metrics: [
+      { label: "Materials requested", value: materialRequests, tone: "requests", destination: "Stock", primary: true },
+      { label: "Low-stock items", value: lowStock, tone: "low-stock", destination: "Stock" },
+    ] },
+    { title: "Collections", subtitle: `${monthLabel} billing performance`, tone: "cashflow", destination: "Search", action: "View payments", metrics: [
+      { label: "Invoices created", value: invoicesCreated, tone: "invoices", destination: "Search" },
+      { label: "Payments cleared", value: payments.length, tone: "payments", destination: "Search" },
+      { label: "Actual monthly collection", value: money(actualCollection), tone: "collection", destination: "Search", primary: true },
+      { label: "Projected month-end collection", value: money(projectedCollection), tone: "projection", destination: "Search" },
+    ] },
+  ];
+  return <section className="workspace operational-dashboard" aria-label="Workshop command center">
+    <header className="command-header"><div><p className="command-kicker">Workshop command center</p><h1>Operational dashboard</h1><p>Live job flow, customer reach, stock attention and collections.</p></div><label>Reporting month<select aria-label="Dashboard reporting month" value={reportingMonth} onChange={(event) => setReportingMonth(event.target.value)}>{months.map((monthValue) => <option key={monthValue} value={monthValue}>{new Date(`${monthValue}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label></header>
+    <div className="command-grid">{cards.map((card) => <article key={card.title} className={`command-card command-${card.tone}`} tabIndex={0} onClick={() => onNavigate(card.destination)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onNavigate(card.destination); } }}>
+      <div className="command-card-heading"><div><h2>{card.title}</h2><p>{card.subtitle}</p></div></div>
+      <div className="command-metrics">{card.metrics.map((metric) => <button type="button" key={metric.label} className={`command-metric metric-${metric.tone}${metric.primary ? " command-metric-primary" : ""}`} aria-label={`Open ${metric.label}: ${metric.value}`} onClick={(event) => { event.stopPropagation(); onNavigate(metric.destination); }}><span>{metric.label}</span><strong>{metric.value}</strong></button>)}</div>
+      <div className="command-card-footer"><button type="button" className="command-card-open" aria-label={card.action} onClick={(event) => { event.stopPropagation(); onNavigate(card.destination); }}>{card.action} <ChevronRight size={14} /></button></div>
+    </article>)}</div>
+  </section>;
 }
 
 const managementAreas = ["Users", "Customers", "Vehicles", "Job Cards", "Estimates", "Tasks / QC", "Inventory / Materials", "Invoices", "Payments", "Delivery"] as const;

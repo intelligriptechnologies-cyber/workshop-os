@@ -665,6 +665,24 @@ main {
 @media (max-width: 600px) { .command-header { align-items: stretch; flex-direction: column; }.command-header label { min-width: 0; }.operational-dashboard .command-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: 320px; } }
 @media (prefers-reduced-motion: reduce) { .operational-dashboard .command-card, .operational-dashboard .command-metric { transition: none; }.operational-dashboard .command-card:hover, .operational-dashboard .command-metric:hover { transform: none; } }
 
+/* Dashboard-only record-card treatment: compact rows, not nested KPI tiles. */
+.operational-dashboard .command-grid { grid-auto-rows: minmax(288px, 1fr); }
+.operational-dashboard .command-card { gap: 9px; padding: 14px; border-radius: 8px; }
+.operational-dashboard .command-card-heading { min-height: 38px; padding-bottom: 8px; }
+.operational-dashboard .command-metrics { grid-template-columns: minmax(0, 1fr); gap: 0; }
+.operational-dashboard .command-metric,
+.operational-dashboard .command-metric-primary { display: flex; flex-direction: row; align-items: center; justify-content: space-between; min-height: 31px; padding: .36rem 0; border: 0; border-bottom: 1px solid rgba(101,116,130,.16); border-radius: 0; background: transparent; }
+.operational-dashboard .command-metric-primary { min-height: 35px; }
+.operational-dashboard .command-metric:last-child { border-bottom: 0; }
+.operational-dashboard .command-metric span { font-size: .74rem; }
+.operational-dashboard .command-metric strong { font-size: .94rem; }
+.operational-dashboard .command-metric-primary strong { font-size: 1.08rem; }
+.operational-dashboard .command-card-footer { justify-content: flex-start; padding-top: 8px; border-top: 1px solid rgba(101,116,130,.18); }
+.operational-dashboard .command-card-open { min-height: 24px; padding: .1rem 0; border: 0; border-radius: 0; background: transparent; color: #24364d; }
+.operational-dashboard .command-card-open:hover { border-color: transparent; background: transparent; color: #1c5f99; }
+.operational-dashboard .command-metric:hover { border-color: rgba(73,111,151,.42); background: transparent; transform: none; }
+@media (max-width: 600px) { .operational-dashboard .command-grid { grid-auto-rows: minmax(272px, auto); } }
+
 .board-heading {
   grid-column: 1 / -1;
 }
