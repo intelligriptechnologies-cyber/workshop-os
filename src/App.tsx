@@ -909,7 +909,7 @@ function SearchPortal({
   const availableCategories: SearchCategorySelection[] = actor.role === "admin"
     ? [...Array.from(new Set([...baseCategories.filter((item) => item !== "stock"), "customer" as const, "vehicle" as const, "payment" as const])), ...ADMIN_OPERATIONAL_SEARCH_CATEGORIES]
     : baseCategories;
-  const operationalCategory = actor.role === "admin" && ADMIN_OPERATIONAL_SEARCH_CATEGORIES.includes(category as AdminOperationalSearchCategory)
+  const operationalCategory = actor.role === "admin" && category !== "stock" && ADMIN_OPERATIONAL_SEARCH_CATEGORIES.includes(category as AdminOperationalSearchCategory)
     ? category as AdminOperationalSearchCategory
     : undefined;
   const availableMonths = [...new Set((category === "payment" ? [monthFilter, ...state.jobs.flatMap((view) => view.payments.filter((payment) => !payment.voided_at).map((payment) => payment.created_at?.slice(0, 7) ?? ""))] : state.jobs
@@ -953,6 +953,7 @@ function SearchPortal({
             <option value="">Select a category</option>
             {availableCategories.map((item) => <option key={item} value={item}>{item in ADMIN_OPERATIONAL_SEARCH_LABELS ? ADMIN_OPERATIONAL_SEARCH_LABELS[item as AdminOperationalSearchCategory] : SEARCH_CATEGORY_LABELS[item as SearchTableCategory]}</option>)}
           </select></label>
+          {category === "stock" && lowStockOnly && <span className="search-scope" role="status">Low stock only</span>}
           {!operationalCategory && category && category !== "stock" && !entityListKind && <>
             {category === "job" && <label>Status<select aria-label="Job status" value={status} onChange={(event) => changeFilters(() => setStatus(event.target.value as SearchCriteria["status"]))}>{SEARCH_STATUS_OPTIONS.map((item) => <option key={item} value={item}>{item === "ALL" ? "All statuses" : item}</option>)}</select></label>}
             {category === "payment" && <label>Payment mode<select aria-label="Payment mode filter" value={paymentMode} onChange={(event) => changeFilters(() => setPaymentMode(event.target.value as "ALL" | PaymentMode))}><option value="ALL">All</option>{(["UPI", "Cash", "Card", "Bank transfer", "Other"] as PaymentMode[]).map((mode) => <option key={mode} value={mode}>{mode}</option>)}</select></label>}
