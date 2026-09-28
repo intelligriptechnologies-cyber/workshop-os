@@ -137,6 +137,12 @@ export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>
   admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "suppliers", "inward-purchases", "manage", "search", "admin-console"],
 };
 
+/** Sidebar workflows are a role-owned subset of saved Page Access grants. */
+export function resolveRoleMenuPageKeys(role: Role, permittedPages: readonly AdminPageKey[]): AdminPageKey[] {
+  const permitted = new Set(permittedPages);
+  return ROLE_MENU_PAGE_KEYS[role].filter((key) => permitted.has(key));
+}
+
 /** Admin-only Search workspaces remain granted even though they are not rail entries. */
 export const ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS: readonly AdminPageKey[] = ["material-requests", "issue-material", "reconcile", "stock", "estimate", "follow-ups"];
 

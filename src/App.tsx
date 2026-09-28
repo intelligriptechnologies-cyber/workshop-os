@@ -150,7 +150,7 @@ import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor } from "./materials";
 import { JOB_CARD_TABS, isStubTab, type JobCardTabKey } from "./job-card-layout";
 import { Dialog, DownloadMenu, FilterClearButton, handleTabListKeyDown, ListSearchActions, SearchSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
-import { APP_THEME_FONTS, APP_THEME_PALETTES, loadAdminDemoState, PAGE_LABEL_BY_KEY, ROLE_MENU_PAGE_KEYS, resolvePermittedPages, type AdminPageKey, type AppTheme } from "./admin-demo-state";
+import { APP_THEME_FONTS, APP_THEME_PALETTES, loadAdminDemoState, PAGE_LABEL_BY_KEY, resolvePermittedPages, resolveRoleMenuPageKeys, type AdminPageKey, type AppTheme } from "./admin-demo-state";
 import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
 import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
 import { renderHtmlToPdf } from "./pdf-render";
@@ -189,9 +189,7 @@ const MENU_ICON_BY_PAGE_KEY: Partial<Record<AdminPageKey, React.ReactNode>> = {
 };
 
 export function menuItemsForRole(role: Role, permittedPages: readonly AdminPageKey[]): MenuItem[] {
-  const permitted = new Set(permittedPages);
-  return ROLE_MENU_PAGE_KEYS[role]
-    .filter((key) => permitted.has(key))
+  return resolveRoleMenuPageKeys(role, permittedPages)
     .map((key) => ({ key, label: PAGE_LABEL_BY_KEY[key], icon: MENU_ICON_BY_PAGE_KEY[key] }));
 }
 

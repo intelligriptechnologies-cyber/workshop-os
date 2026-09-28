@@ -6,6 +6,7 @@ import {
   ADMIN_PAGE_GROUPS,
   APP_THEME_PALETTES,
   ROLE_MENU_PAGE_KEYS,
+  PAGE_LABEL_BY_KEY,
   DEFAULT_APP_THEME,
   addDemoRole,
   appendDemoLog,
@@ -19,6 +20,7 @@ import {
   normalizeBusinessSettings,
   resetAdminDemoState,
   resolvePermittedPages,
+  resolveRoleMenuPageKeys,
   saveAdminDemoState,
   updateBusinessSettings,
   updateAppTheme,
@@ -58,6 +60,32 @@ test("defaults represent all six WorkshopOS roles and current menu pages", () =>
   assert.deepEqual(resolvePermittedPages(state, "admin"), [...ROLE_MENU_PAGE_KEYS.admin, ...ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS]);
   assert.equal(ROLE_MENU_PAGE_KEYS.admin.includes("stock"), false);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Masters"), false);
+});
+
+test("page catalogue is the source of truth for role menus and Inventory access", () => {
+  const pages = ADMIN_PAGE_GROUPS.flatMap((group) => group.pages);
+  for (const key of Object.values(ROLE_MENU_PAGE_KEYS).flat()) {
+    assert.equal(pages.some((page) => page.key === key), true, `${key} has a catalogue definition`);
+    assert.equal(PAGE_LABEL_BY_KEY[key], pages.find((page) => page.key === key)?.label);
+  }
+
+  assert.deepEqual(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.map((page) => page.label), [
+    "Material Requests", "Issue Material", "Reconcile", "Stock", "Approvals", "Suppliers", "Purchase Orders",
+  ]);
+});
+
+test("role menus retain supported boundaries while honoring page access grants", () => {
+  const defaults = createDefaultAdminDemoState(NOW);
+  assert.deepEqual(resolveRoleMenuPageKeys("store", resolvePermittedPages(defaults, "store")), ROLE_MENU_PAGE_KEYS.store);
+
+  const withoutPurchaseOrders = updateRolePageAccess(defaults, "store", resolvePermittedPages(defaults, "store").filter((key) => key !== "inward-purchases"));
+  assert.equal(resolveRoleMenuPageKeys("store", resolvePermittedPages(withoutPurchaseOrders, "store")).includes("inward-purchases"), false);
+
+  const noPages = updateRolePageAccess(defaults, "store", []);
+  assert.deepEqual(resolveRoleMenuPageKeys("store", resolvePermittedPages(noPages, "store")), []);
+
+  const crossRoleGrant = updateRolePageAccess(defaults, "store", ["suppliers", "dashboard", "stock"]);
+  assert.deepEqual(resolveRoleMenuPageKeys("store", resolvePermittedPages(crossRoleGrant, "store")), ["stock"]);
 });
 
 test("app theme defaults, updates, persists and hydrates legacy sessions", () => {

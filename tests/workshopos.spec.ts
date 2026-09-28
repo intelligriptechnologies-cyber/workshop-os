@@ -91,6 +91,21 @@ test("admin hides customer and vehicle pages from its navigation rail", async ({
   await expect(nav.getByRole("button", { name: "Vehicles", exact: true })).toHaveCount(0);
 });
 
+test("saved Store page access immediately removes Purchase Orders from its inventory navigation", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
+  await page.getByRole("tab", { name: "Roles & Page Access", exact: true }).click();
+  await page.locator(".role-list").getByRole("button", { name: /Store/ }).click();
+  await page.getByLabel("Purchase Orders", { exact: true }).uncheck();
+  await page.getByRole("button", { name: "Save Changes", exact: true }).click();
+  await page.getByRole("button", { name: "Logout", exact: true }).click();
+
+  await loginAs(page, "store@example.com");
+  const nav = page.locator(".role-nav");
+  await expect(nav.getByRole("button", { name: "Stock", exact: true })).toBeVisible();
+  await expect(nav.getByRole("button", { name: "Purchase Orders", exact: true })).toHaveCount(0);
+});
+
 test("admin dashboard presents live metrics in an accessible command-center grid", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, "admin@example.com");
