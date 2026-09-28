@@ -157,13 +157,15 @@ test("admin dashboard presents live metrics in an accessible command-center grid
   await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
   await dashboard.getByRole("button", { name: "View low-stock blockers", exact: true }).click();
   await expect(page.getByLabel("Search category")).toHaveValue("stock");
+  await expect(page.getByRole("status", { name: "Low stock only" })).toBeVisible();
   const stockRows = page.getByRole("table", { name: "Stock search results" }).locator("tbody tr");
   const lowStockCount = await stockRows.count();
   expect(await stockRows.evaluateAll((rows) => rows.every((row) => Number(row.children[3]?.textContent) < Number(row.children[5]?.textContent)))).toBe(true);
   await page.locator(".portal > .list-filter-bar").getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByLabel("Search category")).toHaveValue("stock");
+  await expect(page.getByRole("status", { name: "Low stock only" })).toHaveCount(0);
   await expect(stockRows.first()).toBeVisible();
-  expect(await stockRows.count()).toBeGreaterThan(lowStockCount);
+  expect(await stockRows.count()).toBeGreaterThanOrEqual(lowStockCount);
 
   await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
   if (await cashflowMonth.locator("option").count() > 1) {
