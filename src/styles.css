@@ -1220,26 +1220,24 @@ button.request-line:focus {
   grid-column: 1 / -1;
 }
 
-/* Material request and issue queues keep every filter on one desktop row. The
-   compact search field leaves equal room for date, month, status, item and clear. */
+/* Material request and issue queues keep their compact five-control filter set
+   on one desktop row: date, month-year, status, item and clear. */
 .material-record-filter-grid {
-  grid-template-columns: repeat(12, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   align-items: end;
 }
 
-.material-record-filter-grid .list-search,
-.material-record-filter-grid > .job-search-filter {
-  grid-column: span 2;
-}
-
-.material-record-filter-grid > label:not(.list-search):not(.job-search-filter),
+.material-record-filter-grid > label,
 .material-record-filter-grid > .list-search-actions {
-  grid-column: span 2;
+  grid-column: auto;
 }
 
 .material-record-filter-grid > .list-search-actions {
   justify-self: start;
 }
+
+.material-record-filter-grid .inventory-picker,
+.material-record-filter-grid .inventory-picker input { min-width: 0; width: 100%; }
 
 /* Reconcile has only its essential controls, so retain one desktop row. */
 .reconcile-filter-grid {
@@ -2249,8 +2247,7 @@ th {
     grid-column: auto;
   }
 
-  .material-record-filter-grid > label:not(.list-search):not(.job-search-filter),
-  .material-record-filter-grid > .job-search-filter,
+  .material-record-filter-grid > label,
   .material-record-filter-grid > .list-search-actions {
     grid-column: auto;
     width: 100%;

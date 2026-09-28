@@ -93,7 +93,7 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
       { key: "stock", label: "Stock" },
       { key: "approvals", label: "Approvals" },
       { key: "suppliers", label: "Suppliers" },
-      { key: "inward-purchases", label: "Inward Purchases" },
+      { key: "inward-purchases", label: "Purchase Orders" },
     ],
   },
   {

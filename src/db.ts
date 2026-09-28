@@ -1354,20 +1354,24 @@ export function recordStockInwardForActor(db: Database, actorId: number, input: 
   assertPurchaseActor(db, actorId);
   if (!Number.isFinite(input.qty) || input.qty <= 0) throw new Error("Inward quantity must be greater than zero.");
   one<InventoryItem>(db, "select * from inventory where id=? and archived_at is null", [input.item_id]);
-  let orderId: number | null = null;
-  if (input.purchase_order_line_id) {
-    const line = one<PurchaseOrderLine>(db, "select * from purchase_order_lines where id=?", [input.purchase_order_line_id]);
-    if (line.item_id !== input.item_id) throw new Error("The selected PO line is for a different inventory item.");
-    const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [line.purchase_order_id]);
-    if (["Draft", "Cancelled", "Closed"].includes(order.status)) throw new Error("Select an open purchase order line.");
-    orderId = order.id;
-  }
-  const note = input.note?.trim() || "Stock inward";
-  const ledgerId = insert(db, "insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,-?,'manual-inward',?,datetime('now'),?)", [input.item_id, input.qty, actorId, note]);
-  const inwardId = insert(db, "insert into stock_inwards(item_id,qty,note,purchase_order_id,purchase_order_line_id,ledger_id,received_by,received_at) values(?,?,?,?,?,?,?,datetime('now'))", [input.item_id, input.qty, note, orderId, input.purchase_order_line_id ?? null, ledgerId, actorId]);
-  movement(db, 0, input.item_id, "STOCK_IN", input.qty, note);
-  if (orderId) reconcilePurchaseOrder(db, orderId);
-  return inwardId;
+  db.run("begin immediate transaction");
+  try {
+    let orderId: number | null = null;
+    if (input.purchase_order_line_id) {
+      const line = one<PurchaseOrderLine>(db, "select * from purchase_order_lines where id=?", [input.purchase_order_line_id]);
+      if (line.item_id !== input.item_id) throw new Error("The selected PO line is for a different inventory item.");
+      const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [line.purchase_order_id]);
+      if (["Draft", "Cancelled", "Closed"].includes(order.status)) throw new Error("Select an open purchase order line.");
+      orderId = order.id;
+    }
+    const note = input.note?.trim() || "Stock inward";
+    const ledgerId = insert(db, "insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,-?,'manual-inward',?,datetime('now'),?)", [input.item_id, input.qty, actorId, note]);
+    const inwardId = insert(db, "insert into stock_inwards(item_id,qty,note,purchase_order_id,purchase_order_line_id,ledger_id,received_by,received_at) values(?,?,?,?,?,?,?,datetime('now'))", [input.item_id, input.qty, note, orderId, input.purchase_order_line_id ?? null, ledgerId, actorId]);
+    movement(db, 0, input.item_id, "STOCK_IN", input.qty, note);
+    if (orderId) reconcilePurchaseOrder(db, orderId);
+    db.run("commit");
+    return inwardId;
+  } catch (error) { db.run("rollback"); throw error; }
 }
 
 /** An Admin correction appends a revision snapshot and posts only its signed quantity delta. */

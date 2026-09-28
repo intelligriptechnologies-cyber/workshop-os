@@ -92,6 +92,10 @@ import {
   transitionJobStatusForActor,
   searchJobs,
   stockIn,
+  createPurchaseOrderForActor,
+  updatePurchaseOrderForActor,
+  setPurchaseOrderStatusForActor,
+  recordStockInwardForActor,
   submitInwardPurchaseForActor,
   sendInwardPurchaseForPoApprovalForActor,
   approveInwardPurchaseForActor,
@@ -127,8 +131,8 @@ import {
   decideMaterialApprovalForActor,
   resubmitMaterialApprovalForActor,
 } from "./db";
-import type { InwardPurchaseAttachmentInput, InwardPurchaseLineInput } from "./db";
-import type { ChecklistItem, Customer, EstimateItem, Followup, InventoryItem, InwardPurchase, JobView, LocalPurchase, MainStatus, MaterialMovement, MaterialPurchaseRequest, MaterialRequest, Payment, PaymentMode, Photo, QcCheck, Role, SearchCriteria, SubStatus, Supplier, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
+import type { InwardPurchaseAttachmentInput, InwardPurchaseLineInput, PurchaseOrderInput } from "./db";
+import type { ChecklistItem, Customer, EstimateItem, Followup, InventoryItem, InwardPurchase, JobView, LocalPurchase, MainStatus, MaterialMovement, MaterialPurchaseRequest, MaterialRequest, Payment, PaymentMode, Photo, PurchaseOrder, PurchaseOrderLine, QcCheck, Role, SearchCriteria, SubStatus, Supplier, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
 import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } from "./list-utils";
 import type { ExportColumn } from "./export-utils";
 import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
@@ -189,7 +193,7 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Issue Material", icon: <Package size={18} /> },
     { label: "Reconcile", icon: <Check size={18} /> },
     { label: "Stock", icon: <Boxes size={18} /> },
-    { label: "Inward Purchases", icon: <ReceiptText size={18} /> },
+    { label: "Purchase Orders", icon: <ReceiptText size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
   ],
   tech: [
@@ -212,7 +216,7 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Job Cards", icon: <FileText size={18} /> },
     { label: "Media", icon: <Camera size={18} /> },
     { label: "Suppliers", icon: <UserRound size={18} /> },
-    { label: "Inward Purchases", icon: <ReceiptText size={18} /> },
+    { label: "Purchase Orders", icon: <ReceiptText size={18} /> },
     { label: "Material Requests", icon: <PackageCheck size={18} /> },
     { label: "Issue Material", icon: <Package size={18} /> },
     { label: "Stock", icon: <Boxes size={18} /> },
@@ -815,7 +819,7 @@ function RoleWorkspace({
   if (activeMenuItem === "Customers") return <EntityList key={`customers-${dashboardDrilldown?.month ?? ""}`} kind="customers" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "customers" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "customers" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Vehicles") return <EntityList key={`vehicles-${dashboardDrilldown?.month ?? ""}`} kind="vehicles" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "vehicles" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "vehicles" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Media") return <EntityList kind="media" state={state} mutate={mutate} actor={user} />;
-  if (activeMenuItem === "Inward Purchases" && (user.role === "store" || user.role === "admin")) return <InwardPurchasesWorkspace state={state} actor={user} mutate={mutate} />;
+  if (activeMenuItem === "Purchase Orders" && (user.role === "store" || user.role === "admin")) return <PurchaseOrdersWorkspace state={state} actor={user} mutate={mutate} />;
   if (activeMenuItem === "Suppliers" && user.role === "admin") return <SupplierMasterWorkspace state={state} actor={user} mutate={mutate} />;
 
   if (user.role === "reception") return <Reception activeMenuItem={activeMenuItem} state={state} mutate={mutate} user={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
@@ -1395,7 +1399,7 @@ function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, ini
         {stockTab === "Inventory List" && <StoreList key={`stock-${initialStockSearch ?? "all"}`} kind="stock" inventory={state.inventory} requests={requests} onOpenJob={openJob} onEditStock={setEditingStock} initialSearch={initialStockSearch} initialPrimary={initialDrilldown?.status} headerAction={<button type="button" className="primary-action" aria-haspopup="dialog" onClick={() => setQuickAddStockOpen(true)}><Plus size={16} /> Quick Add Stock</button>} />}
         {stockTab === "Low Stock" && <StoreList key="low-stock" kind="stock" inventory={lowStock} requests={requests} onOpenJob={openJob} />}
         {stockTab === "Stock Movements" && <StockMovementHistory state={state} />}
-        {quickAddStockOpen && <Dialog title="Quick Add Stock" subtitle="Record an inward against an existing SKU or create a new SKU" onClose={() => setQuickAddStockOpen(false)}><QuickAddStock inventory={state.inventory} mutate={mutate} onSaved={() => setQuickAddStockOpen(false)} /></Dialog>}
+        {quickAddStockOpen && <Dialog title="Quick Add Stock" subtitle="Record an inward against an existing SKU or create a new SKU" onClose={() => setQuickAddStockOpen(false)}><QuickAddStock inventory={state.inventory} actor={actor} purchaseOrders={state.purchase_orders} purchaseOrderLines={state.purchase_order_lines} mutate={mutate} onSaved={() => setQuickAddStockOpen(false)} /></Dialog>}
         {editingStock && <EditStockDetailsDialog item={editingStock} mutate={mutate} onClose={() => setEditingStock(undefined)} />}
       </section>
     );
@@ -1450,6 +1454,47 @@ function PurchaseStockIssueEditor({ state, actor, purchaseRequests, mutate }: { 
 }
 
 type PurchaseFormLine = InwardPurchaseLineInput & { key: string };
+
+type PurchaseOrderFormLine = PurchaseOrderInput["lines"][number] & { key: string };
+
+/** Active purchasing is a commitment register. Legacy invoices below remain history only. */
+function PurchaseOrdersWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
+  const [selectedId, setSelectedId] = useState<number>();
+  const [editing, setEditing] = useState(false);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const [supplierId, setSupplierId] = useState(0);
+  const [poNumber, setPoNumber] = useState("");
+  const [orderDate, setOrderDate] = useState(new Date().toISOString().slice(0, 10));
+  const [notes, setNotes] = useState("");
+  const [lines, setLines] = useState<PurchaseOrderFormLine[]>([]);
+  const supplierName = (id: number) => state.suppliers.find((supplier) => supplier.id === id)?.name ?? "Unknown supplier";
+  const legacyOrderIds = new Set(state.inward_purchases.map((purchase) => purchase.purchase_order_id).filter((id): id is number => id !== null && id !== undefined));
+  const orders = state.purchase_orders.filter((order) => !legacyOrderIds.has(order.id));
+  const selected = orders.find((order) => order.id === selectedId);
+  const selectedLines = selected ? state.purchase_order_lines.filter((line) => line.purchase_order_id === selected.id) : [];
+  const receivedFor = (line: PurchaseOrderLine) => state.stock_inwards.filter((inward) => inward.purchase_order_line_id === line.id).reduce((sum, inward) => sum + inward.qty, 0);
+  const openNew = () => { setSelectedId(undefined); setSupplierId(0); setPoNumber(""); setOrderDate(new Date().toISOString().slice(0, 10)); setNotes(""); setLines(state.inventory[0] ? [{ key: crypto.randomUUID(), item_id: state.inventory[0].id, ordered_qty: 1, unit_cost: 0, discount: 0, gst_rate: 0 }] : []); setEditing(true); };
+  const openEdit = (order: PurchaseOrder) => { setSelectedId(order.id); setSupplierId(order.supplier_id); setPoNumber(order.po_number); setOrderDate(order.order_date); setNotes(order.notes); setLines(state.purchase_order_lines.filter((line) => line.purchase_order_id === order.id).map((line) => ({ key: String(line.id), item_id: line.item_id, ordered_qty: line.ordered_qty, unit_cost: line.unit_cost, discount: line.discount, gst_rate: line.gst_rate }))); setEditing(true); };
+  const valid = supplierId > 0 && poNumber.trim() && /^\d{4}-\d{2}-\d{2}$/.test(orderDate) && lines.length > 0 && lines.every((line) => line.ordered_qty > 0 && line.unit_cost >= 0 && (line.discount ?? 0) >= 0 && (line.gst_rate ?? 0) >= 0 && (line.gst_rate ?? 0) <= 100);
+  const save = () => {
+    const input: PurchaseOrderInput = { supplier_id: supplierId, po_number: poNumber, order_date: orderDate, notes, lines: lines.map(({ key: _key, ...line }) => line) };
+    let id = selectedId;
+    if (mutate((db) => { if (id) updatePurchaseOrderForActor(db, id, actor.id, input); else id = createPurchaseOrderForActor(db, actor.id, input); })) { setSelectedId(id); setEditing(false); }
+  };
+  const filtered = orders.filter((order) => (status === "ALL" || order.status === status) && (!search.trim() || normalizeSearch(`${order.po_number} ${supplierName(order.supplier_id)} ${order.notes}`).includes(normalizeSearch(search))));
+  const totalReceived = selectedLines.reduce((sum, line) => sum + receivedFor(line), 0);
+  const totalOrdered = selectedLines.reduce((sum, line) => sum + line.ordered_qty, 0);
+  const receivedValue = selectedLines.reduce((sum, line) => sum + receivedFor(line) * line.unit_cost, 0);
+  return <section className="workspace two-panel inward-workspace">
+    <div className="desk-panel store-list-page inward-register"><div className="action-row"><PanelTitle icon={<ReceiptText />} title="Purchase Orders" subtitle="Ordering commitments; stock is recorded only through Stock Inward." /><button className="primary-action" onClick={openNew}><Plus size={16} /> New purchase order</button></div>
+      <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search purchase orders" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="PO number or supplier" /></label><label>Status<select aria-label="Purchase order status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option>{["Draft", "Sent", "Partially Received", "Ready to Close", "Closed", "Cancelled"].map((value) => <option key={value}>{value}</option>)}</select></label><ListSearchActions onClear={() => { setSearch(""); setStatus("ALL"); }} /></div>
+      <div className="table-wrap"><table aria-label="Purchase order register"><thead><tr><th>PO</th><th>Date</th><th>Supplier</th><th>Ordered</th><th>Received</th><th>Total</th><th>Status</th></tr></thead><tbody>{filtered.map((order) => { const orderLines = state.purchase_order_lines.filter((line) => line.purchase_order_id === order.id); const received = orderLines.reduce((sum, line) => sum + receivedFor(line), 0); return <tr key={order.id} className={`clickable-row${order.id === selectedId ? " selected-register-row" : ""}`} onClick={() => { setSelectedId(order.id); setEditing(false); }}><td>{order.po_number}</td><td>{order.order_date}</td><td>{supplierName(order.supplier_id)}</td><td>{orderLines.reduce((sum, line) => sum + line.ordered_qty, 0)}</td><td>{received}</td><td>{money(order.total)}</td><td><span className="status-badge">{order.status}</span></td></tr>; })}</tbody></table></div>
+      <details><summary>Historical Inward Purchases (read-only)</summary><div className="table-wrap"><table aria-label="Historical inward purchases"><thead><tr><th>Date</th><th>Supplier</th><th>Invoice</th><th>Status</th><th>Total</th></tr></thead><tbody>{state.inward_purchases.map((purchase) => <tr key={purchase.id}><td>{purchase.invoice_date || "—"}</td><td>{supplierName(purchase.supplier_id)}</td><td>{purchase.supplier_invoice_no || "—"}</td><td>{purchase.status}</td><td>{money(purchase.total)}</td></tr>)}</tbody></table></div></details>
+    </div>
+    <div className="desk-panel inward-composer">{editing ? <><PanelTitle icon={<PackageCheck />} title={selectedId ? `Edit ${poNumber}` : "New purchase order"} subtitle="Only draft POs are editable. Sending never affects inventory." /><div className="form-grid"><label>Supplier<select aria-label="PO supplier" value={supplierId} onChange={(event) => setSupplierId(Number(event.target.value))}><option value={0}>Select active supplier</option>{state.suppliers.filter((supplier) => supplier.status === "Active").map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label><label>PO number<input aria-label="PO number" value={poNumber} onChange={(event) => setPoNumber(event.target.value)} /></label><label>Order date<input aria-label="PO order date" type="date" value={orderDate} onChange={(event) => setOrderDate(event.target.value)} /></label><label>Notes<input aria-label="PO notes" value={notes} onChange={(event) => setNotes(event.target.value)} /></label></div><section><div className="receipt-lines-heading"><h4>Order lines</h4><button type="button" onClick={() => state.inventory[0] && setLines((current) => [...current, { key: crypto.randomUUID(), item_id: state.inventory[0].id, ordered_qty: 1, unit_cost: 0, discount: 0, gst_rate: 0 }])}>Add line</button></div>{lines.map((line, index) => <div className="receipt-line-row" key={line.key}><InventoryPicker inventory={state.inventory} value={line.item_id} onChange={(item_id) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, item_id } : candidate))} label={`PO line ${index + 1} item`} /><label>Qty<input aria-label={`PO line ${index + 1} quantity`} type="number" min="0.01" value={line.ordered_qty} onChange={(event) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, ordered_qty: Number(event.target.value) } : candidate))} /></label><label>Unit cost<input type="number" min="0" value={line.unit_cost} onChange={(event) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, unit_cost: Number(event.target.value) } : candidate))} /></label><button type="button" className="danger-action" onClick={() => setLines((current) => current.filter((candidate) => candidate.key !== line.key))}>Remove</button></div>)}</section><div className="action-row"><button className="primary-action" disabled={!valid} onClick={save}>{selectedId ? "Save draft" : "Create draft"}</button><button type="button" onClick={() => setEditing(false)}>Cancel</button></div></> : selected ? <><PanelTitle icon={<ReceiptText />} title={selected.po_number} subtitle={`${supplierName(selected.supplier_id)} · ${selected.status}`} /><p><strong>Order vs received:</strong> {totalOrdered} ordered · {totalReceived} received · {totalOrdered - totalReceived} remaining · {money(receivedValue)} received value</p><p className="muted">Shortages and excesses are flags only; unlinked/manual receipts remain valid and do not alter this reconciliation.</p><div className="table-wrap"><table aria-label="Purchase order reconciliation"><thead><tr><th>Item</th><th>Ordered</th><th>Received</th><th>Received value</th><th>Remaining</th><th>Variance</th></tr></thead><tbody>{selectedLines.map((line) => { const received = receivedFor(line); const item = state.inventory.find((candidate) => candidate.id === line.item_id); return <tr key={line.id}><td>{item?.sku} · {item?.name}</td><td>{line.ordered_qty}</td><td>{received}</td><td>{money(received * line.unit_cost)}</td><td>{Math.max(0, line.ordered_qty - received)}</td><td>{received - line.ordered_qty}</td></tr>; })}</tbody></table></div><h4>Linked stock inward history</h4>{state.stock_inwards.filter((inward) => inward.purchase_order_id === selected.id).length ? <ul>{state.stock_inwards.filter((inward) => inward.purchase_order_id === selected.id).map((inward) => <li key={inward.id}>{inward.received_at}: {inward.qty} {state.inventory.find((item) => item.id === inward.item_id)?.unit} · {inward.note}</li>)}</ul> : <p className="empty-state">No linked receipts yet.</p>}<div className="action-row">{selected.status === "Draft" && <><button className="primary-action" onClick={() => openEdit(selected)}>Edit draft</button><button onClick={() => mutate((db) => setPurchaseOrderStatusForActor(db, selected.id, actor.id, "send"))}>Send saved PO</button></>}{["Draft", "Sent", "Partially Received", "Ready to Close"].includes(selected.status) && <button className="danger-action" onClick={() => mutate((db) => setPurchaseOrderStatusForActor(db, selected.id, actor.id, "cancel"))}>Cancel PO</button>}{["Sent", "Partially Received", "Ready to Close"].includes(selected.status) && <button onClick={() => mutate((db) => setPurchaseOrderStatusForActor(db, selected.id, actor.id, "close"))}>Close PO</button>}</div>{selected.status === "Cancelled" && totalReceived < totalOrdered && <p className="error-text">Outstanding balance cancelled: {totalOrdered - totalReceived} not received.</p>}</> : <p className="empty-state">Select a purchase order to review its receipt reconciliation.</p>}</div>
+  </section>;
+}
 
 function LegacyInwardPurchasesWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
   const [selectedId, setSelectedId] = useState<number | undefined>();
@@ -1683,7 +1728,6 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
   const deferredSearch = useDeferredValue(search);
   const [primary, setPrimary] = useState(initialPrimary ?? "ALL");
   const [job, setJob] = useState("ALL");
-  const [jobSearch, setJobSearch] = useState("");
   const [item, setItem] = useState("ALL");
   const [unit, setUnit] = useState("ALL");
   const [recordDate, setRecordDate] = useState(() => initialMonth ? "" : localCalendarDate());
@@ -1692,7 +1736,7 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const needle = normalizeSearch(deferredSearch);
   const isMaterialRecordList = kind === "requests" || kind === "issue";
-  const clearFilters = () => { setSearch(""); setPrimary("ALL"); setJob("ALL"); setJobSearch(""); setItem("ALL"); setUnit("ALL"); if (isMaterialRecordList) { setRecordDate(localCalendarDate()); setRecordMonth(""); } setPage(1); };
+  const clearFilters = () => { setSearch(""); setPrimary("ALL"); setJob("ALL"); setItem("ALL"); setUnit("ALL"); if (isMaterialRecordList) { setRecordDate(""); setRecordMonth(""); } setPage(1); };
   const title = kind === "stock" ? "Stock" : kind === "requests" ? "Material Requests" : kind === "issue" ? "Issue Material" : "Reconcile";
 
   const stockRows = useMemo(() => inventory.filter((row) => {
@@ -1705,16 +1749,16 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
 
   const history = kind === "requests" ? [...requests, ...purchases] : requests;
   const matchesRecordDate = (createdAt?: string) => !isMaterialRecordList || ((!recordDate || createdAt?.slice(0, 10) === recordDate) && (!recordMonth || createdAt?.slice(0, 7) === recordMonth));
-  const filteredPurchaseRequests = useMemo(() => purchaseRequests.filter(({ view, purchaseRequest }) => (!needle || normalizeSearch(`${view.job.job_no} ${view.vehicle.number} ${view.customer.name} ${view.customer.mobile} ${purchaseRequest.item_name} ${purchaseRequest.status}`).includes(needle)) && (primary === "ALL" || primary === "New item request" || primary === purchaseRequest.status) && (job === "ALL" || String(view.job.id) === job) && matchesRecordDate(purchaseRequest.created_at)), [purchaseRequests, needle, primary, job, recordDate, recordMonth, isMaterialRecordList]);
+  const filteredPurchaseRequests = useMemo(() => purchaseRequests.filter(({ view, purchaseRequest }) => (isMaterialRecordList || !needle || normalizeSearch(`${view.job.job_no} ${view.vehicle.number} ${view.customer.name} ${view.customer.mobile} ${purchaseRequest.item_name} ${purchaseRequest.status}`).includes(needle)) && (primary === "ALL" || primary === "New item request" || primary === purchaseRequest.status) && (isMaterialRecordList || job === "ALL" || String(view.job.id) === job) && matchesRecordDate(purchaseRequest.created_at)), [purchaseRequests, needle, primary, job, recordDate, recordMonth, isMaterialRecordList]);
   const requestRows = useMemo(() => history.filter((row) => {
-    if (isLocalPurchase(row)) return (!needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.view.customer.name} ${row.view.customer.mobile} ${row.purchase.item_description} ${row.purchase.vendor} ${row.purchase.bill_reference}`).includes(needle))
+    if (isLocalPurchase(row)) return (isMaterialRecordList || !needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.view.customer.name} ${row.view.customer.mobile} ${row.purchase.item_description} ${row.purchase.vendor} ${row.purchase.bill_reference}`).includes(needle))
       && (primary === "ALL" || primary === "Local purchase")
-      && (job === "ALL" || String(row.view.job.id) === job)
+      && (isMaterialRecordList || job === "ALL" || String(row.view.job.id) === job)
       && item === "ALL" && matchesRecordDate(row.purchase.created_at);
     const state = kind === "reconcile" ? reconciliationState(row) : requestState(row);
-    return (!needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.view.customer.name} ${row.view.customer.mobile} ${row.item?.sku ?? ""} ${row.item?.name ?? ""}`).includes(needle))
+    return (isMaterialRecordList || !needle || normalizeSearch(`${row.view.job.job_no} ${row.view.vehicle.number} ${row.view.customer.name} ${row.view.customer.mobile} ${row.item?.sku ?? ""} ${row.item?.name ?? ""}`).includes(needle))
       && (primary === "ALL" || state === primary)
-      && (job === "ALL" || String(row.view.job.id) === job)
+      && (isMaterialRecordList || job === "ALL" || String(row.view.job.id) === job)
       && (item === "ALL" || String(row.request.item_id) === item) && matchesRecordDate(row.request.created_at);
   }), [history, kind, needle, primary, job, item, recordDate, recordMonth, isMaterialRecordList]);
 
@@ -1724,10 +1768,11 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
   const categories = Array.from(new Set(inventory.map((row) => row.category))).sort();
   const units = Array.from(new Set(inventory.map((row) => row.unit))).sort();
   const uniqueJobs = Array.from(new Map(history.map((row) => [row.view.job.id, row.view])).values());
-  const matchingJobs = uniqueJobs.filter((view) => !normalizeSearch(jobSearch) || normalizeSearch(`${view.job.job_no} ${view.vehicle.number} ${view.customer.name} ${view.customer.mobile}`).includes(normalizeSearch(jobSearch)));
   const activeFilters = activeFilterSummary(kind === "stock"
     ? { Search: search.trim(), Category: primary, "Stock status": job === "LOW" ? "Low stock" : job === "OK" ? "In stock" : "ALL", Unit: unit }
-    : { Search: search.trim(), ...(isMaterialRecordList ? { "Record date": recordDate, "Month-Year": recordMonth || "ALL" } : {}), [kind === "reconcile" ? "Reconciliation state" : "Request status"]: primary, Job: job === "ALL" ? "ALL" : uniqueJobs.find((row) => String(row.job.id) === job)?.job.job_no ?? job, Item: item === "ALL" ? "ALL" : inventory.find((row) => String(row.id) === item)?.name ?? item });
+    : isMaterialRecordList
+      ? { "Record date": recordDate, "Month-Year": recordMonth || "ALL", Status: primary, Item: item === "ALL" ? "ALL" : inventory.find((row) => String(row.id) === item)?.name ?? item }
+      : { Search: search.trim(), "Reconciliation state": primary, Job: job === "ALL" ? "ALL" : uniqueJobs.find((row) => String(row.job.id) === job)?.job.job_no ?? job, Item: item === "ALL" ? "ALL" : inventory.find((row) => String(row.id) === item)?.name ?? item });
 
   const stockColumns: ExportColumn<InventoryItem>[] = [
     { header: "SKU", value: (row) => row.sku }, { header: "Item", value: (row) => row.name },
@@ -1765,22 +1810,22 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
     {kind === "requests" && purchaseRequests.length > 0 && <p className="permission-note">{filteredPurchaseRequests.length} new-item purchase request{filteredPurchaseRequests.length === 1 ? "" : "s"} match the current filters. Use Purchase, Stock & Issue to complete a pending request.</p>}
     {kind === "requests" && purchaseRequests.length > 0 && <section className="purchase-request-list" aria-label="New item purchase requests"><h3>New-item purchase requests</h3><table><thead><tr><th>Job</th><th>Item</th><th>Qty</th><th>Status</th><th>Trail</th></tr></thead><tbody>{filteredPurchaseRequests.map(({ view, purchaseRequest }) => <tr key={purchaseRequest.id} className="clickable-row" onClick={() => onOpenJob(view.job.id)}><td>{view.job.job_no}</td><td>{purchaseRequest.item_name}</td><td>{purchaseRequest.quantity} {purchaseRequest.unit}</td><td>{purchaseRequest.status}</td><td>{purchaseRequest.status === "Completed" ? `Inventory #${purchaseRequest.mapped_inventory_item_id} · issued row #${purchaseRequest.material_request_id}` : "Awaiting purchase"}</td></tr>)}</tbody></table></section>}
     <div className={kind === "stock" ? "store-filter-grid stock-filter-grid" : kind === "reconcile" ? "store-filter-grid reconcile-filter-grid" : isMaterialRecordList ? "store-filter-grid material-record-filter-grid" : "store-filter-grid"}>
-      <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={kind === "stock" ? "SKU, item, category or unit" : "Job, vehicle or item"} /></label>
+      {!isMaterialRecordList && <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={kind === "stock" ? "SKU, item, category or unit" : "Job, vehicle or item"} /></label>}
       {kind === "stock" ? <>
         <label>Category<select aria-label="Stock category" value={primary} onChange={(event) => { setPrimary(event.target.value); setPage(1); }}><option value="ALL">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label>
         <label>Stock status<select aria-label="Stock status" value={job} onChange={(event) => { setJob(event.target.value); setPage(1); }}><option value="ALL">All stock</option><option value="LOW">Low stock</option><option value="OK">In stock</option></select></label>
         <label>Unit<select aria-label="Stock unit" value={unit} onChange={(event) => { setUnit(event.target.value); setPage(1); }}><option value="ALL">All units</option>{units.map((value) => <option key={value}>{value}</option>)}</select></label>
       </> : <>
-        {isMaterialRecordList && <><label>Date<input aria-label={`${title} record date`} type="date" value={recordDate} onChange={(event) => { setRecordDate(event.target.value); setRecordMonth(""); setPage(1); }} /></label><label>Month-Year<select aria-label={`${title} record month`} value={recordMonth} onChange={(event) => { setRecordMonth(event.target.value); setRecordDate(""); setPage(1); }}><option value="">All months</option>{Array.from(new Set([...history.map((row) => (isLocalPurchase(row) ? row.purchase.created_at : row.request.created_at)?.slice(0, 7)), ...purchaseRequests.map(({ purchaseRequest }) => purchaseRequest.created_at?.slice(0, 7))].filter((value): value is string => Boolean(value && /^\d{4}-\d{2}$/.test(value))))).sort((left, right) => right.localeCompare(left)).map((value) => <option key={value} value={value}>{SEARCH_MONTH_YEAR_FORMATTER.format(new Date(`${value}-01T00:00:00Z`))}</option>)}</select></label><label className="job-search-filter">Job search<input type="search" aria-label={`Search ${title} jobs`} value={jobSearch} onChange={(event) => { setJobSearch(event.target.value); setPage(1); }} placeholder="Job, vehicle, customer or mobile" /></label></>}
-        <label>{kind === "reconcile" ? "Reconciliation state" : "Request status"}<select aria-label={kind === "reconcile" ? "Reconciliation state" : "Request status"} value={primary} onChange={(event) => { setPrimary(event.target.value); setPage(1); }}><option value="ALL">All states</option>{(kind === "reconcile" ? ["Matched", "Open"] : ["Pending", "Partially issued", "Issued", "Reconciled", ...(purchases.length ? ["Local purchase"] : []), ...(purchaseRequests.length ? ["New item request", "Completed"] : [])]).map((value) => <option key={value}>{value}</option>)}</select></label>
-        <label>Job<select aria-label={`${title} job`} value={job} onChange={(event) => { setJob(event.target.value); setPage(1); }}><option value="ALL">All jobs</option>{(isMaterialRecordList ? matchingJobs : uniqueJobs).map((row) => <option key={row.job.id} value={row.job.id}>{row.job.job_no} · {row.vehicle.number} · {row.customer.name}</option>)}</select></label>
-        <label>Item<select aria-label={`${title} item`} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="ALL">All items</option>{inventory.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>
+        {isMaterialRecordList && <><label>Date<input aria-label={`${title} record date`} type="date" value={recordDate} onChange={(event) => { setRecordDate(event.target.value); setRecordMonth(""); setPage(1); }} /></label><label>Month-Year<select aria-label={`${title} record month`} value={recordMonth} onChange={(event) => { setRecordMonth(event.target.value); setRecordDate(""); setPage(1); }}><option value="">All months</option>{Array.from(new Set([...history.map((row) => (isLocalPurchase(row) ? row.purchase.created_at : row.request.created_at)?.slice(0, 7)), ...purchaseRequests.map(({ purchaseRequest }) => purchaseRequest.created_at?.slice(0, 7))].filter((value): value is string => Boolean(value && /^\d{4}-\d{2}$/.test(value))))).sort((left, right) => right.localeCompare(left)).map((value) => <option key={value} value={value}>{SEARCH_MONTH_YEAR_FORMATTER.format(new Date(`${value}-01T00:00:00Z`))}</option>)}</select></label></>}
+        <label>{kind === "reconcile" ? "Reconciliation state" : "Status"}<select aria-label={kind === "reconcile" ? "Reconciliation state" : "Status"} value={primary} onChange={(event) => { setPrimary(event.target.value); setPage(1); }}><option value="ALL">All states</option>{(kind === "reconcile" ? ["Matched", "Open"] : ["Pending", "Partially issued", "Issued", "Reconciled", ...(purchases.length ? ["Local purchase"] : []), ...(purchaseRequests.length ? ["New item request", "Completed"] : [])]).map((value) => <option key={value}>{value}</option>)}</select></label>
+        {!isMaterialRecordList && <label>Job<select aria-label={`${title} job`} value={job} onChange={(event) => { setJob(event.target.value); setPage(1); }}><option value="ALL">All jobs</option>{uniqueJobs.map((row) => <option key={row.job.id} value={row.job.id}>{row.job.job_no} · {row.vehicle.number} · {row.customer.name}</option>)}</select></label>}
+        {isMaterialRecordList ? <label>Item<InventoryPicker inventory={inventory} value={item === "ALL" ? undefined : Number(item)} onChange={(id) => { setItem(String(id)); setPage(1); }} label="Item" allOptionLabel="All items" onSelectAll={() => { setItem("ALL"); setPage(1); }} /></label> : <label>Item<select aria-label={`${title} item`} value={item} onChange={(event) => { setItem(event.target.value); setPage(1); }}><option value="ALL">All items</option>{inventory.map((row) => <option key={row.id} value={row.id}>{row.name}</option>)}</select></label>}
       </>}
       <ListSearchActions onClear={clearFilters} />
     </div>
     <PaginationToolbar controls={<ListExportControls report={exportReport} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel={`${title} records per page`} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
     {paged.totalCount === 0 ? <div className="list-empty"><h3>No matching records</h3><p>Adjust the search or clear the filters.</p><FilterClearButton onClick={clearFilters} label="Clear filters" /></div> :
-      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockDisplayColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}{kind === "stock" && onEditStock && <th>Action</th>}{(kind === "issue" || (kind === "requests" && onNeedsApproval) || kind === "reconcile") && <th>Action</th>}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockDisplayColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}{onEditStock && <td><button type="button" className="secondary-action" onClick={() => onEditStock(row)}>Edit</button></td>}</tr>) : (paged.items as StoreHistoryRow[]).map((row) => <tr key={isLocalPurchase(row) ? `purchase-${row.purchase.id}` : `request-${row.request.id}`} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.header === "Job Card" ? <button type="button" className="link-action" onClick={(event) => { event.stopPropagation(); onOpenJob(row.view.job.id); }}>{String(column.value(row))}</button> : column.header === "State" && kind === "reconcile" && !isLocalPurchase(row) ? <span className={`store-material-status store-material-status-${reconciliationState(row).toLowerCase()}`}>{reconciliationState(row)}</span> : column.value(row)}</td>)}{(kind === "issue" || (kind === "requests" && onNeedsApproval) || kind === "reconcile") && <td>{!isLocalPurchase(row) && <div className="grid-actions store-material-actions">{kind === "issue" && onRelease && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); onRelease(row); }}>Release</button>}{onNeedsApproval && ["Requested", "Re-requested"].includes(row.request.status ?? "Requested") && !row.request.invoiced_in && <button type="button" className="secondary-action" onClick={(event) => { event.stopPropagation(); onNeedsApproval(row); }}>Needs Approval</button>}{kind === "reconcile" && onReconcile && <button type="button" className="store-material-action" onClick={(event) => { event.stopPropagation(); onReconcile(row); }}>{reconciliationState(row) === "Matched" ? "Edit Reconciliation" : "Reconcile"}</button>}</div>}</td>}</tr>)}</tbody></table></div>}
+      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockDisplayColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}{kind === "stock" && onEditStock && <th>Action</th>}{(kind === "issue" || kind === "reconcile") && <th>Action</th>}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockDisplayColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}{onEditStock && <td><button type="button" className="secondary-action" onClick={() => onEditStock(row)}>Edit</button></td>}</tr>) : (paged.items as StoreHistoryRow[]).map((row) => <tr key={isLocalPurchase(row) ? `purchase-${row.purchase.id}` : `request-${row.request.id}`} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.header === "Job Card" ? <button type="button" className="link-action" onClick={(event) => { event.stopPropagation(); onOpenJob(row.view.job.id); }}>{String(column.value(row))}</button> : column.header === "State" && kind === "reconcile" && !isLocalPurchase(row) ? <span className={`store-material-status store-material-status-${reconciliationState(row).toLowerCase()}`}>{reconciliationState(row)}</span> : column.value(row)}</td>)}{(kind === "issue" || kind === "reconcile") && <td>{!isLocalPurchase(row) && <div className="grid-actions store-material-actions">{kind === "issue" && onRelease && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); onRelease(row); }}>Release</button>}{kind === "issue" && onNeedsApproval && ["Requested", "Re-requested"].includes(row.request.status ?? "Requested") && !row.request.invoiced_in && <button type="button" className="secondary-action" onClick={(event) => { event.stopPropagation(); onNeedsApproval(row); }}>Needs Approval</button>}{kind === "reconcile" && onReconcile && <button type="button" className="store-material-action" onClick={(event) => { event.stopPropagation(); onReconcile(row); }}>{reconciliationState(row) === "Matched" ? "Edit Reconciliation" : "Reconcile"}</button>}</div>}</td>}</tr>)}</tbody></table></div>}
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
   </div>;
 }
@@ -2752,10 +2797,12 @@ function ReconcileEditor({ row, mutate, onClose }: { row: StoreRequestRow; mutat
 
 const emptyInventoryItem = (): InventoryItem => ({ id: 0, sku: "", category: "", name: "", unit: "piece", stock_qty: 0, low_stock_qty: 0, selling_price: 0 });
 
-function QuickAddStock({ inventory, mutate, onSaved }: { inventory: InventoryItem[]; mutate: Mutate; onSaved?: () => void }) {
+function QuickAddStock({ inventory, actor, purchaseOrders, purchaseOrderLines, mutate, onSaved }: { inventory: InventoryItem[]; actor: User; purchaseOrders: PurchaseOrder[]; purchaseOrderLines: PurchaseOrderLine[]; mutate: Mutate; onSaved?: () => void }) {
   const [addingNew, setAddingNew] = useState(false);
   const [selectedId, setSelectedId] = useState<number>(inventory[0]?.id ?? 0);
   const [inwardQty, setInwardQty] = useState(1);
+  const [purchaseOrderId, setPurchaseOrderId] = useState(0);
+  const [purchaseOrderLineId, setPurchaseOrderLineId] = useState(0);
   const [draft, setDraft] = useState<InventoryItem>(emptyInventoryItem);
   const [error, setError] = useState("");
   const selected = inventory.find((item) => item.id === selectedId);
@@ -2763,11 +2810,11 @@ function QuickAddStock({ inventory, mutate, onSaved }: { inventory: InventoryIte
     event.preventDefault();
     setError("");
     const saved = mutate((db) => addingNew
-      ? (() => { const id = createInventoryItem(db, { ...draft, stock_qty: 0 }); if (inwardQty > 0) stockIn(db, id, inwardQty, "Initial inward"); })()
-      : stockIn(db, selectedId, inwardQty, "Quick inward"), setError);
+      ? (() => { const id = createInventoryItem(db, { ...draft, stock_qty: 0 }); if (inwardQty > 0) recordStockInwardForActor(db, actor.id, { item_id: id, qty: inwardQty, note: "Initial inward" }); })()
+      : recordStockInwardForActor(db, actor.id, { item_id: selectedId, qty: inwardQty, note: "Quick inward", purchase_order_line_id: purchaseOrderLineId || undefined }), setError);
     if (saved) {
       setInwardQty(1);
-      if (addingNew) { setAddingNew(false); setDraft(emptyInventoryItem()); }
+      if (addingNew) { setAddingNew(false); setDraft(emptyInventoryItem()); } else { setPurchaseOrderId(0); setPurchaseOrderLineId(0); }
       onSaved?.();
     }
   };
@@ -2776,7 +2823,9 @@ function QuickAddStock({ inventory, mutate, onSaved }: { inventory: InventoryIte
       <SearchSelect label="Existing SKU" options={inventory.map((item) => ({ value: item.id, label: `${item.sku} · ${item.name}` }))} value={selectedId || undefined} onChange={(value) => setSelectedId(Number(value))} placeholder="Search SKU or material" openOnFocus={false} />
       {selected && <p className="quick-add-selected">{selected.name} · {selected.stock_qty} {selected.unit} on hand</p>}
       <label>Inward quantity<input aria-label="Inward quantity" type="number" min="0.01" step="0.01" required value={inwardQty} onChange={(event) => setInwardQty(Number(event.target.value))} /></label>
-      <div className="quick-add-actions"><button type="button" data-dialog-initial-focus className="link-action" onClick={() => setAddingNew(true)}>Add new SKU</button><button className="primary-action" disabled={!selectedId}>Record Inward</button></div>
+      <label>Purchase order (optional)<select aria-label="Purchase order" value={purchaseOrderId} onChange={(event) => { setPurchaseOrderId(Number(event.target.value)); setPurchaseOrderLineId(0); }}><option value={0}>Unlinked/manual receipt</option>{purchaseOrders.filter((order) => ["Sent", "Partially Received", "Ready to Close"].includes(order.status)).map((order) => <option key={order.id} value={order.id}>{order.po_number}</option>)}</select></label>
+      {purchaseOrderId > 0 && <label>Purchase order line<select aria-label="Purchase order line" value={purchaseOrderLineId} onChange={(event) => setPurchaseOrderLineId(Number(event.target.value))}><option value={0}>Select compatible line</option>{purchaseOrderLines.filter((line) => line.purchase_order_id === purchaseOrderId && line.item_id === selectedId).map((line) => <option key={line.id} value={line.id}>{purchaseOrders.find((order) => order.id === purchaseOrderId)?.po_number} · {inventory.find((item) => item.id === line.item_id)?.name} · ordered {line.ordered_qty}</option>)}</select></label>}
+      <div className="quick-add-actions"><button type="button" data-dialog-initial-focus className="link-action" onClick={() => setAddingNew(true)}>Add new SKU</button><button className="primary-action" disabled={!selectedId || (purchaseOrderId > 0 && !purchaseOrderLineId)}>Record Inward</button></div>
     </> : <>
       <div className="form-grid">
         <label>SKU<input aria-label="New SKU" required value={draft.sku} onChange={(event) => setDraft({ ...draft, sku: event.target.value })} /></label>

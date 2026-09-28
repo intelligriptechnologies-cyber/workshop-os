@@ -1114,11 +1114,10 @@ test("store stock and material requests combine search with domain filters", asy
   await expect(page.getByText("Showing 1 to 10 of 127")).toBeVisible();
 
   await page.locator(".role-nav").getByRole("button", { name: "Material Requests", exact: true }).click();
-  await page.getByLabel("Request status").selectOption("Pending");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByLabel("Status").selectOption("Pending");
   await expect(page.getByRole("table", { name: "Material Requests results" }).locator("tbody tr")).toHaveCount(1);
-  await page.getByLabel("Search material requests").fill("nano");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByLabel("Item").fill("nano");
+  await page.getByRole("option", { name: /70%VLT Nano Ceramic Film/ }).click();
   await expect(page.getByRole("table", { name: "Material Requests results" }).getByRole("cell", { name: "JC-2026-001246" })).toBeVisible();
 });
 
@@ -1216,22 +1215,17 @@ test("stock list combines stock and unit, and quick add records inward in a dial
   expect(box!.x + box!.width).toBeLessThanOrEqual(390);
 });
 
-test("issue and reconcile lists filter by item, job and reconciliation state", async ({ page }) => {
+test("issue and reconcile lists filter by item and reconciliation state", async ({ page }) => {
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Issue Material", exact: true }).click();
-  await page.getByLabel("Issue Material item").selectOption({ label: "70%VLT Nano Ceramic Film (UG)" });
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByLabel("Item").fill("nano");
+  await page.getByRole("option", { name: /70%VLT Nano Ceramic Film/ }).click();
   await expect(page.getByRole("table", { name: "Issue Material results" }).locator("tbody tr")).toHaveCount(1);
-  await page.getByLabel("Issue Material job").selectOption({ label: "JC-2026-001246" });
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
 
   await page.locator(".role-nav").getByRole("button", { name: "Reconcile", exact: true }).click();
   await page.getByLabel("Reconciliation state").selectOption("Matched");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(2);
   await page.getByLabel("Reconciliation state").selectOption("Open");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(1);
 });
 
@@ -1294,10 +1288,9 @@ test("store material queues default to today and keep record filters, exports an
     await page.locator(".role-nav").getByRole("button", { name: pageName, exact: true }).click();
     const date = page.getByLabel(`${pageName} record date`);
     const month = page.getByLabel(`${pageName} record month`);
-    const disclosure = page.locator(".workflow-disclosure");
+    const disclosure = page.locator(".workspace:visible .workflow-disclosure");
     await expect(date).toHaveValue(today);
-    await expect(disclosure).not.toHaveAttribute("open", "");
-    await disclosure.locator("summary").getByText(pageName === "Material Requests" ? "Purchase, Stock & Issue" : "Issue workflow", { exact: true }).click();
+    if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").getByText(pageName === "Material Requests" ? "Purchase, Stock & Issue" : "Issue workflow", { exact: true }).click();
     await expect(disclosure).toHaveAttribute("open", "");
 
     const availableMonth = month.locator("option").nth(1);
@@ -1309,28 +1302,26 @@ test("store material queues default to today and keep record filters, exports an
     }
 
     // Remove the time scope only while proving the searchable selector against
-    // the full fixture set; Clear restores the page's date-first default below.
+    // the full fixture set.
     await date.fill("");
 
-    await page.getByLabel(`Search ${pageName} jobs`).fill("JC-");
-    const job = page.getByLabel(`${pageName} job`);
-    const jobOption = job.locator("option").nth(1);
-    if (await jobOption.count()) {
-      const selectedJob = await jobOption.textContent();
-      await job.selectOption(await jobOption.getAttribute("value") ?? "ALL");
-      await expect(page.getByRole("table", { name: `${pageName} results` })).toContainText(selectedJob?.split(" · ")[0] ?? "");
-    }
+    await page.getByLabel("Item").fill("nano");
+    await page.getByRole("option", { name: /70%VLT Nano Ceramic Film/ }).click();
 
     await page.getByRole("button", { name: "Clear", exact: true }).click();
-    await expect(date).toHaveValue(today);
+    await expect(date).toHaveValue("");
     await expect(month).toHaveValue("");
-    await expect(job).toHaveValue("ALL");
+    await expect(page.getByLabel("Status")).toHaveValue("ALL");
+    await expect(page.getByLabel("Item")).toHaveValue("All items");
+    const toolbarControls = page.locator(".material-record-filter-grid > label, .material-record-filter-grid > .list-search-actions");
+    await expect(toolbarControls).toHaveCount(5);
+    await expect(toolbarControls).toHaveText([/^Date/, /^Month-Year/, /^Status/, /^Item/, /^Clear$/]);
 
     await page.getByRole("button", { name: "Download", exact: true }).click();
     const downloadPromise = page.waitForEvent("download");
     await page.getByRole("menuitem", { name: "Excel" }).click();
     const worksheet = await readWorksheet(await downloadPromise);
-    expect(String(worksheet[2]?.[1])).toContain("Record date: " + today);
+    expect(String(worksheet[2]?.[1])).not.toContain("Record date:");
 
     for (const viewport of [{ width: 1440, height: 900 }, { width: 900, height: 900 }]) {
       await page.setViewportSize(viewport);
@@ -1386,8 +1377,7 @@ test("store pagination resets after filtering", async ({ page }) => {
   await loginAs(page, "store@example.com");
   await page.getByRole("button", { name: "Next page", exact: true }).first().click();
   await expect(page.getByText(/Showing 11 to 20 of/)).toBeVisible();
-  await page.getByLabel("Request status").selectOption("Pending");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByLabel("Status").selectOption("Pending");
   await expect(page.getByText(/Showing 1 to/)).toBeVisible();
 });
 
@@ -1874,7 +1864,7 @@ test("Store creates a purchase order and reconciles its receipt through Stock In
   await page.getByRole("button", { name: "Save supplier" }).click();
   await page.getByRole("button", { name: "Logout" }).click();
   await loginAs(page, "store@example.com");
-  await page.locator(".role-nav").getByRole("button", { name: "Inward Purchases", exact: true }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
   await page.getByRole("button", { name: "New purchase order" }).click();
   await page.getByLabel("PO supplier").selectOption({ index: 1 });
   await page.getByLabel("PO number").fill("E2E-PO-001");
@@ -1882,6 +1872,7 @@ test("Store creates a purchase order and reconciles its receipt through Stock In
   await picker.fill("oil");
   await picker.press("ArrowDown");
   await picker.press("Enter");
+  await picker.press("Escape");
   await page.getByLabel("PO line 1 quantity").fill("2");
   await page.getByRole("button", { name: "Create draft" }).click();
   await page.getByRole("button", { name: "Send saved PO" }).click();
@@ -1892,9 +1883,10 @@ test("Store creates a purchase order and reconciles its receipt through Stock In
   await inward.getByLabel("Existing SKU").click();
   await inward.getByRole("option").filter({ hasText: "oil" }).first().click();
   await inward.getByLabel("Inward quantity").fill("2");
+  await inward.getByLabel("Purchase order").selectOption({ label: "E2E-PO-001" });
   await inward.getByLabel("Purchase order line").selectOption({ label: /E2E-PO-001/ });
   await inward.getByRole("button", { name: "Record Inward" }).click();
-  await page.locator(".role-nav").getByRole("button", { name: "Inward Purchases", exact: true }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
   await expect(page.getByRole("table", { name: "Purchase order register" })).toContainText("Ready to Close");
 });
 

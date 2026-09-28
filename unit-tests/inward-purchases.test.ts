@@ -95,6 +95,24 @@ test("purchase orders reconcile linked stock inwards without creating a second r
   assert.equal(db.exec("select count(*) from stock_ledger where type='manual-inward'")[0].values[0][0], 3);
 });
 
+test("PO links reject mismatches and terminal orders while manual inward remains independent", async () => {
+  const db = await database();
+  const supplier = createSupplierForActor(db, 1, { name: "Link Safety Supplies" });
+  db.run("insert into inventory(id,sku,category,name,unit,stock_qty,low_stock_qty) values (2,'FILTER','Parts','Oil filter','piece',0,1)");
+  const po = createPurchaseOrderForActor(db, 2, { supplier_id: supplier, po_number: "PO-LINK-SAFE", order_date: "2026-09-28", lines: [{ item_id: 1, ordered_qty: 2, unit_cost: 10 }] });
+  const lineId = Number(db.exec("select id from purchase_order_lines where purchase_order_id=?", [po])[0].values[0][0]);
+  assert.throws(() => recordStockInwardForActor(db, 2, { item_id: 1, qty: 1, purchase_order_line_id: lineId }), /open purchase order line/);
+  setPurchaseOrderStatusForActor(db, po, 2, "send");
+  assert.throws(() => recordStockInwardForActor(db, 2, { item_id: 2, qty: 1, purchase_order_line_id: lineId }), /different inventory item/);
+  recordStockInwardForActor(db, 2, { item_id: 1, qty: 1, purchase_order_line_id: lineId });
+  setPurchaseOrderStatusForActor(db, po, 2, "cancel");
+  assert.equal(db.exec("select status from purchase_orders where id=?", [po])[0].values[0][0], "Cancelled");
+  assert.throws(() => recordStockInwardForActor(db, 2, { item_id: 1, qty: 1, purchase_order_line_id: lineId }), /open purchase order line/);
+  recordStockInwardForActor(db, 2, { item_id: 1, qty: 1 });
+  assert.equal(materialStockOnHand(db, 1), 12, "unlinked receipt changes stock but not PO reconciliation");
+  assert.equal(db.exec("select count(*) from stock_inwards where purchase_order_id=?", [po])[0].values[0][0], 1);
+});
+
 test("a draft creates one approved PO snapshot and posts its receipt only once", async () => {
   const db = await database();
   const supplier = createSupplierForActor(db, 1, { name: "Lifecycle Supplies" });
