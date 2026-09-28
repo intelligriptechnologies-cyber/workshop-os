@@ -1029,6 +1029,8 @@ export interface SupplierInput {
 }
 
 export interface InwardPurchaseLineInput {
+  /** Present on approved receipts so each actual receipt row reconciles to its frozen PO row. */
+  purchase_order_line_id?: number | null;
   item_id: number;
   received_qty: number;
   unit_cost: number;
@@ -1233,12 +1235,15 @@ export function receiveAndPostInwardPurchaseForActor(db: Database, purchaseId: n
       const current = all<InwardPurchaseLine>(db, "select * from inward_purchase_lines where purchase_id=?", [purchaseId]);
       if (current.length !== input.lines.length) throw new Error("Receipt lines must exactly match the linked PO lines.");
       const byPoLine = new Map(current.map((line) => [line.purchase_order_line_id, line]));
+      const matchedPoLines = new Set<number>();
       for (const line of input.lines) {
-        const target = current.find((row) => row.item_id === line.item_id);
-        if (!target || !target.purchase_order_line_id || byPoLine.get(target.purchase_order_line_id) !== target) throw new Error("Receipt lines must exactly match the linked PO lines.");
+        const target = line.purchase_order_line_id ? byPoLine.get(line.purchase_order_line_id) : current.find((row) => row.item_id === line.item_id);
+        if (!target || !target.purchase_order_line_id || matchedPoLines.has(target.purchase_order_line_id) || target.item_id !== line.item_id || byPoLine.get(target.purchase_order_line_id) !== target) throw new Error("Receipt lines must exactly match the linked PO lines.");
+        matchedPoLines.add(target.purchase_order_line_id);
         const values = assertPurchaseLine(db, line);
         db.run("update inward_purchase_lines set received_qty=?,unit_cost=?,discount=?,gst_rate=?,subtotal=?,gst_amount=?,total=? where id=?", [values.qty, values.unitCost, values.discount, values.gstRate, values.subtotal, values.gstAmount, values.total, target.id]);
       }
+      if (matchedPoLines.size !== current.length) throw new Error("Receipt lines must exactly match the linked PO lines.");
     }
     if (input.attachments?.length) addPurchaseAttachments(db, purchaseId, actorId, input.attachments);
     const fresh = one<InwardPurchase>(db, "select * from inward_purchases where id=?", [purchaseId]);

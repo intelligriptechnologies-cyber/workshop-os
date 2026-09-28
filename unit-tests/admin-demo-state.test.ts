@@ -3,6 +3,7 @@ import test from "node:test";
 import {
   ADMIN_DEMO_STORAGE_KEY,
   ADMIN_PAGE_GROUPS,
+  APP_THEME_PALETTES,
   ROLE_MENU_PAGE_KEYS,
   DEFAULT_APP_THEME,
   addDemoRole,
@@ -61,6 +62,9 @@ test("app theme defaults, updates, persists and hydrates legacy sessions", () =>
   const storage = new MemorySessionStorage();
   const original = createDefaultAdminDemoState(NOW);
   assert.deepEqual(original.appTheme, DEFAULT_APP_THEME);
+  const goLite = APP_THEME_PALETTES.find((palette) => palette.id === "go-lite");
+  assert.equal(goLite?.tokens.active, "rgba(214, 246, 187, 1)");
+  assert.equal(goLite?.tokens.tableHeader, "rgba(214, 246, 187, 1)");
   const updated = updateAppTheme(original, { fontId: "georgia", paletteId: "go-blue" });
   assert.deepEqual(updated.appTheme, { fontId: "georgia", paletteId: "go-blue" });
   assert.deepEqual(original.appTheme, DEFAULT_APP_THEME);

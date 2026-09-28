@@ -97,13 +97,14 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
 
   const dashboard = page.getByRole("region", { name: "Workshop command center" });
   const grid = dashboard.locator(".command-grid");
-  const metrics = ["Open today", "Received job cards", "Closed", "In progress", "On hold", "Customers", "Vehicles", "Materials requested", "Low-stock items", "Invoices created", "Payments cleared", "Actual monthly collection", "Projected month-end collection"];
+  const metrics = ["Active today", "Total visits", "In progress", "Closed", "On hold", "Payments received", "Invoices generated", "Customers served", "Vehicles served", "Low-stock items", "Pending approvals", "Material requests", "Materials issued"];
   await expect(grid.locator(".command-card")).toHaveCount(4);
   await expect(grid.locator(".command-metric")).toHaveCount(13);
   for (const metric of metrics) await expect(grid.getByRole("button", { name: new RegExp(`Open ${metric}:`) })).toBeVisible();
-  expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(4);
+  expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
+  expect(await grid.locator(".command-card").first().evaluate((element) => getComputedStyle(element).height)).toBe(await grid.locator(".command-card").nth(1).evaluate((element) => getComputedStyle(element).height));
   await expect(grid.locator(".command-card-open")).toHaveCount(4);
-  await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "View job cards");
+  await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "View today's active jobs");
   expect(await grid.locator(".command-flow").evaluate((element) => getComputedStyle(element).backgroundImage)).not.toBe("none");
 
   const reportingMonth = dashboard.getByLabel("Dashboard reporting month");
@@ -113,8 +114,8 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
     await expect(reportingMonth).toHaveValue(await reportingMonth.locator("option").nth(1).getAttribute("value") ?? "");
   }
 
-  await grid.getByRole("button", { name: /Open Received job cards:/ }).click();
-  await expect(page.locator(".record-grid.jobs")).toBeVisible();
+  await grid.getByRole("button", { name: /Open Total visits:/ }).click();
+  await expect(page.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
   await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
 
   await grid.locator(".command-cashflow").focus();
@@ -129,7 +130,7 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
   expect(await page.locator(".command-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
 
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
-  await expect(page.locator(".record-grid.jobs")).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
   await expectNoPageOverflow(page);
 });
 
@@ -505,13 +506,22 @@ test("admin loads the deterministic large dataset and paginates core lists", asy
   await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
 });
 
-test("all four core lists switch views and expose deterministic totals", async ({ page }) => {
+test("core entity lists switch views and expose deterministic totals", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
   await page.getByRole("button", { name: "Load Large Demo Dataset" }).click();
-  for (const [name, total] of [["Job Cards", 144], ["Customers", 120], ["Vehicles", 132], ["Media", 288]] as const) {
+  for (const [name, total] of [["Job Cards", 144], ["Media", 288]] as const) {
     await page.locator(".role-nav").getByRole("button", { name, exact: true }).click();
+    await expect(page.getByText(`Showing 1 to 10 of ${total}`)).toBeVisible();
+    await page.getByRole("button", { name: "Table", exact: true }).click();
+    await expect(page.locator("tbody tr")).toHaveCount(10);
+    await page.getByRole("button", { name: "Grid", exact: true }).click();
+    await expect(page.locator(".record-card")).toHaveCount(10);
+  }
+  await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
+  for (const [category, total] of [["customer", 120], ["vehicle", 132]] as const) {
+    await page.getByLabel("Search category").selectOption(category);
     await expect(page.getByText(`Showing 1 to 10 of ${total}`)).toBeVisible();
     await page.getByRole("button", { name: "Table", exact: true }).click();
     await expect(page.locator("tbody tr")).toHaveCount(10);
@@ -1065,7 +1075,9 @@ test("admin receives readable duplicate user validation", async ({ page }) => {
 test("contextual create actions remain visible on mobile role screens", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAs(page, "reception@example.com");
-  await page.locator(".role-nav").getByRole("button", { name: "Customers", exact: true }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
+  await page.getByLabel("Search category").selectOption("customer");
+  await page.getByRole("button", { name: "Table", exact: true }).click();
   const add = page.getByRole("button", { name: "Add Customer", exact: true });
   await expect(add).toBeVisible();
   await add.click();
@@ -1230,6 +1242,44 @@ test("store reconciliation states use status pills and shared table actions", as
   const results = page.getByRole("table", { name: "Reconcile results" });
   await expect(results.locator(".store-material-status-matched")).toHaveCount(2);
   await expect(results.getByRole("button", { name: "Edit Reconciliation" }).first()).toHaveClass(/store-material-action/);
+});
+
+test("reconciliation opens per row, requires zero-return acknowledgement, and preserves row navigation", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Reconcile", exact: true }).click();
+
+  const results = page.getByRole("table", { name: "Reconcile results" });
+  const action = results.getByRole("button", { name: "Reconcile", exact: true }).first();
+  await action.click();
+  const dialog = page.getByRole("dialog", { name: "Reconcile Material" });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByLabel("Used quantity")).toBeFocused();
+  await page.getByLabel("Used quantity").fill("1");
+  await page.getByLabel("Returned quantity").fill("0");
+  await page.getByLabel("Wasted quantity").fill("0");
+  await expect(dialog.getByRole("button", { name: "Save Reconciliation" })).toBeDisabled();
+  await page.getByLabel("Confirm no return or wastage").check();
+  await expect(dialog.getByRole("button", { name: "Save Reconciliation" })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(dialog).toBeHidden();
+  await expect(action).toBeFocused();
+
+  await action.click();
+  await page.getByLabel("Used quantity").fill("1");
+  await page.getByLabel("Returned quantity").fill("0");
+  await page.getByLabel("Wasted quantity").fill("0");
+  await page.getByLabel("Confirm no return or wastage").check();
+  await page.getByRole("dialog", { name: "Reconcile Material" }).getByRole("button", { name: "Save Reconciliation" }).click();
+  await expect(page.getByRole("dialog", { name: "Reconcile Material" })).toBeHidden();
+  await expect(results.locator(".store-material-status-open")).toHaveCount(1);
+
+  await results.getByRole("button", { name: "Edit Reconciliation" }).first().click();
+  await page.getByLabel("Used quantity").fill("0");
+  await page.getByLabel("Returned quantity").fill("0");
+  await page.getByLabel("Wasted quantity").fill("0");
+  await page.getByLabel("Confirm no return or wastage").check();
+  await page.getByRole("dialog", { name: "Reconcile Material" }).getByRole("button", { name: "Save Reconciliation" }).click();
+  await expect(results.locator(".store-material-status-open")).toHaveCount(2);
 });
 
 test("store material queues default to today and keep record filters, exports and workflows in sync", async ({ page }) => {
@@ -1410,7 +1460,7 @@ test("App Theme previews, saves live UI tokens, and restores the default", async
   await expect(page.getByLabel("App theme preview")).toHaveCSS("font-family", /Georgia/);
   await page.getByRole("button", { name: "Save App Theme", exact: true }).click();
   await expect(page.getByText("App theme saved for this session.")).toBeVisible();
-  await page.locator(".role-nav").getByRole("button", { name: "Customers", exact: true }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
   await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(220, 236, 255)");
   await expect(page.locator(".role-nav button.active")).toHaveCSS("background-color", "rgb(200, 225, 255)");
   await expect(page.locator("table th").first()).toHaveCSS("background-color", "rgb(212, 232, 251)");
@@ -1421,6 +1471,7 @@ test("App Theme previews, saves live UI tokens, and restores the default", async
   await page.getByRole("button", { name: "Set to Default", exact: true }).click();
   await page.getByRole("button", { name: "Save App Theme", exact: true }).click();
   await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(225, 241, 235)");
+  await expect(page.locator(".app-shell")).toHaveCSS("font-family", /Inter/);
 });
 
 test("tax and billing settings validate, normalize, persist, audit and drive invoice print", async ({ page }) => {

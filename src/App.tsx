@@ -141,7 +141,7 @@ import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor } from "./materials";
 import { JOB_CARD_TABS, isStubTab, type JobCardTabKey } from "./job-card-layout";
 import { Dialog, DownloadMenu, FilterClearButton, handleTabListKeyDown, ListSearchActions, SearchSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
-import { loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey } from "./admin-demo-state";
+import { APP_THEME_FONTS, APP_THEME_PALETTES, loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey, type AppTheme } from "./admin-demo-state";
 import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
 import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
 import { renderHtmlToPdf } from "./pdf-render";
@@ -210,12 +210,11 @@ const roleMenus: Record<Role, MenuItem[]> = {
     { label: "Approvals", icon: <ShieldCheck size={18} /> },
     { label: "Data Flow", icon: <ClipboardCheck size={18} /> },
     { label: "Job Cards", icon: <FileText size={18} /> },
-    { label: "Customers", icon: <UserRound size={18} /> },
-    { label: "Vehicles", icon: <Car size={18} /> },
     { label: "Media", icon: <Camera size={18} /> },
-    { label: "Masters", icon: <Boxes size={18} /> },
     { label: "Suppliers", icon: <UserRound size={18} /> },
     { label: "Inward Purchases", icon: <ReceiptText size={18} /> },
+    { label: "Material Requests", icon: <PackageCheck size={18} /> },
+    { label: "Issue Material", icon: <Package size={18} /> },
     { label: "Stock", icon: <Boxes size={18} /> },
     { label: "Manage", icon: <ShieldCheck size={18} /> },
     { label: "Search", icon: <Search size={18} /> },
@@ -255,6 +254,15 @@ const SEARCH_CATEGORY_LABELS: Record<SearchTableCategory, string> = {
 };
 const SEARCH_MONTH_YEAR_FORMATTER = new Intl.DateTimeFormat("en-US", { month: "long", year: "numeric", timeZone: "UTC" });
 type PaymentSearchRow = { view: JobView; payment: Payment };
+type DashboardDrilldown = {
+  destination: string;
+  month?: string;
+  date?: string;
+  status?: string;
+  category?: SearchTableCategory;
+  stockTab?: "Inventory List" | "Low Stock";
+  served?: "customers" | "vehicles";
+};
 
 function paymentRowHighlight(mode: PaymentMode) {
   const classes: Record<PaymentMode, string> = {
@@ -317,6 +325,8 @@ function App() {
   const [searchPaymentMode, setSearchPaymentMode] = useState<"ALL" | PaymentMode>("ALL");
   const [searchNavigate, setSearchNavigate] = useState<{ kind: "jobs" | "customers" | "vehicles"; id: number }>();
   const [stockSearchNavigate, setStockSearchNavigate] = useState<string>();
+  const [dashboardDrilldown, setDashboardDrilldown] = useState<DashboardDrilldown>();
+  const [appTheme, setAppTheme] = useState<AppTheme>(() => loadAdminDemoState().appTheme);
   const [loginError, setLoginError] = useState("");
   const [authConfig, setAuthConfig] = useState<AuthConfig>();
   const [authLoading, setAuthLoading] = useState(true);
@@ -330,6 +340,23 @@ function App() {
       setSelectedJobId(next.jobs[0]?.job.id);
     });
   }, []);
+
+  useEffect(() => {
+    const font = APP_THEME_FONTS.find((item) => item.id === appTheme.fontId) ?? APP_THEME_FONTS[0];
+    const palette = APP_THEME_PALETTES.find((item) => item.id === appTheme.paletteId) ?? APP_THEME_PALETTES[0];
+    const root = document.documentElement;
+    root.style.setProperty("--app-font-family", font.cssFamily);
+    root.style.setProperty("--app-theme-background", palette.tokens.background);
+    root.style.setProperty("--app-theme-sidebar", palette.tokens.sidebar);
+    root.style.setProperty("--app-theme-sidebar-border", palette.tokens.sidebarBorder);
+    root.style.setProperty("--app-theme-sidebar-text", palette.tokens.sidebarText);
+    root.style.setProperty("--app-theme-active", palette.tokens.active);
+    root.style.setProperty("--app-theme-active-border", palette.tokens.activeBorder);
+    root.style.setProperty("--app-theme-hover", palette.tokens.hover);
+    root.style.setProperty("--app-theme-accent", palette.tokens.accent);
+    root.style.setProperty("--app-theme-focus", palette.tokens.focus);
+    root.style.setProperty("--app-theme-table-header", palette.tokens.tableHeader);
+  }, [appTheme]);
 
   useEffect(() => {
     loadAuthConfig().then(async (config) => {
@@ -390,7 +417,7 @@ function App() {
   }, []);
 
   const searchCriteria = useMemo<SearchCriteria | undefined>(
-    () => (searchCategory && searchCategory !== "stock" && searchCategory !== "payment" ? { query, category: searchCategory, status: searchCategory === "job" ? searchStatus : "ALL" } : undefined),
+    () => (searchCategory === "job" || searchCategory === "invoice" ? { query, category: searchCategory, status: searchCategory === "job" ? searchStatus : "ALL" } : undefined),
     [query, searchCategory, searchStatus],
   );
   const searchResults = useMemo(() => (state && searchCriteria ? searchJobs(state, searchCriteria) : []), [state, searchCriteria]);
@@ -525,6 +552,18 @@ function App() {
     const jobsLabel = findMenuLabelForPage(user.role, "jobs") ?? findMenuLabelForPage(user.role, "my-queue");
     if (jobsLabel) { setSearchNavigate({ kind: "jobs", id: view.job.id }); leaveSearch(); setActiveMenuItem(jobsLabel); }
   };
+  const openDashboardDrilldown = (drilldown: DashboardDrilldown) => {
+    setDashboardDrilldown(drilldown);
+    if (drilldown.destination === "Search") {
+      setQuery("");
+      setSearchCategory(drilldown.category ?? "");
+      setSearchStatus("ALL");
+      setSearchDateFilter(drilldown.date ?? "");
+      setSearchMonthFilter(drilldown.month ?? "");
+      setSearchPaymentMode("ALL");
+    }
+    setActiveMenuItem(drilldown.destination);
+  };
 
   return (
     <div className={`app-shell role-${user.role}${sidebarCollapsed ? " rail-collapsed" : ""}`}>
@@ -610,10 +649,13 @@ function App() {
           onOpenStockSearchRecord={openStockSearchRecord}
           onSearchNavigateConsumed={() => setSearchNavigate(undefined)}
           stockSearchNavigate={stockSearchNavigate}
+          dashboardDrilldown={dashboardDrilldown}
           state={state}
           user={user}
           cognitoConfig={authConfig?.mode === "cognito" ? authConfig : undefined}
           onNavigate={setActiveMenuItem}
+          onDashboardNavigate={openDashboardDrilldown}
+          onThemeSaved={setAppTheme}
         />
       </main>
     </div>
@@ -701,10 +743,13 @@ function RoleWorkspace({
   onOpenStockSearchRecord,
   onSearchNavigateConsumed,
   stockSearchNavigate,
+  dashboardDrilldown,
   state,
   user,
   cognitoConfig,
   onNavigate,
+  onDashboardNavigate,
+  onThemeSaved,
 }: {
   activeMenuItem: string;
   jobs: JobView[];
@@ -731,10 +776,13 @@ function RoleWorkspace({
   onOpenStockSearchRecord: (item: InventoryItem) => void;
   onSearchNavigateConsumed: () => void;
   stockSearchNavigate?: string;
+  dashboardDrilldown?: DashboardDrilldown;
   state: WorkshopState;
   user: User;
   cognitoConfig?: CognitoConfig;
   onNavigate: (label: string) => void;
+  onDashboardNavigate: (drilldown: DashboardDrilldown) => void;
+  onThemeSaved: (theme: AppTheme) => void;
 }) {
   if (activeMenuItem === "Search") {
     return (
@@ -763,20 +811,20 @@ function RoleWorkspace({
     );
   }
 
-  if ((activeMenuItem === "Job Cards" && user.role !== "service") || activeMenuItem === "My Queue") return <EntityList kind="jobs" state={state} mutate={mutate} actor={user} initialSelectedId={searchNavigate?.kind === "jobs" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
-  if (activeMenuItem === "Customers") return <EntityList kind="customers" state={state} mutate={mutate} actor={user} initialSelectedId={searchNavigate?.kind === "customers" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
-  if (activeMenuItem === "Vehicles") return <EntityList kind="vehicles" state={state} mutate={mutate} actor={user} initialSelectedId={searchNavigate?.kind === "vehicles" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
+  if ((activeMenuItem === "Job Cards" && user.role !== "service") || activeMenuItem === "My Queue") return <EntityList key={`jobs-${dashboardDrilldown?.month ?? ""}-${dashboardDrilldown?.date ?? ""}-${dashboardDrilldown?.status ?? ""}`} kind="jobs" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.destination === activeMenuItem ? { month: dashboardDrilldown.month, date: dashboardDrilldown.date, primary: dashboardDrilldown.status } : undefined} initialSelectedId={searchNavigate?.kind === "jobs" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
+  if (activeMenuItem === "Customers") return <EntityList key={`customers-${dashboardDrilldown?.month ?? ""}`} kind="customers" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "customers" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "customers" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
+  if (activeMenuItem === "Vehicles") return <EntityList key={`vehicles-${dashboardDrilldown?.month ?? ""}`} kind="vehicles" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "vehicles" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "vehicles" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Media") return <EntityList kind="media" state={state} mutate={mutate} actor={user} />;
   if (activeMenuItem === "Inward Purchases" && (user.role === "store" || user.role === "admin")) return <InwardPurchasesWorkspace state={state} actor={user} mutate={mutate} />;
   if (activeMenuItem === "Suppliers" && user.role === "admin") return <SupplierMasterWorkspace state={state} actor={user} mutate={mutate} />;
 
   if (user.role === "reception") return <Reception activeMenuItem={activeMenuItem} state={state} mutate={mutate} user={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "service") return <ServiceAdvisor activeMenuItem={activeMenuItem} state={state} view={selected?.job.advisor_id === user.id ? selected : state.jobs.find((item) => item.job.advisor_id === user.id)} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} />;
-  if (activeMenuItem === "Stock" && (user.role === "store" || user.role === "admin")) return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} initialStockSearch={stockSearchNavigate} />;
+  if (["Stock", "Material Requests", "Issue Material", "Reconcile"].includes(activeMenuItem) && (user.role === "store" || user.role === "admin")) return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} initialStockSearch={stockSearchNavigate} initialDrilldown={dashboardDrilldown} />;
   if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "tech") return <Technician activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "accounts") return <Accounts activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} actor={user} />;
-  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} onNavigate={onNavigate} />;
+  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} onNavigate={onNavigate} onDashboardNavigate={onDashboardNavigate} dashboardDrilldown={dashboardDrilldown} onThemeSaved={onThemeSaved} />;
 }
 
 const SEARCH_STATUS_OPTIONS: (MainStatus | "ALL")[] = ["ALL", "NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"];
@@ -834,7 +882,11 @@ function SearchPortal({
     ? (["job", "customer", "vehicle", "invoice"] as SearchTableCategory[])
     : (Object.keys(CATEGORY_PAGE_KEYS) as SearchTableCategory[])
       .filter((item) => item !== "payment" && CATEGORY_PAGE_KEYS[item].some((key) => permittedPages.includes(key)));
-  const availableCategories = actor.role === "admin" ? [...baseCategories, "payment" as const] : baseCategories;
+  // Customer and Vehicle remain Admin-granted pages even though they are intentionally
+  // absent from the Admin rail; Search is their Admin entry point.
+  const availableCategories = actor.role === "admin"
+    ? Array.from(new Set([...baseCategories, "customer" as const, "vehicle" as const, "payment" as const]))
+    : baseCategories;
   const availableMonths = [...new Set((category === "payment" ? paymentRows.map(({ payment }) => payment.created_at?.slice(0, 7) ?? "") : state.jobs
     .map((view) => view.visit.received_at.slice(0, 7)))
     .filter((month) => /^\d{4}-\d{2}$/.test(month)))]
@@ -851,14 +903,13 @@ function SearchPortal({
   const pagedStock = paginate(stockRows, page, pageSize);
   const isStock = category === "stock";
   const isPayment = category === "payment";
+  const entityListKind: Extract<EntityKind, "customers" | "vehicles"> | undefined = category === "customer" ? "customers" : category === "vehicle" ? "vehicles" : undefined;
   const pagedPayments = paginate(paymentRows, page, pageSize);
   const resultPage = isStock ? pagedStock : isPayment ? pagedPayments : paged;
 
   return (
     <section className="portal">
       {record?.category === "job" && <JobRecordDialog view={record.view} state={state} mutate={mutate} actor={actor} mode={record.mode} onClose={() => setRecord(undefined)} />}
-      {record?.category === "customer" && <CustomerRecordDialog customer={record.view.customer} state={state} mutate={mutate} mode={record.mode} onClose={() => setRecord(undefined)} />}
-      {record?.category === "vehicle" && <VehicleRecordDialog vehicle={record.view.vehicle} state={state} mutate={mutate} mode={record.mode} onClose={() => setRecord(undefined)} />}
       {record?.category === "invoice" && <InvoiceDialog fixedJob action={record.mode} view={record.view} actor={actor} mutate={mutate} onClose={() => setRecord(undefined)} />}
       {record?.category === "payment" && <InvoiceDialog fixedJob action="view" view={record.view} actor={actor} mutate={mutate} onClose={() => setRecord(undefined)} />}
       <div className="list-filter-bar">
@@ -873,7 +924,7 @@ function SearchPortal({
             <option value="">Select a category</option>
             {availableCategories.map((item) => <option key={item} value={item}>{SEARCH_CATEGORY_LABELS[item]}</option>)}
           </select></label>
-          {category && category !== "stock" && <>
+          {category && category !== "stock" && !entityListKind && <>
             {category === "job" && <label>Status<select aria-label="Job status" value={status} onChange={(event) => changeFilters(() => setStatus(event.target.value as SearchCriteria["status"]))}>{SEARCH_STATUS_OPTIONS.map((item) => <option key={item} value={item}>{item === "ALL" ? "All statuses" : item}</option>)}</select></label>}
             {category === "payment" && <label>Payment mode<select aria-label="Payment mode filter" value={paymentMode} onChange={(event) => changeFilters(() => setPaymentMode(event.target.value as "ALL" | PaymentMode))}><option value="ALL">All</option>{(["UPI", "Cash", "Card", "Bank transfer", "Other"] as PaymentMode[]).map((mode) => <option key={mode} value={mode}>{mode}</option>)}</select></label>}
             <label>Date<input aria-label="Search date" type="date" value={dateFilter} onChange={(event) => changeFilters(() => { setDateFilter(event.target.value); if (category === "payment") setMonthFilter(""); })} /></label>
@@ -888,6 +939,17 @@ function SearchPortal({
 
       {!category ? (
         <div className="empty-state"><strong>Please select a category to activate search</strong><span>Choose Job Card, Customer, Vehicle, Invoice or Stock above to see results.</span></div>
+      ) : entityListKind ? (
+        <EntityList
+          key={`search-${entityListKind}`}
+          kind={entityListKind}
+          state={state}
+          mutate={mutate}
+          actor={actor}
+          externalSearch={query}
+          onExternalSearchChange={(value) => changeFilters(() => setQuery(value))}
+          hideSearch
+        />
       ) : (
         <>
           <PaginationToolbar from={resultPage.from} to={resultPage.to} totalCount={resultPage.totalCount} page={resultPage.page} pageCount={resultPage.pageCount} onPageChange={setPage} pageSize={pageSize} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
@@ -898,7 +960,7 @@ function SearchPortal({
               ? <StockSearchResultsTable rows={pagedStock.items} onOpenRecord={onOpenStockRecord} />
               : isPayment
                 ? <PaymentSearchResultsTable rows={pagedPayments.items} onOpenRecord={(view) => setRecord({ view, category: "payment", mode: "view" })} />
-              : <SearchResultsTable category={category} rows={paged.items} actor={actor} onOpenRecord={(view, itemCategory, mode) => {
+              : <SearchResultsTable category={category as Exclude<SearchTableCategory, "stock" | "customer" | "vehicle" | "payment">} rows={paged.items} actor={actor} onOpenRecord={(view, itemCategory, mode) => {
                 if (actor.role === "service" || itemCategory !== "invoice") setRecord({ view, category: itemCategory, mode });
                 else onOpenRecord(view, itemCategory);
               }} />
@@ -910,10 +972,8 @@ function SearchPortal({
   );
 }
 
-function SearchResultsTable({ category, rows, actor, onOpenRecord }: { category: Exclude<SearchTableCategory, "stock">; rows: JobView[]; actor: User; onOpenRecord: (view: JobView, category: Exclude<SearchTableCategory, "stock">, mode: "view" | "edit") => void }) {
+function SearchResultsTable({ category, rows, actor, onOpenRecord }: { category: Exclude<SearchTableCategory, "stock" | "customer" | "vehicle">; rows: JobView[]; actor: User; onOpenRecord: (view: JobView, category: Exclude<SearchTableCategory, "stock" | "customer" | "vehicle">, mode: "view" | "edit") => void }) {
   const headers = category === "job" ? ["Job #", "Vehicle", "Customer", "Status", "Total", "Actions"]
-    : category === "customer" ? ["Name", "Mobile", "Type", "Actions"]
-    : category === "vehicle" ? ["Registration", "Make / Model", "Customer", "Actions"]
     : ["Invoice #", "Job", "Customer", "Amount", "Status", "Actions"];
   return (
     <div className="table-wrap">
@@ -933,16 +993,6 @@ function SearchResultsTable({ category, rows, actor, onOpenRecord }: { category:
                 <td>{view.customer.name}</td>
                 <td><Status status={view.job.main_status} sub={view.job.sub_status} /></td>
                 <td>{money(jobTotal(view))}</td>
-              </>}
-              {category === "customer" && <>
-                <td>{view.customer.name}</td>
-                <td>{view.customer.mobile}</td>
-                <td>{view.customer.type}</td>
-              </>}
-              {category === "vehicle" && <>
-                <td>{view.vehicle.number}</td>
-                <td>{view.vehicle.make} {view.vehicle.model}</td>
-                <td>{view.customer.name}</td>
               </>}
               {category === "invoice" && <>
                 <td>{view.invoice?.invoice_no || "Not generated"}</td>
@@ -1313,12 +1363,13 @@ function ServiceFollowupDialog({ view, mode, mutate, onClose }: { view: JobView;
   return <Dialog title={mode === "view" ? "Follow-up History" : "Follow-ups"} subtitle={`${view.job.job_no} · ${view.vehicle.number}`} onClose={onClose} footer={editable ? <button form="service-followup-form" className="primary-action">Save Follow-up</button> : undefined}><div className="followup-history">{view.followups.length ? view.followups.map((item) => <div className="row" key={item.id}><strong>{item.note}</strong><span>{item.done ? "Done" : "Open"}{item.outcome ? ` · ${item.outcome}` : ""}</span><span>{formatTimestamp(item.created_at || item.updated_at || item.due_at)}</span>{editable && !item.done && <label className="followup-completion"><input type="checkbox" checked={completions[item.id]?.selected ?? false} onChange={(event) => setCompletions((current) => ({ ...current, [item.id]: { selected: event.target.checked, outcome: current[item.id]?.outcome ?? "" } }))} /> Mark Done <input aria-label={`Outcome for ${item.note}`} value={completions[item.id]?.outcome ?? ""} disabled={!completions[item.id]?.selected} onChange={(event) => setCompletions((current) => ({ ...current, [item.id]: { selected: current[item.id]?.selected ?? false, outcome: event.target.value } }))} placeholder="Outcome" /></label>}</div>) : <p className="empty-state">No saved follow-ups.</p>}</div>{editable && <form id="service-followup-form" onSubmit={save}><label>Note<input data-dialog-initial-focus value={note} onChange={(event) => setNote(event.target.value)} placeholder="Add a follow-up note" /></label><label>Outcome<input value={outcome} onChange={(event) => setOutcome(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={done} onChange={(event) => setDone(event.target.checked)} /> Mark new follow-up Done</label></form>}</Dialog>;
 }
 
-function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, initialStockSearch }: { activeMenuItem: string; state: WorkshopState; actor: User; mutate: Mutate; setSelectedJobId: (id: number) => void; initialStockSearch?: string }) {
-  const [stockTab, setStockTab] = useState<"Inventory List" | "Low Stock" | "Stock Movements">("Inventory List");
+function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, initialStockSearch, initialDrilldown }: { activeMenuItem: string; state: WorkshopState; actor: User; mutate: Mutate; setSelectedJobId: (id: number) => void; initialStockSearch?: string; initialDrilldown?: DashboardDrilldown }) {
+  const [stockTab, setStockTab] = useState<"Inventory List" | "Low Stock" | "Stock Movements">(initialDrilldown?.stockTab ?? "Inventory List");
   const [editingStock, setEditingStock] = useState<InventoryItem>();
   const [quickAddStockOpen, setQuickAddStockOpen] = useState(false);
   const [releaseCandidate, setReleaseCandidate] = useState<StoreRequestRow>();
   const [approvalCandidate, setApprovalCandidate] = useState<StoreRequestRow>();
+  const [reconcileCandidate, setReconcileCandidate] = useState<StoreRequestRow>();
   const [viewJobId, setViewJobId] = useState<number>();
   const openJob = (id: number) => { setSelectedJobId(id); setViewJobId(id); };
   const viewJob = state.jobs.find((view) => view.job.id === viewJobId);
@@ -1341,7 +1392,7 @@ function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, ini
             <span><ShieldCheck size={16} /><strong>{state.inventory.filter((item) => item.stock_qty <= 0).length}</strong> Out of Stock</span>
           </div>
         </div>
-        {stockTab === "Inventory List" && <StoreList key={`stock-${initialStockSearch ?? "all"}`} kind="stock" inventory={state.inventory} requests={requests} onOpenJob={openJob} onEditStock={setEditingStock} initialSearch={initialStockSearch} headerAction={<button type="button" className="primary-action" aria-haspopup="dialog" onClick={() => setQuickAddStockOpen(true)}><Plus size={16} /> Quick Add Stock</button>} />}
+        {stockTab === "Inventory List" && <StoreList key={`stock-${initialStockSearch ?? "all"}`} kind="stock" inventory={state.inventory} requests={requests} onOpenJob={openJob} onEditStock={setEditingStock} initialSearch={initialStockSearch} initialPrimary={initialDrilldown?.status} headerAction={<button type="button" className="primary-action" aria-haspopup="dialog" onClick={() => setQuickAddStockOpen(true)}><Plus size={16} /> Quick Add Stock</button>} />}
         {stockTab === "Low Stock" && <StoreList key="low-stock" kind="stock" inventory={lowStock} requests={requests} onOpenJob={openJob} />}
         {stockTab === "Stock Movements" && <StockMovementHistory state={state} />}
         {quickAddStockOpen && <Dialog title="Quick Add Stock" subtitle="Record an inward against an existing SKU or create a new SKU" onClose={() => setQuickAddStockOpen(false)}><QuickAddStock inventory={state.inventory} mutate={mutate} onSaved={() => setQuickAddStockOpen(false)} /></Dialog>}
@@ -1352,7 +1403,7 @@ function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, ini
   if (activeMenuItem === "Material Requests") {
     return (
       <section className="workspace single-panel store-list-first-workspace">
-        <StoreList key="requests" kind="requests" inventory={state.inventory} requests={requests} purchases={localPurchases} purchaseRequests={purchaseRequests} onOpenJob={openJob} onNeedsApproval={setApprovalCandidate} />
+        <StoreList key={`requests-${initialDrilldown?.month ?? ""}`} kind="requests" inventory={state.inventory} requests={requests} purchases={localPurchases} purchaseRequests={purchaseRequests} onOpenJob={openJob} onNeedsApproval={setApprovalCandidate} initialMonth={initialDrilldown?.month} />
         <details className="workflow-disclosure">
           <summary>Purchase, Stock &amp; Issue</summary>
           <div className="store-request-actions"><PurchaseStockIssueEditor state={state} actor={actor} purchaseRequests={purchaseRequests} mutate={mutate} /></div>
@@ -1366,7 +1417,7 @@ function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, ini
   if (activeMenuItem === "Issue Material") {
     return (
       <section className="workspace single-panel store-list-first-workspace">
-        <StoreList key={activeMenuItem} kind="issue" inventory={state.inventory} requests={eligibleRequests} onOpenJob={openJob} onRelease={setReleaseCandidate} onNeedsApproval={setApprovalCandidate} />
+        <StoreList key={`${activeMenuItem}-${initialDrilldown?.month ?? ""}`} kind="issue" inventory={state.inventory} requests={eligibleRequests} onOpenJob={openJob} onRelease={setReleaseCandidate} onNeedsApproval={setApprovalCandidate} initialMonth={initialDrilldown?.month} initialPrimary={initialDrilldown?.status} />
         <details className="workflow-disclosure">
           <summary>Issue workflow</summary>
           <IssueMaterialEditor />
@@ -1377,11 +1428,11 @@ function StoreDesk({ activeMenuItem, state, actor, mutate, setSelectedJobId, ini
       </section>
     );
   }
+  const reconcileRequests = requests.filter(({ request }) => request.issued_qty > 0);
   return (
-    <section className="workspace two-panel">
-      <StoreList key={activeMenuItem} kind="reconcile" inventory={state.inventory} requests={requests} onOpenJob={openJob} onRelease={setReleaseCandidate} />
-      <ReconcileEditor requests={requests} mutate={mutate} />
-      {releaseCandidate && <ReleaseMaterialDialog row={releaseCandidate} actor={actor} mutate={mutate} onClose={() => setReleaseCandidate(undefined)} />}
+    <section className="workspace single-panel store-list-first-workspace">
+      <StoreList key={activeMenuItem} kind="reconcile" inventory={state.inventory} requests={reconcileRequests} onOpenJob={openJob} onReconcile={setReconcileCandidate} />
+      {reconcileCandidate && <ReconcileEditor row={reconcileCandidate} mutate={mutate} onClose={() => setReconcileCandidate(undefined)} />}
     </section>
   );
 }
@@ -1400,7 +1451,7 @@ function PurchaseStockIssueEditor({ state, actor, purchaseRequests, mutate }: { 
 
 type PurchaseFormLine = InwardPurchaseLineInput & { key: string };
 
-function InwardPurchasesWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
+function LegacyInwardPurchasesWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
   const [selectedId, setSelectedId] = useState<number | undefined>();
   const [composerOpen, setComposerOpen] = useState(false);
   const [supplierId, setSupplierId] = useState(0);
@@ -1466,6 +1517,88 @@ function InwardPurchasesWorkspace({ state, actor, mutate }: { state: WorkshopSta
       {editable && <div className="receipt-status-bar" aria-label="Receipt readiness"><div><strong>{money(total)}</strong><span>{lines.length} line{lines.length === 1 ? "" : "s"} · {hasScan ? "scan attached" : "scan needed"}</span></div><ul><li className={activeSupplier ? "ready" : ""}>Active supplier</li><li className={invoiceNo.trim() ? "ready" : ""}>Invoice number</li><li className={validDate ? "ready" : ""}>Valid date</li><li className={validLines ? "ready" : ""}>Valid lines</li><li className={hasScan ? "ready" : ""}>Invoice scan</li></ul><div className="action-row"><button className="primary-action">Save draft</button>{selected && <button type="button" className="primary-action" disabled={!ready} onClick={() => mutate((db) => submitInwardPurchaseForActor(db, selected.id, actor.id))}>Submit receipt</button>}</div></div>}
     </form>
   </section>;
+}
+
+function InwardPurchasesWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
+  const [dialog, setDialog] = useState<"create" | "view" | "edit" | "receive" | "approve">();
+  const [recordId, setRecordId] = useState<number>();
+  const [supplierId, setSupplierId] = useState(0);
+  const [invoiceNo, setInvoiceNo] = useState("");
+  const [invoiceDate, setInvoiceDate] = useState(new Date().toISOString().slice(0, 10));
+  const [poNumber, setPoNumber] = useState("");
+  const [lines, setLines] = useState<PurchaseFormLine[]>([]);
+  const [attachments, setAttachments] = useState<InwardPurchaseAttachmentInput[]>([]);
+  const [revisionReason, setRevisionReason] = useState("");
+  const [error, setError] = useState("");
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("ALL");
+  const record = state.inward_purchases.find((purchase) => purchase.id === recordId);
+  const recordLines = record ? state.inward_purchase_lines.filter((line) => line.purchase_id === record.id) : [];
+  const recordAttachments = record ? state.inward_purchase_attachments.filter((attachment) => attachment.purchase_id === record.id) : [];
+  const supplierName = (id: number) => state.suppliers.find((supplier) => supplier.id === id)?.name ?? "Unknown supplier";
+  const freshLine = (): PurchaseFormLine | undefined => state.inventory[0] && { key: crypto.randomUUID(), item_id: state.inventory[0].id, received_qty: 1, unit_cost: 0, discount: 0, gst_rate: 0 };
+  const open = (next: NonNullable<typeof dialog>, id?: number) => { setRecordId(id); setDialog(next); setError(""); setAttachments([]); setRevisionReason(""); };
+  const close = () => { setDialog(undefined); setRecordId(undefined); };
+
+  useEffect(() => {
+    if (!dialog) return;
+    if (!record) {
+      const line = freshLine(); setSupplierId(0); setInvoiceNo(""); setInvoiceDate(new Date().toISOString().slice(0, 10)); setPoNumber(""); setLines(line ? [line] : []); return;
+    }
+    setSupplierId(record.supplier_id ?? 0); setInvoiceNo(record.supplier_invoice_no); setInvoiceDate(record.invoice_date || new Date().toISOString().slice(0, 10)); setPoNumber(record.po_number ?? "");
+    setLines(recordLines.map((line) => ({ key: String(line.id), purchase_order_line_id: line.purchase_order_line_id ?? undefined, item_id: line.item_id, received_qty: line.received_qty, unit_cost: line.unit_cost, discount: line.discount, gst_rate: line.gst_rate })));
+  // The dialog intentionally snapshots a record into form state on open.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dialog, recordId]);
+
+  const updateLine = (key: string, patch: Partial<InwardPurchaseLineInput>) => setLines((current) => current.map((line) => line.key === key ? { ...line, ...patch } : line));
+  const draftInput = () => ({ supplier_id: supplierId || undefined, supplier_invoice_no: invoiceNo, invoice_date: invoiceDate, po_number: poNumber, lines: lines.map(({ key: _key, ...line }) => line), attachments });
+  const lineTotal = (line: PurchaseFormLine) => (line.received_qty * line.unit_cost - (line.discount ?? 0)) * (1 + (line.gst_rate ?? 0) / 100);
+  const total = lines.reduce((sum, line) => sum + lineTotal(line), 0);
+  const activeSupplier = state.suppliers.find((supplier) => supplier.id === supplierId)?.status === "Active";
+  const validLines = lines.length > 0 && lines.every((line) => state.inventory.some((item) => item.id === line.item_id) && line.received_qty > 0 && line.unit_cost >= 0 && (line.discount ?? 0) >= 0 && (line.gst_rate ?? 0) >= 0 && (line.gst_rate ?? 0) <= 100);
+  const validDate = Boolean(invoiceDate) && !Number.isNaN(new Date(`${invoiceDate}T00:00:00`).getTime());
+  const hasScan = recordAttachments.length + attachments.length > 0;
+  const filtered = state.inward_purchases.filter((purchase) => (status === "ALL" || purchase.status === status) && (!search.trim() || normalizeSearch(`${purchase.id} ${supplierName(purchase.supplier_id)} ${purchase.supplier_invoice_no} ${purchase.po_number}`).includes(normalizeSearch(search))));
+  const selectFile = async (file?: File) => {
+    if (!file) return;
+    if (!(file.type === "application/pdf" || file.type === "image/jpeg") || file.size > 10 * 1024 * 1024) { setError("Use a PDF or JPG invoice scan no larger than 10 MB."); return; }
+    const document_url = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+    setAttachments((current) => [...current, { original_name: file.name, mime_type: file.type, byte_size: file.size, document_url }]);
+  };
+  const saveDraft = () => {
+    let newId = recordId;
+    if (mutate((db) => { if (recordId) updateInwardPurchaseDraftForActor(db, recordId, actor.id, draftInput()); else newId = createInwardPurchaseDraft(db, actor.id, draftInput()); }, setError)) { setRecordId(newId); setDialog("edit"); }
+  };
+  const sendForApproval = () => {
+    if (!recordId) { setError("Save the purchase draft before sending it for PO approval."); return; }
+    if (mutate((db) => sendInwardPurchaseForPoApprovalForActor(db, recordId, actor.id), setError)) close();
+  };
+  const receive = () => { if (recordId && mutate((db) => receiveAndPostInwardPurchaseForActor(db, recordId, actor.id, draftInput()), setError)) close(); };
+  const approve = () => { if (recordId && mutate((db) => approveInwardPurchaseForActor(db, recordId, actor.id), setError)) close(); };
+  const revise = () => { if (recordId && mutate((db) => reviseInwardPurchaseForActor(db, recordId, actor.id, { reason: revisionReason, lines: lines.map(({ key: _key, purchase_order_line_id: _poLine, ...line }) => line) }), setError)) close(); };
+  const editorMode = dialog === "create" || dialog === "edit";
+  const receiveMode = dialog === "receive";
+  const receivedMode = record?.status === "Received" || record?.status === "Submitted";
+  const dialogTitle = dialog === "create" ? "Add purchase record" : dialog === "approve" ? "Approve purchase order" : receiveMode ? `Receive & Post · ${record?.po_number ?? `Purchase #${record?.id}`}` : editorMode ? `Edit purchase record · #${record?.id ?? "new"}` : `Purchase record · #${record?.id}`;
+  const dialogFooter = dialog === "approve" ? <button type="button" className="primary-action" onClick={approve}>Approve PO</button> : editorMode ? <><button type="button" className="secondary-action" onClick={saveDraft}>Save Draft</button>{record && <button type="button" className="primary-action" onClick={sendForApproval}>Send for PO</button>}</> : receiveMode ? <button type="button" className="primary-action" onClick={receive}>Receive & Post</button> : receivedMode && actor.role === "admin" ? <button type="button" className="danger-action" onClick={revise}>Post revision delta</button> : undefined;
+
+  return <section className="workspace single-panel inward-purchases-workspace">
+    <div className="desk-panel store-list-page inward-register">
+      <div className="action-row"><PanelTitle icon={<ReceiptText />} title="Inward Purchases" subtitle="Invoice-based goods receipts and item purchase history" /><button type="button" className="primary-action" onClick={() => open("create")}><Plus size={16} /> Add purchase record</button></div>
+      <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search inward purchases" value={search} onChange={(event) => setSearch(event.target.value)} placeholder="Supplier, invoice or PO" /></label><label>Status<select aria-label="Inward purchase status" value={status} onChange={(event) => setStatus(event.target.value)}><option value="ALL">All statuses</option><option>Draft</option><option>Awaiting PO Approval</option><option>Approved</option><option>Received</option></select></label><ListSearchActions onClear={() => { setSearch(""); setStatus("ALL"); }} /><ListExportControls report={{ title: "Inward Purchases", filters: activeFilterSummary({ Search: search, Status: status }), columns: [{ header: "Record", value: (row: InwardPurchase) => row.id }, { header: "PO", value: (row: InwardPurchase) => row.po_number }, { header: "Date", value: (row: InwardPurchase) => row.invoice_date }, { header: "Supplier", value: (row: InwardPurchase) => supplierName(row.supplier_id) }, { header: "Invoice", value: (row: InwardPurchase) => row.supplier_invoice_no }, { header: "Status", value: (row: InwardPurchase) => row.status }, { header: "Total", value: (row: InwardPurchase) => row.total }], rows: filtered }} /></div>
+      <div className="table-wrap"><table aria-label="Inward purchase register"><thead><tr><th>Record / PO</th><th>Date</th><th>Supplier</th><th>Invoice</th><th>Lines</th><th>Total</th><th>Status</th><th>Scan</th><th>Actions</th></tr></thead><tbody>{filtered.map((purchase) => { const attachment = state.inward_purchase_attachments.find((item) => item.purchase_id === purchase.id); const count = state.inward_purchase_lines.filter((line) => line.purchase_id === purchase.id).length; return <tr key={purchase.id} className="clickable-row" onClick={() => open("view", purchase.id)}><td><strong>#{purchase.id}</strong><br /><small>{purchase.po_number || "—"}</small></td><td>{purchase.invoice_date || "—"}</td><td>{supplierName(purchase.supplier_id)}</td><td>{purchase.supplier_invoice_no || "—"}</td><td>{count}</td><td>{money(purchase.total)}</td><td><span className="status-badge">{purchase.status === "Submitted" ? "Received" : purchase.status}</span></td><td>{attachment ? <a href={attachment.document_url} target="_blank" rel="noreferrer" onClick={(event) => event.stopPropagation()}>Open</a> : "—"}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={(event) => { event.stopPropagation(); open(purchase.status === "Draft" ? "edit" : "view", purchase.id); }}>{purchase.status === "Draft" ? "Edit" : "View"}</button>{purchase.status === "Awaiting PO Approval" && actor.role === "admin" && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); open("approve", purchase.id); }}>Approve</button>}{purchase.status === "Approved" && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); open("receive", purchase.id); }}>Receive & Post</button>}</div></td></tr>; })}</tbody></table></div>
+    </div>
+    {dialog && <Dialog wide title={dialogTitle} subtitle={dialog === "approve" ? "Review the immutable PO snapshot before authorizing it." : receivedMode ? "Posted receipt is read-only; Admin corrections append a revision." : receiveMode ? "Record the actual received quantities, invoice details, and scan." : "Save a draft, then submit its immutable PO snapshot for approval."} onClose={close} footer={dialogFooter}><div className="inward-dialog-content">{dialog === "approve" ? <PurchaseSnapshot record={record!} lines={lines} inventory={state.inventory} supplierName={supplierName} /> : receivedMode && !receiveMode ? <><PurchaseSnapshot record={record!} lines={lines} inventory={state.inventory} supplierName={supplierName} attachments={recordAttachments} />{actor.role === "admin" && <section className="receipt-correction"><h4>Admin correction</h4><p>Enter the corrected receipt quantities, then provide the audit reason.</p><ReceiptLines lines={lines} inventory={state.inventory} editableQuantity updateLine={updateLine} lineTotal={lineTotal} /><label>Correction reason<input data-dialog-initial-focus aria-label="Correction reason" value={revisionReason} onChange={(event) => setRevisionReason(event.target.value)} required /></label></section>}</> : <><section className="receipt-header"><h4>{receiveMode ? "Receipt header" : "Purchase header"}</h4><div className="form-grid"><label>Supplier{editorMode ? <select data-dialog-initial-focus aria-label="Purchase supplier" value={supplierId} onChange={(event) => setSupplierId(Number(event.target.value))}><option value={0}>Select active supplier</option>{state.suppliers.filter((supplier) => supplier.status === "Active" || supplier.id === supplierId).map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select> : <input readOnly value={supplierName(supplierId)} />}</label><label>Supplier invoice no.<input aria-label="Supplier invoice number" value={invoiceNo} readOnly={!editorMode && !receiveMode} onChange={(event) => setInvoiceNo(event.target.value)} /></label><label>Invoice date<input aria-label="Invoice date" type="date" value={invoiceDate} readOnly={!editorMode && !receiveMode} onChange={(event) => setInvoiceDate(event.target.value)} /></label>{editorMode && <label>PO number (optional)<input aria-label="PO number" value={poNumber} onChange={(event) => setPoNumber(event.target.value)} /></label>}</div></section><section><div className="receipt-lines-heading"><h4>{receiveMode ? "Actual received quantities" : "Purchase lines"}</h4>{editorMode && <button type="button" onClick={() => { const line = freshLine(); if (line) setLines((current) => [...current, line]); }}>Add line</button>}</div><ReceiptLines lines={lines} inventory={state.inventory} editable={editorMode} editableQuantity={receiveMode} updateLine={updateLine} lineTotal={lineTotal} onRemove={(key) => setLines((current) => current.filter((line) => line.key !== key))} /></section>{receiveMode && <section className="receipt-attachments"><h4>Invoice scan</h4><label className="file-upload-button">Attach invoice scan (PDF/JPG, max 10 MB)<input aria-label="Invoice scan" type="file" accept="application/pdf,image/jpeg" onChange={(event) => { void selectFile(event.target.files?.[0]); event.target.value = ""; }} hidden /></label>{recordAttachments.map((attachment) => <AttachmentItem key={attachment.id} attachment={attachment} />)}{attachments.map((attachment, index) => <AttachmentItem key={`${attachment.original_name}-${index}`} attachment={attachment} onRemove={() => setAttachments((current) => current.filter((_, item) => item !== index))} />)}</section>}<div className="receipt-status-bar" aria-label="Purchase readiness"><strong>{money(total)}</strong><span>{editorMode ? `${activeSupplier ? "Active supplier" : "Supplier needed"} · ${validLines ? "valid lines" : "valid lines needed"}` : `${invoiceNo.trim() && validDate && validLines && hasScan ? "Ready to post" : "Invoice, date, quantities and scan are required"}`}</span></div></>}{error && <p className="error-text" role="alert">{error}</p>}</div></Dialog>}
+  </section>;
+}
+
+function ReceiptLines({ lines, inventory, editable = false, editableQuantity = false, updateLine, lineTotal, onRemove }: { lines: PurchaseFormLine[]; inventory: InventoryItem[]; editable?: boolean; editableQuantity?: boolean; updateLine: (key: string, patch: Partial<InwardPurchaseLineInput>) => void; lineTotal: (line: PurchaseFormLine) => number; onRemove?: (key: string) => void }) {
+  return <div className="receipt-line-grid">{lines.map((line, index) => { const item = inventory.find((candidate) => candidate.id === line.item_id); return <div className="receipt-line-row" key={line.key}>{editable ? <InventoryPicker inventory={inventory} value={line.item_id} onChange={(item_id) => updateLine(line.key, { item_id })} label={`Receipt line ${index + 1} item`} /> : <span>{item?.sku} · {item?.name}</span>}<small>{item?.unit}</small><label>Qty<input aria-label={`Receipt line ${index + 1} quantity`} readOnly={!editable && !editableQuantity} type="number" min="0.01" step="0.01" value={line.received_qty} onChange={(event) => updateLine(line.key, { received_qty: Number(event.target.value) })} /></label>{editable ? <><label>Pre-GST cost<input aria-label={`Receipt line ${index + 1} unit cost`} type="number" min="0" step="0.01" value={line.unit_cost} onChange={(event) => updateLine(line.key, { unit_cost: Number(event.target.value) })} /></label><label>Discount<input aria-label={`Receipt line ${index + 1} discount`} type="number" min="0" step="0.01" value={line.discount} onChange={(event) => updateLine(line.key, { discount: Number(event.target.value) })} /></label><label>GST %<input aria-label={`Receipt line ${index + 1} GST`} type="number" min="0" max="100" step="0.01" value={line.gst_rate} onChange={(event) => updateLine(line.key, { gst_rate: Number(event.target.value) })} /></label></> : <><span>{money(line.unit_cost)}</span><span>{line.gst_rate}% GST</span></>}<strong>{money(lineTotal(line))}</strong>{editable && onRemove && <button type="button" className="danger-action" aria-label={`Remove receipt line ${index + 1}`} onClick={() => onRemove(line.key)}>Remove</button>}</div>; })}</div>;
+}
+
+function PurchaseSnapshot({ record, lines, inventory, supplierName, attachments = [] }: { record: InwardPurchase; lines: PurchaseFormLine[]; inventory: InventoryItem[]; supplierName: (id: number) => string; attachments?: { id: number; original_name: string; mime_type: string; byte_size: number; document_url: string }[] }) {
+  return <div className="submitted-receipt"><section><h4>Purchase details</h4><dl><div><dt>Supplier</dt><dd>{supplierName(record.supplier_id)}</dd></div><div><dt>PO</dt><dd>{record.po_number || "—"}</dd></div><div><dt>Invoice</dt><dd>{record.supplier_invoice_no || "—"}</dd></div><div><dt>Status</dt><dd><span className="status-badge">{record.status === "Submitted" ? "Received" : record.status}</span></dd></div></dl></section><section><h4>Lines</h4><ReceiptLines lines={lines} inventory={inventory} updateLine={() => undefined} lineTotal={(line) => (line.received_qty * line.unit_cost - (line.discount ?? 0)) * (1 + (line.gst_rate ?? 0) / 100)} /></section>{attachments.length > 0 && <section><h4>Invoice scans</h4>{attachments.map((attachment) => <AttachmentItem key={attachment.id} attachment={attachment} />)}</section>}</div>;
 }
 
 function AttachmentItem({ attachment, onRemove }: { attachment: { original_name: string; mime_type: string; byte_size: number; document_url: string }; onRemove?: () => void }) {
@@ -1545,16 +1678,16 @@ function reconciliationState(row: StoreRequestRow) {
   return request.issued_qty > 0 && Math.abs(request.issued_qty - request.used_qty - request.returned_qty - request.wasted_qty) < 0.001 ? "Matched" : "Open";
 }
 
-function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests = [], onOpenJob, onEditStock, onRelease, onNeedsApproval, initialSearch, headerAction }: { kind: StoreListKind; inventory: InventoryItem[]; requests: StoreRequestRow[]; purchases?: StorePurchaseRow[]; purchaseRequests?: Array<{ view: JobView; purchaseRequest: MaterialPurchaseRequest }>; onOpenJob: (id: number) => void; onEditStock?: (item: InventoryItem) => void; onRelease?: (row: StoreRequestRow) => void; onNeedsApproval?: (row: StoreRequestRow) => void; initialSearch?: string; headerAction?: ReactNode }) {
+function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests = [], onOpenJob, onEditStock, onRelease, onNeedsApproval, onReconcile, initialSearch, initialMonth, initialPrimary, headerAction }: { kind: StoreListKind; inventory: InventoryItem[]; requests: StoreRequestRow[]; purchases?: StorePurchaseRow[]; purchaseRequests?: Array<{ view: JobView; purchaseRequest: MaterialPurchaseRequest }>; onOpenJob: (id: number) => void; onEditStock?: (item: InventoryItem) => void; onRelease?: (row: StoreRequestRow) => void; onNeedsApproval?: (row: StoreRequestRow) => void; onReconcile?: (row: StoreRequestRow) => void; initialSearch?: string; initialMonth?: string; initialPrimary?: string; headerAction?: ReactNode }) {
   const [search, setSearch] = useState(initialSearch ?? "");
   const deferredSearch = useDeferredValue(search);
-  const [primary, setPrimary] = useState("ALL");
+  const [primary, setPrimary] = useState(initialPrimary ?? "ALL");
   const [job, setJob] = useState("ALL");
   const [jobSearch, setJobSearch] = useState("");
   const [item, setItem] = useState("ALL");
   const [unit, setUnit] = useState("ALL");
-  const [recordDate, setRecordDate] = useState(() => localCalendarDate());
-  const [recordMonth, setRecordMonth] = useState("");
+  const [recordDate, setRecordDate] = useState(() => initialMonth ? "" : localCalendarDate());
+  const [recordMonth, setRecordMonth] = useState(initialMonth ?? "");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const needle = normalizeSearch(deferredSearch);
@@ -1613,11 +1746,11 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
   const requestColumns: ExportColumn<StoreHistoryRow>[] = [
     { header: "Job Card", value: (row) => row.view.job.job_no }, { header: "Vehicle", value: (row) => row.view.vehicle.number },
     ...(kind === "requests" ? [{ header: "Type", value: (row: StoreHistoryRow) => isLocalPurchase(row) ? "Local purchase" : "Inventory" }] : []),
-    { header: "Item", value: (row) => isLocalPurchase(row) ? row.purchase.item_description : row.item?.name ?? "Unknown" }, { header: "Requested", value: (row) => isLocalPurchase(row) ? `${row.purchase.quantity} ${row.purchase.unit}` : row.request.requested_qty },
+    { header: kind === "reconcile" ? "Item / SKU" : "Item", value: (row) => isLocalPurchase(row) ? row.purchase.item_description : kind === "reconcile" ? `${row.item?.name ?? "Unknown"} · ${row.item?.sku ?? "No SKU"}` : row.item?.name ?? "Unknown" }, { header: "Requested", value: (row) => isLocalPurchase(row) ? `${row.purchase.quantity} ${row.purchase.unit}` : row.request.requested_qty },
     { header: "Issued", value: (row) => isLocalPurchase(row) ? "—" : row.request.issued_qty },
     ...(kind === "reconcile" ? [
       { header: "Used", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.used_qty : "—" }, { header: "Returned", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.returned_qty : "—" },
-      { header: "Wasted", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.wasted_qty : "—" }, { header: "State", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? reconciliationState(row) : "—" },
+      { header: "Wasted", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.wasted_qty : "—" }, { header: "Variance", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? row.request.issued_qty - row.request.used_qty - row.request.returned_qty - row.request.wasted_qty : "—" }, { header: "State", value: (row: StoreHistoryRow) => !isLocalPurchase(row) ? reconciliationState(row) : "—" },
     ] : [{ header: "Status", value: (row: StoreHistoryRow) => isLocalPurchase(row) ? "Local purchase" : requestState(row) }]),
   ];
   const exportReport = kind === "stock"
@@ -1631,7 +1764,7 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
     </div>
     {kind === "requests" && purchaseRequests.length > 0 && <p className="permission-note">{filteredPurchaseRequests.length} new-item purchase request{filteredPurchaseRequests.length === 1 ? "" : "s"} match the current filters. Use Purchase, Stock & Issue to complete a pending request.</p>}
     {kind === "requests" && purchaseRequests.length > 0 && <section className="purchase-request-list" aria-label="New item purchase requests"><h3>New-item purchase requests</h3><table><thead><tr><th>Job</th><th>Item</th><th>Qty</th><th>Status</th><th>Trail</th></tr></thead><tbody>{filteredPurchaseRequests.map(({ view, purchaseRequest }) => <tr key={purchaseRequest.id} className="clickable-row" onClick={() => onOpenJob(view.job.id)}><td>{view.job.job_no}</td><td>{purchaseRequest.item_name}</td><td>{purchaseRequest.quantity} {purchaseRequest.unit}</td><td>{purchaseRequest.status}</td><td>{purchaseRequest.status === "Completed" ? `Inventory #${purchaseRequest.mapped_inventory_item_id} · issued row #${purchaseRequest.material_request_id}` : "Awaiting purchase"}</td></tr>)}</tbody></table></section>}
-    <div className={kind === "stock" ? "store-filter-grid stock-filter-grid" : isMaterialRecordList ? "store-filter-grid material-record-filter-grid" : "store-filter-grid"}>
+    <div className={kind === "stock" ? "store-filter-grid stock-filter-grid" : kind === "reconcile" ? "store-filter-grid reconcile-filter-grid" : isMaterialRecordList ? "store-filter-grid material-record-filter-grid" : "store-filter-grid"}>
       <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={kind === "stock" ? "SKU, item, category or unit" : "Job, vehicle or item"} /></label>
       {kind === "stock" ? <>
         <label>Category<select aria-label="Stock category" value={primary} onChange={(event) => { setPrimary(event.target.value); setPage(1); }}><option value="ALL">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label>
@@ -1647,7 +1780,7 @@ function StoreList({ kind, inventory, requests, purchases = [], purchaseRequests
     </div>
     <PaginationToolbar controls={<ListExportControls report={exportReport} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel={`${title} records per page`} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
     {paged.totalCount === 0 ? <div className="list-empty"><h3>No matching records</h3><p>Adjust the search or clear the filters.</p><FilterClearButton onClick={clearFilters} label="Clear filters" /></div> :
-      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockDisplayColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}{kind === "stock" && onEditStock && <th>Action</th>}{(kind === "issue" || (kind === "requests" && onNeedsApproval)) && <th>Action</th>}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockDisplayColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}{onEditStock && <td><button type="button" className="secondary-action" onClick={() => onEditStock(row)}>Edit</button></td>}</tr>) : (paged.items as StoreHistoryRow[]).map((row) => <tr key={isLocalPurchase(row) ? `purchase-${row.purchase.id}` : `request-${row.request.id}`} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.header === "Job Card" ? <button type="button" className="link-action" onClick={(event) => { event.stopPropagation(); onOpenJob(row.view.job.id); }}>{String(column.value(row))}</button> : column.value(row)}</td>)}{(kind === "issue" || (kind === "requests" && onNeedsApproval)) && <td>{!isLocalPurchase(row) && <div className="grid-actions">{kind === "issue" && onRelease && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); onRelease(row); }}>Release</button>}{onNeedsApproval && ["Requested", "Re-requested"].includes(row.request.status ?? "Requested") && !row.request.invoiced_in && <button type="button" className="secondary-action" onClick={(event) => { event.stopPropagation(); onNeedsApproval(row); }}>Needs Approval</button>}</div>}</td>}</tr>)}</tbody></table></div>}
+      <div className="table-wrap"><table aria-label={`${title} results`}><thead><tr>{(kind === "stock" ? stockDisplayColumns : requestColumns).map((column) => <th key={column.header}>{column.header}</th>)}{kind === "stock" && onEditStock && <th>Action</th>}{(kind === "issue" || (kind === "requests" && onNeedsApproval) || kind === "reconcile") && <th>Action</th>}</tr></thead><tbody>{kind === "stock" ? (paged.items as InventoryItem[]).map((row) => <tr key={row.id}>{stockDisplayColumns.map((column) => <td key={column.header}>{column.value(row)}</td>)}{onEditStock && <td><button type="button" className="secondary-action" onClick={() => onEditStock(row)}>Edit</button></td>}</tr>) : (paged.items as StoreHistoryRow[]).map((row) => <tr key={isLocalPurchase(row) ? `purchase-${row.purchase.id}` : `request-${row.request.id}`} className="clickable-row" onClick={() => onOpenJob(row.view.job.id)}>{requestColumns.map((column) => <td key={column.header}>{column.header === "Job Card" ? <button type="button" className="link-action" onClick={(event) => { event.stopPropagation(); onOpenJob(row.view.job.id); }}>{String(column.value(row))}</button> : column.header === "State" && kind === "reconcile" && !isLocalPurchase(row) ? <span className={`store-material-status store-material-status-${reconciliationState(row).toLowerCase()}`}>{reconciliationState(row)}</span> : column.value(row)}</td>)}{(kind === "issue" || (kind === "requests" && onNeedsApproval) || kind === "reconcile") && <td>{!isLocalPurchase(row) && <div className="grid-actions store-material-actions">{kind === "issue" && onRelease && <button type="button" className="primary-action" onClick={(event) => { event.stopPropagation(); onRelease(row); }}>Release</button>}{onNeedsApproval && ["Requested", "Re-requested"].includes(row.request.status ?? "Requested") && !row.request.invoiced_in && <button type="button" className="secondary-action" onClick={(event) => { event.stopPropagation(); onNeedsApproval(row); }}>Needs Approval</button>}{kind === "reconcile" && onReconcile && <button type="button" className="store-material-action" onClick={(event) => { event.stopPropagation(); onReconcile(row); }}>{reconciliationState(row) === "Matched" ? "Edit Reconciliation" : "Reconcile"}</button>}</div>}</td>}</tr>)}</tbody></table></div>}
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
   </div>;
 }
@@ -1705,8 +1838,8 @@ function Accounts({ activeMenuItem, state, view, mutate, setSelectedJobId, actor
   return <BillingManager mode={mode} state={state} actor={actor} mutate={mutate} />;
 }
 
-function MaterialApprovalQueue({ state, actor, mutate, setSelectedJobId }: { state: WorkshopState; actor: User; mutate: Mutate; setSelectedJobId: (id: number) => void }) {
-  const pending = state.jobs.filter((view) => view.material_approval?.status === "Pending");
+function MaterialApprovalQueue({ state, actor, mutate, setSelectedJobId, initialMonth }: { state: WorkshopState; actor: User; mutate: Mutate; setSelectedJobId: (id: number) => void; initialMonth?: string }) {
+  const pending = state.jobs.filter((view) => view.material_approval?.status === "Pending" && (!initialMonth || view.material_approval?.submitted_at?.slice(0, 7) === initialMonth));
   const [reviewing, setReviewing] = useState<JobView>();
   const [viewing, setViewing] = useState<JobView>();
   const [reason, setReason] = useState("");
@@ -1719,11 +1852,11 @@ function MaterialApprovalQueue({ state, actor, mutate, setSelectedJobId }: { sta
   return <section className="workspace single-panel"><div className="desk-panel"><PanelTitle icon={<ShieldCheck />} title="Approvals" subtitle={`${pending.length} pending job-level material approval${pending.length === 1 ? "" : "s"}`} />{pending.length ? <div className="table-wrap"><table aria-label="Pending material approvals"><thead><tr><th>Job Card</th><th>Vehicle / Customer</th><th>Store user</th><th>Submitted</th><th>Job status</th><th>Outstanding materials</th><th>Actions</th></tr></thead><tbody>{pending.map((view) => { const approval = view.material_approval!; const requester = state.users.find((user) => user.id === approval.submitted_by)?.name ?? "Store"; const materials = view.material_requests.filter((row) => ["Requested", "Re-requested"].includes(row.status ?? "Requested")).map((row) => `${state.inventory.find((item) => item.id === row.item_id)?.name ?? `Item ${row.item_id}`} × ${row.requested_qty}`).join(", "); return <tr key={approval.id}><td><button className="link-action" onClick={() => { setSelectedJobId(view.job.id); setViewing(view); }}>{view.job.job_no}</button></td><td>{view.vehicle.number} · {view.customer.name}</td><td>{requester}</td><td>{formatTimestamp(approval.submitted_at)}</td><td><Status status={view.job.main_status} sub={view.job.sub_status} /></td><td>{materials || "No outstanding rows"}</td><td><button className="primary-action" onClick={() => setReviewing(view)}>Review</button></td></tr>; })}</tbody></table></div> : <div className="list-empty"><h3>No pending approvals</h3><p>Store material approval requests will appear here.</p></div>}</div>{viewing && <JobRecordDialog view={viewing} state={state} mutate={mutate} actor={actor} mode="view" onClose={() => setViewing(undefined)} />}{reviewing && <Dialog title="Review material approval" subtitle={`${reviewing.job.job_no} · decision controls`} onClose={() => setReviewing(undefined)} footer={<><button type="button" className="secondary-action" onClick={() => decide("Approved")}>Approve</button><button type="button" className="danger-action" onClick={() => decide("Rejected")}>Reject</button></>}><p>Approve restores the retained requested rows for Store issue. Reject keeps the job on HOLD for the linked Service Advisor to correct.</p><label>Rejection reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} required placeholder="Required when rejecting" /></label>{error && <p className="error-text" role="alert">{error}</p>}</Dialog>}</section>;
 }
 
-function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig, onNavigate }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User; cognitoConfig?: CognitoConfig; onNavigate: (label: string) => void }) {
+function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig, onNavigate, onDashboardNavigate, dashboardDrilldown, onThemeSaved }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User; cognitoConfig?: CognitoConfig; onNavigate: (label: string) => void; onDashboardNavigate: (drilldown: DashboardDrilldown) => void; dashboardDrilldown?: DashboardDrilldown; onThemeSaved: (theme: AppTheme) => void }) {
   if (activeMenuItem === "Data Flow") {
     return <DataFlowWorkspace jobs={state.jobs} users={state.users} />;
   }
-  if (activeMenuItem === "Approvals") return <MaterialApprovalQueue state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
+  if (activeMenuItem === "Approvals") return <MaterialApprovalQueue state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} initialMonth={dashboardDrilldown?.month} />;
   if (activeMenuItem === "Job Cards") {
     return (
       <section className="workspace two-panel">
@@ -1744,36 +1877,19 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user
       </section>
     );
   }
-  if (activeMenuItem === "Masters") {
-    return (
-      <section className="workspace masters-grid">
-        <div className="desk-panel board-heading">
-          <PanelTitle icon={<Boxes />} title="Masters" subtitle="Users, inventory and vehicle records" />
-        </div>
-        <div className="desk-panel">
-          <PanelTitle icon={<UserRound />} title="Users" subtitle="Demo login roles" />
-          {state.users.map((item) => (
-            <Info key={item.id} label={item.name} value={roleLabels[item.role]} />
-          ))}
-        </div>
-        <InventoryEditor state={state} mutate={mutate} />
-        <VehicleMasterPanel state={state} value={state.vehicles[0] ?? { id: 0, customer_id: state.customers[0]?.id ?? 0, number: "", make: "", model: "", color: "", km: 0 }} setValue={() => undefined} mutate={mutate} />
-      </section>
-    );
-  }
   if (activeMenuItem === "Manage") {
     return <ManagementHub state={state} mutate={mutate} actingUser={user} selected={selected} setSelectedJobId={setSelectedJobId} cognitoConfig={cognitoConfig} />;
   }
   if (activeMenuItem === "Admin Console") {
-    return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} />;
+    return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} />;
   }
-  return <OperationalDashboard state={state} onNavigate={onNavigate} />;
+  return <OperationalDashboard state={state} onNavigate={onDashboardNavigate} />;
 }
 
-type DashboardMetric = { label: string; value: string | number; tone: string; destination: string; primary?: boolean };
-type DashboardCard = { title: string; subtitle: string; tone: string; destination: string; action: string; metrics: DashboardMetric[] };
+type DashboardMetric = { label: string; value: string | number; tone: string; drilldown: DashboardDrilldown };
+type DashboardCard = { title: string; subtitle: string; tone: string; action: string; drilldown: DashboardDrilldown; metrics: DashboardMetric[] };
 
-function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onNavigate: (label: string) => void }) {
+function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onNavigate: (drilldown: DashboardDrilldown) => void }) {
   const today = localCalendarDate();
   const currentMonth = today.slice(0, 7);
   const dates = state.jobs.flatMap((view) => [view.visit.received_at, view.job.closed_at, view.invoice?.created_at, ...view.payments.map((payment) => payment.created_at), ...view.material_requests.map((request) => request.created_at)]).filter((value): value is string => Boolean(value));
@@ -1783,44 +1899,47 @@ function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onN
   const monthlyJobs = state.jobs.filter((view) => inMonth(view.visit.received_at));
   const payments = state.jobs.flatMap((view) => view.payments).filter((payment) => !payment.voided_at && inMonth(payment.created_at));
   const invoicesCreated = state.jobs.filter((view) => !view.invoice?.voided_at && inMonth(view.invoice?.created_at)).length;
-  const materialRequests = state.jobs.flatMap((view) => view.material_requests).filter((request) => inMonth(request.created_at)).length;
+  const materialRequests = state.jobs.flatMap((view) => view.material_requests).filter((request) => inMonth(request.created_at));
+  const pendingApprovals = state.jobs.filter((view) => view.material_approval?.status === "Pending" && inMonth(view.material_approval?.submitted_at)).length;
+  const issuedMaterials = materialRequests.filter((request) => request.issued_qty > 0 || request.status === "Issued").length;
   const actualCollection = payments.reduce((total, payment) => total + payment.amount, 0);
   const [year, month] = reportingMonth.split("-").map(Number);
   const daysInReportingMonth = Number.isFinite(year) && Number.isFinite(month) ? new Date(year, month, 0).getDate() : 0;
   const elapsedDays = reportingMonth === currentMonth ? Number(today.slice(-2)) : daysInReportingMonth;
-  const projectedCollection = elapsedDays > 0 ? actualCollection / elapsedDays * daysInReportingMonth : 0;
   const monthLabel = new Date(`${reportingMonth}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" });
-  const openToday = state.jobs.filter((view) => view.visit.received_at.slice(0, 10) === today && !["CLOSED", "CANCELLED"].includes(view.job.main_status)).length;
+  const activeToday = state.jobs.filter((view) => view.visit.received_at.slice(0, 10) === today && !["CLOSED", "CANCELLED"].includes(view.job.main_status)).length;
   const lowStock = state.inventory.filter((item) => item.stock_qty < item.low_stock_qty).length;
+  const customersServed = new Set(monthlyJobs.map((view) => view.customer.id)).size;
+  const vehiclesServed = new Set(monthlyJobs.map((view) => view.vehicle.id)).size;
   const cards: DashboardCard[] = [
-    { title: "Job Card Summary", subtitle: `${monthLabel} operational flow`, tone: "flow", destination: "Job Cards", action: "View job cards", metrics: [
-      { label: "Open today", value: openToday, tone: "active", destination: "Job Cards", primary: true },
-      { label: "Received job cards", value: monthlyJobs.length, tone: "received", destination: "Job Cards" },
-      { label: "Closed", value: monthlyJobs.filter((view) => view.job.main_status === "CLOSED").length, tone: "closed", destination: "Job Cards" },
-      { label: "In progress", value: monthlyJobs.filter((view) => view.job.main_status === "IN_PROGRESS").length, tone: "progress", destination: "Job Cards" },
-      { label: "On hold", value: monthlyJobs.filter((view) => view.job.main_status === "HOLD").length, tone: "hold", destination: "Job Cards" },
+    { title: "Workshop flow", subtitle: `${monthLabel} job-card activity`, tone: "flow", action: "View today's active jobs", drilldown: { destination: "Job Cards", date: today, status: "ACTIVE" }, metrics: [
+      { label: "Active today", value: activeToday, tone: "active", drilldown: { destination: "Job Cards", date: today, status: "ACTIVE" } },
+      { label: "Total visits", value: monthlyJobs.length, tone: "received", drilldown: { destination: "Job Cards", month: reportingMonth } },
+      { label: "In progress", value: monthlyJobs.filter((view) => view.job.main_status === "IN_PROGRESS").length, tone: "progress", drilldown: { destination: "Job Cards", month: reportingMonth, status: "IN_PROGRESS" } },
+      { label: "Closed", value: monthlyJobs.filter((view) => view.job.main_status === "CLOSED").length, tone: "closed", drilldown: { destination: "Job Cards", month: reportingMonth, status: "CLOSED" } },
+      { label: "On hold", value: monthlyJobs.filter((view) => view.job.main_status === "HOLD").length, tone: "hold", drilldown: { destination: "Job Cards", month: reportingMonth, status: "HOLD" } },
     ] },
-    { title: "Customers & Vehicles", subtitle: "Workshop records at a glance", tone: "reach", destination: "Customers", action: "View customer records", metrics: [
-      { label: "Customers", value: state.customers.length, tone: "customers", destination: "Customers", primary: true },
-      { label: "Vehicles", value: state.vehicles.length, tone: "vehicles", destination: "Vehicles" },
+    { title: "Cashflow", subtitle: `${monthLabel} billing activity`, tone: "cashflow", action: "View payments", drilldown: { destination: "Search", month: reportingMonth, category: "payment" }, metrics: [
+      { label: "Payments received", value: money(actualCollection), tone: "payments", drilldown: { destination: "Search", month: reportingMonth, category: "payment" } },
+      { label: "Invoices generated", value: invoicesCreated, tone: "invoices", drilldown: { destination: "Search", month: reportingMonth, category: "invoice" } },
     ] },
-    { title: "Inventory Summary", subtitle: "Stock and request attention", tone: "inventory", destination: "Stock", action: "View inventory blockers", metrics: [
-      { label: "Materials requested", value: materialRequests, tone: "requests", destination: "Stock", primary: true },
-      { label: "Low-stock items", value: lowStock, tone: "low-stock", destination: "Stock" },
+    { title: "Customer reach", subtitle: `${monthLabel} visits served`, tone: "reach", action: "View customers served", drilldown: { destination: "Customers", month: reportingMonth, served: "customers" }, metrics: [
+      { label: "Customers served", value: customersServed, tone: "customers", drilldown: { destination: "Customers", month: reportingMonth, served: "customers" } },
+      { label: "Vehicles served", value: vehiclesServed, tone: "vehicles", drilldown: { destination: "Vehicles", month: reportingMonth, served: "vehicles" } },
     ] },
-    { title: "Collections", subtitle: `${monthLabel} billing performance`, tone: "cashflow", destination: "Search", action: "View payments", metrics: [
-      { label: "Invoices created", value: invoicesCreated, tone: "invoices", destination: "Search" },
-      { label: "Payments cleared", value: payments.length, tone: "payments", destination: "Search" },
-      { label: "Actual monthly collection", value: money(actualCollection), tone: "collection", destination: "Search", primary: true },
-      { label: "Projected month-end collection", value: money(projectedCollection), tone: "projection", destination: "Search" },
+    { title: "Inventory watch", subtitle: `${monthLabel} materials attention`, tone: "inventory", action: "View low-stock blockers", drilldown: { destination: "Stock", stockTab: "Low Stock" }, metrics: [
+      { label: "Low-stock items", value: lowStock, tone: "low-stock", drilldown: { destination: "Stock", stockTab: "Low Stock" } },
+      { label: "Pending approvals", value: pendingApprovals, tone: "approvals", drilldown: { destination: "Approvals", month: reportingMonth } },
+      { label: "Material requests", value: materialRequests.length, tone: "requests", drilldown: { destination: "Material Requests", month: reportingMonth } },
+      { label: "Materials issued", value: issuedMaterials, tone: "issued", drilldown: { destination: "Issue Material", month: reportingMonth, status: "Issued" } },
     ] },
   ];
   return <section className="workspace operational-dashboard" aria-label="Workshop command center">
     <header className="command-header"><div><p className="command-kicker">Workshop command center</p><h1>Operational dashboard</h1><p>Live job flow, customer reach, stock attention and collections.</p></div><label>Reporting month<select aria-label="Dashboard reporting month" value={reportingMonth} onChange={(event) => setReportingMonth(event.target.value)}>{months.map((monthValue) => <option key={monthValue} value={monthValue}>{new Date(`${monthValue}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label></header>
-    <div className="command-grid">{cards.map((card) => <article key={card.title} className={`command-card command-${card.tone}`} tabIndex={0} onClick={() => onNavigate(card.destination)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onNavigate(card.destination); } }}>
+    <div className="command-grid">{cards.map((card) => <article key={card.title} className={`command-card command-${card.tone}`} tabIndex={0} onClick={() => onNavigate(card.drilldown)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onNavigate(card.drilldown); } }}>
       <div className="command-card-heading"><div><h2>{card.title}</h2><p>{card.subtitle}</p></div></div>
-      <div className="command-metrics">{card.metrics.map((metric) => <button type="button" key={metric.label} className={`command-metric metric-${metric.tone}${metric.primary ? " command-metric-primary" : ""}`} aria-label={`Open ${metric.label}: ${metric.value}`} onClick={(event) => { event.stopPropagation(); onNavigate(metric.destination); }}><span>{metric.label}</span><strong>{metric.value}</strong></button>)}</div>
-      <div className="command-card-footer"><button type="button" className="command-card-open" aria-label={card.action} onClick={(event) => { event.stopPropagation(); onNavigate(card.destination); }}>{card.action} <ChevronRight size={14} /></button></div>
+      <div className="command-metrics">{card.metrics.map((metric) => <button type="button" key={metric.label} className={`command-metric metric-${metric.tone}`} aria-label={`Open ${metric.label}: ${metric.value}`} onClick={(event) => { event.stopPropagation(); onNavigate(metric.drilldown); }}><span>{metric.label}</span><strong>{metric.value}</strong></button>)}</div>
+      <div className="command-card-footer"><button type="button" className="command-card-open" aria-label={card.action} onClick={(event) => { event.stopPropagation(); onNavigate(card.drilldown); }}>{card.action} <ChevronRight size={14} /></button></div>
     </article>)}</div>
   </section>;
 }
@@ -2596,15 +2715,39 @@ function MaterialApprovalSubmitDialog({ row, actor, mutate, onClose }: { row: St
   return <Dialog title="Send job for material approval" subtitle={`${row.view.job.job_no} · all outstanding requested materials`} onClose={onClose} footer={<><button type="button" className="secondary-action" onClick={onClose}>Cancel</button><button type="button" className="primary-action" onClick={submit}>Needs Approval</button></>}><p>This holds the job and sends one consolidated material request to Admin. Store cannot issue or change materials until a decision is made.</p>{error && <p className="error-text" role="alert">{error}</p>}</Dialog>;
 }
 
-function ReconcileEditor({ requests, mutate }: { requests: { view: JobView; request: MaterialRequest; item?: InventoryItem }[]; mutate: Mutate }) {
-  const selected = requests[0]?.request;
-  const [requestId, setRequestId] = useState(selected?.id ?? 0);
-  const request = requests.find((item) => item.request.id === requestId)?.request ?? selected;
-  const [used, setUsed] = useState(request?.used_qty ?? 0);
-  const [returned, setReturned] = useState(request?.returned_qty ?? 0);
-  const [wasted, setWasted] = useState(request?.wasted_qty ?? 0);
-  const variance = (request?.issued_qty ?? 0) - used - returned - wasted;
-  return <form className="desk-panel" onSubmit={(event) => { event.preventDefault(); mutate((db) => reconcileMaterialQty(db, requestId, used, returned, wasted)); }}><PanelTitle icon={<Check />} title="Reconcile Material" subtitle={`Variance ${variance}`} /><select value={requestId} onChange={(event) => setRequestId(Number(event.target.value))}>{requests.map(({ view, request: item, item: stock }) => <option key={item.id} value={item.id}>{view.job.job_no} / {stock?.name}</option>)}</select><div className="form-grid"><label>Used<input type="number" value={used} onChange={(event) => setUsed(Number(event.target.value))} /></label><label>Returned<input type="number" value={returned} onChange={(event) => setReturned(Number(event.target.value))} /></label><label>Wasted<input type="number" value={wasted} onChange={(event) => setWasted(Number(event.target.value))} /></label></div><button className="primary-action">Save Reconciliation</button></form>;
+function ReconcileEditor({ row, mutate, onClose }: { row: StoreRequestRow; mutate: Mutate; onClose: () => void }) {
+  const { view, request, item } = row;
+  const [used, setUsed] = useState(String(request.used_qty));
+  const [returned, setReturned] = useState(String(request.returned_qty));
+  const [wasted, setWasted] = useState(String(request.wasted_qty));
+  const [zeroRecordedAcknowledged, setZeroRecordedAcknowledged] = useState(false);
+  const [error, setError] = useState("");
+  const quantities = [used, returned, wasted].map((value) => value.trim() === "" ? Number.NaN : Number(value));
+  const quantitiesValid = quantities.every((quantity) => Number.isFinite(quantity) && quantity >= 0);
+  const [usedQty, returnedQty, wastedQty] = quantities;
+  const total = usedQty + returnedQty + wastedQty;
+  const withinIssued = quantitiesValid && total <= request.issued_qty;
+  const variance = request.issued_qty - total;
+  const state = withinIssued && Math.abs(variance) < 0.001 ? "Matched" : "Open";
+  const needsZeroAcknowledgement = returnedQty === 0 && wastedQty === 0;
+  const canSave = withinIssued && (!needsZeroAcknowledgement || zeroRecordedAcknowledged);
+  const changeQuantity = (setter: (value: string) => void) => (event: React.ChangeEvent<HTMLInputElement>) => { setter(event.target.value); setZeroRecordedAcknowledged(false); setError(""); };
+  const submit = (event: FormEvent) => {
+    event.preventDefault();
+    setError("");
+    if (!quantitiesValid) { setError("Enter finite, non-negative quantities."); return; }
+    if (!withinIssued) { setError(`Reconciliation total cannot exceed the ${request.issued_qty} issued.`); return; }
+    if (needsZeroAcknowledgement && !zeroRecordedAcknowledged) { setError("Confirm that neither returned material nor wastage is being recorded."); return; }
+    if (mutate((db) => reconcileMaterialQty(db, request.id, usedQty, returnedQty, wastedQty), setError)) onClose();
+  };
+  return <Dialog wide title="Reconcile Material" subtitle={`${view.job.job_no} · ${view.vehicle.number}`} onClose={onClose} footer={<><button type="button" className="secondary-action" onClick={onClose}>Cancel</button><button type="submit" form="reconcile-material-form" className="primary-action" disabled={!canSave}>Save Reconciliation</button></>}><form id="reconcile-material-form" className="reconcile-dialog-form" onSubmit={submit}>
+    <dl className="reconciliation-context"><div><dt>Job card</dt><dd>{view.job.job_no}</dd></div><div><dt>Vehicle</dt><dd>{view.vehicle.number}</dd></div><div><dt>Customer</dt><dd>{view.customer.name}</dd></div><div><dt>Item</dt><dd>{item?.name ?? "Unknown"}</dd></div><div><dt>SKU</dt><dd>{item?.sku ?? "No SKU"}</dd></div><div><dt>Issued</dt><dd>{request.issued_qty} {item?.unit ?? ""}</dd></div></dl>
+    <div className="form-grid"><label>Used<input data-dialog-initial-focus aria-label="Used quantity" type="number" min="0" step="any" value={used} onChange={changeQuantity(setUsed)} /></label><label>Returned<input aria-label="Returned quantity" type="number" min="0" step="any" value={returned} onChange={changeQuantity(setReturned)} /></label><label>Wasted<input aria-label="Wasted quantity" type="number" min="0" step="any" value={wasted} onChange={changeQuantity(setWasted)} /></label></div>
+    <p className="reconciliation-equation">{request.issued_qty} issued = {Number.isFinite(usedQty) ? usedQty : "—"} used + {Number.isFinite(returnedQty) ? returnedQty : "—"} returned + {Number.isFinite(wastedQty) ? wastedQty : "—"} wasted + {Number.isFinite(variance) ? variance : "—"} variance</p>
+    <p className={`reconciliation-state ${state.toLowerCase()}`}>State: {state} · Variance: {Number.isFinite(variance) ? variance : "—"}</p>
+    {needsZeroAcknowledgement && <label className="checkbox-line"><input aria-label="Confirm no return or wastage" type="checkbox" checked={zeroRecordedAcknowledged} onChange={(event) => { setZeroRecordedAcknowledged(event.target.checked); setError(""); }} /> I confirm that neither returned material nor wastage is being recorded.</label>}
+    {error && <p className="error-text" role="alert">{error}</p>}
+  </form></Dialog>;
 }
 
 const emptyInventoryItem = (): InventoryItem => ({ id: 0, sku: "", category: "", name: "", unit: "piece", stock_qty: 0, low_stock_qty: 0, selling_price: 0 });
@@ -3249,15 +3392,16 @@ function DuplicateDataFlow({ view }: { view: JobView }) {
 type EntityKind = "jobs" | "customers" | "vehicles" | "media";
 type EntityFilters = { search: string; primary: string; secondary: string; date: string; month: string; customer: string; vehicle: string; advisor: string; sort: string; archivedOnly: boolean };
 
-function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSelectionConsumed }: { kind: EntityKind; state: WorkshopState; mutate: Mutate; actor: User; initialSelectedId?: number; onInitialSelectionConsumed?: () => void }) {
+function EntityList({ kind, state, mutate, actor, initialFilters, initialSelectedId, onInitialSelectionConsumed, externalSearch, onExternalSearchChange, hideSearch = false }: { kind: EntityKind; state: WorkshopState; mutate: Mutate; actor: User; initialFilters?: Partial<EntityFilters>; initialSelectedId?: number; onInitialSelectionConsumed?: () => void; externalSearch?: string; onExternalSearchChange?: (value: string) => void; hideSearch?: boolean }) {
   const { role, id: userId } = actor;
   const emptyFilters: EntityFilters = { search: "", primary: "ALL", secondary: "ALL", date: "", month: "", customer: "ALL", vehicle: "ALL", advisor: "ALL", sort: kind === "jobs" ? "newest" : "alphabetical", archivedOnly: false };
-  const [filters, setFilters] = useState<EntityFilters>(emptyFilters);
+  const [filters, setFilters] = useState<EntityFilters>({ ...emptyFilters, ...initialFilters });
   const [page, setPage] = useState(1);
   const { search, primary: filter, secondary: secondaryFilter, date: dateFilter, month: monthFilter, customer: customerFilter, vehicle: vehicleFilter, advisor: advisorFilter, sort, archivedOnly } = filters;
   const updateFilters = (patch: Partial<EntityFilters>) => { setFilters((current) => ({ ...current, ...patch })); setPage(1); };
-  const clearFilters = () => { setFilters(emptyFilters); setPage(1); };
-  const deferredSearch = useDeferredValue(search);
+  const clearFilters = () => { setFilters(emptyFilters); onExternalSearchChange?.(""); setPage(1); };
+  const effectiveSearch = externalSearch ?? search;
+  const deferredSearch = useDeferredValue(effectiveSearch);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [viewMode, setViewMode] = useState<ViewMode>("grid");
   const [selectedId, setSelectedId] = useState<number | undefined>(initialSelectedId);
@@ -3280,7 +3424,7 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
     return source.filter((item) => {
       const matchesText = !needle || normalizeSearch(`${item.job.job_no} ${item.vehicle.number} ${item.vehicle.make} ${item.vehicle.model} ${item.customer.name} ${item.customer.mobile}`).includes(needle);
       return matchesText
-        && (filter === "ALL" || item.job.main_status === filter)
+        && (filter === "ALL" || (filter === "ACTIVE" ? !["CLOSED", "CANCELLED"].includes(item.job.main_status) : item.job.main_status === filter))
         && (secondaryFilter === "ALL" || item.job.sub_status === secondaryFilter)
         && (!dateFilter || item.visit.received_at.slice(0, 10) === dateFilter)
         && (!monthFilter || item.visit.received_at.slice(0, 7) === monthFilter)
@@ -3297,8 +3441,8 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
   const customers = useMemo(() => {
     const needle = normalizeSearch(deferredSearch);
     const source = archivedOnly && role === "admin" ? state.archived_customers : state.customers;
-    return source.filter((item) => (!needle || normalizeSearch(`${item.name} ${item.mobile}`).includes(needle)) && (filter === "ALL" || item.type === filter)).sort((a, b) => sort === "recent" ? b.id - a.id : a.name.localeCompare(b.name));
-  }, [deferredSearch, filter, sort, archivedOnly, role, state.customers, state.archived_customers]);
+    return source.filter((item) => (!needle || normalizeSearch(`${item.name} ${item.mobile}`).includes(needle)) && (filter === "ALL" || item.type === filter) && (!monthFilter || state.jobs.some((view) => view.customer.id === item.id && view.visit.received_at.slice(0, 7) === monthFilter))).sort((a, b) => sort === "recent" ? b.id - a.id : a.name.localeCompare(b.name));
+  }, [deferredSearch, filter, monthFilter, sort, archivedOnly, role, state.jobs, state.customers, state.archived_customers]);
 
   const vehicles = useMemo(() => {
     const needle = normalizeSearch(deferredSearch);
@@ -3306,9 +3450,9 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
     const owners = archivedOnly && role === "admin" ? [...state.customers, ...state.archived_customers] : state.customers;
     return source.filter((item) => {
       const owner = owners.find((customer) => customer.id === item.customer_id)?.name ?? "";
-      return !needle || normalizeSearch(`${item.number} ${item.make} ${item.model} ${owner}`).includes(needle);
+      return (!needle || normalizeSearch(`${item.number} ${item.make} ${item.model} ${owner}`).includes(needle)) && (!monthFilter || state.jobs.some((view) => view.vehicle.id === item.id && view.visit.received_at.slice(0, 7) === monthFilter));
     }).sort((a, b) => sort === "recent" ? b.id - a.id : a.number.localeCompare(b.number));
-  }, [deferredSearch, sort, archivedOnly, role, state.vehicles, state.archived_vehicles, state.customers, state.archived_customers]);
+  }, [deferredSearch, monthFilter, sort, archivedOnly, role, state.jobs, state.vehicles, state.archived_vehicles, state.customers, state.archived_customers]);
 
   const mediaJobs = useMemo(() => {
     if (archivedOnly && role === "admin") return [...state.jobs, ...state.archived_jobs];
@@ -3359,6 +3503,7 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
   const dialogVehicle = kind === "vehicles" && selectedId !== undefined ? (archivedOnly ? state.archived_vehicles : state.vehicles).find((item) => item.id === selectedId) : undefined;
   const categories = Array.from(new Set(mediaJobs.flatMap((job) => (archivedOnly ? (job.photo_history ?? []).filter((photo) => photo.archived_at) : job.photos).map((photo) => photo.category || "General")))).sort();
   const customerTypes = Array.from(new Set(state.customers.map((customer) => customer.type))).sort();
+  const servedMonths = Array.from(new Set(state.jobs.map((view) => view.visit.received_at.slice(0, 7)).filter((value) => /^\d{4}-\d{2}$/.test(value)))).sort().reverse();
   const jobCustomerOptions = Array.from(new Map(state.jobs.map((item) => [item.customer.id, item.customer])).values()).sort((a, b) => a.name.localeCompare(b.name));
   const jobVehicleOptions = Array.from(new Map(state.jobs.map((item) => [item.vehicle.id, item.vehicle])).values()).sort((a, b) => a.number.localeCompare(b.number));
   const jobAdvisorOptions = Array.from(new Map(state.jobs.map((item) => [item.advisor.id, item.advisor])).values()).sort((a, b) => a.name.localeCompare(b.name));
@@ -3367,19 +3512,19 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
   const createLabel = kind === "customers" ? "Add Customer" : kind === "vehicles" ? "Add Vehicle" : "Upload Media";
   const exportFilters = activeFilterSummary(kind === "jobs"
     ? {
-        Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No", "Main status": filter, Workflow: secondaryFilter, Sort: sort,
+        Search: effectiveSearch.trim(), "Show archived only": archivedOnly ? "Yes" : "No", "Main status": filter, Workflow: secondaryFilter, Sort: sort,
         "Received date": dateFilter, "Received month": monthFilter,
         Customer: customerFilter === "ALL" ? "ALL" : jobCustomerOptions.find((item) => String(item.id) === customerFilter)?.name ?? customerFilter,
         Vehicle: vehicleFilter === "ALL" ? "ALL" : jobVehicleOptions.find((item) => String(item.id) === vehicleFilter)?.number ?? vehicleFilter,
         Advisor: advisorFilter === "ALL" ? "ALL" : jobAdvisorOptions.find((item) => String(item.id) === advisorFilter)?.name ?? advisorFilter,
       }
-    : kind === "customers" ? { Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No", "Customer type": filter, Sort: sort }
+    : kind === "customers" ? { Search: effectiveSearch.trim(), "Show archived only": archivedOnly ? "Yes" : "No", "Customer type": filter, "Served month": monthFilter, Sort: sort }
     : kind === "media" ? {
-        Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No",
+        Search: effectiveSearch.trim(), "Show archived only": archivedOnly ? "Yes" : "No",
         "Job card": filter === "ALL" ? "ALL" : mediaJobs.find((row) => String(row.job.id) === filter)?.job.job_no ?? filter,
         Category: secondaryFilter, "Received date": dateFilter, "Month-Year": dateFilter ? "" : monthFilter,
       }
-    : { Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No", Sort: sort });
+    : { Search: effectiveSearch.trim(), "Show archived only": archivedOnly ? "Yes" : "No", "Served month": monthFilter, Sort: sort });
   const exportColumns: ExportColumn<any>[] = kind === "jobs" ? [
     { header: "Job", value: (row: JobView) => row.job.job_no }, { header: "Vehicle", value: (row: JobView) => `${row.vehicle.number} ${row.vehicle.make} ${row.vehicle.model}` },
     { header: "Customer", value: (row: JobView) => row.customer.name }, { header: "Status", value: (row: JobView) => row.job.main_status },
@@ -3404,7 +3549,7 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
       {kind === "vehicles" && <VehicleMasterPanel embedded state={state} value={{ id: 0, customer_id: state.customers[0]?.id ?? 0, number: "", make: "", model: "", color: "", km: 0 }} setValue={() => undefined} mutate={mutate} />}
     </Dialog>}
     <div className="list-filter-bar">
-      <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={filters.search} placeholder={searchPlaceholder(kind)} onChange={(event) => updateFilters({ search: event.target.value })} /></label>
+      {!hideSearch && <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={effectiveSearch} placeholder={searchPlaceholder(kind)} onChange={(event) => onExternalSearchChange ? onExternalSearchChange(event.target.value) : updateFilters({ search: event.target.value })} /></label>}
       <button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}>{filtersOpen ? "Hide filters" : "Show filters"}</button>
       <div className={filtersOpen ? "list-filter-fields open" : "list-filter-fields"}>
         {role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show archived only" checked={archivedOnly} onChange={(event) => { updateFilters({ archivedOnly: event.target.checked }); setSelectedId(undefined); }} /> Show archived only</label>}
@@ -3417,7 +3562,8 @@ function EntityList({ kind, state, mutate, actor, initialSelectedId, onInitialSe
           <label>Vehicle<select aria-label="Vehicle filter" value={filters.vehicle} onChange={(event) => updateFilters({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{jobVehicleOptions.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>
           <label>Service advisor<select aria-label="Service advisor filter" value={filters.advisor} onChange={(event) => updateFilters({ advisor: event.target.value })}><option value="ALL">All advisors</option>{jobAdvisorOptions.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
         </>}
-        {kind === "customers" && <label>Customer type<select aria-label="Customer type" value={filters.primary} onChange={(event) => updateFilters({ primary: event.target.value })}><option value="ALL">All types</option>{customerTypes.map((value) => <option key={value}>{value}</option>)}</select></label>}
+        {kind === "customers" && <><label>Customer type<select aria-label="Customer type" value={filters.primary} onChange={(event) => updateFilters({ primary: event.target.value })}><option value="ALL">All types</option>{customerTypes.map((value) => <option key={value}>{value}</option>)}</select></label><label>Served month<select aria-label="Customer served month" value={filters.month} onChange={(event) => updateFilters({ month: event.target.value })}><option value="">All months</option>{servedMonths.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></>}
+        {kind === "vehicles" && <label>Served month<select aria-label="Vehicle served month" value={filters.month} onChange={(event) => updateFilters({ month: event.target.value })}><option value="">All months</option>{servedMonths.map((value) => <option key={value} value={value}>{value}</option>)}</select></label>}
         {kind === "media" && <><label>Job card<select aria-label="Job card filter" value={filters.primary} onChange={(event) => updateFilters({ primary: event.target.value })}><option value="ALL">All job cards</option>{mediaJobs.map((item) => <option value={item.job.id} key={item.job.id}>{item.job.job_no}</option>)}</select></label><label>Category<select aria-label="Media category" value={filters.secondary} onChange={(event) => updateFilters({ secondary: event.target.value })}><option value="ALL">All categories</option>{categories.map((value) => <option key={value}>{value}</option>)}</select></label><label>Received date<input aria-label="Media received date" type="date" value={filters.date} onChange={(event) => updateFilters({ date: event.target.value })} /></label><label>Month-Year<select aria-label="Media month-year" value={filters.month} onChange={(event) => updateFilters({ month: event.target.value })}><option value="">All months</option>{mediaMonths.map((value) => <option key={value} value={value}>{value}</option>)}</select></label></>}
         {kind !== "media" && <label>Sort<select aria-label="Sort results" value={filters.sort} onChange={(event) => updateFilters({ sort: event.target.value })}>{kind === "jobs" ? <><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="amount">Amount</option></> : <><option value="alphabetical">Alphabetical</option><option value="recent">Recent</option></>}</select></label>}
         <ListSearchActions onClear={clearFilters} />
