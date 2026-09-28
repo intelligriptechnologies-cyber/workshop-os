@@ -7,5 +7,8 @@ export function isServiceActiveJob(view: Pick<JobView, "job">) {
 }
 
 export function serviceFollowupStatus(view: Pick<JobView, "followups">) {
-  return view.followups.length > 0 && view.followups.every((followup) => Boolean(followup.done)) ? "Done" : "Pending";
+  const completed = view.followups.filter((followup) => Boolean(followup.done)).length;
+  return view.followups.length > 0 && completed === view.followups.length
+    ? `Done(${completed})`
+    : `Pending (${completed}/${view.followups.length})`;
 }

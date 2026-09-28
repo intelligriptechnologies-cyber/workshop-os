@@ -106,7 +106,7 @@ export function buildDataFlowTimeline(view: JobView, users: User[] = []): DataFl
     if (hasTime(invoice.created_at)) {
       events.push({ id: `invoice-create-${invoice.id}`, kind: "invoice", timestamp: invoice.created_at, title: "Invoice created", detail: `${invoice.invoice_no} · ${invoice.status}`, state: current ? "current" : "historical" });
     }
-    if (hasTime(invoice.document_generated_at)) events.push({ id: `invoice-document-${invoice.id}`, kind: "document", timestamp: invoice.document_generated_at, title: "Invoice PDF generated", detail: invoice.invoice_no, state: current && invoice.document_available ? "current" : "historical", document: current && invoice.document_available ? { kind: "invoice", number: invoice.invoice_no } : undefined });
+    if (hasTime(invoice.document_generated_at)) events.push({ id: `invoice-document-${invoice.id}`, kind: "document", timestamp: invoice.document_generated_at, title: "Invoice PDF generated", detail: invoice.invoice_no, state: current ? "current" : "historical", document: current ? { kind: "invoice", number: invoice.invoice_no } : undefined });
     if (hasTime(invoice.updated_at) && !sameTime(invoice.updated_at, invoice.created_at) && !sameTime(invoice.updated_at, invoice.voided_at)) events.push({ id: `invoice-update-${invoice.id}`, kind: "invoice", timestamp: invoice.updated_at, title: "Invoice updated", detail: `${invoice.invoice_no} · ${invoice.status}`, state: current ? "current" : "historical" });
     if (hasTime(invoice.voided_at)) {
       events.push({ id: `invoice-void-${invoice.id}`, kind: "invoice", timestamp: invoice.voided_at, title: "Invoice voided", detail: `${invoice.invoice_no} · ${invoice.void_reason || "No reason recorded"}`, state: "voided" });

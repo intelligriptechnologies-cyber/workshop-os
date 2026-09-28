@@ -169,7 +169,7 @@ function paymentDetailsBlock(settings: WorkshopBusinessSettings) {
 
 export function reportAvailable(category: ReportCategory, view: JobView) {
   if (category === "estimate") return Boolean(view.estimate);
-  if (category === "invoice") return Boolean(view.invoice && !view.invoice.voided_at && view.invoice.document_available !== 0);
+  if (category === "invoice") return Boolean(view.invoice && !view.invoice.voided_at);
   if (category === "gate-pass") return Boolean(view.invoice && view.gate_pass && !view.gate_pass.voided_at && view.gate_pass.invoice_id === view.invoice.id);
   if (category === "payment-receipt") return Boolean(view.invoice && view.receipt && !view.receipt.voided_at && view.receipt.invoice_id === view.invoice.id && view.payments.some((payment) => payment.invoice_id === view.invoice!.id));
   return Boolean(view.job);
@@ -290,5 +290,5 @@ export function renderReportTemplate(template: Pick<ReportTemplate, "html" | "ca
 export const PRINT_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; script-src 'none'; frame-src 'none'; connect-src 'none'; font-src 'none'; base-uri 'none'; form-action 'none'";
 
 export function buildPrintDocument(title: string, bodyHtml: string) {
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:white}main{max-width:100%}body{font-family:Arial,sans-serif}img{max-width:100%;height:auto}table{page-break-inside:auto}tr{page-break-inside:avoid}@media print{button{display:none}}</style></head><body>${bodyHtml}</body></html>`;
+  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${PRINT_CSP}"><title>${escapeHtml(title)}</title><style>@page{size:A4;margin:0}html,body{margin:0;background:white;print-color-adjust:exact;-webkit-print-color-adjust:exact}main{max-width:100%}body{font-family:Arial,sans-serif}img{max-width:100%;height:auto}table{page-break-inside:auto}tr{page-break-inside:avoid}@media print{button{display:none}}</style></head><body>${bodyHtml}</body></html>`;
 }

@@ -72,7 +72,7 @@ test("live rendering uses the Active template and company branding, Gate Pass sh
   assert.equal(renderJobDocument("invoice", closed, admin).filename, "JC-2026-001245-invoice.pdf");
 });
 
-test("current document actions reject voided, unavailable, or mismatched financial records", () => {
+test("current document actions reject voided or mismatched financial records", () => {
   const currentInvoice = { id: 9, job_card_id: 7, invoice_no: "INV-9", tally_invoice_no: "T-9", total: 1062, status: "Cleared", document_available: 1 };
   const view = job({
     job: { ...job().job, main_status: "CLOSED" },
@@ -83,7 +83,7 @@ test("current document actions reject voided, unavailable, or mismatched financi
     invoice_history: [{ ...currentInvoice, id: 8, invoice_no: "INV-VOID", voided_at: "2026-09-24T10:00:00Z", void_reason: "Corrected" }, currentInvoice],
   });
   assert.deepEqual(resolveJobDocuments(view).map((item) => [item.kind, item.available]), [["job-card", true], ["estimate", true], ["invoice", true], ["payment-receipt", false], ["gate-pass", false]]);
-  assert.equal(resolveJobDocuments(job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: { ...currentInvoice, document_available: 0 } })).find((item) => item.kind === "invoice")?.available, false);
+  assert.equal(resolveJobDocuments(job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: { ...currentInvoice, document_available: 0 } })).find((item) => item.kind === "invoice")?.available, true);
   assert.equal(resolveJobDocuments(job({ estimate: { ...job().estimate!, archived_at: "2026-09-24T10:00:00Z" } })).find((item) => item.kind === "estimate")?.available, false);
 });
 

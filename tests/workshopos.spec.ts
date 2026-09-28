@@ -27,6 +27,24 @@ for (const [email, navItems] of roles) {
   });
 }
 
+test("Accounts Ready To Invoice lists only active pending invoices and is read only", async ({ page }) => {
+  await loginAs(page, "accounts@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Ready To Invoice", exact: true }).click();
+
+  const manager = page.locator('[data-billing-manager="Invoices"]');
+  const table = page.getByRole("table", { name: "Invoices manager" });
+  const records = table.locator("tbody > tr:not(.billing-detail-row)");
+  await expect(manager.getByRole("heading", { name: "Ready To Invoice" })).toBeVisible();
+  await expect(records).not.toHaveCount(0);
+  expect((await records.locator("td:nth-last-child(2)").allTextContents()).every((status) => status.trim() === "Pending")).toBe(true);
+  await expect(table.getByRole("button", { name: "Quick Mark Paid", exact: true })).toHaveCount(0);
+  await expect(table.getByRole("button", { name: "Download", exact: true }).first()).toBeVisible();
+
+  await table.getByRole("button", { name: "View", exact: true }).first().click();
+  await expect(page.getByRole("dialog", { name: "View Invoice" })).toBeVisible();
+  await expect(page.getByRole("dialog", { name: "View Invoice" }).getByRole("button", { name: /Save Invoice|Update Invoice/ })).toHaveCount(0);
+});
+
 test("desktop main content scrolls without moving the navigation rail", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 720 });
   await loginAs(page, "admin@example.com");
@@ -266,6 +284,15 @@ test("admin search finds stock by catalogue fields and opens the selected SKU in
   await expect(results.getByRole("columnheader", { name: "Minimum quantity" })).toBeVisible();
   await expect(results.getByRole("columnheader", { name: "Stock status" })).toBeVisible();
   await expect(results.getByText("PPF-001")).toBeVisible();
+  const ppfRow = results.locator("tbody tr").filter({ hasText: "PPF-001" });
+  await expect(ppfRow.getByText("In stock", { exact: true })).toHaveClass(/stock-status-in-stock/);
+
+  await page.getByLabel("Search records").fill("PAINT-031");
+  const lowStockRow = results.locator("tbody tr").filter({ hasText: "PAINT-031" });
+  await expect(lowStockRow.getByText("Low stock", { exact: true })).toHaveClass(/stock-status-low-stock/);
+  await page.getByLabel("Search records").fill("PAINT-032");
+  const outOfStockRow = results.locator("tbody tr").filter({ hasText: "PAINT-032" });
+  await expect(outOfStockRow.getByText("Out of stock", { exact: true })).toHaveClass(/stock-status-out-of-stock/);
 
   await page.getByLabel("Search records").fill("TPU Gloss PPF");
   await expect(results.getByText("PPF-001")).toBeVisible();
@@ -453,6 +480,8 @@ test("job card document actions stack editors, replace creation actions after sa
   await expect(createInvoice).toHaveClass(/dialog-document-editor/);
   await expect(page.getByRole("dialog")).toHaveCount(2);
   await expect(createInvoice.getByLabel("Billing job")).toHaveCount(0);
+  await expect(createInvoice.getByLabel("Document available")).toHaveCount(0);
+  await expect(createInvoice.getByText("Document available", { exact: true })).toHaveCount(0);
   await expect(createInvoice.getByLabel("Invoice item 1 description")).not.toHaveValue("");
   await createInvoice.getByLabel("Tally invoice number").fill("TLY-JOB-CARD");
   await createInvoice.getByLabel("Invoice item 1 quantity").fill("2");
@@ -630,7 +659,7 @@ test("admin management domains expose contextual creation paths", async ({ page 
   await expect(page.getByRole("button", { name: "Save Customer", exact: true })).toBeVisible();
 });
 
-test("Accounts billing lists include records received outside today", async ({ page }) => {
+test("Accounts billing lists include records received outside today and print colored documents", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   page.once("dialog", (dialog) => dialog.accept());
@@ -642,6 +671,22 @@ test("Accounts billing lists include records received outside today", async ({ p
   for (const [tab, total] of [["Invoice", 51], ["Payment", 27], ["Delivery", 27]] as const) {
     await page.locator(".role-nav").getByRole("button", { name: tab, exact: true }).click();
     await expect(page.getByText(`Showing 1 to 10 of ${total}`)).toBeVisible();
+  }
+
+  for (const [tab, manager, heading] of [["Invoice", "Invoices", "TAX INVOICE"], ["Payment", "Payments", "PAYMENT RECEIPT"], ["Delivery", "Delivery", "GATE PASS"]] as const) {
+    await page.locator(".role-nav").getByRole("button", { name: tab, exact: true }).click();
+    const table = page.getByRole("table", { name: `${manager} manager` });
+    const popupPromise = page.waitForEvent("popup");
+    await table.locator("tbody tr").filter({ has: page.getByRole("button", { name: "Print", exact: true }) }).first().getByRole("button", { name: "Print", exact: true }).click();
+    const popup = await popupPromise;
+    await popup.waitForLoadState("domcontentloaded");
+    await expect(popup.locator("body")).toContainText(heading);
+    await expect(popup.locator("header")).toHaveCSS("background-color", "rgb(31, 95, 153)");
+    await expect(popup.locator("th").first()).toHaveCSS("background-color", "rgb(31, 95, 153)");
+    const printStyles = await popup.locator("style").evaluate((element) => element.textContent ?? "");
+    expect(printStyles).toContain("print-color-adjust:exact");
+    expect(printStyles).toContain("-webkit-print-color-adjust:exact");
+    await popup.close();
   }
 });
 
@@ -671,14 +716,45 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await loginAs(page, "accounts@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Invoice", exact: true }).click();
   await expect(page.locator('[data-billing-manager="Invoices"]')).toBeVisible();
-  await expect(page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr.billing-row-invoice-pending, tbody tr.billing-row-invoice-cleared").first()).toBeVisible();
+  const invoicesManager = page.locator('[data-billing-manager="Invoices"]');
+  const invoicesTable = page.getByRole("table", { name: "Invoices manager" });
+  const invoiceDateFilter = page.getByLabel("Invoices date filter");
+  const invoiceMonthFilter = page.getByLabel("Invoices Month-Year filter");
+  await expect(invoicesTable.locator("tbody tr.billing-row-invoice-pending, tbody tr.billing-row-invoice-cleared").first()).toBeVisible();
+  await expect(invoiceDateFilter).toBeVisible();
+  await expect(invoiceMonthFilter).toBeVisible();
+  await expect(invoicesTable.locator("tbody tr.billing-row-invoice-cleared").first()).toBeVisible();
+  const invoiceMonth = await invoiceMonthFilter.locator("option").nth(1).getAttribute("value");
+  expect(invoiceMonth).toMatch(/^\d{4}-\d{2}$/);
+  await invoiceMonthFilter.selectOption(invoiceMonth!);
+  await expect(invoiceDateFilter).toHaveValue("");
+  await expect(invoicesTable.locator("tbody tr")).not.toHaveCount(0);
+  const invoiceDate = await invoicesTable.locator("tbody tr").first().locator("td").first().evaluate((cell) => {
+    const match = cell.textContent?.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (!match) throw new Error(`Could not parse invoice date: ${cell.textContent}`);
+    const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
+    return `${match[3]}-${String(month).padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  });
+  const invoiceNext = page.getByRole("navigation", { name: "Billing results pagination" }).first().getByRole("button", { name: "Next page" });
+  if (await invoiceNext.isEnabled()) await invoiceNext.click();
+  await invoiceDateFilter.fill(invoiceDate);
+  await expect(invoiceMonthFilter).toHaveValue("ALL");
+  await expect(invoicesTable.locator("tbody tr")).not.toHaveCount(0);
+  await expect(page.getByText(/Page 1 of/).first()).toBeVisible();
+  await invoicesManager.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(invoiceDateFilter).toHaveValue("");
+  await expect(invoiceMonthFilter).toHaveValue("ALL");
   await page.locator(".role-nav").getByRole("button", { name: "Payment", exact: true }).click();
   await expect(page.locator('[data-billing-manager="Payments"]')).toBeVisible();
   const paymentsTable = page.getByRole("table", { name: "Payments manager" });
   const paymentsManager = page.locator('[data-billing-manager="Payments"]');
   await expect(page.getByLabel("Payments status filter")).toHaveCount(0);
   const paymentModeFilter = page.getByLabel("Payment mode filter");
+  const paymentDateFilter = page.getByLabel("Payments date filter");
+  const paymentMonthFilter = page.getByLabel("Payments Month-Year filter");
   await expect(paymentModeFilter).toBeVisible();
+  await expect(paymentDateFilter).toBeVisible();
+  await expect(paymentMonthFilter).toBeVisible();
   await expect(paymentsManager.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
   const firstRow = paymentsTable.locator("tbody tr").first();
   await expect(firstRow).toContainText("Paid");
@@ -695,13 +771,32 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(paymentRecordRows).not.toHaveCount(0);
   expect(await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).toEqual(expect.arrayContaining([paidMode]));
   expect((await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).every((mode) => mode.trim() === paidMode)).toBe(true);
+  const paymentDate = await firstRow.locator("td").first().evaluate((cell) => {
+    const match = cell.textContent?.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
+    if (!match) throw new Error(`Could not parse payment date: ${cell.textContent}`);
+    const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
+    return `${match[3]}-${String(month).padStart(2, "0")}-${match[1].padStart(2, "0")}`;
+  });
+  await paymentDateFilter.fill(paymentDate);
+  await expect(paymentMonthFilter).toHaveValue("ALL");
+  await expect(paymentRecordRows).not.toHaveCount(0);
+  expect((await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).every((mode) => mode.trim() === paidMode)).toBe(true);
   await paymentsManager.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(paymentModeFilter).toHaveValue("ALL");
+  await expect(paymentDateFilter).toHaveValue("");
+  for (const [mode, highlightClass] of [["UPI", "billing-row-payment-upi"], ["Cash", "billing-row-payment-cash"], ["Card", "billing-row-payment-card"], ["Bank transfer", "billing-row-payment-bank-transfer"], ["Other", "billing-row-payment-other"]] as const) {
+    await paymentModeFilter.selectOption(mode);
+    await expect(paymentRecordRows.first()).toHaveClass(new RegExp(highlightClass));
+  }
   await paymentsManager.getByRole("button", { name: "Clear", exact: true }).click();
   await page.locator(".role-nav").getByRole("button", { name: "Delivery", exact: true }).click();
   const deliveryManager = page.locator('[data-billing-manager="Delivery"]');
   const deliveryTable = page.getByRole("table", { name: "Delivery manager" });
+  const deliveryDateFilter = page.getByLabel("Delivery date filter");
+  const deliveryMonthFilter = page.getByLabel("Delivery Month-Year filter");
   await expect(page.getByLabel("Delivery status filter")).toHaveCount(0);
+  await expect(deliveryDateFilter).toBeVisible();
+  await expect(deliveryMonthFilter).toBeVisible();
   await expect(deliveryManager.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
   const deliveryRows = deliveryTable.locator("tbody tr");
   const deliveryRecordCount = await deliveryRows.count();
@@ -713,6 +808,12 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(deliveryRows).toHaveCount(1);
   await deliveryManager.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(deliveryRows).toHaveCount(deliveryRecordCount);
+  const deliveryMonth = await deliveryMonthFilter.locator("option").nth(1).getAttribute("value");
+  await deliveryMonthFilter.selectOption(deliveryMonth!);
+  await expect(deliveryDateFilter).toHaveValue("");
+  await expect(deliveryRows).not.toHaveCount(0);
+  await deliveryManager.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(deliveryMonthFilter).toHaveValue("ALL");
   await deliveryRow.getByRole("button", { name: "Delivered" }).click();
   await page.getByRole("dialog", { name: "Mark Delivery" }).getByRole("button", { name: "Mark Delivered" }).click();
   await expect(page.getByRole("table", { name: "Delivery manager" })).toContainText("Delivered");
@@ -847,32 +948,64 @@ test("stock filter toolbars use no more than two rows above mobile", async ({ pa
   await expectNoPageOverflow(page);
 });
 
-test("stock quick add records inward, creates priced SKUs, and edits details on mobile", async ({ page }) => {
+test("stock list combines stock and unit, and quick add records inward in a dialog", async ({ page }) => {
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
-  const quickAdd = page.locator(".quick-add-stock");
+  const stockTable = page.getByRole("table", { name: "Stock results" });
+  await expect(stockTable.getByRole("columnheader", { name: "Unit", exact: true })).toHaveCount(0);
+  await expect(stockTable.locator("tbody tr").first().locator("td").nth(3)).toHaveText(/\S+\s+\S+/);
+  await expect(page.locator(".stock-main-grid")).toHaveCount(0);
+
+  const stockList = page.locator(".store-list-page");
+  const quickAddButton = stockList.getByRole("button", { name: "Quick Add Stock", exact: true });
+  await expect(quickAddButton).toHaveCount(1);
+  await expect(page.locator(".stock-overview").getByRole("button", { name: "Quick Add Stock", exact: true })).toHaveCount(0);
+  await quickAddButton.click();
+  const quickAdd = page.getByRole("dialog", { name: "Quick Add Stock" });
+  await expect(quickAdd).toBeVisible();
 
   await quickAdd.getByLabel("Existing SKU").click();
   await quickAdd.getByRole("option").first().click();
   await quickAdd.getByLabel("Inward quantity").fill("2");
   await quickAdd.getByRole("button", { name: "Record Inward" }).click();
+  await expect(quickAdd).toHaveCount(0);
   await page.getByRole("tab", { name: "Stock Movements" }).click();
   await page.getByLabel("Search stock movements").fill("Quick inward");
-  await expect(page.getByRole("table", { name: "Stock movement results" })).toContainText("STOCK_IN");
+  const movements = page.getByRole("table", { name: "Stock movement results" });
+  await expect(movements).toContainText("STOCK_IN");
+  const movementDate = await movements.locator("tbody tr").first().locator("td").first().textContent();
+  expect(movementDate).toMatch(/^\d{4}-\d{2}-\d{2}/);
+  const exactDate = movementDate!.slice(0, 10);
+  const movementMonth = exactDate.slice(0, 7);
+  const monthFilter = page.getByLabel("Stock movement month");
+  await expect(monthFilter.locator('option[value=""]').first()).toHaveText("All months");
+  await monthFilter.selectOption(movementMonth);
+  await page.getByLabel("Stock movement direction").selectOption("STOCK_IN");
+  await page.getByLabel("Stock movement date").fill(exactDate);
+  await expect(movements.locator("tbody tr")).not.toHaveCount(0);
+  await page.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByLabel("Search stock movements")).toHaveValue("");
+  await expect(page.getByLabel("Stock movement date")).toHaveValue("");
+  await expect(monthFilter).toHaveValue("");
+  await expect(page.getByLabel("Stock movement direction")).toHaveValue("ALL");
 
   await page.getByRole("tab", { name: "Inventory List" }).click();
-  await quickAdd.getByRole("button", { name: "Add new SKU" }).click();
-  await quickAdd.getByLabel("New SKU", { exact: true }).fill("QUICK-E2E");
-  await quickAdd.getByLabel("New material name").fill("Quick add film");
-  await quickAdd.getByLabel("New SKU category").fill("E2E");
-  await quickAdd.getByLabel("New SKU unit").fill("piece");
-  await quickAdd.getByLabel("New SKU low-stock threshold").fill("2");
-  await quickAdd.getByLabel("New SKU selling price").fill("325");
-  await quickAdd.getByLabel("Initial inward quantity").fill("4");
-  await quickAdd.getByRole("button", { name: "Create SKU & Record Inward" }).click();
+  await quickAddButton.click();
+  const newSkuDialog = page.getByRole("dialog", { name: "Quick Add Stock" });
+  await newSkuDialog.getByRole("button", { name: "Add new SKU" }).click();
+  await newSkuDialog.getByLabel("New SKU", { exact: true }).fill("QUICK-E2E");
+  await newSkuDialog.getByLabel("New material name").fill("Quick add film");
+  await newSkuDialog.getByLabel("New SKU category").fill("E2E");
+  await newSkuDialog.getByLabel("New SKU unit").fill("piece");
+  await newSkuDialog.getByLabel("New SKU low-stock threshold").fill("2");
+  await newSkuDialog.getByLabel("New SKU selling price").fill("325");
+  await newSkuDialog.getByLabel("Initial inward quantity").fill("4");
+  await newSkuDialog.getByRole("button", { name: "Create SKU & Record Inward" }).click();
+  await expect(newSkuDialog).toHaveCount(0);
   await page.getByLabel("Search stock").fill("QUICK-E2E");
-  const stockRow = page.getByRole("table", { name: "Stock results" }).locator("tbody tr").filter({ hasText: "QUICK-E2E" });
+  const stockRow = stockTable.locator("tbody tr").filter({ hasText: "QUICK-E2E" });
   await expect(stockRow).toContainText("Quick add film");
+  await expect(stockRow.locator("td").nth(3)).toHaveText("4 piece");
   await stockRow.getByRole("button", { name: "Edit" }).click();
   const dialog = page.getByRole("dialog", { name: "Edit stock details" });
   await dialog.getByLabel("Edit selling price").fill("400");
@@ -905,6 +1038,66 @@ test("issue and reconcile lists filter by item, job and reconciliation state", a
   await page.getByLabel("Reconciliation state").selectOption("Open");
   await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(1);
+});
+
+test("store material queues default to today and keep record filters, exports and workflows in sync", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  const today = await page.evaluate(() => {
+    const now = new Date();
+    const offset = now.getTimezoneOffset() * 60_000;
+    return new Date(now.getTime() - offset).toISOString().slice(0, 10);
+  });
+
+  for (const pageName of ["Material Requests", "Issue Material"] as const) {
+    await page.locator(".role-nav").getByRole("button", { name: pageName, exact: true }).click();
+    const date = page.getByLabel(`${pageName} record date`);
+    const month = page.getByLabel(`${pageName} record month`);
+    const disclosure = page.locator(".workflow-disclosure");
+    await expect(date).toHaveValue(today);
+    await expect(disclosure).not.toHaveAttribute("open", "");
+    await disclosure.locator("summary").getByText(pageName === "Material Requests" ? "Purchase, Stock & Issue" : "Issue workflow", { exact: true }).click();
+    await expect(disclosure).toHaveAttribute("open", "");
+
+    const availableMonth = month.locator("option").nth(1);
+    if (await availableMonth.count()) {
+      await month.selectOption(await availableMonth.getAttribute("value") ?? "");
+      await expect(date).toHaveValue("");
+      await date.fill(today);
+      await expect(month).toHaveValue("");
+    }
+
+    // Remove the time scope only while proving the searchable selector against
+    // the full fixture set; Clear restores the page's date-first default below.
+    await date.fill("");
+
+    await page.getByLabel(`Search ${pageName} jobs`).fill("JC-");
+    const job = page.getByLabel(`${pageName} job`);
+    const jobOption = job.locator("option").nth(1);
+    if (await jobOption.count()) {
+      const selectedJob = await jobOption.textContent();
+      await job.selectOption(await jobOption.getAttribute("value") ?? "ALL");
+      await expect(page.getByRole("table", { name: `${pageName} results` })).toContainText(selectedJob?.split(" · ")[0] ?? "");
+    }
+
+    await page.getByRole("button", { name: "Clear", exact: true }).click();
+    await expect(date).toHaveValue(today);
+    await expect(month).toHaveValue("");
+    await expect(job).toHaveValue("ALL");
+
+    await page.getByRole("button", { name: "Download", exact: true }).click();
+    const downloadPromise = page.waitForEvent("download");
+    await page.getByRole("menuitem", { name: "Excel" }).click();
+    const worksheet = await readWorksheet(await downloadPromise);
+    expect(String(worksheet[2]?.[1])).toContain("Record date: " + today);
+
+    for (const viewport of [{ width: 1440, height: 900 }, { width: 900, height: 900 }]) {
+      await page.setViewportSize(viewport);
+      await expectMaterialRecordToolbarHasAtMostTwoRows(page);
+      await expectNoPageOverflow(page);
+    }
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expectNoPageOverflow(page);
+  }
 });
 
 test("PDF and Excel downloads use the current filtered rows and visible columns", async ({ page }) => {
@@ -1406,6 +1599,37 @@ async function loginAs(page: import("@playwright/test").Page, email: string) {
   await page.getByRole("button", { name: "Login" }).click();
 }
 
+test("Store receives an invoice through the keyboard-ready inward receipt composer", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Suppliers", exact: true }).click();
+  await page.getByLabel("Name", { exact: true }).fill("E2E Receiving Supplier");
+  await page.getByRole("button", { name: "Save supplier" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Inward Purchases", exact: true }).click();
+  await page.getByRole("button", { name: "New inward purchase" }).click();
+  await expect(page.getByRole("button", { name: "Submit receipt" })).toHaveCount(0);
+  await expect(page.getByLabel("Receipt readiness")).toContainText("scan needed");
+
+  await page.getByLabel("Purchase supplier").selectOption({ index: 1 });
+  await page.getByLabel("Supplier invoice number").fill("E2E-INWARD-001");
+  const picker = page.getByRole("combobox", { name: "Receipt line 1 item", exact: true });
+  await picker.fill("oil");
+  await picker.press("ArrowDown");
+  await picker.press("Enter");
+  await page.getByLabel("Receipt line 1 quantity").fill("2");
+  await page.getByLabel("Receipt line 1 unit cost").fill("100");
+  await expect(page.locator(".receipt-line-row").first()).toContainText("stock");
+  await page.getByLabel("Invoice scan").setInputFiles({ name: "invoice.jpg", mimeType: "image/jpeg", buffer: Buffer.from([0xff, 0xd8, 0xff, 0xd9]) });
+  await expect(page.getByText("invoice.jpg")).toBeVisible();
+  await page.getByRole("button", { name: "Save draft" }).click();
+  await expect(page.getByRole("button", { name: "Submit receipt" })).toBeEnabled();
+  await page.getByRole("button", { name: "Submit receipt" }).click();
+  await expect(page.getByText("Posted lines")).toBeVisible();
+  await expect(page.getByText("Posting status")).toBeVisible();
+
+});
+
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {
   const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);
@@ -1414,6 +1638,14 @@ async function expectNoPageOverflow(page: import("@playwright/test").Page) {
 
 async function expectStockToolbarHasAtMostTwoRows(page: import("@playwright/test").Page) {
   const rows = await page.locator(".stock-filter-grid > label, .stock-filter-grid > .list-search-actions").evaluateAll((controls) => {
+    const positions = controls.map((control) => Math.round(control.getBoundingClientRect().bottom));
+    return [...new Set(positions)].sort((left, right) => left - right);
+  });
+  expect(rows.length).toBeLessThanOrEqual(2);
+}
+
+async function expectMaterialRecordToolbarHasAtMostTwoRows(page: import("@playwright/test").Page) {
+  const rows = await page.locator(".material-record-filter-grid > label, .material-record-filter-grid > .list-search-actions").evaluateAll((controls) => {
     const positions = controls.map((control) => Math.round(control.getBoundingClientRect().bottom));
     return [...new Set(positions)].sort((left, right) => left - right);
   });

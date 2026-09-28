@@ -5,6 +5,7 @@ import initSqlJs, { type Database } from "sql.js";
 import {
   addMaterialRowForActor,
   approveEstimateForActor,
+  closureBlockers,
   createInvoiceForActor,
   createSchema,
   editIssuedMaterialRowForActor,
@@ -50,7 +51,7 @@ const issue = (db: Database, item = 1, qty = 3) => {
   return id;
 };
 const view = (db: Database) => readState(db).jobs[0];
-const invoiceInput = (items: Parameters<typeof createInvoiceForActor>[3]["items"], discount = 0) => ({ tallyInvoiceNo: "", discount, notes: "", documentAvailable: true, items });
+const invoiceInput = (items: Parameters<typeof createInvoiceForActor>[3]["items"], discount = 0) => ({ tallyInvoiceNo: "", discount, notes: "", items });
 
 test("flat discount is spread proportionally and GST is computed per line on the reduced value", () => {
   const totals = invoiceTotals([{ qty: 1, rate: 1000, gst_rate: 18 }, { qty: 2, rate: 500, gst_rate: 5 }, { qty: 1, rate: 2000, gst_rate: 0 }], 400);
@@ -95,6 +96,38 @@ test("migration assigns legacy zero-rate rows to No GST and preserves other tax 
   assert.equal(rows<{ total: number }>(db, "select total from invoices where id=10")[0].total, 218);
 });
 
+test("migration makes active legacy invoices available and records document generation", async () => {
+  const db = await database();
+  db.run("insert into invoices(id,job_card_id,invoice_no,tally_invoice_no,total,status,document_available,created_at) values(10,1,'INV-LEGACY','T-10',100,'Pending',0,'2026-09-01T10:00:00.000Z')");
+  migrateSchema(db);
+  assert.deepEqual(rows<{ document_available: number; document_generated_at: string }>(db, "select document_available,document_generated_at from invoices where id=10"), [{ document_available: 1, document_generated_at: "2026-09-01T10:00:00.000Z" }]);
+});
+
+test("invoice persistence ignores a legacy unavailable value on create and edit", async () => {
+  const db = await database();
+  estimate(db);
+  approveEstimateForActor(db, 1, 2, "ok");
+  const legacyCreate = { tallyInvoiceNo: "T-1", notes: "", documentAvailable: false, items: [{ kind: "Service" as const, description: "Labour", qty: 1, rate: 100, gst_rate: 18 }] };
+  const id = createInvoiceForActor(db, 1, 2, legacyCreate);
+  assert.equal(view(db).invoice?.document_available, 1);
+  assert.ok(view(db).invoice?.document_generated_at);
+  const item = view(db).invoice_items[0];
+  const legacyEdit = { tallyInvoiceNo: "T-2", discount: 0, notes: "Updated", documentAvailable: false, items: [{ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate }] };
+  saveInvoiceForActor(db, id, 2, legacyEdit);
+  assert.equal(view(db).invoice?.document_available, 1);
+  assert.ok(view(db).invoice?.document_generated_at);
+});
+
+test("legacy invoice availability does not block closure readiness", async () => {
+  const db = await database();
+  estimate(db);
+  approveEstimateForActor(db, 1, 2, "ok");
+  createInvoiceForActor(db, 1, 2, { tallyInvoiceNo: "T-1", notes: "" });
+  const current = view(db);
+  const legacyUnavailable = { ...current, invoice: { ...current.invoice!, document_available: 0 } };
+  assert.ok(!closureBlockers(legacyUnavailable).includes("Available Tally invoice required"));
+});
+
 test("estimate-to-invoice conversion transfers every line's GST treatment", async () => {
   const db = await database();
   saveEstimateForActor(db, 1, 2, { discount: 0, gst_rate: 18, notes: "", items: [
@@ -103,7 +136,7 @@ test("estimate-to-invoice conversion transfers every line's GST treatment", asyn
     { kind: "Material", description: "Exempt part", qty: 1, rate: 100, gst_type: "No GST", gst_rate: 0 },
   ] });
   approveEstimateForActor(db, 1, 2, "ok");
-  createInvoiceForActor(db, 1, 2, { tallyInvoiceNo: "", notes: "", documentAvailable: true });
+  createInvoiceForActor(db, 1, 2, { tallyInvoiceNo: "", notes: "" });
   assert.deepEqual(view(db).invoice_items.map((item) => [item.gst_type, item.gst_rate]), [["CGST+SGST", 18], ["IGST", 12], ["No GST", 0]]);
 });
 
@@ -194,16 +227,16 @@ test("unpaid invoice edits are audited, add late materials and lock them; removi
   const late = issue(db, 2, 1);
   const items = view(db).invoice_items.map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? 18, material_row_id: item.material_row_id ?? undefined }));
   const lateLine = buildInvoiceDraft({ ...view(db), estimate_items: [] }).lines.find((line) => line.material_row_id === late)!;
-  assert.throws(() => saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", documentAvailable: true, items: [...items, { ...lateLine, rate: 50 }] }), /note is required/);
-  assert.throws(() => saveInvoiceForActor(db, id, 5, { tallyInvoiceNo: "", discount: 0, notes: "", documentAvailable: true, items, note: "x" }), /cannot edit/);
-  saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", documentAvailable: true, items: [...items, { ...lateLine, rate: 50, gst_rate: 28 }], note: "Late paint" });
+  assert.throws(() => saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", items: [...items, { ...lateLine, rate: 50 }] }), /note is required/);
+  assert.throws(() => saveInvoiceForActor(db, id, 5, { tallyInvoiceNo: "", discount: 0, notes: "", items, note: "x" }), /cannot edit/);
+  saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", items: [...items, { ...lateLine, rate: 50, gst_rate: 28 }], note: "Late paint" });
   assert.equal(view(db).material_requests.find((row) => row.id === late)?.invoiced_in, id);
   assert.equal(view(db).invoice?.total, 1 * 0 + (2 * 100 * 1.18) + (3 * 100 * 1.18) + 50 * 1.28);
   const timeline = buildDataFlowTimeline({ ...view(db), vehicle: { number: "MH01", make: "", model: "" } as never, customer: { name: "C" } as never }, readState(db).users);
   assert.ok(timeline.some((event) => event.title === "Invoice edited" && event.detail.includes("Late paint") && event.detail.includes("late material")));
 
   const afterEdit = view(db).invoice_items;
-  saveInvoiceForActor(db, id, 4, { tallyInvoiceNo: "", discount: 0, notes: "", documentAvailable: true, items: afterEdit.filter((item) => item.material_row_id !== late).map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? 18, material_row_id: item.material_row_id ?? undefined })), note: "Not needed" });
+  saveInvoiceForActor(db, id, 4, { tallyInvoiceNo: "", discount: 0, notes: "", items: afterEdit.filter((item) => item.material_row_id !== late).map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? 18, material_row_id: item.material_row_id ?? undefined })), note: "Not needed" });
   assert.equal(view(db).material_requests.find((row) => row.id === late)?.invoiced_in, null);
 
   voidInvoiceForActor(db, id, 4, "Rebill");
@@ -219,7 +252,7 @@ test("a paid invoice rejects line edits", async () => {
   const id = createInvoiceForActor(db, 1, 2, invoiceInput([{ kind: "Service", description: "Labour", qty: 1, rate: 100, gst_rate: 18 }]));
   db.run("insert into payments(job_card_id,invoice_id,amount,mode) values(1,?,118,'Cash')", [id]);
   const items = view(db).invoice_items.map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: 999, gst_rate: 18 }));
-  assert.throws(() => saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", documentAvailable: true, items, note: "n" }), /locked/);
+  assert.throws(() => saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", items, note: "n" }), /locked/);
   assert.equal(rows<{ n: number }>(db, "select count(*) n from invoice_events where kind='edit'")[0].n, 0);
 });
 

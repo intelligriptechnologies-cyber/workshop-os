@@ -28,6 +28,8 @@ import type {
   InvoiceEvent,
   MaterialMovement,
   MaterialRequest,
+  MaterialApproval,
+  MaterialApprovalEvent,
   Payment,
   PaymentMode,
   PaymentStatus,
@@ -142,6 +144,8 @@ export function readState(db: Database): WorkshopState {
   const estimatesByJob = groupBy(estimates, (row) => row.job_card_id);
   const estimateItemsByEstimate = groupBy(all<EstimateItem>(db, "select * from estimate_items where archived_at is null"), (row) => row.estimate_id);
   const materialByJob = groupBy(all<MaterialRequest>(db, "select * from material_requests where archived_at is null"), (row) => row.job_card_id);
+  const approvalsByJob = byId(all<MaterialApproval>(db, "select * from material_approvals order by id"));
+  const approvalEventsByJob = groupBy(all<MaterialApprovalEvent>(db, "select * from material_approval_events order by id"), (row) => row.job_card_id);
   const localPurchasesByJob = groupBy(all<LocalPurchase>(db, "select * from local_purchases where archived_at is null order by id desc"), (row) => row.job_card_id);
   const purchaseRequestsByJob = groupBy(all<MaterialPurchaseRequest>(db, "select * from material_purchase_requests order by id desc"), (row) => row.job_card_id);
   const tasksByJob = groupBy(all<Task>(db, "select * from tasks where archived_at is null"), (row) => row.job_card_id);
@@ -198,6 +202,8 @@ export function readState(db: Database): WorkshopState {
       material_requests,
       local_purchases: localPurchasesByJob.get(job.id) ?? [],
       material_purchase_requests: purchaseRequestsByJob.get(job.id) ?? [],
+      material_approval: [...approvalsByJob.values()].find((approval) => approval.job_card_id === job.id),
+      material_approval_history: approvalEventsByJob.get(job.id) ?? [],
       material_events: jobMaterialEvents,
       invoice_events: invoiceEventsByJob.get(job.id) ?? [],
       inventory: materialInventory,
@@ -747,7 +753,9 @@ export function saveJobDetailsForActor(db: Database, jobId: number, actorId: num
   assertJobLifecycleMutationAccess(db, jobId, actorId);
   db.run("savepoint save_job_details");
   try {
-    updateJobCard(db, jobId, input);
+    // Advisor assignment is established when the job is created and is not editable from job details.
+    const { advisor_id: _advisorId, ...editableInput } = input;
+    updateJobCard(db, jobId, editableInput);
     const job = one<JobCard>(db, "select * from job_cards where id=?", [jobId]);
     const visit = one<Visit>(db, "select * from visits where id=?", [job.visit_id]);
     db.run("update job_cards set service_type=?, pickup_drop=?, estimated_delivery=?, updated_at=datetime('now') where id=?", [
@@ -872,6 +880,7 @@ export function approveEstimate(db: Database, jobId: number, note = "Customer ap
 }
 
 export function createMaterialRequest(db: Database, payload: Omit<MaterialRequest, "id">) {
+  if (approvalBlocksMaterialOperations(materialApprovalForJob(db, payload.job_card_id))) throw new Error("Material activity is frozen while job approval is pending or rejected.");
   const id = insert(
     db,
     "insert into material_requests(job_card_id, item_id, requested_qty, issued_qty, used_qty, returned_qty, wasted_qty, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, datetime('now'), datetime('now'))",
@@ -882,6 +891,8 @@ export function createMaterialRequest(db: Database, payload: Omit<MaterialReques
 }
 
 export function updateMaterialRequest(db: Database, id: number, payload: Omit<MaterialRequest, "id">) {
+  const current = one<MaterialRequest>(db, "select * from material_requests where id=?", [id]);
+  if (approvalBlocksMaterialOperations(materialApprovalForJob(db, current.job_card_id))) throw new Error("Material activity is frozen while job approval is pending or rejected.");
   db.run("update material_requests set item_id=?, requested_qty=?, issued_qty=?, used_qty=?, returned_qty=?, wasted_qty=?, updated_at=datetime('now') where id=?", [
     payload.item_id,
     payload.requested_qty,
@@ -894,6 +905,8 @@ export function updateMaterialRequest(db: Database, id: number, payload: Omit<Ma
 }
 
 export function archiveMaterialRequest(db: Database, id: number, reason: string) {
+  const current = one<MaterialRequest>(db, "select * from material_requests where id=?", [id]);
+  if (approvalBlocksMaterialOperations(materialApprovalForJob(db, current.job_card_id))) throw new Error("Material activity is frozen while job approval is pending or rejected.");
   archive(db, "material_requests", id, reason);
 }
 
@@ -962,9 +975,10 @@ export function purchaseStockAndIssueForActor(db: Database, requestId: number, a
   const request = one<MaterialPurchaseRequest>(db, "select * from material_purchase_requests where id=?", [requestId]);
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
   const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [request.job_card_id]);
+  if (approvalBlocksMaterialOperations(materialApprovalForJob(db, job.id))) throw new Error("Material issue is blocked while job approval is pending or rejected.");
   if (request.status !== "Pending") throw new Error("Only pending purchase requests can be resolved.");
   if (!(actor.role === "admin" || actor.role === "store")) throw new Error("Only Store or the Owner can purchase, stock and issue an item.");
-  if (!(job.main_status === "IN_PROGRESS" || job.main_status === "HOLD")) throw new Error("Items can only be issued while the job card is IN_PROGRESS or HOLD.");
+  if (job.main_status !== "IN_PROGRESS") throw new Error("Items can only be issued while the job card is IN_PROGRESS.");
   if (!input.vendor.trim()) throw new Error("Vendor or shop is required.");
   if (!input.bill_reference.trim()) throw new Error("Bill or reference is required.");
   if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0) throw new Error("Unit cost cannot be negative.");
@@ -1211,6 +1225,8 @@ export function reviseInwardPurchaseForActor(db: Database, purchaseId: number, a
 
 export function issueMaterialQty(db: Database, requestId: number, qty: number) {
   const request = one<MaterialRequest>(db, "select * from material_requests where id=?", [requestId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=?", [request.job_card_id]);
+  if (job.main_status !== "IN_PROGRESS" || approvalBlocksMaterialOperations(materialApprovalForJob(db, job.id))) throw new Error("Material issue requires an IN_PROGRESS job with no pending or rejected approval.");
   const onHand = materialStockOnHand(db, request.item_id);
   if (qty <= 0 || qty > onHand) throw new Error(`Cannot issue ${qty}; stock available is ${onHand}`);
   db.run("update material_requests set issued_qty=issued_qty + ?, status=case when issued_qty + ? >= requested_qty then 'Issued' else status end, updated_at=datetime('now') where id=?", [qty, qty, requestId]);
@@ -1243,10 +1259,77 @@ export function reconcileMaterial(db: Database, requestId: number, used: number,
 
 const MATERIAL_ACTION_VERB: Record<MaterialRowAction, string> = { release: "released", "edit-issued": "edited", request: "requested", edit: "edited", "re-request": "re-requested", cancel: "cancelled", delete: "deleted" };
 
+function materialApprovalForJob(db: Database, jobId: number) {
+  return maybe<MaterialApproval>(db, "select * from material_approvals where job_card_id=?", [jobId]);
+}
+
+/** Pending approvals freeze every material mutation; rejected approvals freeze Store release. */
+export function approvalBlocksMaterialOperations(approval?: Pick<MaterialApproval, "status"> | null) {
+  return approval?.status === "Pending" || approval?.status === "Rejected";
+}
+
+function outstandingMaterialRows(db: Database, jobId: number) {
+  return all<MaterialRequest>(db, "select * from material_requests where job_card_id=? and archived_at is null and invoiced_in is null and status in ('Requested','Re-requested')", [jobId]);
+}
+
+function approvalEvent(db: Database, approval: MaterialApproval, action: MaterialApprovalEvent["action"], actorId: number, note: string) {
+  insert(db, "insert into material_approval_events(approval_id,job_card_id,action,actor_id,at,note,revision) values(?,?,?,?,?,?,?)", [approval.id, approval.job_card_id, action, actorId, new Date().toISOString(), note, approval.revision]);
+}
+
+/** Store submits one job-level approval from any eligible requested material line. */
+export function submitMaterialApprovalForActor(db: Database, rowId: number, actorId: number) {
+  const { row, actor, job } = actorAndJob(db, rowId, actorId);
+  if (actor.role !== "store") throw new Error("Only Store can submit a material approval.");
+  if (row.invoiced_in || !["Requested", "Re-requested"].includes(materialRowStatus(row))) throw new Error("Only non-invoiced Requested or Re-requested material can be submitted for approval.");
+  const existing = materialApprovalForJob(db, job.id);
+  if (existing?.status === "Pending") return existing.id;
+  if (job.main_status !== "IN_PROGRESS") throw new Error("Material approval can only be submitted for an IN_PROGRESS job.");
+  if (existing) throw new Error("The rejected approval must be corrected and resubmitted by the linked Service Advisor.");
+  const approvalId = insert(db, "insert into material_approvals(job_card_id,status,submitted_by,submitted_at,revision) values(?,'Pending',?,datetime('now'),1)", [job.id, actorId]);
+  const approval = one<MaterialApproval>(db, "select * from material_approvals where id=?", [approvalId]);
+  approvalEvent(db, approval, "Submitted", actorId, "Store requested material approval");
+  transitionJobStatusInternal(db, job.id, "HOLD", "Material approval pending: Store submitted consolidated request");
+  return approvalId;
+}
+
+export function decideMaterialApprovalForActor(db: Database, jobId: number, actorId: number, decision: "Approved" | "Rejected", rejectionReason = "") {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  if (actor.role !== "admin") throw new Error("Only Admin can decide material approvals.");
+  const approval = materialApprovalForJob(db, jobId);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  if (!approval || approval.status !== "Pending") throw new Error("There is no pending material approval for this job.");
+  if (job.main_status !== "HOLD") throw new Error("A pending material approval must keep the job on HOLD.");
+  const reason = rejectionReason.trim();
+  if (decision === "Rejected" && !reason) throw new Error("A rejection reason is required.");
+  const now = new Date().toISOString();
+  db.run("update material_approvals set status=?,reviewed_by=?,reviewed_at=?,rejection_reason=? where id=?", [decision, actorId, now, decision === "Rejected" ? reason : null, approval.id]);
+  const reviewed = one<MaterialApproval>(db, "select * from material_approvals where id=?", [approval.id]);
+  approvalEvent(db, reviewed, decision, actorId, decision === "Approved" ? "Admin approved material issue" : reason);
+  if (decision === "Approved") transitionJobStatusInternal(db, jobId, "IN_PROGRESS", "Material approval approved: Store may issue retained requests", now);
+  else history(db, jobId, "HOLD", job.sub_status, `Material approval rejected: ${reason}`, now);
+}
+
+export function resubmitMaterialApprovalForActor(db: Database, jobId: number, actorId: number) {
+  const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
+  const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
+  const approval = materialApprovalForJob(db, jobId);
+  if (actor.role !== "service" || actor.id !== job.advisor_id) throw new Error("Only the linked Service Advisor can resubmit a rejected material approval.");
+  if (!approval || approval.status !== "Rejected" || job.main_status !== "HOLD") throw new Error("Only a rejected held job can be resubmitted for approval.");
+  if (!outstandingMaterialRows(db, jobId).length) throw new Error("Add or correct a Requested material row before resubmitting.");
+  const now = new Date().toISOString();
+  db.run("update material_approvals set status='Pending',submitted_by=?,submitted_at=?,reviewed_by=null,reviewed_at=null,rejection_reason=null,revision=revision+1 where id=?", [actorId, now, approval.id]);
+  const resubmitted = one<MaterialApproval>(db, "select * from material_approvals where id=?", [approval.id]);
+  approvalEvent(db, resubmitted, "Resubmitted", actorId, "Service Advisor corrected and resubmitted material approval");
+  history(db, jobId, "HOLD", job.sub_status, "Material approval resubmitted and pending", now);
+}
+
 function assertMaterialManager(db: Database, jobId: number, actorId: number) {
   const actor = one<User>(db, "select * from users where id=? and archived_at is null", [actorId]);
   const job = one<JobCard>(db, "select * from job_cards where id=? and archived_at is null", [jobId]);
-  if (!canManageMaterialRows(actor, job)) {
+  const approval = materialApprovalForJob(db, jobId);
+  const rejectedAdvisorCorrection = approval?.status === "Rejected" && job.main_status === "HOLD" && actor.role === "service" && actor.id === job.advisor_id;
+  if (approval?.status === "Pending") throw new Error("Material activity is frozen while approval is pending.");
+  if (!canManageMaterialRows(actor, job) && !rejectedAdvisorCorrection) {
     throw new Error(job.main_status === "IN_PROGRESS" ? "Only the Owner or the linked Service Advisor can change material rows." : "Material rows can only change while the job card is IN_PROGRESS.");
   }
 }
@@ -1329,7 +1412,9 @@ function actorAndJob(db: Database, rowId: number, actorId: number) {
 /** Store/Owner release a Requested or Re-requested row: writes a signed stock-outward ledger record. Blocked over stock. Allowed on HOLD. */
 export function releaseMaterialRowForActor(db: Database, rowId: number, actorId: number) {
   const { row, actor, job } = actorAndJob(db, rowId, actorId);
-  if (!canReleaseMaterialRows(actor, job)) throw new Error("Only Store or the Owner can release material, while the job card is IN_PROGRESS or HOLD.");
+  const approval = materialApprovalForJob(db, job.id);
+  if (approvalBlocksMaterialOperations(approval)) throw new Error(`Material issue is blocked while approval is ${approval!.status.toLowerCase()}.`);
+  if (!canReleaseMaterialRows(actor, job) || job.main_status !== "IN_PROGRESS") throw new Error("Only Store or the Owner can release material while the job card is IN_PROGRESS.");
   if (!materialRowActionsFor(actor, job, row).includes("release")) throw new Error(`A ${materialRowStatus(row)} material row cannot be released.`);
   const onHand = materialStockOnHand(db, row.item_id);
   if (row.requested_qty > onHand) throw new Error(`Cannot release ${row.requested_qty}; only ${onHand} in stock.`);
@@ -1458,13 +1543,14 @@ export function passQc(db: Database, jobId: number) {
 export function generateInvoice(db: Database, jobId: number, tally: string) {
   const estimate = one<Estimate>(db, "select * from estimates where job_card_id=? and archived_at is null order by id desc limit 1", [jobId]);
   const items = all<EstimateItem>(db, "select * from estimate_items where estimate_id=? and archived_at is null order by id", [estimate.id]);
-  createInvoiceFromEstimate(db, jobId, { tallyInvoiceNo: tally, discount: estimate.discount, gstRate: estimate.gst_rate, items, notes: "", documentAvailable: true });
+  createInvoiceFromEstimate(db, jobId, { tallyInvoiceNo: tally, discount: estimate.discount, gstRate: estimate.gst_rate, items, notes: "" });
   reconcileArtifactChecklist(db, jobId);
 }
 
 export interface InvoiceItemInput { kind: "Service" | "Material"; description: string; qty: number; rate: number; gst_type?: GstType | null; gst_rate?: number | null; material_row_id?: number }
-export interface CreateInvoiceInput { tallyInvoiceNo: string; discount?: number; gstRate?: number; items?: InvoiceItemInput[]; notes: string; documentAvailable: boolean }
-export interface InvoiceFieldsInput { tallyInvoiceNo: string; discount: number; notes: string; documentAvailable: boolean }
+/** Invoice documents are always available while the invoice is active. */
+export interface CreateInvoiceInput { tallyInvoiceNo: string; discount?: number; gstRate?: number; items?: InvoiceItemInput[]; notes: string }
+export interface InvoiceFieldsInput { tallyInvoiceNo: string; discount: number; notes: string }
 
 export function canMutateBilling(actor: Pick<User, "role">) {
   return actor.role === "admin" || actor.role === "accounts";
@@ -1524,7 +1610,7 @@ export function updateInvoiceFields(db: Database, invoiceId: number, input: Invo
   if (!Number.isFinite(input.discount) || input.discount < 0) throw new Error("Invoice discount cannot be negative.");
   db.run("savepoint update_invoice_fields");
   try {
-    db.run("update invoices set tally_invoice_no=?,discount=?,notes=?,document_available=?,document_generated_at=case when ?=1 then coalesce(document_generated_at,datetime('now')) else document_generated_at end,updated_at=datetime('now') where id=? and voided_at is null", [input.tallyInvoiceNo.trim(), input.discount, input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0, invoiceId]);
+    db.run("update invoices set tally_invoice_no=?,discount=?,notes=?,document_available=1,document_generated_at=coalesce(document_generated_at,datetime('now')),updated_at=datetime('now') where id=? and voided_at is null", [input.tallyInvoiceNo.trim(), input.discount, input.notes.trim(), invoiceId]);
     recalculateInvoice(db, invoiceId);
     reconcileArtifactChecklist(db, current.job_card_id);
     db.run("release savepoint update_invoice_fields");
@@ -1588,7 +1674,7 @@ export function createInvoiceFromEstimate(db: Database, jobId: number, input: Cr
   try {
     const priced = items.map((item) => ({ ...item, ...normalizeAndValidateGst(item.gst_type, item.gst_rate, fallbackGst ?? DEFAULT_GST_BY_KIND[item.kind]) }));
     const totals = invoiceTotals(priced, discount);
-    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,case when ?=1 then datetime('now') end,datetime('now'),datetime('now'))", [jobId, nextDocumentNumber(db, "invoices", "invoice_no", "INV-", 8900 + jobId, 5), input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Pending", input.notes.trim(), input.documentAvailable ? 1 : 0, input.documentAvailable ? 1 : 0]);
+    const id = insert(db, "insert into invoices(job_card_id,invoice_no,tally_invoice_no,discount,gst_rate,subtotal,gst_amount,total,status,notes,document_available,document_generated_at,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,1,datetime('now'),datetime('now'),datetime('now'))", [jobId, nextDocumentNumber(db, "invoices", "invoice_no", "INV-", 8900 + jobId, 5), input.tallyInvoiceNo.trim(), totals.discount, 0, totals.subtotal, totals.gst, totals.total, "Pending", input.notes.trim()]);
     for (const item of priced) {
       if (item.material_row_id) pickUpMaterialRow(db, jobId, item.material_row_id, id);
       insert(db, "insert into invoice_items(invoice_id,kind,description,qty,rate,gst_type,gst_rate,material_row_id,created_at,updated_at) values(?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [id, item.kind, item.description.trim(), item.qty, item.rate, item.gst_type, item.gst_rate, item.material_row_id ?? null]);
@@ -1947,6 +2033,7 @@ export function searchJobs(state: WorkshopState, criteria: SearchCriteria): Sear
       customer: [view.customer.name, view.customer.mobile],
       vehicle: [view.vehicle.number, view.vehicle.make, view.vehicle.model, view.vehicle.color],
       invoice: [view.invoice?.invoice_no ?? "", view.invoice?.tally_invoice_no ?? "", ...view.payments.map((payment) => `${payment.mode} ${payment.reference}`)],
+      payment: view.payments.flatMap((payment) => [view.job.job_no, view.invoice?.invoice_no ?? "", view.invoice?.tally_invoice_no ?? "", view.customer.name, view.customer.mobile, view.vehicle.number, payment.mode, payment.reference, payment.other_detail]),
     };
     const categories = (Object.keys(searchable) as Exclude<SearchCriteria["category"], "all">[]).filter((category) =>
       searchable[category].join(" ").toLowerCase().includes(normalizedQuery),
@@ -1980,7 +2067,7 @@ export function closureBlockers(view?: JobView) {
   const blockers: string[] = [];
   if (view.job.qc_status !== "Pass") blockers.push("QC pass required");
   if (view.material_requests.some((request) => Math.abs(request.issued_qty - request.used_qty - request.returned_qty - request.wasted_qty) > 0.001)) blockers.push("Material reconciliation required");
-  if (!view.invoice || !view.invoice.document_available || !view.invoice.tally_invoice_no) blockers.push("Available Tally invoice required");
+  if (!view.invoice || view.invoice.voided_at || !view.invoice.tally_invoice_no) blockers.push("Available Tally invoice required");
   const paid = view.payments.reduce((sum, payment) => sum + payment.amount, 0);
   if (!view.invoice || paid < view.invoice.total) blockers.push("Full payment required");
   if (!view.receipt) blockers.push("Receipt required");
@@ -2022,6 +2109,8 @@ export function createSchema(db: Database) {
     create table if not exists gate_passes(id integer primary key, job_card_id integer, invoice_id integer, gate_pass_no text, voided_at text, void_reason text, created_at text);
     create table if not exists inventory(id integer primary key, sku text, category text, name text, unit text, stock_qty real, low_stock_qty real, selling_price real default 0);
     create table if not exists material_requests(id integer primary key, job_card_id integer, item_id integer, requested_qty real, issued_qty real, used_qty real, returned_qty real, wasted_qty real);
+    create table if not exists material_approvals(id integer primary key, job_card_id integer not null unique, status text not null, submitted_by integer not null, submitted_at text not null, reviewed_by integer, reviewed_at text, rejection_reason text, revision integer not null default 1);
+    create table if not exists material_approval_events(id integer primary key, approval_id integer not null, job_card_id integer not null, action text not null, actor_id integer not null, at text not null, note text not null, revision integer not null);
     create table if not exists local_purchases(id integer primary key, job_card_id integer, item_description text, quantity real, unit text, unit_cost real, vendor text, bill_reference text, note text, archived_at text, archived_reason text, created_at text, updated_at text);
     create table if not exists material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text);
     create table if not exists material_movements(id integer primary key, job_card_id integer, item_id integer, direction text, qty real, note text, created_at text);
@@ -2053,6 +2142,8 @@ export function migrateSchema(db: Database) {
   db.run("create table if not exists local_purchases(id integer primary key, job_card_id integer, item_description text, quantity real, unit text, unit_cost real, vendor text, bill_reference text, note text, archived_at text, archived_reason text, created_at text, updated_at text)");
   db.run("create table if not exists material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text)");
   ensureColumn(db, "material_requests", "status", "text not null default 'Requested'");
+  db.run("create table if not exists material_approvals(id integer primary key, job_card_id integer not null unique, status text not null, submitted_by integer not null, submitted_at text not null, reviewed_by integer, reviewed_at text, rejection_reason text, revision integer not null default 1)");
+  db.run("create table if not exists material_approval_events(id integer primary key, approval_id integer not null, job_card_id integer not null, action text not null, actor_id integer not null, at text not null, note text not null, revision integer not null)");
   ensureColumn(db, "material_requests", "invoiced_in", "integer");
   ensureColumn(db, "estimate_items", "gst_type", "text");
   ensureColumn(db, "estimate_items", "gst_rate", "real");
@@ -2089,7 +2180,9 @@ export function migrateSchema(db: Database) {
   ensureColumn(db, "invoices", "notes", "text default ''");
   ensureColumn(db, "invoices", "document_available", "integer default 1");
   ensureColumn(db, "invoices", "document_generated_at", "text");
-  db.run("update invoices set document_generated_at=created_at where document_generated_at is null and document_available=1 and created_at is not null");
+  // Retain the legacy column for stored-data compatibility, but active invoices
+  // are documents by definition. Backfill generation metadata at the same time.
+  db.run("update invoices set document_available=1,document_generated_at=coalesce(document_generated_at,created_at,datetime('now')) where voided_at is null");
   ensureColumn(db, "payments", "invoice_id", "integer");
   ensureColumn(db, "payments", "other_detail", "text default ''");
   ensureColumn(db, "payments", "notes", "text default ''");
@@ -2438,7 +2531,7 @@ function artifactExistsForChecklistItem(db: Database, jobId: number, label: SubS
     case "Photos Shared": return scalar<number>(db, "select count(*) from photos where job_card_id=? and archived_at is null and trim(coalesce(src,''))<>''", [jobId]) > 0;
     case "QC Pending": return scalar<number>(db, "select count(*) from tasks where job_card_id=? and status<>'Completed' and archived_at is null", [jobId]) === 0;
     case "Customer Verification": return scalar<number>(db, "select count(*) from job_cards where id=? and qc_status='Pass'", [jobId]) > 0;
-    case "Invoice Ready": return scalar<number>(db, "select count(*) from invoices where job_card_id=? and document_available=1 and voided_at is null", [jobId]) > 0;
+    case "Invoice Ready": return scalar<number>(db, "select count(*) from invoices where job_card_id=? and voided_at is null", [jobId]) > 0;
     case "Payment Received": {
       const invoice = maybe<Invoice>(db, "select * from invoices where job_card_id=? and voided_at is null order by id desc limit 1", [jobId]);
       return Boolean(invoice && invoice.total > 0 && scalar<number>(db, "select coalesce(sum(amount),0) from payments where invoice_id=? and voided_at is null", [invoice.id]) >= invoice.total);

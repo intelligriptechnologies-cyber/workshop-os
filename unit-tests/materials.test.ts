@@ -22,6 +22,9 @@ import {
   archiveLocalPurchase,
   updateLocalPurchase,
   updateMaterialRowForActor,
+  submitMaterialApprovalForActor,
+  decideMaterialApprovalForActor,
+  resubmitMaterialApprovalForActor,
 } from "../src/db";
 import { canManageMaterialRows, materialRowActions, overStockWarning } from "../src/materials";
 
@@ -159,14 +162,43 @@ test("release over stock is blocked and writes nothing", async () => {
   assert.equal(ledgerRows(db).length, 0);
 });
 
-test("release is allowed on HOLD but not once COMPLETED", async () => {
+test("release requires IN_PROGRESS and is unavailable on ordinary HOLD or COMPLETED", async () => {
   const { db, id } = await requested(2);
   db.run("update job_cards set main_status='HOLD' where id=1");
-  releaseMaterialRowForActor(db, id, 1);
-  assert.equal(status(db, id), "Issued");
+  assert.throws(() => releaseMaterialRowForActor(db, id, 1), /IN_PROGRESS/);
   const second = await requested(2);
   second.db.run("update job_cards set main_status='COMPLETED' where id=1");
-  assert.throws(() => releaseMaterialRowForActor(second.db, second.id, 6), /IN_PROGRESS or HOLD/);
+  assert.throws(() => releaseMaterialRowForActor(second.db, second.id, 6), /IN_PROGRESS/);
+});
+
+test("Store material approval holds a job, freezes it, then approval restores retained issue eligibility", async () => {
+  const { db, id } = await requested(2);
+  const approvalId = submitMaterialApprovalForActor(db, id, 6);
+  assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "HOLD");
+  assert.equal(rows<{ status: string }>(db, "select status from material_approvals")[0].status, "Pending");
+  assert.equal(submitMaterialApprovalForActor(db, id, 6), approvalId, "the same pending record is focused");
+  assert.throws(() => releaseMaterialRowForActor(db, id, 6), /approval is pending/);
+  assert.throws(() => updateMaterialRowForActor(db, id, 2, 1, 3), /frozen/);
+  assert.throws(() => decideMaterialApprovalForActor(db, 1, 2, "Approved"), /Only Admin/);
+  decideMaterialApprovalForActor(db, 1, 1, "Approved");
+  assert.deepEqual(rows(db, "select main_status from job_cards"), [{ main_status: "IN_PROGRESS" }]);
+  assert.equal(status(db, id), "Requested", "approval does not duplicate or replace the row");
+  releaseMaterialRowForActor(db, id, 6);
+  assert.equal(status(db, id), "Issued");
+});
+
+test("rejection requires a reason and only the linked advisor can correct and resubmit", async () => {
+  const { db, id } = await requested(2);
+  submitMaterialApprovalForActor(db, id, 6);
+  assert.throws(() => decideMaterialApprovalForActor(db, 1, 1, "Rejected"), /reason is required/);
+  decideMaterialApprovalForActor(db, 1, 1, "Rejected", "Confirm item specification");
+  assert.equal(rows<{ status: string }>(db, "select status from material_approvals")[0].status, "Rejected");
+  assert.throws(() => releaseMaterialRowForActor(db, id, 6), /approval is rejected/);
+  assert.throws(() => resubmitMaterialApprovalForActor(db, 1, 3), /linked Service Advisor/);
+  reRequestMaterialRowForActor(db, id, 2, 2, 3);
+  resubmitMaterialApprovalForActor(db, 1, 2);
+  assert.deepEqual(rows(db, "select status,revision,rejection_reason from material_approvals"), [{ status: "Pending", revision: 2, rejection_reason: null }]);
+  assert.equal(rows(db, "select action from material_approval_events order by id").length, 3);
 });
 
 test("Materials Issued needs every non-cancelled row Issued and unticks on a new request", async () => {

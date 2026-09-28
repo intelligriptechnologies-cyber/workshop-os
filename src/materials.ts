@@ -7,8 +7,9 @@ export const MATERIALS_CHECKLIST_LABELS = ["Material Requested", "Material Issue
 export type MaterialRowAction = "request" | "edit" | "re-request" | "cancel" | "delete" | "release" | "edit-issued";
 
 /** Owner (admin) and the job's linked Service Advisor manage rows; everyone else reads. */
-export function canManageMaterialRows(actor: Pick<User, "id" | "role">, job: { advisor_id: number; main_status: MainStatus }) {
-  return (actor.role === "admin" || (actor.role === "service" && actor.id === job.advisor_id)) && job.main_status === "IN_PROGRESS";
+export function canManageMaterialRows(actor: Pick<User, "id" | "role">, job: { advisor_id: number; main_status: MainStatus; materialApprovalStatus?: "Pending" | "Approved" | "Rejected" }) {
+  const linkedAdvisor = actor.role === "service" && actor.id === job.advisor_id;
+  return (actor.role === "admin" || linkedAdvisor) && (job.main_status === "IN_PROGRESS" || (linkedAdvisor && job.main_status === "HOLD" && job.materialApprovalStatus === "Rejected"));
 }
 
 export function materialRowStatus(row: Pick<MaterialRequest, "status">): MaterialRowStatus {
@@ -45,7 +46,7 @@ export function pickerLabel(item: Pick<InventoryItem, "name" | "stock_qty" | "un
 }
 
 type Actor = Pick<User, "id" | "role">;
-type JobRef = { advisor_id: number; main_status: MainStatus };
+type JobRef = { advisor_id: number; main_status: MainStatus; materialApprovalStatus?: "Pending" | "Approved" | "Rejected" };
 
 /** Store and Owner release requested rows, on IN_PROGRESS or HOLD. */
 export function canReleaseMaterialRows(actor: Actor, job: JobRef) {

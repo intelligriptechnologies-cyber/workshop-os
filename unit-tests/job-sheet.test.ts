@@ -51,6 +51,13 @@ test("one job-details save updates the job card and job sheet records together",
   assert.equal(row(db, "select address from customers")[0], "Bhubaneswar");
 });
 
+test("job-details saves preserve the assigned service advisor", async () => {
+  const db = await database();
+  const jobId = receiveVehicle(db, intake);
+  saveJobDetailsForActor(db, jobId, 2, { advisor_id: 1, work_list: "Door repair" });
+  assert.equal(row(db, `select advisor_id from job_cards where id=${jobId}`)[0], 2);
+});
+
 test("before and after photo mutation gates follow the job status", async () => {
   const db = await database();
   const jobId = receiveVehicle(db, intake);

@@ -86,7 +86,7 @@ export interface MediaListSummary {
   src: string;
   createdAt: string;
 }
-export type SearchCategory = "all" | "job" | "customer" | "vehicle" | "invoice";
+export type SearchCategory = "all" | "job" | "customer" | "vehicle" | "invoice" | "payment";
 
 export interface SearchCriteria {
   query: string;
@@ -244,6 +244,32 @@ export interface MaterialRequest {
   archived_reason?: string;
   created_at?: string;
   updated_at?: string;
+}
+
+export type MaterialApprovalStatus = "Pending" | "Approved" | "Rejected";
+
+/** The current, job-level Store material approval. Its event trail is immutable. */
+export interface MaterialApproval {
+  id: number;
+  job_card_id: number;
+  status: MaterialApprovalStatus;
+  submitted_by: number;
+  submitted_at: string;
+  reviewed_by?: number | null;
+  reviewed_at?: string | null;
+  rejection_reason?: string | null;
+  revision: number;
+}
+
+export interface MaterialApprovalEvent {
+  id: number;
+  approval_id: number;
+  job_card_id: number;
+  action: "Submitted" | "Approved" | "Rejected" | "Resubmitted";
+  actor_id: number;
+  at: string;
+  note: string;
+  revision: number;
 }
 
 /** A job-specific purchase made outside inventory. This is cost tracking only. */
@@ -579,6 +605,8 @@ export interface JobView {
   material_requests: MaterialRequest[];
   local_purchases: LocalPurchase[];
   material_purchase_requests: MaterialPurchaseRequest[];
+  material_approval?: MaterialApproval;
+  material_approval_history?: MaterialApprovalEvent[];
   material_events?: MaterialEvent[];
   invoice_events?: InvoiceEvent[];
   inventory: InventoryItem[];

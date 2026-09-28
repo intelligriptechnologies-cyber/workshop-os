@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ADMIN_DEMO_STORAGE_KEY, activateReportTemplate, createDefaultAdminDemoState, createReportTemplate, deleteReportTemplate, loadAdminDemoState, saveCompanyIdentity, updateBusinessSettings, updateReportTemplate, type SessionStorageLike } from "../src/admin-demo-state";
-import { REPORT_PLACEHOLDERS, buildReportLines, buildReportValues, findUnsupportedPlaceholders, renderReportTemplate, reportAvailable, sampleReportValues } from "../src/report-templates";
+import { REPORT_PLACEHOLDERS, buildPrintDocument, buildReportLines, buildReportValues, findUnsupportedPlaceholders, renderReportTemplate, reportAvailable, sampleReportValues } from "../src/report-templates";
 import type { JobView } from "../src/types";
 
 const NOW = "2026-09-24T10:00:00.000Z";
@@ -12,6 +12,16 @@ class MemoryStorage implements SessionStorageLike {
   setItem(key: string, value: string) { this.values.set(key, value); }
   removeItem(key: string) { this.values.delete(key); }
 }
+
+test("print documents preserve template background colors", () => {
+  const html = buildPrintDocument("Invoice", "<main>Invoice</main>");
+  assert.match(html, /print-color-adjust:exact/);
+  assert.match(html, /-webkit-print-color-adjust:exact/);
+});
+
+test("active invoices remain report-available despite a legacy unavailable flag", () => {
+  assert.equal(reportAvailable("invoice", job({ invoice: { ...job().invoice!, document_available: 0 } })), true);
+});
 
 function job(overrides: Partial<JobView> = {}): JobView {
   return {

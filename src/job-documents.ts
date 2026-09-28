@@ -30,7 +30,7 @@ export const SLOT_KINDS: DocumentKind[] = ["estimate", "invoice", "payment-recei
 
 const currentInvoicePayment = (view: JobView) => Boolean(view.invoice && view.payments.some((payment) => payment.invoice_id === view.invoice!.id));
 export const recordExists = (kind: DocumentKind, view: JobView) => kind === "estimate" ? Boolean(view.estimate && !view.estimate.archived_at)
-  : kind === "invoice" ? Boolean(view.invoice && !view.invoice.voided_at && view.invoice.document_available !== 0)
+  : kind === "invoice" ? Boolean(view.invoice && !view.invoice.voided_at)
     : kind === "gate-pass" ? Boolean(view.gate_pass && view.invoice && view.gate_pass.invoice_id === view.invoice.id && !view.gate_pass.voided_at)
       : kind === "payment-receipt" ? Boolean(view.receipt && view.invoice && view.receipt.invoice_id === view.invoice.id && !view.receipt.voided_at && currentInvoicePayment(view))
         : Boolean(view.job);

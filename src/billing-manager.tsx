@@ -46,6 +46,15 @@ function recordCreatedAt(mode: BillingMode, record: BillingRecord) {
       : record.view.gate_pass?.created_at;
 }
 
+function recordDate(mode: BillingMode, record: BillingRecord) {
+  return recordCreatedAt(mode, record)?.slice(0, 10) ?? "";
+}
+
+function monthYearLabel(month: string) {
+  const date = new Date(`${month}-01T00:00:00`);
+  return Number.isNaN(date.valueOf()) ? month : date.toLocaleDateString("en-IN", { month: "long", year: "numeric" });
+}
+
 function newestFirst(mode: BillingMode, left: BillingRecord, right: BillingRecord) {
   const leftTime = recordCreatedAt(mode, left) ?? "";
   const rightTime = recordCreatedAt(mode, right) ?? "";
@@ -58,7 +67,7 @@ function recordsFor(mode: BillingMode, jobs: JobView[], voidedOnly = false): Bil
       key: `void-invoice-${invoice.id}`,
       view: { ...view, invoice, invoice_items: view.invoice_items.filter((item) => item.invoice_id === invoice.id), payments: view.payment_history?.filter((payment) => payment.invoice_id === invoice.id) ?? [] },
     })));
-    return jobs.filter((view) => view.invoice && !view.invoice.voided_at && view.invoice.document_available !== 0).map((view) => ({ key: `invoice-${view.job.id}`, view }));
+    return jobs.filter((view) => view.invoice && !view.invoice.voided_at).map((view) => ({ key: `invoice-${view.job.id}`, view }));
   }
   // Payments is a receipt register, not a work queue. Only show completed, active
   // payments so unpaid jobs and voided history never appear alongside receipts.
@@ -106,7 +115,7 @@ function searchText(record: BillingRecord) {
 }
 
 /** Manage Invoice/Payment tabs and the Payments screen: one table each, rows expand inline (#31 Layout B). */
-export function BillingManager({ mode, state, actor, mutate, panel = true }: { mode: BillingMode; state: WorkshopState; actor: User; mutate: Mutate; panel?: boolean }) {
+export function BillingManager({ mode, state, actor, mutate, panel = true, pendingInvoicesOnly = false }: { mode: BillingMode; state: WorkshopState; actor: User; mutate: Mutate; panel?: boolean; pendingInvoicesOnly?: boolean }) {
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [page, setPage] = useState(1);
@@ -119,25 +128,29 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
   const [expanded, setExpanded] = useState<string>();
   const [voidedOnly, setVoidedOnly] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"ALL" | PaymentMode>("ALL");
+  const [eventDate, setEventDate] = useState("");
+  const [eventMonth, setEventMonth] = useState("ALL");
   const editable = actor.role === "admin" || actor.role === "service";
-  const allRecords = useMemo(() => recordsFor(mode, state.jobs, voidedOnly), [mode, state.jobs, voidedOnly]);
+  const allRecords = useMemo(() => recordsFor(mode, state.jobs, voidedOnly).filter((record) => !pendingInvoicesOnly || record.view.invoice?.status === "Pending"), [mode, state.jobs, voidedOnly, pendingInvoicesOnly]);
   const recordStatus = (record: BillingRecord) => mode === "Invoices" ? invoiceStatus(record.view) : mode === "Payments" ? paymentStatus(record) : delivered(record.view) ? "Delivered" : "Pending";
-  const showStatusFilter = mode === "Invoices" || (!panel && mode === "Delivery");
+  const showStatusFilter = !pendingInvoicesOnly && (mode === "Invoices" || (!panel && mode === "Delivery"));
   const compactAccountsPanel = panel && actor.role === "accounts";
   const showPaymentModeFilter = compactAccountsPanel && mode === "Payments";
   const managePeriod = !panel;
+  const availableMonths = useMemo(() => Array.from(new Set(allRecords.map((record) => recordDate(mode, record).slice(0, 7)).filter(Boolean))).sort((left, right) => right.localeCompare(left)), [allRecords, mode]);
   const filtered = allRecords.filter((record) => {
     const needle = normalizeSearch(search);
-    return (!managePeriod || jobMatchesPeriod(record.view, jobPeriod)) && (!needle || searchText(record).includes(needle)) && (!showStatusFilter || status === "ALL" || recordStatus(record) === status) && (!showPaymentModeFilter || paymentMode === "ALL" || record.payment?.mode === paymentMode);
+    const date = recordDate(mode, record);
+    return (!managePeriod || jobMatchesPeriod(record.view, jobPeriod)) && (!eventDate || date === eventDate) && (!eventMonth || eventMonth === "ALL" || date.startsWith(eventMonth)) && (!needle || searchText(record).includes(needle)) && (!showStatusFilter || status === "ALL" || recordStatus(record) === status) && (!showPaymentModeFilter || paymentMode === "ALL" || record.payment?.mode === paymentMode);
   }).sort((left, right) => newestFirst(mode, left, right));
   const manage = !panel && mode !== "Delivery";
   const pickedJob = state.jobs.find((view) => view.job.id === jobId);
   const paged = paginate(filtered, page, pageSize);
   const statusOptions = mode === "Invoices" ? ["Pending", "Partial", "Cleared"] : ["Delivered"];
-  const clear = () => { setSearch(""); setStatus("ALL"); setPaymentMode("ALL"); setJobId(undefined); if (managePeriod) setJobPeriod(todayJobPeriod()); setPage(1); };
+  const clear = () => { setSearch(""); setStatus("ALL"); setPaymentMode("ALL"); setEventDate(""); setEventMonth("ALL"); setJobId(undefined); if (managePeriod) setJobPeriod(todayJobPeriod()); setPage(1); };
   const toggleVoidedOnly = (checked: boolean) => { setVoidedOnly(checked); setExpanded(undefined); setJobId(undefined); setPage(1); };
   const columns: ExportColumn<BillingRecord>[] = mode === "Invoices"
-    ? [{ header: "Created", value: (row) => timestamp(row.view.invoice?.created_at) }, { header: "Job", value: (row) => row.view.job.job_no }, { header: "Invoice", value: (row) => row.view.invoice?.invoice_no ?? "Not created" }, { header: "Customer", value: (row) => row.view.customer.name }, { header: "Total", value: (row) => row.view.invoice?.total ?? 0 }, { header: "Status", value: (row) => invoiceStatus(row.view) }]
+    ? [{ header: "Created", value: (row) => timestamp(row.view.invoice?.created_at) }, { header: "Job", value: (row) => row.view.job.job_no }, { header: "Invoice", value: (row) => row.view.invoice?.invoice_no ?? "Not created" }, { header: "Customer", value: (row) => row.view.customer.name }, ...(pendingInvoicesOnly ? [{ header: "Vehicle", value: (row: BillingRecord) => row.view.vehicle.number }] : []), { header: "Total", value: (row) => row.view.invoice?.total ?? 0 }, { header: "Status", value: (row) => invoiceStatus(row.view) }]
     : mode === "Payments"
       ? [{ header: "Paid at", value: (row) => timestamp(row.payment?.created_at) }, { header: "Job", value: (row) => row.view.job.job_no }, { header: "Invoice", value: (row) => row.view.invoice?.invoice_no ?? "" }, { header: "Customer", value: (row) => row.view.customer.name }, { header: "Amount", value: (row) => row.payment?.amount ?? row.view.invoice?.total ?? 0 }, { header: "Mode", value: (row) => row.payment?.mode ?? "-" }, { header: "Status", value: (row) => paymentStatus(row) }]
       : [{ header: "Created", value: (row) => timestamp(row.view.gate_pass?.created_at) }, { header: "Job", value: (row) => row.view.job.job_no }, { header: "Vehicle", value: (row) => row.view.vehicle.number }, { header: "Gate pass", value: (row) => row.view.gate_pass?.gate_pass_no ?? "Pending" }, { header: "Delivery", value: (row) => delivered(row.view) ? "Delivered" : "Pending" }];
@@ -147,6 +160,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
   return (
     <section className={panel ? "workspace single-panel" : "billing-manager"} data-billing-manager={mode} role="tabpanel">
       <div className={panel ? "desk-panel" : "manager-panel"} role={panel ? undefined : "tabpanel"}>
+        {pendingInvoicesOnly && <div className="panel-actions"><div><h2>Ready To Invoice</h2><p>Active invoices awaiting payment. View or download invoices from this read-only queue.</p></div></div>}
         {!compactAccountsPanel && <>
           <div className="panel-actions"><div><h2>{mode}</h2><p>{mode === "Payments" ? "Paid invoices with downloadable receipts" : "All workshop jobs"}</p></div></div>
           {actor.role === "accounts" && <p className="permission-note">Invoices are view/download-only. Use Quick Mark Paid to complete the handover.</p>}
@@ -160,15 +174,17 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
             {pickedJob.invoice ? <><button onClick={() => setInvoiceDialog({ action: "view", view: pickedJob })}>View Invoice</button>{canEditInvoice(actor, pickedJob.job) && pickedJob.invoice.status === "Pending" && <button className="primary-action" onClick={() => setInvoiceDialog({ action: "edit", view: pickedJob })}>Edit Invoice</button>}</> : canCreateInvoice(actor, pickedJob.job) && <button className="primary-action" onClick={() => setInvoiceDialog({ action: "create", view: pickedJob })}>Create Invoice</button>}</div>}</>}
         <div className={compactAccountsPanel ? "store-filter-grid billing-panel-filter-grid" : "store-filter-grid"}>
           <label className="list-search">{!compactAccountsPanel && `Search ${mode.toLowerCase()}`}<input aria-label={`Search ${mode.toLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={compactAccountsPanel ? `Search ${mode.toLowerCase()}` : "Job, invoice, customer, vehicle or reference"} /></label>
+          {compactAccountsPanel && <label>Date<input type="date" aria-label={`${mode} date filter`} value={eventDate} onChange={(event) => { setEventDate(event.target.value); setEventMonth("ALL"); setPage(1); }} /></label>}
+          {compactAccountsPanel && <label>Month-Year<select aria-label={`${mode} Month-Year filter`} value={eventMonth} onChange={(event) => { setEventMonth(event.target.value); setEventDate(""); setPage(1); }}><option value="ALL">All months</option>{availableMonths.map((month) => <option key={month} value={month}>{monthYearLabel(month)}</option>)}</select></label>}
           {showStatusFilter && <label>Status<select aria-label={`${mode} status filter`} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="ALL">All</option>{statusOptions.map((value) => <option key={value}>{value}</option>)}</select></label>}
           {showPaymentModeFilter && <label>Payment mode<select aria-label="Payment mode filter" value={paymentMode} onChange={(event) => { setPaymentMode(event.target.value as "ALL" | PaymentMode); setPage(1); }}><option value="ALL">All</option>{(["UPI", "Cash", "Card", "Bank transfer", "Other"] as PaymentMode[]).map((value) => <option key={value}>{value}</option>)}</select></label>}
           {mode === "Invoices" && actor.role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show voided only" checked={voidedOnly} onChange={(event) => toggleVoidedOnly(event.target.checked)} /> Show voided only</label>}
           <ListSearchActions onClear={clear} />
         </div>
-        <PaginationToolbar controls={<DownloadMenu report={{ title: mode, filters: activeFilterSummary({ Search: search.trim(), Status: status, "Payment mode": paymentMode, "Show voided only": voidedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel={`${mode} records per page`} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
+        <PaginationToolbar controls={<DownloadMenu report={{ title: pendingInvoicesOnly ? "Ready To Invoice" : mode, filters: activeFilterSummary({ Search: search.trim(), Date: eventDate, "Month-Year": eventMonth === "ALL" ? "ALL" : monthYearLabel(eventMonth), Status: pendingInvoicesOnly ? "Pending" : status, "Payment mode": paymentMode, "Show voided only": voidedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel={`${mode} records per page`} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
         <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}<th>Actions</th></tr></thead><tbody>{paged.items.map((record) => {
           const open = expanded === record.key;
-          const quickPay = mode === "Invoices" && !voidedOnly && record.view.invoice?.status === "Pending" && canRecordOrVoidPayment(actor, record.view.job);
+          const quickPay = !pendingInvoicesOnly && mode === "Invoices" && !voidedOnly && record.view.invoice?.status === "Pending" && canRecordOrVoidPayment(actor, record.view.job);
           const highlightClass = accountsRowHighlight(mode, record, compactAccountsPanel);
           return <Fragment key={record.key}>
             <tr className={[record.kind === "void" ? "billing-row-void" : "", highlightClass, inline ? "billing-row-click" : ""].filter(Boolean).join(" ") || undefined} {...(inline ? { tabIndex: 0, "aria-expanded": open, "aria-controls": `billing-detail-${record.key}`, onClick: () => toggle(record.key), onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggle(record.key); } } } : {})}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}<td><div className="grid-actions billing-table-actions">
@@ -176,7 +192,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true }: { m
               {mode === "Payments" && record.payment && <DocumentDownloadButton kind="payment-receipt" view={record.view} label="Receipt" className="billing-table-action" />}
               {mode === "Delivery" && <DocumentDownloadButton kind="gate-pass" view={record.view} label="Gate pass" className="billing-table-action" />}
             </div></td></tr>
-            {inline && open && <tr className="billing-detail-row"><td colSpan={columns.length + 1} id={`billing-detail-${record.key}`}><BillingDetail record={record} actor={actor} mutate={mutate} /></td></tr>}
+            {inline && open && <tr className="billing-detail-row"><td colSpan={columns.length + 1} id={`billing-detail-${record.key}`}><BillingDetail record={record} actor={actor} mutate={mutate} readOnly={pendingInvoicesOnly} /></td></tr>}
           </Fragment>;
         })}</tbody></table></div>
         {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={clear} label="Clear filters" /></div>}
@@ -202,7 +218,7 @@ export function AccountsReconciliationQueues({ jobs }: { jobs: JobView[] }) {
 }
 
 /** Inline expand: header + status, facts, lines with per-line GST, totals, then Record Payment / Void with a required reason. */
-function BillingDetail({ record, actor, mutate }: { record: BillingRecord; actor: User; mutate: Mutate }) {
+function BillingDetail({ record, actor, mutate, readOnly = false }: { record: BillingRecord; actor: User; mutate: Mutate; readOnly?: boolean }) {
   const { view, payment } = record;
   const invoice = view.invoice;
   const canAct = canRecordOrVoidPayment(actor, view.job);
@@ -217,9 +233,9 @@ function BillingDetail({ record, actor, mutate }: { record: BillingRecord; actor
     {invoice && totals && <div className="invoice-totals" aria-label="Invoice summary"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(invoice.total)}</strong></span></div>}
     {invoice?.voided_at && <p className="permission-note">Invoice voided on {invoice.voided_at}: {invoice.void_reason}</p>}
     {payment?.voided_at && <p className="permission-note">Payment voided on {payment.voided_at}: {payment.void_reason}</p>}
-    {record.kind === "unpaid" && invoice && (canAct ? <RecordPaymentForm invoice={invoice} actor={actor} mutate={mutate} /> : <p className="permission-note">Only the Owner and Accounts can record payment.</p>)}
-    {payment && !payment.voided_at && actor.role === "admin" && <InlineVoid label="Void Payment" hint="Voiding reopens the Invoice and voids the Receipt." onVoid={(db, reason) => voidPaymentForActor(db, payment.id, actor.id, reason)} mutate={mutate} />}
-    {!payment && invoice && actor.role === "admin" && canVoidCurrentInvoice(actor, view) && <InlineVoid label="Void Invoice" hint="Voiding unlocks the material rows this invoice billed." onVoid={(db, reason) => voidInvoiceForActor(db, invoice.id, actor.id, reason)} mutate={mutate} />}
+    {!readOnly && record.kind === "unpaid" && invoice && (canAct ? <RecordPaymentForm invoice={invoice} actor={actor} mutate={mutate} /> : <p className="permission-note">Only the Owner and Accounts can record payment.</p>)}
+    {!readOnly && payment && !payment.voided_at && actor.role === "admin" && <InlineVoid label="Void Payment" hint="Voiding reopens the Invoice and voids the Receipt." onVoid={(db, reason) => voidPaymentForActor(db, payment.id, actor.id, reason)} mutate={mutate} />}
+    {!readOnly && !payment && invoice && actor.role === "admin" && canVoidCurrentInvoice(actor, view) && <InlineVoid label="Void Invoice" hint="Voiding unlocks the material rows this invoice billed." onVoid={(db, reason) => voidInvoiceForActor(db, invoice.id, actor.id, reason)} mutate={mutate} />}
   </div>;
 }
 
@@ -282,7 +298,6 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
   const [discount, setDiscount] = useState(invoice?.discount ?? draftFor(selected).discount);
   const [notes, setNotes] = useState(invoice?.notes ?? "");
   const [editNote, setEditNote] = useState("");
-  const [documentAvailable, setDocumentAvailable] = useState(Boolean(invoice?.document_available ?? true));
   const [items, setItems] = useState<InvoiceItemDraft[]>(toDrafts(selected));
   const [error, setError] = useState("");
   const readOnly = action === "view";
@@ -298,7 +313,6 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
     setTally("");
     setDiscount(draftFor(next).discount);
     setNotes("");
-    setDocumentAvailable(true);
     setItems(toDrafts(next));
   };
   const updateItem = (index: number, patch: Partial<InvoiceItemDraft>) => setItems((rows) => rows.map((row, rowIndex) => rowIndex === index ? { ...row, ...patch } : row));
@@ -306,8 +320,8 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
     event.preventDefault();
     setError("");
     const ok = mutate((db) => action === "create"
-      ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, discount, notes, documentAvailable, items })
-      : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, notes, documentAvailable, items, note: editNote }), setError);
+      ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, discount, notes, items })
+      : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, notes, items, note: editNote }), setError);
     if (ok) onClose();
   };
   return <Dialog title={`${action[0].toUpperCase() + action.slice(1)} Invoice`} subtitle={`${selected.job.job_no} · ${selected.vehicle.number}`} onClose={onClose} wide className="dialog-document-editor" footer={!readOnly && <button className="primary-action" type="submit" form="invoice-dialog-form">{action === "edit" ? "Update Invoice" : "Save Invoice"}</button>}><form id="invoice-dialog-form" className="billing-dialog-form" onSubmit={submit}>
@@ -316,9 +330,9 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
     <div className="form-grid"><label>Tally invoice number<input data-dialog-initial-focus value={tally} disabled={readOnly} onChange={(event) => setTally(event.target.value)} /></label><label>Flat discount (₹)<input aria-label="Invoice discount" type="number" min="0" step="0.01" value={discount} disabled={lockFinancials} onChange={(event) => setDiscount(Number(event.target.value))} /></label></div>
     <div className="estimate-items"><div className="line-items-header"><strong>Invoice items</strong>{!lockFinancials && <button type="button" className="add-line-item" onClick={() => setItems((rows) => [...rows, { kind: "Service", description: "", qty: 1, rate: 0, gst_type: "CGST+SGST", gst_rate: 18 }])}><Plus size={16} />Add Item</button>}</div><div className="estimate-item estimate-item-heading"><span>Kind</span><span>Description</span><span>Quantity</span><span>Rate</span><span>GST type</span><span>GST rate</span><span>Action</span></div>{items.map((item, index) => <div className="estimate-item" key={item.id ?? `new-${index}`}><select aria-label={`Invoice item ${index + 1} type`} value={item.kind} disabled={lockFinancials} onChange={(event) => updateItem(index, { kind: event.target.value as InvoiceItemDraft["kind"] })}><option>Service</option><option>Material</option></select><input aria-label={`Invoice item ${index + 1} description`} value={item.description} disabled={lockFinancials} onChange={(event) => updateItem(index, { description: event.target.value })} /><input aria-label={`Invoice item ${index + 1} quantity`} type="number" min="0.01" step="0.01" value={item.qty} disabled={lockFinancials} onChange={(event) => updateItem(index, { qty: Number(event.target.value) })} /><input aria-label={`Invoice item ${index + 1} rate`} type="number" min="0" step="0.01" value={item.rate} disabled={lockFinancials} onChange={(event) => updateItem(index, { rate: Number(event.target.value) })} /><select aria-label={`Invoice item ${index + 1} GST type`} value={item.gst_type} disabled={lockFinancials} onChange={(event) => updateItem(index, { gst_type: event.target.value as GstType, ...(event.target.value === "No GST" ? { gst_rate: 0 } : { gst_rate: item.gst_rate || 18 }) })}><option>CGST+SGST</option><option>IGST</option><option>No GST</option></select>{item.gst_type === "No GST" ? <span className="gst-no-rate">0%</span> : <SearchSelect label={`Invoice item ${index + 1} GST rate`} options={GST_RATE_OPTIONS} value={item.gst_rate} disabled={lockFinancials} onChange={(value) => updateItem(index, { gst_rate: Number(value) })} placeholder="GST rate" hideLabel />} {!lockFinancials && <button type="button" className="link-action line-remove" aria-label={`Remove invoice item ${index + 1}`} onClick={() => setItems((rows) => rows.filter((_, rowIndex) => rowIndex !== index))}>Remove</button>}</div>)}{!lockFinancials && lateMaterials.map((line) => <button type="button" key={line.material_row_id} onClick={() => setItems((rows) => [...rows, line])}>Add late material: {line.description} x {line.qty}</button>)}</div>
     <div className="invoice-totals" aria-label="Invoice totals"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(totals.total)}</strong></span></div>
-    <label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label><label className="checkbox-line"><input type="checkbox" checked={documentAvailable} disabled={readOnly} onChange={(event) => setDocumentAvailable(event.target.checked)} /> Document available</label>
+    <label>Notes<textarea value={notes} disabled={readOnly} onChange={(event) => setNotes(event.target.value)} /></label>
     {action === "edit" && !lockFinancials && <label>Edit note<textarea aria-label="Invoice edit note" value={editNote} onChange={(event) => setEditNote(event.target.value)} placeholder="Required when lines or discount change. Recorded in Data Flow." /></label>}
-    {financialLocked && <p className="permission-note">Financial fields and line items are locked because this invoice has an active payment. Tally reference, notes, and document availability can still be updated.</p>}
+    {financialLocked && <p className="permission-note">Financial fields and line items are locked because this invoice has an active payment. Tally reference and notes can still be updated.</p>}
     {error && <p className="error-text" role="alert">{error}</p>}
   </form></Dialog>;
 }
