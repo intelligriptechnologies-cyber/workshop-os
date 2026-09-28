@@ -1,7 +1,6 @@
 import type { Database } from "sql.js";
 import { Check, Eye, Plus } from "lucide-react";
 import { Fragment, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
-import { JobPicker, jobMatchesPeriod, todayJobPeriod, type JobPeriod } from "./job-picker";
 import {
   canMutateBilling,
   createInvoiceForActor,
@@ -123,32 +122,26 @@ export function BillingManager({ mode, state, actor, mutate, panel = true, pendi
   const [invoiceDialog, setInvoiceDialog] = useState<{ action: "create" | "view" | "edit"; view: JobView }>();
   const [paymentDialog, setPaymentDialog] = useState<JobView>();
   const [jobId, setJobId] = useState<number>();
-  // The Accounts panel has no period picker, so it starts unscoped. Manage retains its received-date workflow.
-  const [jobPeriod, setJobPeriod] = useState<JobPeriod>(() => panel ? { date: "", month: "ALL", year: "ALL" } : todayJobPeriod());
   const [expanded, setExpanded] = useState<string>();
-  const [voidedOnly, setVoidedOnly] = useState(false);
   const [paymentMode, setPaymentMode] = useState<"ALL" | PaymentMode>("ALL");
-  const [eventDate, setEventDate] = useState("");
   const [eventMonth, setEventMonth] = useState("ALL");
   const editable = actor.role === "admin" || actor.role === "service";
-  const allRecords = useMemo(() => recordsFor(mode, state.jobs, voidedOnly).filter((record) => !pendingInvoicesOnly || record.view.invoice?.status === "Pending"), [mode, state.jobs, voidedOnly, pendingInvoicesOnly]);
+  const allRecords = useMemo(() => recordsFor(mode, state.jobs).filter((record) => !pendingInvoicesOnly || record.view.invoice?.status === "Pending"), [mode, state.jobs, pendingInvoicesOnly]);
   const recordStatus = (record: BillingRecord) => mode === "Invoices" ? invoiceStatus(record.view) : mode === "Payments" ? paymentStatus(record) : delivered(record.view) ? "Delivered" : "Pending";
-  const showStatusFilter = !pendingInvoicesOnly && (mode === "Invoices" || (!panel && mode === "Delivery"));
+  const showStatusFilter = !pendingInvoicesOnly && mode === "Invoices";
   const compactAccountsPanel = panel && actor.role === "accounts";
-  const showPaymentModeFilter = compactAccountsPanel && mode === "Payments";
-  const managePeriod = !panel;
+  const showPaymentModeFilter = mode === "Payments";
   const availableMonths = useMemo(() => Array.from(new Set(allRecords.map((record) => recordDate(mode, record).slice(0, 7)).filter(Boolean))).sort((left, right) => right.localeCompare(left)), [allRecords, mode]);
   const filtered = allRecords.filter((record) => {
     const needle = normalizeSearch(search);
     const date = recordDate(mode, record);
-    return (!managePeriod || jobMatchesPeriod(record.view, jobPeriod)) && (!eventDate || date === eventDate) && (!eventMonth || eventMonth === "ALL" || date.startsWith(eventMonth)) && (!needle || searchText(record).includes(needle)) && (!showStatusFilter || status === "ALL" || recordStatus(record) === status) && (!showPaymentModeFilter || paymentMode === "ALL" || record.payment?.mode === paymentMode);
+    return (!eventMonth || eventMonth === "ALL" || date.startsWith(eventMonth)) && (!needle || searchText(record).includes(needle)) && (!showStatusFilter || status === "ALL" || recordStatus(record) === status) && (!showPaymentModeFilter || paymentMode === "ALL" || record.payment?.mode === paymentMode);
   }).sort((left, right) => newestFirst(mode, left, right));
   const manage = !panel && mode !== "Delivery";
   const pickedJob = state.jobs.find((view) => view.job.id === jobId);
   const paged = paginate(filtered, page, pageSize);
   const statusOptions = mode === "Invoices" ? ["Pending", "Partial", "Cleared"] : ["Delivered"];
-  const clear = () => { setSearch(""); setStatus("ALL"); setPaymentMode("ALL"); setEventDate(""); setEventMonth("ALL"); setJobId(undefined); if (managePeriod) setJobPeriod(todayJobPeriod()); setPage(1); };
-  const toggleVoidedOnly = (checked: boolean) => { setVoidedOnly(checked); setExpanded(undefined); setJobId(undefined); setPage(1); };
+  const clear = () => { setSearch(""); setStatus("ALL"); setPaymentMode("ALL"); setEventMonth("ALL"); setJobId(undefined); setPage(1); };
   const columns: ExportColumn<BillingRecord>[] = mode === "Invoices"
     ? [{ header: "Created", value: (row) => timestamp(row.view.invoice?.created_at) }, { header: "Job", value: (row) => row.view.job.job_no }, { header: "Invoice", value: (row) => row.view.invoice?.invoice_no ?? "Not created" }, { header: "Customer", value: (row) => row.view.customer.name }, ...(pendingInvoicesOnly ? [{ header: "Vehicle", value: (row: BillingRecord) => row.view.vehicle.number }] : []), { header: "Total", value: (row) => row.view.invoice?.total ?? 0 }, { header: "Status", value: (row) => invoiceStatus(row.view) }]
     : mode === "Payments"
@@ -168,23 +161,20 @@ export function BillingManager({ mode, state, actor, mutate, panel = true, pendi
           {!editable && actor.role !== "accounts" && <p className="permission-note">Read-only billing access.</p>}
           {inline && <p className="permission-note" role="note">Click a row for lines, GST and totals.{manage ? "" : " Create or edit invoices from the Job Card."}</p>}
         </>}
-        {managePeriod && <JobPicker jobs={state.jobs} selectedJobId={jobId} onSelect={setJobId} label={manage ? `Job for ${mode.toLowerCase()}` : "Delivery period"} period={jobPeriod} onPeriodChange={(period) => { setJobPeriod(period); setPage(1); }} onClear={clear} showJobResults={manage} />}
-        {manage && !voidedOnly && <>
+        {manage && <>
           {pickedJob && <div className="action-row"><span className="result-summary">{pickedJob.invoice ? `${pickedJob.invoice.invoice_no} · ${invoiceStatus(pickedJob)}` : "No invoice yet"}</span>
             {pickedJob.invoice ? <><button onClick={() => setInvoiceDialog({ action: "view", view: pickedJob })}>View Invoice</button>{canEditInvoice(actor, pickedJob.job) && pickedJob.invoice.status === "Pending" && <button className="primary-action" onClick={() => setInvoiceDialog({ action: "edit", view: pickedJob })}>Edit Invoice</button>}</> : canCreateInvoice(actor, pickedJob.job) && <button className="primary-action" onClick={() => setInvoiceDialog({ action: "create", view: pickedJob })}>Create Invoice</button>}</div>}</>}
-        <div className={compactAccountsPanel ? "store-filter-grid billing-panel-filter-grid" : "store-filter-grid"}>
-          <label className="list-search">{!compactAccountsPanel && `Search ${mode.toLowerCase()}`}<input aria-label={`Search ${mode.toLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder={compactAccountsPanel ? `Search ${mode.toLowerCase()}` : "Job, invoice, customer, vehicle or reference"} /></label>
-          {compactAccountsPanel && <label>Date<input type="date" aria-label={`${mode} date filter`} value={eventDate} onChange={(event) => { setEventDate(event.target.value); setEventMonth("ALL"); setPage(1); }} /></label>}
-          {compactAccountsPanel && <label>Month-Year<select aria-label={`${mode} Month-Year filter`} value={eventMonth} onChange={(event) => { setEventMonth(event.target.value); setEventDate(""); setPage(1); }}><option value="ALL">All months</option>{availableMonths.map((month) => <option key={month} value={month}>{monthYearLabel(month)}</option>)}</select></label>}
+        <div className="store-filter-grid billing-panel-filter-grid">
+          <label className="list-search">Search<input aria-label={`Search ${mode.toLowerCase()}`} value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Job, invoice, customer, vehicle or reference" /></label>
+          <label>Month-Year<select aria-label={`${mode} Month-Year filter`} value={eventMonth} onChange={(event) => { setEventMonth(event.target.value); setPage(1); }}><option value="ALL">All months</option>{availableMonths.map((month) => <option key={month} value={month}>{monthYearLabel(month)}</option>)}</select></label>
           {showStatusFilter && <label>Status<select aria-label={`${mode} status filter`} value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="ALL">All</option>{statusOptions.map((value) => <option key={value}>{value}</option>)}</select></label>}
           {showPaymentModeFilter && <label>Payment mode<select aria-label="Payment mode filter" value={paymentMode} onChange={(event) => { setPaymentMode(event.target.value as "ALL" | PaymentMode); setPage(1); }}><option value="ALL">All</option>{(["UPI", "Cash", "Card", "Bank transfer", "Other"] as PaymentMode[]).map((value) => <option key={value}>{value}</option>)}</select></label>}
-          {mode === "Invoices" && actor.role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show voided only" checked={voidedOnly} onChange={(event) => toggleVoidedOnly(event.target.checked)} /> Show voided only</label>}
           <ListSearchActions onClear={clear} />
         </div>
-        <PaginationToolbar controls={<DownloadMenu report={{ title: pendingInvoicesOnly ? "Ready To Invoice" : mode, filters: activeFilterSummary({ Search: search.trim(), Date: eventDate, "Month-Year": eventMonth === "ALL" ? "ALL" : monthYearLabel(eventMonth), Status: pendingInvoicesOnly ? "Pending" : status, "Payment mode": paymentMode, "Show voided only": voidedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel={`${mode} records per page`} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
+        <PaginationToolbar controls={<DownloadMenu report={{ title: pendingInvoicesOnly ? "Ready To Invoice" : mode, filters: activeFilterSummary({ Search: search.trim(), "Month-Year": eventMonth === "ALL" ? "ALL" : monthYearLabel(eventMonth), Status: pendingInvoicesOnly ? "Pending" : status, "Payment mode": paymentMode }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel={`${mode} records per page`} onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
         <div className="table-wrap"><table aria-label={`${mode} manager`}><thead><tr>{columns.map((column) => <th key={column.header}>{column.header}</th>)}<th>Actions</th></tr></thead><tbody>{paged.items.map((record) => {
           const open = expanded === record.key;
-          const quickPay = !pendingInvoicesOnly && mode === "Invoices" && !voidedOnly && record.view.invoice?.status === "Pending" && canRecordOrVoidPayment(actor, record.view.job);
+          const quickPay = !pendingInvoicesOnly && mode === "Invoices" && record.view.invoice?.status === "Pending" && canRecordOrVoidPayment(actor, record.view.job);
           const highlightClass = accountsRowHighlight(mode, record, compactAccountsPanel);
           return <Fragment key={record.key}>
             <tr className={[record.kind === "void" ? "billing-row-void" : "", highlightClass, inline ? "billing-row-click" : ""].filter(Boolean).join(" ") || undefined} {...(inline ? { tabIndex: 0, "aria-expanded": open, "aria-controls": `billing-detail-${record.key}`, onClick: () => toggle(record.key), onKeyDown: (event: KeyboardEvent<HTMLTableRowElement>) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); toggle(record.key); } } } : {})}>{columns.map((column) => <td key={column.header}>{String(column.value(record))}</td>)}<td><div className="grid-actions billing-table-actions">

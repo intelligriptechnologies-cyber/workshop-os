@@ -148,7 +148,7 @@ import { FUEL_LEVELS, PICKUP_DROP_OPTIONS, SERVICE_TYPES, parseDamageMarks, seri
 import { InventoryPicker, JobMaterialsPanel } from "./materials-ui";
 import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor } from "./materials";
 import { JOB_CARD_TABS, isStubTab, type JobCardTabKey } from "./job-card-layout";
-import { Dialog, DownloadMenu, FilterClearButton, handleTabListKeyDown, ListSearchActions, SearchSelect } from "./ui-kit";
+import { Dialog, DownloadMenu, FilterClearButton, handleTabListKeyDown, ListSearchActions, SearchSelect, Switch } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
 import { APP_THEME_FONTS, APP_THEME_PALETTES, loadAdminDemoState, PAGE_LABEL_BY_KEY, resolvePermittedPages, resolveRoleMenuPageKeys, type AdminPageKey, type AppTheme } from "./admin-demo-state";
 import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
@@ -242,6 +242,7 @@ type DashboardDrilldown = {
   date?: string;
   status?: string;
   category?: SearchTableCategory;
+  lowStockOnly?: boolean;
   stockTab?: "Inventory List" | "Low Stock";
   served?: "customers" | "vehicles";
 };
@@ -305,6 +306,7 @@ function App() {
   const [searchDateFilter, setSearchDateFilter] = useState("");
   const [searchMonthFilter, setSearchMonthFilter] = useState("");
   const [searchPaymentMode, setSearchPaymentMode] = useState<"ALL" | PaymentMode>("ALL");
+  const [searchLowStockOnly, setSearchLowStockOnly] = useState(false);
   const [searchNavigate, setSearchNavigate] = useState<{ kind: "jobs" | "customers" | "vehicles"; id: number }>();
   const [stockSearchNavigate, setStockSearchNavigate] = useState<string>();
   const [dashboardDrilldown, setDashboardDrilldown] = useState<DashboardDrilldown>();
@@ -564,6 +566,7 @@ function App() {
       setSearchDateFilter(drilldown.date ?? "");
       setSearchMonthFilter(drilldown.month ?? "");
       setSearchPaymentMode("ALL");
+      setSearchLowStockOnly(Boolean(drilldown.lowStockOnly));
     }
     setActiveMenuItem(drilldown.destination);
   };
@@ -636,6 +639,7 @@ function App() {
           searchDateFilter={searchDateFilter}
           searchMonthFilter={searchMonthFilter}
           searchPaymentMode={searchPaymentMode}
+          searchLowStockOnly={searchLowStockOnly}
           paymentRows={paymentRows}
           searchNavigate={searchNavigate}
           permittedPages={permittedPages}
@@ -647,6 +651,7 @@ function App() {
           setSearchDateFilter={setSearchDateFilter}
           setSearchMonthFilter={setSearchMonthFilter}
           setSearchPaymentMode={setSearchPaymentMode}
+          setSearchLowStockOnly={setSearchLowStockOnly}
           setSelectedJobId={setSelectedJobId}
           onOpenSearchRecord={openSearchRecord}
           onOpenStockSearchRecord={openStockSearchRecord}
@@ -732,6 +737,7 @@ function RoleWorkspace({
   searchDateFilter,
   searchMonthFilter,
   searchPaymentMode,
+  searchLowStockOnly,
   paymentRows,
   searchNavigate,
   permittedPages,
@@ -743,6 +749,7 @@ function RoleWorkspace({
   setSearchDateFilter,
   setSearchMonthFilter,
   setSearchPaymentMode,
+  setSearchLowStockOnly,
   setSelectedJobId,
   onOpenSearchRecord,
   onOpenStockSearchRecord,
@@ -766,6 +773,7 @@ function RoleWorkspace({
   searchDateFilter: string;
   searchMonthFilter: string;
   searchPaymentMode: "ALL" | PaymentMode;
+  searchLowStockOnly: boolean;
   paymentRows: PaymentSearchRow[];
   searchNavigate?: { kind: "jobs" | "customers" | "vehicles"; id: number };
   permittedPages: AdminPageKey[];
@@ -777,6 +785,7 @@ function RoleWorkspace({
   setSearchDateFilter: (value: string) => void;
   setSearchMonthFilter: (value: string) => void;
   setSearchPaymentMode: (value: "ALL" | PaymentMode) => void;
+  setSearchLowStockOnly: (value: boolean) => void;
   setSelectedJobId: (value: number) => void;
   onOpenSearchRecord: (view: JobView, category: Exclude<SearchTableCategory, "stock">) => void;
   onOpenStockSearchRecord: (item: InventoryItem) => void;
@@ -803,6 +812,7 @@ function RoleWorkspace({
         dateFilter={searchDateFilter}
         monthFilter={searchMonthFilter}
         paymentMode={searchPaymentMode}
+        lowStockOnly={searchLowStockOnly}
         paymentRows={paymentRows}
         permittedPages={permittedPages}
         actor={user}
@@ -812,6 +822,7 @@ function RoleWorkspace({
         setDateFilter={setSearchDateFilter}
         setMonthFilter={setSearchMonthFilter}
         setPaymentMode={setSearchPaymentMode}
+        setLowStockOnly={setSearchLowStockOnly}
         onOpenRecord={onOpenSearchRecord}
         onOpenStockRecord={onOpenStockSearchRecord}
       />
@@ -846,6 +857,7 @@ function SearchPortal({
   dateFilter,
   monthFilter,
   paymentMode,
+  lowStockOnly,
   paymentRows,
   permittedPages,
   actor,
@@ -855,6 +867,7 @@ function SearchPortal({
   setDateFilter,
   setMonthFilter,
   setPaymentMode,
+  setLowStockOnly,
   onOpenRecord,
   onOpenStockRecord,
 }: {
@@ -867,6 +880,7 @@ function SearchPortal({
   dateFilter: string;
   monthFilter: string;
   paymentMode: "ALL" | PaymentMode;
+  lowStockOnly: boolean;
   paymentRows: PaymentSearchRow[];
   permittedPages: AdminPageKey[];
   actor: User;
@@ -876,6 +890,7 @@ function SearchPortal({
   setDateFilter: (value: string) => void;
   setMonthFilter: (value: string) => void;
   setPaymentMode: (value: "ALL" | PaymentMode) => void;
+  setLowStockOnly: (value: boolean) => void;
   onOpenRecord: (view: JobView, category: Exclude<SearchTableCategory, "stock">) => void;
   onOpenStockRecord: (item: InventoryItem) => void;
 }) {
@@ -897,19 +912,22 @@ function SearchPortal({
   const operationalCategory = actor.role === "admin" && ADMIN_OPERATIONAL_SEARCH_CATEGORIES.includes(category as AdminOperationalSearchCategory)
     ? category as AdminOperationalSearchCategory
     : undefined;
-  const availableMonths = [...new Set((category === "payment" ? paymentRows.map(({ payment }) => payment.created_at?.slice(0, 7) ?? "") : state.jobs
+  const availableMonths = [...new Set((category === "payment" ? [monthFilter, ...state.jobs.flatMap((view) => view.payments.filter((payment) => !payment.voided_at).map((payment) => payment.created_at?.slice(0, 7) ?? ""))] : state.jobs
     .map((view) => view.visit.received_at.slice(0, 7)))
     .filter((month) => /^\d{4}-\d{2}$/.test(month)))]
     .sort((left, right) => right.localeCompare(left));
 
   const changeFilters = (change: () => void) => { change(); setPage(1); };
-  const clearFilters = () => { setQuery(""); setCategory(""); setStatus("ALL"); setDateFilter(""); setMonthFilter(""); setPaymentMode("ALL"); setPage(1); };
+  const clearFilters = () => { setQuery(""); setCategory(category === "stock" ? "stock" : ""); setStatus("ALL"); setDateFilter(""); setMonthFilter(""); setPaymentMode("ALL"); setLowStockOnly(false); setPage(1); };
 
   const paged = paginate(jobs, page, pageSize);
   const stockRows = useMemo(() => {
     const needle = normalizeSearch(query);
-    return state.inventory.filter((item) => !needle || normalizeSearch(`${item.sku} ${item.name} ${item.category} ${item.unit}`).includes(needle));
-  }, [state.inventory, query]);
+    return state.inventory.filter((item) =>
+      (!lowStockOnly || item.stock_qty < item.low_stock_qty)
+      && (!needle || normalizeSearch(`${item.sku} ${item.name} ${item.category} ${item.unit}`).includes(needle)),
+    );
+  }, [state.inventory, query, lowStockOnly]);
   const pagedStock = paginate(stockRows, page, pageSize);
   const isStock = category === "stock";
   const isPayment = category === "payment";
@@ -930,6 +948,7 @@ function SearchPortal({
             setCategory(nextCategory);
             if (nextCategory !== "job") setStatus("ALL");
             if (nextCategory !== "payment") setPaymentMode("ALL");
+            if (nextCategory !== "stock") setLowStockOnly(false);
           })}>
             <option value="">Select a category</option>
             {availableCategories.map((item) => <option key={item} value={item}>{item in ADMIN_OPERATIONAL_SEARCH_LABELS ? ADMIN_OPERATIONAL_SEARCH_LABELS[item as AdminOperationalSearchCategory] : SEARCH_CATEGORY_LABELS[item as SearchTableCategory]}</option>)}
@@ -1975,10 +1994,15 @@ type DashboardCard = { title: string; subtitle: string; tone: string; action: st
 
 function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onNavigate: (drilldown: DashboardDrilldown) => void }) {
   const today = localCalendarDate();
-  const facts = dashboardFacts(state.jobs, state.inventory, today);
-  const currentMonth = facts.currentMonth;
+  const currentMonth = today.slice(0, 7);
+  const [cashflowMonth, setCashflowMonth] = useState(currentMonth);
+  const cashflowMonths = useMemo(() => [...new Set([currentMonth, ...state.jobs.flatMap((view) => view.payments)
+    .filter((payment) => !payment.voided_at)
+    .map((payment) => payment.created_at?.slice(0, 7) ?? "")
+    .filter((month) => /^\d{4}-\d{2}$/.test(month))])].sort((left, right) => right.localeCompare(left)), [currentMonth, state.jobs]);
+  const facts = dashboardFacts(state.jobs, state.inventory, today, cashflowMonth);
   const dateLabel = new Date(`${today}T00:00:00`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
-  const collectionPace = facts.daysInMonth ? Math.round(facts.daysElapsed / facts.daysInMonth * 100) : 0;
+  const collectionPace = facts.cashflowMonthComplete ? 100 : facts.daysInMonth ? Math.round(facts.daysElapsed / facts.daysInMonth * 100) : 0;
   const cards: DashboardCard[] = [
     { title: "Workshop flow", subtitle: "All job-card history", tone: "flow", action: "View active jobs", drilldown: { destination: "Job Cards", status: "ACTIVE" }, metrics: [
       { label: "Active today", value: facts.activeToday, tone: "active", layout: "primary", drilldown: { destination: "Job Cards", status: "ACTIVE" } },
@@ -1987,17 +2011,17 @@ function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onN
       { label: "Closed", value: facts.closed, tone: "closed", drilldown: { destination: "Job Cards", status: "CLOSED" } },
       { label: "On hold", value: facts.onHold, tone: "hold", drilldown: { destination: "Job Cards", status: "HOLD" } },
     ] },
-    { title: "Cashflow", subtitle: `${facts.monthLabel} collection runway`, tone: "cashflow", action: "View collections", drilldown: { destination: "Search", month: currentMonth, category: "payment" }, metrics: [
-      { label: "Total collections", value: money(facts.totalCollections), tone: "collections", layout: "primary", drilldown: { destination: "Search", month: currentMonth, category: "payment" } },
-      { label: "Projected monthly collection", value: money(facts.projectedMonthlyCollection), tone: "projection", layout: "projection", context: `${facts.daysElapsed} of ${facts.daysInMonth} calendar days elapsed`, drilldown: { destination: "Search", month: currentMonth, category: "payment" } },
-      { label: "Payments received", value: facts.paymentsReceived, tone: "payments", layout: "supporting", drilldown: { destination: "Search", month: currentMonth, category: "payment" } },
-      { label: "Invoices generated", value: facts.invoicesGenerated, tone: "invoices", layout: "supporting", drilldown: { destination: "Search", month: currentMonth, category: "invoice" } },
+    { title: "Cashflow", subtitle: `${facts.cashflowMonthLabel} ${facts.cashflowMonthComplete ? "collection complete" : "collection runway"}`, tone: "cashflow", action: "View collections", drilldown: { destination: "Search", month: cashflowMonth, category: "payment" as const }, metrics: [
+      { label: facts.cashflowMonthComplete ? "Final collection" : "Total collections", value: money(facts.totalCollections), tone: "collections", layout: "primary", drilldown: { destination: "Search", month: cashflowMonth, category: "payment" as const } },
+      ...(facts.cashflowMonthComplete ? [] : [{ label: "Projected monthly collection", value: money(facts.projectedMonthlyCollection), tone: "projection", layout: "projection" as const, context: `${facts.daysElapsed} of ${facts.daysInMonth} calendar days elapsed`, drilldown: { destination: "Search", month: cashflowMonth, category: "payment" as const } }]),
+      { label: "Payments received", value: facts.paymentsReceived, tone: "payments", layout: "supporting", drilldown: { destination: "Search", month: cashflowMonth, category: "payment" as const } },
+      { label: "Invoices generated", value: facts.invoicesGenerated, tone: "invoices", layout: "supporting", drilldown: { destination: "Search", month: cashflowMonth, category: "invoice" as const } },
     ] },
-    { title: "Customer reach", subtitle: "All customers and vehicles served", tone: "reach", action: "View customers served", drilldown: { destination: "Customers", served: "customers" }, metrics: [
+    { title: "Customer reach", subtitle: "All customers and vehicles served", tone: "reach", action: "View customers served", drilldown: { destination: "Search", category: "customer" }, metrics: [
       { label: "Customers served", value: facts.customersServed, tone: "customers", drilldown: { destination: "Customers", served: "customers" } },
       { label: "Vehicles served", value: facts.vehiclesServed, tone: "vehicles", drilldown: { destination: "Vehicles", served: "vehicles" } },
     ] },
-    { title: "Inventory watch", subtitle: `${facts.monthLabel} materials attention`, tone: "inventory", action: "View low-stock blockers", drilldown: { destination: "Stock", stockTab: "Low Stock" }, metrics: [
+    { title: "Inventory watch", subtitle: `${facts.monthLabel} materials attention`, tone: "inventory", action: "View low-stock blockers", drilldown: { destination: "Search", category: "stock", lowStockOnly: true }, metrics: [
       { label: "Low-stock items", value: facts.lowStock, tone: "low-stock", drilldown: { destination: "Stock", stockTab: "Low Stock" } },
       { label: "Pending approvals", value: facts.pendingApprovals, tone: "approvals", drilldown: { destination: "Approvals", month: currentMonth } },
       { label: "Material requests", value: facts.materialRequests, tone: "requests", drilldown: { destination: "Material Requests", month: currentMonth } },
@@ -2012,9 +2036,9 @@ function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onN
     <div className="command-grid">{cards.map((card) => {
       const icon = card.tone === "flow" ? <Gauge size={21} /> : card.tone === "cashflow" ? <Banknote size={21} /> : card.tone === "reach" ? <UsersRound size={21} /> : <Boxes size={21} />;
       return <article key={card.title} data-dashboard-card={card.tone} className={`command-card command-${card.tone}`} tabIndex={0} onClick={() => onNavigate(card.drilldown)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onNavigate(card.drilldown); } }}>
-        <div className="command-card-heading"><span className="command-icon-tile" aria-hidden="true">{icon}</span><div><h2>{card.title}</h2><p>{card.subtitle}</p></div></div>
+        <div className="command-card-heading"><span className="command-icon-tile" aria-hidden="true">{icon}</span><div><h2>{card.title}</h2><p>{card.subtitle}</p></div>{card.tone === "cashflow" && <label className="cashflow-month">Cashflow month<select aria-label="Cashflow month" value={cashflowMonth} onPointerDown={(event) => event.stopPropagation()} onClick={(event) => event.stopPropagation()} onKeyDown={(event) => event.stopPropagation()} onChange={(event) => { event.stopPropagation(); setCashflowMonth(event.target.value); }}>{cashflowMonths.map((month) => <option key={month} value={month}>{SEARCH_MONTH_YEAR_FORMATTER.format(new Date(`${month}-01T00:00:00Z`))}</option>)}</select></label>}</div>
         <div className={`command-metrics${card.tone === "cashflow" ? " command-cashflow-metrics" : ""}`}>{card.metrics.map((metric) => <button type="button" key={metric.label} className={`command-metric metric-${metric.tone}${metric.layout ? ` command-metric-${metric.layout}` : ""}`} aria-label={`Open ${metric.label}: ${metric.value}`} onClick={(event) => { event.stopPropagation(); onNavigate(metric.drilldown); }}><span>{metric.label}</span><strong>{metric.value}</strong>{metric.context && <small>{metric.context}</small>}</button>)}</div>
-        {card.tone === "cashflow" && <div className="collection-pace" aria-label={`${collectionPace}% of calendar month elapsed`}><div className="collection-pace-label"><span>Collection runway</span><strong>{collectionPace}% elapsed</strong></div><div className="collection-pace-track"><span style={{ width: `${collectionPace}%` }} /></div><div className="collection-bars" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div></div>}
+        {card.tone === "cashflow" && (facts.cashflowMonthComplete ? <div className="collection-pace collection-complete" aria-label={`${facts.cashflowMonthLabel} collection complete`}><div className="collection-pace-label"><span>Collection period</span><strong>Month complete</strong></div></div> : <div className="collection-pace" aria-label={`${collectionPace}% of calendar month elapsed`}><div className="collection-pace-label"><span>Collection runway</span><strong>{collectionPace}% elapsed</strong></div><div className="collection-pace-track"><span style={{ width: `${collectionPace}%` }} /></div><div className="collection-bars" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div></div>)}
         {card.tone === "reach" && <svg className="customer-trend" viewBox="0 0 260 62" role="img" aria-label="Decorative customer reach trend"><path d="M2 52C28 48 31 36 53 42S83 51 103 29s33 5 54-8 29-1 46-17 30-1 55-3" fill="none" pathLength="1" /><path d="M2 59H258" /></svg>}
         {card.tone === "inventory" && <div className="inventory-signal" aria-hidden="true"><Sparkles size={15} /><span>Attention queue</span><i /><i /><i /></div>}
         <div className="command-card-footer"><button type="button" className="command-card-open" aria-label={card.action} onClick={(event) => { event.stopPropagation(); onNavigate(card.drilldown); }}>{card.action} <ChevronRight size={14} /></button></div>
@@ -2077,7 +2101,7 @@ function CustomerManager({ state, mutate, actor }: { state: WorkshopState; mutat
     <div className="panel-actions"><h3>Customers</h3>{!archivedOnly && <button className="primary-action" onClick={() => { setDraft(empty); setCreating(true); }}>Add Customer</button>}</div>
     {creating && <Dialog title="Add Customer" onClose={() => setCreating(false)}><CustomerEditor embedded value={draft} setValue={setDraft} mutate={mutate} onSaved={() => setCreating(false)} /></Dialog>}
     {record && <CustomerRecordDialog customer={record.customer} state={state} mutate={mutate} mode={record.mode} onClose={() => setRecord(undefined)} />}
-    <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search customers" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, mobile or type" /></label>{actor.role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show archived only" checked={archivedOnly} onChange={(event) => { setArchivedOnly(event.target.checked); setPage(1); setRecord(undefined); }} /> Show archived only</label>}<ListSearchActions onClear={() => { setSearch(""); setPage(1); }} /></div>
+    <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search customers" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, mobile or type" /></label>{actor.role === "admin" && <Switch label="Show archived only" checked={archivedOnly} onCheckedChange={(checked) => { setArchivedOnly(checked); setPage(1); setRecord(undefined); }} />}<ListSearchActions onClear={() => { setSearch(""); setPage(1); }} /></div>
     <PaginationToolbar controls={<DownloadMenu report={{ title: "Customers", filters: activeFilterSummary({ Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Customer records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
     <div className="record-list">{paged.items.map((customer) => <div className="managed-record" key={customer.id}><div><strong>{customer.name}</strong><span>{customer.mobile} · {customer.type}</span></div><div className="action-row"><RecordActions onView={() => setRecord({ customer, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ customer, mode: "edit" }) : undefined} onArchive={!archivedOnly ? () => mutate((db) => archiveCustomer(db, customer.id, "Archived by Admin")) : undefined} /></div></div>)}</div>
     {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={() => { setSearch(""); setPage(1); }} label="Clear filters" /></div>}
@@ -2110,7 +2134,7 @@ function VehicleManager({ state, mutate, actor }: { state: WorkshopState; mutate
     <div className="panel-actions"><h3>Vehicles</h3>{!archivedOnly && <button className="primary-action" onClick={() => { setDraft(empty); setCreating(true); }}>Add Vehicle</button>}</div>
     {creating && <Dialog title="Add Vehicle" onClose={() => setCreating(false)}><VehicleMasterPanel embedded key={draft.id} state={state} value={draft} setValue={setDraft} mutate={mutate} onSaved={() => setCreating(false)} /></Dialog>}
     {record && <VehicleRecordDialog vehicle={vehicles.find((vehicle) => vehicle.id === record.id)!} state={state} mutate={mutate} mode={record.mode} onClose={() => setRecord(undefined)} />}
-    <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search vehicles" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Registration, make, model or customer" /></label>{actor.role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show archived only" checked={archivedOnly} onChange={(event) => { setArchivedOnly(event.target.checked); setPage(1); setRecord(undefined); }} /> Show archived only</label>}<ListSearchActions onClear={() => { setSearch(""); setPage(1); }} /></div>
+    <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search vehicles" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Registration, make, model or customer" /></label>{actor.role === "admin" && <Switch label="Show archived only" checked={archivedOnly} onCheckedChange={(checked) => { setArchivedOnly(checked); setPage(1); setRecord(undefined); }} />}<ListSearchActions onClear={() => { setSearch(""); setPage(1); }} /></div>
     <PaginationToolbar controls={<DownloadMenu report={{ title: "Vehicles", filters: activeFilterSummary({ Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Vehicle records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
     <div className="record-list">{paged.items.map((vehicle) => <div className="managed-record" key={vehicle.id}><div><strong>{vehicle.number}</strong><span>{vehicle.make} {vehicle.model} · {owners.find((customer) => customer.id === vehicle.customer_id)?.name ?? "—"}</span></div><div className="action-row"><RecordActions onView={() => setRecord({ id: vehicle.id, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ id: vehicle.id, mode: "edit" }) : undefined} onArchive={!archivedOnly ? () => mutate((db) => archiveVehicle(db, vehicle.id, "Archived by Admin")) : undefined} /></div></div>)}</div>
     {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={() => { setSearch(""); setPage(1); }} label="Clear filters" /></div>}
@@ -2139,7 +2163,7 @@ function VisitJobManager({ state, mutate, actingUser, selected, setSelectedJobId
     <div className="panel-actions"><h3>Job Cards</h3>{!archivedOnly && <button className="add-action" onClick={() => setCreating(true)}><Plus size={17} />Add Job Card</button>}</div>
     {creating && <AddJobCardDialog state={state} mutate={mutate} actor={actingUser} onClose={() => setCreating(false)} />}
     {dialogJob && <JobRecordDialog view={dialogJob} state={state} mutate={mutate} actor={actingUser} mode={archivedOnly ? "view" : record?.mode ?? "view"} historical={archivedOnly} onClose={() => setRecord(undefined)} onAdminArchive={!archivedOnly ? () => mutate((db) => cancelJobCard(db, dialogJob.job.id, "Admin override: archived from Management Hub")) : undefined} />}
-    <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search job cards" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Job card, vehicle or customer" /></label><label>Status<select aria-label="Job status filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>{actingUser.role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show archived only" checked={archivedOnly} onChange={(event) => { setArchivedOnly(event.target.checked); setPage(1); setRecord(undefined); }} /> Show archived only</label>}<ListSearchActions onClear={() => { setSearch(""); setStatus("ALL"); setPage(1); }} /></div>
+    <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search job cards" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Job card, vehicle or customer" /></label><label>Status<select aria-label="Job status filter" value={status} onChange={(event) => { setStatus(event.target.value); setPage(1); }}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>{actingUser.role === "admin" && <Switch label="Show archived only" checked={archivedOnly} onCheckedChange={(checked) => { setArchivedOnly(checked); setPage(1); setRecord(undefined); }} />}<ListSearchActions onClear={() => { setSearch(""); setStatus("ALL"); setPage(1); }} /></div>
     <PaginationToolbar controls={<DownloadMenu report={{ title: "Job Cards", filters: activeFilterSummary({ Search: search.trim(), Status: status, "Show archived only": archivedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Job card records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
     {paged.totalCount > 0 && <div className="table-wrap manage-job-table"><table aria-label="Managed job cards"><thead><tr>{["Job Card", "Vehicle", "Customer", "Status", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{paged.items.map((row) => <tr key={row.job.id}><td>{row.job.job_no}</td><td>{row.vehicle.number} · {row.vehicle.make} {row.vehicle.model}</td><td>{row.customer.name}</td><td><Status status={row.job.main_status} sub={row.job.sub_status} /></td><td><RecordActions inGrid onView={() => setRecord({ id: row.job.id, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ id: row.job.id, mode: "edit" }) : undefined} /></td></tr>)}</tbody></table></div>}
     {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={() => { setSearch(""); setStatus("ALL"); setPage(1); }} label="Clear filters" /></div>}
@@ -2725,8 +2749,7 @@ function MaterialRequestEditor({ state, mutate, embedded = false, store = false 
   const setPeriodForJob = (jobId: number) => {
     const received = state.jobs.find((view) => view.job.id === jobId)?.visit.received_at;
     if (!received) return;
-    const date = received.slice(0, 10);
-    setPeriod({ date, month: date.slice(5, 7), year: date.slice(0, 4) });
+    setPeriod({ monthYear: received.slice(0, 7) });
   };
   const selectRequest = (id: number) => {
     const next = requests.find((item) => item.id === id);
@@ -3633,7 +3656,7 @@ function EntityList({ kind, state, mutate, actor, initialFilters, initialSelecte
       {!hideSearch && <label className="list-search">Search<input aria-label={`Search ${title.toLocaleLowerCase()}`} value={effectiveSearch} placeholder={searchPlaceholder(kind)} onChange={(event) => onExternalSearchChange ? onExternalSearchChange(event.target.value) : updateFilters({ search: event.target.value })} /></label>}
       <button className="mobile-filter-toggle" aria-expanded={filtersOpen} onClick={() => setFiltersOpen((value) => !value)}>{filtersOpen ? "Hide filters" : "Show filters"}</button>
       <div className={filtersOpen ? "list-filter-fields open" : "list-filter-fields"}>
-        {role === "admin" && <label className="checkbox-line"><input type="checkbox" aria-label="Show archived only" checked={archivedOnly} onChange={(event) => { updateFilters({ archivedOnly: event.target.checked }); setSelectedId(undefined); }} /> Show archived only</label>}
+        {role === "admin" && <Switch label="Show archived only" checked={archivedOnly} onCheckedChange={(checked) => { updateFilters({ archivedOnly: checked }); setSelectedId(undefined); }} />}
         {kind === "jobs" && <>
           <label>Main status<select aria-label="Main status" value={filters.primary} onChange={(event) => updateFilters({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>
           <label>Workflow<select aria-label="Workflow status" value={filters.secondary} onChange={(event) => updateFilters({ secondary: event.target.value })}><option value="ALL">All workflows</option>{Array.from(new Set(state.jobs.map((item) => item.job.sub_status))).map((value) => <option key={value}>{value}</option>)}</select></label>

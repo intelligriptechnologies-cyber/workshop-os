@@ -124,7 +124,9 @@ test("admin dashboard presents live metrics in an accessible command-center grid
   await expect(grid.locator(".command-card-open").first()).toHaveAttribute("aria-label", "View active jobs");
   expect(await grid.locator(".command-flow").evaluate((element) => getComputedStyle(element).backgroundImage)).not.toBe("none");
 
-  await expect(dashboard.getByLabel("Dashboard reporting month")).toHaveCount(0);
+  const cashflowMonth = dashboard.getByLabel("Cashflow month");
+  await expect(cashflowMonth).toHaveCount(1);
+  const initialCashflowMonth = await cashflowMonth.inputValue();
   await expect(grid.locator(".command-cashflow .command-metric-primary")).toHaveCount(1);
   await expect(grid.locator(".command-cashflow .command-metric-projection")).toHaveCount(1);
   await expect(grid.locator(".collection-pace-track")).toBeVisible();
@@ -141,6 +143,33 @@ test("admin dashboard presents live metrics in an accessible command-center grid
   await grid.locator(".command-cashflow").focus();
   await page.keyboard.press("Enter");
   await expect(page.locator(".role-nav").getByRole("button", { name: "Search", exact: true })).toHaveClass(/active/);
+
+  await expect(page.getByLabel("Search category")).toHaveValue("payment");
+  await expect(page.getByLabel("Search month-year")).toHaveValue(initialCashflowMonth);
+
+  await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
+  await dashboard.getByRole("button", { name: "View customers served", exact: true }).click();
+  await expect(page.getByLabel("Search category")).toHaveValue("customer");
+  await expect(page.locator(".record-grid.customers")).toBeVisible();
+
+  await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
+  await dashboard.getByRole("button", { name: "View low-stock blockers", exact: true }).click();
+  await expect(page.getByLabel("Search category")).toHaveValue("stock");
+  const stockRows = page.getByRole("table", { name: "Stock search results" }).locator("tbody tr");
+  await expect(stockRows.first()).toBeVisible();
+  expect(await stockRows.evaluateAll((rows) => rows.every((row) => Number(row.children[3]?.textContent) < Number(row.children[5]?.textContent)))).toBe(true);
+  await page.locator(".portal > .list-filter-bar").getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByLabel("Search category")).toHaveValue("stock");
+  expect(await stockRows.evaluateAll((rows) => rows.some((row) => Number(row.children[3]?.textContent) >= Number(row.children[5]?.textContent)))).toBe(true);
+
+  await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
+  const historicalCashflowMonth = await cashflowMonth.locator("option").nth(1).getAttribute("value");
+  expect(historicalCashflowMonth).toBeTruthy();
+  await cashflowMonth.selectOption(historicalCashflowMonth!);
+  await expect(dashboard.getByText("Month complete", { exact: true })).toBeVisible();
+  await expect(dashboard.getByRole("button", { name: /Open Final collection:/ })).toBeVisible();
+  await dashboard.getByRole("button", { name: "View collections", exact: true }).click();
+  await expect(page.getByLabel("Search month-year")).toHaveValue(historicalCashflowMonth!);
 
   await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
   await page.emulateMedia({ reducedMotion: "reduce" });
@@ -226,49 +255,50 @@ test("list filters expose Clear but no Search submit action", async ({ page }) =
   await expect(page.locator(".entity-list-page").getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
 });
 
-test("Management Hub filters stay compact, disclose billing dates, and remain keyboard and mobile safe", async ({ page }) => {
+test("Management Hub filters use compact Month-Year toolbars and remain keyboard and mobile safe", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   const hub = page.locator(".management-hub");
 
-  for (const [tab, input] of [["Users", "Search users"], ["Customers", "Search customers"], ["Vehicles", "Search vehicles"], ["Job Cards", "Search job cards"], ["Inventory / Materials", "Search inventory / materials"]] as const) {
-    await page.getByRole("tab", { name: tab, exact: true }).click();
-    await expect(hub.getByLabel(input)).toBeVisible();
-    await expect(hub.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
-    await expect(hub.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
-  }
+  await page.getByRole("tab", { name: "Invoices", exact: true }).click();
+  const invoices = hub.locator('[data-billing-manager="Invoices"]');
+  await expect(invoices.getByLabel("Search invoices")).toBeVisible();
+  await expect(invoices.getByLabel("Invoices Month-Year filter")).toBeVisible();
+  await expect(invoices.getByLabel("Invoices status filter")).toBeVisible();
+  await expect(invoices.locator('input[type="date"]')).toHaveCount(0);
+  await expect(invoices.locator(".job-selector")).toHaveCount(0);
+  await expect(invoices.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
+  await expectManagementToolbarHasOneRow(invoices, ".billing-panel-filter-grid");
 
-  await page.getByRole("tab", { name: "Users", exact: true }).click();
-  const userSearch = hub.getByLabel("Search users");
-  const searchBox = await userSearch.boundingBox();
-  expect(searchBox).not.toBeNull();
-  await userSearch.fill("no matching administrator");
-  await expect(hub.getByText("No matching records")).toBeVisible();
-  await hub.getByRole("button", { name: "Clear", exact: true }).click();
-
-  for (const tab of ["Invoices", "Payments"] as const) {
-    await page.getByRole("tab", { name: tab, exact: true }).click();
-    const manager = hub.locator(`[data-billing-manager="${tab}"]`);
-    await expect(manager.getByLabel(`Search ${tab.toLowerCase()}`)).toBeVisible();
-    await expect(manager.getByLabel(`${tab} status filter`)).toBeVisible();
-    await expect(manager.getByLabel(`Job for ${tab.toLowerCase()} received date`)).toBeVisible();
-    await expect(manager.locator(".job-selector").getByRole("button", { name: "Clear filters" })).toHaveClass(/filter-clear-action/);
-    await expect(manager.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
-    await manager.getByRole("button", { name: "Clear", exact: true }).click();
-  }
+  await page.getByRole("tab", { name: "Payments", exact: true }).click();
+  const payments = hub.locator('[data-billing-manager="Payments"]');
+  await expect(payments.getByLabel("Search payments")).toBeVisible();
+  await expect(payments.getByLabel("Payments Month-Year filter")).toBeVisible();
+  await expect(payments.getByLabel("Payment mode filter")).toBeVisible();
+  await expect(payments.getByLabel("Payments status filter")).toHaveCount(0);
+  await expect(payments.locator('input[type="date"]')).toHaveCount(0);
+  await expectManagementToolbarHasOneRow(payments, ".billing-panel-filter-grid");
 
   await page.getByRole("tab", { name: "Delivery", exact: true }).click();
   await expect(hub.getByLabel("Search delivery")).toBeVisible();
   await expect(hub.getByRole("button", { name: "Search", exact: true })).toHaveCount(0);
   await expectNoPageOverflow(page);
 
+  await page.getByRole("tab", { name: "Estimates", exact: true }).click();
+  await expect(hub.getByLabel("Job for Estimates search")).toBeVisible();
+  await expect(hub.getByLabel("Job for Estimates Month-Year filter")).toBeVisible();
+  await expect(hub.getByLabel("Job for Estimates received date")).toHaveCount(0);
+  await expect(hub.getByLabel("Job for Estimates month", { exact: true })).toHaveCount(0);
+  await expect(hub.getByLabel("Job for Estimates year", { exact: true })).toHaveCount(0);
+  await expectManagementToolbarHasOneRow(hub, ".job-selector");
+
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("tab", { name: "Job Cards", exact: true }).click();
   await expect(hub.getByLabel("Search job cards")).toBeVisible();
   await expectNoPageOverflow(page);
   await page.getByRole("tab", { name: "Estimates", exact: true }).click();
-  await expect(hub.getByLabel("Job for Estimates search")).toBeVisible();
+  await expectManagementToolbarStacks(hub, ".job-selector");
   await expectNoPageOverflow(page);
 });
 
@@ -281,7 +311,7 @@ test("Management Hub Job Cards filters received dates, months, archived records,
   const toolbar = page.locator(".job-card-filter-grid");
   const date = toolbar.getByLabel("Managed job cards date");
   const month = toolbar.getByLabel("Managed job cards month-year");
-  const archived = toolbar.getByRole("checkbox", { name: "Show archived only" });
+  const archived = toolbar.getByRole("switch", { name: "Show archived only" });
   const tableRows = page.getByRole("table", { name: "Managed job cards" }).locator("tbody tr");
   const today = await page.evaluate(() => {
     const now = new Date();
@@ -302,14 +332,14 @@ test("Management Hub Job Cards filters received dates, months, archived records,
 
   await date.fill(today);
   await expect(month).toHaveValue("");
-  await toolbar.locator(".toggle-switch").click();
-  await expect(archived).toBeChecked();
+  await archived.click();
+  await expect(archived).toHaveAttribute("aria-checked", "true");
   await expect(page.getByText(/Showing 0 to 0 of 0|Showing 1 to/)).toBeVisible();
 
   await toolbar.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(date).toHaveValue("");
   await expect(month).toHaveValue("");
-  await expect(archived).not.toBeChecked();
+  await expect(archived).toHaveAttribute("aria-checked", "false");
 
   await page.setViewportSize({ width: 390, height: 844 });
   const directOverflow = await page.locator(".entity-list-page.kind-jobs *").evaluateAll((elements) => elements.map((element) => ({ tag: element.tagName, className: (element as HTMLElement).className, scrollWidth: (element as HTMLElement).scrollWidth, clientWidth: (element as HTMLElement).clientWidth, display: getComputedStyle(element).display })).filter((element) => element.scrollWidth > element.clientWidth + 1).slice(0, 12));
@@ -332,7 +362,7 @@ test("direct Job Cards uses the focused received-date toolbar", async ({ page })
   const toolbar = page.locator(".direct-job-card-filter-grid");
   const date = toolbar.getByLabel("Direct job cards date");
   const month = toolbar.getByLabel("Direct job cards month-year");
-  const archived = toolbar.getByRole("checkbox", { name: "Show archived only" });
+  const archived = toolbar.getByRole("switch", { name: "Show archived only" });
   const today = await page.evaluate(() => {
     const now = new Date();
     const offset = now.getTimezoneOffset() * 60_000;
@@ -363,14 +393,14 @@ test("direct Job Cards uses the focused received-date toolbar", async ({ page })
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
   await page.getByRole("button", { name: "Go Back" }).click();
-  await archived.check();
-  await expect(archived).toBeChecked();
+  await archived.click();
+  await expect(archived).toHaveAttribute("aria-checked", "true");
   await expect(page.getByRole("dialog", { name: /View Job/ })).toHaveCount(0);
 
   await toolbar.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(date).toHaveValue("");
   await expect(month).toHaveValue("");
-  await expect(archived).not.toBeChecked();
+  await expect(archived).toHaveAttribute("aria-checked", "false");
   await expect(page.getByText(/Showing 1 to/)).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
@@ -429,7 +459,7 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByRole("group", { name: "View mode" }).getByRole("button", { name: "Grid", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByLabel("Sort results")).toBeVisible();
-  await expect(page.getByLabel("Show archived only")).toBeVisible();
+  await expect(page.getByRole("switch", { name: "Show archived only" })).toBeVisible();
   await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
   await expect(page.getByText("OD02AB1234")).toBeVisible();
   await page.getByLabel("Search category").selectOption("customer");
@@ -917,12 +947,10 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(page.getByRole("table", { name: "Invoices manager" })).toBeVisible();
   await expect(page.getByText(/Showing 1 to 10 of/)).toBeVisible();
   await page.getByLabel("Search invoices").fill("INV-");
-  await page.locator('[data-billing-manager="Invoices"]').getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText(/Showing 1 to .* of/)).toBeVisible();
-  await page.getByLabel("Invoices status filter").selectOption("Unpaid");
-  await page.locator('[data-billing-manager="Invoices"]').getByRole("button", { name: "Search", exact: true }).click();
-  await expect(page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first()).toContainText("Unpaid");
-  const next = page.getByRole("navigation", { name: "Billing results pagination" }).first().getByRole("button", { name: "Next page" });
+  await page.getByLabel("Invoices status filter").selectOption("Cleared");
+  await expect(page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first()).toContainText("Cleared");
+  const next = page.getByRole("navigation", { name: "Results pagination" }).first().getByRole("button", { name: "Next page" });
   if (await next.isEnabled()) { await next.click(); await expect(page.getByText(/Page 2 of/).first()).toBeVisible(); }
   await page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first().click();
   await expect(page.getByRole("table", { name: "Invoice lines" })).toBeVisible();
@@ -934,31 +962,18 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(page.locator('[data-billing-manager="Invoices"]')).toBeVisible();
   const invoicesManager = page.locator('[data-billing-manager="Invoices"]');
   const invoicesTable = page.getByRole("table", { name: "Invoices manager" });
-  const invoiceDateFilter = page.getByLabel("Invoices date filter");
   const invoiceMonthFilter = page.getByLabel("Invoices Month-Year filter");
   await expect(invoicesTable.locator("tbody tr.billing-row-invoice-pending, tbody tr.billing-row-invoice-cleared").first()).toBeVisible();
-  await expect(invoiceDateFilter).toBeVisible();
   await expect(invoiceMonthFilter).toBeVisible();
+  await expect(invoicesManager.locator('input[type="date"]')).toHaveCount(0);
   await expect(invoicesTable.locator("tbody tr.billing-row-invoice-cleared").first()).toBeVisible();
   const invoiceMonth = await invoiceMonthFilter.locator("option").nth(1).getAttribute("value");
   expect(invoiceMonth).toMatch(/^\d{4}-\d{2}$/);
   await invoiceMonthFilter.selectOption(invoiceMonth!);
-  await expect(invoiceDateFilter).toHaveValue("");
   await expect(invoicesTable.locator("tbody tr")).not.toHaveCount(0);
-  const invoiceDate = await invoicesTable.locator("tbody tr").first().locator("td").first().evaluate((cell) => {
-    const match = cell.textContent?.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
-    if (!match) throw new Error(`Could not parse invoice date: ${cell.textContent}`);
-    const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
-    return `${match[3]}-${String(month).padStart(2, "0")}-${match[1].padStart(2, "0")}`;
-  });
-  const invoiceNext = page.getByRole("navigation", { name: "Billing results pagination" }).first().getByRole("button", { name: "Next page" });
+  const invoiceNext = page.getByRole("navigation", { name: "Results pagination" }).first().getByRole("button", { name: "Next page" });
   if (await invoiceNext.isEnabled()) await invoiceNext.click();
-  await invoiceDateFilter.fill(invoiceDate);
-  await expect(invoiceMonthFilter).toHaveValue("ALL");
-  await expect(invoicesTable.locator("tbody tr")).not.toHaveCount(0);
-  await expect(page.getByText(/Page 1 of/).first()).toBeVisible();
   await invoicesManager.getByRole("button", { name: "Clear", exact: true }).click();
-  await expect(invoiceDateFilter).toHaveValue("");
   await expect(invoiceMonthFilter).toHaveValue("ALL");
   await page.locator(".role-nav").getByRole("button", { name: "Payment", exact: true }).click();
   await expect(page.locator('[data-billing-manager="Payments"]')).toBeVisible();
@@ -966,11 +981,10 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   const paymentsManager = page.locator('[data-billing-manager="Payments"]');
   await expect(page.getByLabel("Payments status filter")).toHaveCount(0);
   const paymentModeFilter = page.getByLabel("Payment mode filter");
-  const paymentDateFilter = page.getByLabel("Payments date filter");
   const paymentMonthFilter = page.getByLabel("Payments Month-Year filter");
   await expect(paymentModeFilter).toBeVisible();
-  await expect(paymentDateFilter).toBeVisible();
   await expect(paymentMonthFilter).toBeVisible();
+  await expect(paymentsManager.locator('input[type="date"]')).toHaveCount(0);
   await expect(paymentsManager.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
   const firstRow = paymentsTable.locator("tbody tr").first();
   await expect(firstRow).toContainText("Paid");
@@ -987,19 +1001,8 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(paymentRecordRows).not.toHaveCount(0);
   expect(await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).toEqual(expect.arrayContaining([paidMode]));
   expect((await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).every((mode) => mode.trim() === paidMode)).toBe(true);
-  const paymentDate = await firstRow.locator("td").first().evaluate((cell) => {
-    const match = cell.textContent?.match(/(\d{1,2})\s+([A-Za-z]+)\s+(\d{4})/);
-    if (!match) throw new Error(`Could not parse payment date: ${cell.textContent}`);
-    const month = ["jan", "feb", "mar", "apr", "may", "jun", "jul", "aug", "sep", "oct", "nov", "dec"].indexOf(match[2].slice(0, 3).toLowerCase()) + 1;
-    return `${match[3]}-${String(month).padStart(2, "0")}-${match[1].padStart(2, "0")}`;
-  });
-  await paymentDateFilter.fill(paymentDate);
-  await expect(paymentMonthFilter).toHaveValue("ALL");
-  await expect(paymentRecordRows).not.toHaveCount(0);
-  expect((await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).every((mode) => mode.trim() === paidMode)).toBe(true);
   await paymentsManager.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(paymentModeFilter).toHaveValue("ALL");
-  await expect(paymentDateFilter).toHaveValue("");
   for (const [mode, highlightClass] of [["UPI", "billing-row-payment-upi"], ["Cash", "billing-row-payment-cash"], ["Card", "billing-row-payment-card"], ["Bank transfer", "billing-row-payment-bank-transfer"], ["Other", "billing-row-payment-other"]] as const) {
     await paymentModeFilter.selectOption(mode);
     await expect(paymentRecordRows.first()).toHaveClass(new RegExp(highlightClass));
@@ -1008,11 +1011,10 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await page.locator(".role-nav").getByRole("button", { name: "Delivery", exact: true }).click();
   const deliveryManager = page.locator('[data-billing-manager="Delivery"]');
   const deliveryTable = page.getByRole("table", { name: "Delivery manager" });
-  const deliveryDateFilter = page.getByLabel("Delivery date filter");
   const deliveryMonthFilter = page.getByLabel("Delivery Month-Year filter");
   await expect(page.getByLabel("Delivery status filter")).toHaveCount(0);
-  await expect(deliveryDateFilter).toBeVisible();
   await expect(deliveryMonthFilter).toBeVisible();
+  await expect(deliveryManager.locator('input[type="date"]')).toHaveCount(0);
   await expect(deliveryManager.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
   const deliveryRows = deliveryTable.locator("tbody tr");
   const deliveryRecordCount = await deliveryRows.count();
@@ -1026,7 +1028,6 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(deliveryRows).toHaveCount(deliveryRecordCount);
   const deliveryMonth = await deliveryMonthFilter.locator("option").nth(1).getAttribute("value");
   await deliveryMonthFilter.selectOption(deliveryMonth!);
-  await expect(deliveryDateFilter).toHaveValue("");
   await expect(deliveryRows).not.toHaveCount(0);
   await deliveryManager.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(deliveryMonthFilter).toHaveValue("ALL");
@@ -1964,6 +1965,19 @@ async function expectJobCardToolbarHasOneRow(page: import("@playwright/test").Pa
     return [...new Set(positions)].sort((left, right) => left - right);
   });
   expect(rows).toHaveLength(1);
+}
+
+async function expectManagementToolbarHasOneRow(scope: import("@playwright/test").Locator, selector: string) {
+  const rows = await scope.locator(`${selector} > label, ${selector} > .list-search-actions, ${selector} > .filter-clear-action`).evaluateAll((controls) => {
+    const positions = controls.map((control) => Math.round(control.getBoundingClientRect().bottom));
+    return [...new Set(positions)].sort((left, right) => left - right);
+  });
+  expect(rows).toHaveLength(1);
+}
+
+async function expectManagementToolbarStacks(scope: import("@playwright/test").Locator, selector: string) {
+  const rows = await scope.locator(`${selector} > label, ${selector} > .list-search-actions, ${selector} > .filter-clear-action`).evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().bottom))).size);
+  expect(rows).toBeGreaterThan(1);
 }
 
 async function readWorksheet(download: import("@playwright/test").Download) {

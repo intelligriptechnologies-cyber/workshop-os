@@ -38,3 +38,21 @@ test("dashboard projection follows the current calendar month's elapsed days and
   assert.equal(thirtyOneDayMonth.projectedMonthlyCollection, 868);
   assert.equal(dashboardFacts([], [], "2026-04-01").projectedMonthlyCollection, 0);
 });
+
+test("dashboard cashflow can report a completed historical month without changing operational periods", () => {
+  const facts = dashboardFacts([
+    job({ invoice: { id: 1, total: 125, created_at: "2026-01-28" }, payments: [{ id: 1, invoice_id: 1, created_at: "2026-01-30" }] }),
+    job({ invoice: { id: 2, total: 200, created_at: "2026-02-03" }, payments: [{ id: 2, invoice_id: 2, created_at: "2026-02-03" }] }),
+    job({ invoice: { id: 3, total: 300, created_at: "2026-01-20" }, payments: [{ id: 3, invoice_id: 3, voided_at: "2026-01-21", created_at: "2026-01-21" }] }),
+  ], [], "2026-02-10", "2026-01");
+
+  assert.equal(facts.currentMonth, "2026-02");
+  assert.equal(facts.cashflowMonth, "2026-01");
+  assert.equal(facts.cashflowMonthComplete, true);
+  assert.equal(facts.daysElapsed, 31);
+  assert.equal(facts.daysInMonth, 31);
+  assert.equal(facts.totalCollections, 125);
+  assert.equal(facts.paymentsReceived, 1);
+  assert.equal(facts.invoicesGenerated, 2);
+  assert.equal(facts.projectedMonthlyCollection, 125);
+});

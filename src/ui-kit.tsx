@@ -11,6 +11,12 @@ export function ListSearchActions({ onClear }: { onClear: () => void }) {
   return <div className="list-search-actions" role="group" aria-label="Search actions"><FilterClearButton onClick={onClear} /></div>;
 }
 
+export function Switch({ label, checked, onCheckedChange, className = "" }: { label: string; checked: boolean; onCheckedChange: (checked: boolean) => void; className?: string }) {
+  return <button type="button" role="switch" aria-label={label} aria-checked={checked} className={`ui-switch ${className}`.trim()} onClick={() => onCheckedChange(!checked)}>
+    <span className="ui-switch-control" aria-hidden="true"><span /></span><span className="ui-switch-label">{label}</span><span className="ui-switch-state" aria-hidden="true">{checked ? "On" : "Off"}</span>
+  </button>;
+}
+
 export function PageSizeSelect({ value, onChange, ariaLabel = "Records per page" }: { value: number; onChange: (value: number) => void; ariaLabel?: string }) {
   return <label className="page-size">Per page<select aria-label={ariaLabel} value={value} onChange={(event) => onChange(Number(event.target.value))}>{PAGE_SIZE_OPTIONS.map((option) => <option key={option} value={option}>{option}</option>)}</select></label>;
 }

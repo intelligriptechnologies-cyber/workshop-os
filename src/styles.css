@@ -661,12 +661,14 @@ main {
 .operational-dashboard .command-card { display: flex; flex-direction: column; gap: 1rem; min-width: 0; height: 100%; padding: 1.25rem; border: 1px solid #dce5eb; border-radius: 18px; box-shadow: 0 8px 22px rgba(35, 55, 82, .055); cursor: pointer; overflow: hidden; transition: transform .18s ease, box-shadow .18s ease, border-color .18s ease; }
 .operational-dashboard .command-flow { background: radial-gradient(circle at 88% 10%, rgba(121, 213, 166, .21), transparent 28%), linear-gradient(135deg, #effcf4, #fbfefc); border-color: #c7ead5; }.operational-dashboard .command-cashflow { background: radial-gradient(circle at 90% 8%, rgba(105, 174, 246, .2), transparent 28%), linear-gradient(135deg, #eff7ff, #fbfdff); border-color: #c9e0fb; }.operational-dashboard .command-reach { background: radial-gradient(circle at 92% 8%, rgba(181, 151, 238, .18), transparent 27%), linear-gradient(135deg, #f7f4ff, #fdfcff); border-color: #e1d8f6; }.operational-dashboard .command-inventory { background: radial-gradient(circle at 90% 8%, rgba(250, 184, 65, .2), transparent 28%), linear-gradient(135deg, #fff9ec, #fffefd); border-color: #f4dea0; }
 .operational-dashboard .command-card-heading { display: flex; align-items: center; gap: .78rem; min-height: 48px; }.operational-dashboard .command-icon-tile { display: grid; flex: 0 0 auto; width: 42px; height: 42px; place-items: center; border-radius: 13px; }.command-flow .command-icon-tile { background: #d5f5e1; color: #167552; }.command-cashflow .command-icon-tile { background: #dbeeff; color: #226bb4; }.command-reach .command-icon-tile { background: #ebe2fc; color: #7152b4; }.command-inventory .command-icon-tile { background: #ffedbd; color: #a7660c; }.operational-dashboard .command-card h2 { margin: 0; color: #17233a; font-size: 1.07rem; letter-spacing: -.025em; }.operational-dashboard .command-card-heading p { margin: .18rem 0 0; color: #718095; font-size: .74rem; line-height: 1.35; }
+.cashflow-month { display: grid; gap: .18rem; margin-left: auto; color: #49627e; font-size: .67rem; font-weight: 800; white-space: nowrap; }.cashflow-month select { min-width: 9.25rem; padding: .35rem .45rem; font-size: .74rem; }
 .operational-dashboard .command-metrics { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-content: start; gap: .7rem; }.operational-dashboard .command-metric { display: grid; align-content: center; gap: .26rem; min-width: 0; min-height: 62px; padding: .7rem .78rem; border: 1px solid rgba(111, 132, 153, .16); border-radius: 12px; background: rgba(255,255,255,.58); color: #172033; text-align: left; transition: color .18s ease, transform .18s ease, background .18s ease; }.operational-dashboard .command-metric span { color: #617086; font-size: .71rem; font-weight: 800; line-height: 1.15; }.operational-dashboard .command-metric strong { overflow-wrap: anywhere; font-size: 1.08rem; line-height: 1.05; }.operational-dashboard .command-metric small { color: #718095; font-size: .67rem; line-height: 1.2; }
 .operational-dashboard .command-flow .command-metric-primary { grid-column: 1 / -1; min-height: 86px; }.operational-dashboard .command-metric-primary strong { font-size: clamp(1.75rem, 2.5vw, 2.4rem); }.operational-dashboard .command-metric-secondary { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; min-height: 42px; padding-block: .45rem; }.operational-dashboard .command-cashflow-metrics { gap: .65rem; }.operational-dashboard .command-cashflow-metrics .command-metric-primary, .operational-dashboard .command-cashflow-metrics .command-metric-projection { grid-column: 1 / -1; }.operational-dashboard .command-cashflow-metrics .command-metric-primary { min-height: 82px; }.operational-dashboard .command-metric-projection { grid-template-columns: minmax(0, 1fr) auto; align-items: center; }.operational-dashboard .command-metric-projection small { grid-column: 1 / -1; }.operational-dashboard .command-metric-supporting { min-height: 56px; }.operational-dashboard .metric-active strong, .operational-dashboard .metric-closed strong { color: #17805e; }.operational-dashboard .metric-progress strong { color: #3478c5; }.operational-dashboard .metric-hold strong, .operational-dashboard .metric-approvals strong { color: #b66e12; }.operational-dashboard .metric-payments strong, .operational-dashboard .metric-invoices strong, .operational-dashboard .metric-collections strong, .operational-dashboard .metric-projection strong { color: #2469b2; }.operational-dashboard .metric-low-stock strong { color: #b94444; }
 .collection-pace { display: grid; gap: .48rem; margin-top: auto; }.collection-pace-label { display: flex; justify-content: space-between; gap: .5rem; color: #65758a; font-size: .69rem; font-weight: 750; }.collection-pace-label strong { color: #2c70b7; }.collection-pace-track { height: 7px; overflow: hidden; border-radius: 999px; background: #dceafb; }.collection-pace-track span { display: block; height: 100%; border-radius: inherit; background: linear-gradient(90deg, #3d8ce0, #7ab8f4); transition: width .25s ease; }.collection-bars { display: flex; align-items: end; gap: 5px; height: 24px; opacity: .58; }.collection-bars i { flex: 1; border-radius: 4px 4px 1px 1px; background: #77afe8; }.collection-bars i:nth-child(1) { height: 31%; }.collection-bars i:nth-child(2) { height: 48%; }.collection-bars i:nth-child(3) { height: 38%; }.collection-bars i:nth-child(4) { height: 70%; }.collection-bars i:nth-child(5) { height: 56%; }.collection-bars i:nth-child(6) { height: 86%; }.collection-bars i:nth-child(7) { height: 100%; }
+.collection-complete { min-height: 31px; padding-top: .35rem; }
 .customer-trend { width: 100%; height: 56px; margin-top: auto; overflow: visible; }.customer-trend path:first-child { stroke: #8864ce; stroke-width: 3; stroke-linecap: round; }.customer-trend path:last-child { stroke: #d9ccef; stroke-width: 1; }.inventory-signal { display: flex; align-items: center; gap: .45rem; margin-top: auto; color: #9b6311; font-size: .71rem; font-weight: 800; }.inventory-signal i { width: 7px; height: 7px; border-radius: 99px; background: #efbd52; }.inventory-signal i:last-child { background: #df8a28; }
 .operational-dashboard .command-card-footer { display: flex; justify-content: flex-start; padding-top: .82rem; border-top: 1px solid rgba(101,116,130,.16); }.operational-dashboard .command-card-open { display: inline-flex; align-items: center; gap: .2rem; min-height: 28px; padding: .1rem 0; border: 0; background: transparent; color: #283c56; font-size: .72rem; font-weight: 850; line-height: 1; }.operational-dashboard .command-card:hover { border-color: #a8c8c0; box-shadow: 0 15px 30px rgba(35, 55, 82, .12); transform: translateY(-3px); }.operational-dashboard .command-metric:hover, .operational-dashboard .command-card-open:hover { background: rgba(255,255,255,.88); color: #1c5f99; transform: translateX(2px); }.operational-dashboard .command-card:focus, .operational-dashboard .command-card:focus-visible, .operational-dashboard .command-metric:focus-visible, .operational-dashboard .command-card-open:focus-visible { outline: 3px solid #367ecb; outline-offset: 3px; }.dashboard-drilldown { margin: -.45rem 0 0; color: #536174; font-size: .8rem; }
-@media (max-width: 700px) { .command-header { align-items: stretch; flex-direction: column; gap: .9rem; }.command-date { align-self: flex-start; }.operational-dashboard .command-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(345px, auto); } }
+@media (max-width: 700px) { .command-header { align-items: stretch; flex-direction: column; gap: .9rem; }.command-date { align-self: flex-start; }.operational-dashboard .command-grid { grid-template-columns: minmax(0, 1fr); grid-auto-rows: minmax(345px, auto); }.cashflow-month { margin-left: 0; } }
 @media (max-width: 420px) { .operational-dashboard .command-card { padding: 1rem; }.operational-dashboard .command-metric-primary strong { font-size: 1.85rem; } }
 @media (prefers-reduced-motion: reduce) { .operational-dashboard .command-card, .operational-dashboard .command-metric, .operational-dashboard .collection-pace-track span { transition: none; }.operational-dashboard .command-card:hover, .operational-dashboard .command-metric:hover, .operational-dashboard .command-card-open:hover { transform: none; } }
 
@@ -1109,6 +1111,10 @@ button.request-line:focus {
   gap: 10px;
 }
 
+.list-filter-fields > .ui-switch {
+  align-self: end;
+}
+
 .mobile-filter-toggle {
   display: none;
 }
@@ -1193,6 +1199,47 @@ button.request-line:focus {
 .store-filter-grid .list-search {
   grid-column: 1 / -1;
 }
+
+.ui-switch {
+  align-self: end;
+  display: inline-flex;
+  align-items: center;
+  min-height: 42px;
+  gap: .55rem;
+  padding: .35rem .55rem;
+  border: 1px solid #c9d9ec;
+  border-radius: 8px;
+  background: #f7fbff;
+  color: #31445b;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+.ui-switch-control {
+  display: inline-flex;
+  align-items: center;
+  width: 2.4rem;
+  height: 1.4rem;
+  padding: 2px;
+  flex: 0 0 auto;
+  border-radius: 999px;
+  background: #9aa8b8;
+  box-shadow: inset 0 0 0 1px rgba(24, 42, 60, .2);
+  transition: background .15s ease;
+}
+.ui-switch-control > span {
+  width: 1rem;
+  height: 1rem;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgba(24, 42, 60, .3);
+  transition: transform .15s ease;
+}
+.ui-switch[aria-checked="true"] .ui-switch-control { background: #1769aa; }
+.ui-switch[aria-checked="true"] .ui-switch-control > span { transform: translateX(1rem); }
+.ui-switch-state { min-width: 1.8rem; color: #60758d; font-size: .82rem; text-align: right; }
+.ui-switch[aria-checked="true"] .ui-switch-state { color: #1769aa; }
+.ui-switch:focus-visible { outline: 3px solid #7db4e6; outline-offset: 2px; }
 
 /* Material request and issue queues keep their compact five-control filter set
    on one desktop row: date, month-year, status, item and clear. */
@@ -1989,8 +2036,11 @@ th {
 .list-search-actions .filter-clear-action { flex: 0 0 auto; }
 .search-action { background: #1d4ed8; border-color: #1d4ed8; color: #fff; }
 .search-action:hover:not(:disabled), .search-action:focus-visible { background: #1e40af; border-color: #1e40af; }
-.job-selector { display: grid; grid-template-columns: repeat(3, minmax(160px, 1fr)); align-items: end; gap: .75rem; padding: .85rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 10px; background: #f7fbff; }
+.job-selector { display: flex; flex-wrap: nowrap; align-items: end; gap: .75rem; padding: .85rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 10px; background: #f7fbff; }
 .job-selector label { display: grid; gap: .35rem; font-weight: 600; color: #31445b; }
+.job-selector .list-search { flex: 1 1 18rem; min-width: 12rem; }
+.job-selector > label:not(.list-search) { flex: 0 1 13rem; min-width: 0; }
+.job-selector .filter-clear-action { flex: 0 0 auto; }
 .job-picker-empty { grid-column: 1 / -1; margin: 0; color: #637083; }
 .data-flow-filters { display: grid; grid-template-columns: minmax(150px, .7fr) minmax(150px, .7fr) minmax(280px, 1.6fr) auto; align-items: end; gap: .75rem; padding: 1rem; margin: .75rem 0 1rem; border: 1px solid #c9d9ec; border-radius: 12px; background: #f7fbff; }
 .data-flow-filters label, .data-flow-combobox { display: grid; gap: .35rem; min-width: 0; font-weight: 600; color: #31445b; }
@@ -2116,6 +2166,10 @@ th {
 }
 .management-hub .store-filter-grid > .list-search-actions {
   margin-left: auto;
+}
+
+.management-hub .billing-panel-filter-grid {
+  flex-wrap: nowrap;
 }
 
 /* Keep the full Job Cards filter set on one desktop row without affecting the
@@ -2269,7 +2323,10 @@ th {
   .job-media-gallery { grid-template-columns: 1fr; }
   .job-media-card .record-actions { display: grid; grid-template-columns: 1fr 1fr; }
   .list-search-actions { grid-column: 1 / -1; flex-wrap: wrap; }
-  .job-selector { grid-template-columns: 1fr; }
+  .job-selector { flex-wrap: wrap; }
+  .job-selector .list-search,
+  .job-selector > label:not(.list-search),
+  .job-selector .filter-clear-action { flex-basis: 100%; width: 100%; min-width: 0; }
   .data-flow-filters { grid-template-columns: 1fr; }
   .data-flow-filters .filter-clear-action { width: 100%; }
   .data-flow-options { position: static; max-height: 220px; margin-top: .2rem; }
@@ -2286,6 +2343,10 @@ th {
 
   .store-filter-grid .list-search {
     grid-column: auto;
+  }
+
+  .store-filter-grid > .ui-switch {
+    width: 100%;
   }
 
   .material-record-filter-grid > label,
@@ -2387,7 +2448,7 @@ th {
   .entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions .filter-clear-action {
     width: 100%;
   }
-  .management-hub .job-selector { grid-template-columns: 1fr; }
+  .management-hub .job-selector { flex-wrap: wrap; }
   .management-hub .billing-date-filters { grid-template-columns: 1fr; }
   .management-tabs { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .management-tabs button { width: 100%; }
@@ -2940,5 +3001,5 @@ th {
 @media (prefers-reduced-motion: reduce) { .advisor-card, .reception-visit-row { transition: none; } }
 
 @media (max-width: 700px) {
-  .management-hub .job-selector { grid-template-columns: minmax(0, 1fr); }
+  .management-hub .job-selector { flex-wrap: wrap; }
 }
