@@ -64,7 +64,7 @@ test("global User Management invites without passwords, persists, polls, edits, 
   const state = await mockAuthenticatedApp(page);
   await page.goto("/");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
-  await expect(page.locator(".managed-record").filter({ hasText: "admin@example.com" })).toBeVisible();
+  await expect(page.locator(".management-table tbody tr").filter({ hasText: "admin@example.com" })).toBeVisible();
   await page.getByRole("button", { name: "Add User" }).click();
   await page.getByLabel("User name").fill("Invited Advisor");
   await page.getByLabel("User email").fill("advisor@example.com");
@@ -77,7 +77,7 @@ test("global User Management invites without passwords, persists, polls, edits, 
 
   await page.reload();
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
-  const invited = page.locator(".managed-record").filter({ hasText: "advisor@example.com" });
+  const invited = page.locator(".management-table tbody tr").filter({ hasText: "advisor@example.com" });
   await invited.getByRole("button", { name: "Edit" }).click();
   await expect(page.getByLabel("User email")).toBeDisabled();
   await page.getByLabel("User name").fill("Updated Advisor");
@@ -91,5 +91,5 @@ test("global User Management invites without passwords, persists, polls, edits, 
   page.once("dialog", (dialog) => dialog.accept("Employment ended"));
   await invited.getByRole("button", { name: "Archive" }).click();
   await expect(page.getByText("advisor@example.com")).toHaveCount(0);
-  await expect(page.locator(".managed-record").filter({ hasText: "admin@example.com" }).getByRole("button", { name: "Archive" })).toBeDisabled();
+  await expect(page.locator(".management-table tbody tr").filter({ hasText: "admin@example.com" }).getByRole("button", { name: "Archive" })).toBeDisabled();
 });

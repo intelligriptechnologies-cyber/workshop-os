@@ -812,7 +812,7 @@ test("customer and vehicle records use distinct view and edit dialogs on every l
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   for (const tab of ["Customers", "Vehicles"] as const) {
     await page.getByRole("tab", { name: tab, exact: true }).click();
-    const record = page.getByRole("tabpanel").locator(".managed-record").first();
+    const record = page.getByRole("tabpanel").locator(".management-table tbody tr").first();
     await record.getByRole("button", { name: "View", exact: true }).click();
     await expect(page.getByRole("dialog", { name: `View ${tab.slice(0, -1)}` })).toBeVisible();
     await page.getByRole("button", { name: "Go Back" }).click();
@@ -1442,14 +1442,14 @@ test("admin user CRUD persists and protects the signed-in admin", async ({ page 
   await page.reload();
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
-  const created = page.locator(".managed-record").filter({ hasText: "persistent@example.com" });
+  const created = page.locator(".management-table tbody tr").filter({ hasText: "persistent@example.com" });
   await created.getByRole("button", { name: "Edit" }).click();
   await page.getByLabel("User name").fill("Updated User");
   await page.getByRole("button", { name: "Save User" }).click();
   await expect(page.getByText("Updated User")).toBeVisible();
   await created.getByRole("button", { name: "Archive" }).click();
   await expect(page.getByText("persistent@example.com")).toHaveCount(0);
-  const self = page.locator(".managed-record").filter({ hasText: "admin@example.com" });
+  const self = page.locator(".management-table tbody tr").filter({ hasText: "admin@example.com" });
   await expect(self.getByRole("button", { name: "Archive" })).toBeDisabled();
 });
 

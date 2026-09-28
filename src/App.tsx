@@ -2100,8 +2100,11 @@ function CustomerManager({ state, mutate, actor }: { state: WorkshopState; mutat
   const needle = normalizeSearch(search);
   const filtered = customers.filter((item) => !needle || normalizeSearch(`${item.name} ${item.mobile} ${item.type}`).includes(needle));
   const paged = paginate(filtered, page, pageSize);
+  const vehicleCount = (customer: Customer) => state.vehicles.filter((vehicle) => vehicle.customer_id === customer.id).length;
+  const openJobCount = (customer: Customer) => state.jobs.filter((view) => view.customer.id === customer.id && view.job.main_status !== "CLOSED").length;
   const columns: ExportColumn<Customer>[] = [
     { header: "Customer", value: (row) => row.name }, { header: "Mobile", value: (row) => row.mobile }, { header: "Type", value: (row) => row.type },
+    { header: "Vehicles", value: vehicleCount }, { header: "Open Jobs", value: openJobCount },
   ];
   return <div className="manager-panel" role="tabpanel">
     <div className="panel-actions"><h3>Customers</h3>{!archivedOnly && <button className="primary-action" onClick={() => { setDraft(empty); setCreating(true); }}>Add Customer</button>}</div>
@@ -2109,7 +2112,7 @@ function CustomerManager({ state, mutate, actor }: { state: WorkshopState; mutat
     {record && <CustomerRecordDialog customer={record.customer} state={state} mutate={mutate} mode={record.mode} onClose={() => setRecord(undefined)} />}
     <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search customers" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, mobile or type" /></label>{actor.role === "admin" && <Switch label="Show archived only" checked={archivedOnly} onCheckedChange={(checked) => { setArchivedOnly(checked); setPage(1); setRecord(undefined); }} />}<ListSearchActions onClear={() => { setSearch(""); setPage(1); }} /></div>
     <PaginationToolbar controls={<DownloadMenu report={{ title: "Customers", filters: activeFilterSummary({ Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Customer records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
-    <div className="record-list">{paged.items.map((customer) => <div className="managed-record" key={customer.id}><div><strong>{customer.name}</strong><span>{customer.mobile} · {customer.type}</span></div><div className="action-row"><RecordActions onView={() => setRecord({ customer, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ customer, mode: "edit" }) : undefined} onArchive={!archivedOnly ? () => mutate((db) => archiveCustomer(db, customer.id, "Archived by Admin")) : undefined} /></div></div>)}</div>
+    {paged.totalCount > 0 && <div className="table-wrap management-table"><table aria-label="Customer manager"><thead><tr>{["Customer", "Mobile", "Type", "Vehicles", "Open Jobs", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{paged.items.map((customer) => <tr key={customer.id}><td>{customer.name}</td><td>{customer.mobile}</td><td>{customer.type}</td><td>{vehicleCount(customer)}</td><td>{openJobCount(customer)}</td><td><RecordActions inGrid onView={() => setRecord({ customer, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ customer, mode: "edit" }) : undefined} onArchive={!archivedOnly ? () => mutate((db) => archiveCustomer(db, customer.id, "Archived by Admin")) : undefined} /></td></tr>)}</tbody></table></div>}
     {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={() => { setSearch(""); setPage(1); }} label="Clear filters" /></div>}
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
   </div>;
@@ -2132,9 +2135,10 @@ function VehicleManager({ state, mutate, actor }: { state: WorkshopState; mutate
     return !needle || normalizeSearch(`${item.number} ${item.make} ${item.model} ${owner}`).includes(needle);
   });
   const paged = paginate(filtered, page, pageSize);
+  const ownerName = (vehicle: Vehicle) => owners.find((customer) => customer.id === vehicle.customer_id)?.name ?? "—";
   const columns: ExportColumn<Vehicle>[] = [
-    { header: "Registration", value: (row) => row.number }, { header: "Make / Model", value: (row) => `${row.make} ${row.model}` },
-    { header: "Customer", value: (row) => owners.find((customer) => customer.id === row.customer_id)?.name ?? "" }, { header: "KM", value: (row) => row.km },
+    { header: "Registration", value: (row) => row.number }, { header: "Make / Model", value: (row) => `${row.make} ${row.model}` }, { header: "Color", value: (row) => row.color },
+    { header: "Customer", value: ownerName }, { header: "KM", value: (row) => row.km },
   ];
   return <div className="manager-panel" role="tabpanel">
     <div className="panel-actions"><h3>Vehicles</h3>{!archivedOnly && <button className="primary-action" onClick={() => { setDraft(empty); setCreating(true); }}>Add Vehicle</button>}</div>
@@ -2142,7 +2146,7 @@ function VehicleManager({ state, mutate, actor }: { state: WorkshopState; mutate
     {record && <VehicleRecordDialog vehicle={vehicles.find((vehicle) => vehicle.id === record.id)!} state={state} mutate={mutate} mode={record.mode} onClose={() => setRecord(undefined)} />}
     <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search vehicles" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Registration, make, model or customer" /></label>{actor.role === "admin" && <Switch label="Show archived only" checked={archivedOnly} onCheckedChange={(checked) => { setArchivedOnly(checked); setPage(1); setRecord(undefined); }} />}<ListSearchActions onClear={() => { setSearch(""); setPage(1); }} /></div>
     <PaginationToolbar controls={<DownloadMenu report={{ title: "Vehicles", filters: activeFilterSummary({ Search: search.trim(), "Show archived only": archivedOnly ? "Yes" : "No" }), columns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Vehicle records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
-    <div className="record-list">{paged.items.map((vehicle) => <div className="managed-record" key={vehicle.id}><div><strong>{vehicle.number}</strong><span>{vehicle.make} {vehicle.model} · {owners.find((customer) => customer.id === vehicle.customer_id)?.name ?? "—"}</span></div><div className="action-row"><RecordActions onView={() => setRecord({ id: vehicle.id, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ id: vehicle.id, mode: "edit" }) : undefined} onArchive={!archivedOnly ? () => mutate((db) => archiveVehicle(db, vehicle.id, "Archived by Admin")) : undefined} /></div></div>)}</div>
+    {paged.totalCount > 0 && <div className="table-wrap management-table"><table aria-label="Vehicle manager"><thead><tr>{["Registration", "Make / Model", "Color", "Customer", "KM", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{paged.items.map((vehicle) => <tr key={vehicle.id}><td>{vehicle.number}</td><td>{vehicle.make} {vehicle.model}</td><td>{vehicle.color}</td><td>{ownerName(vehicle)}</td><td>{vehicle.km.toLocaleString("en-IN")}</td><td><RecordActions inGrid onView={() => setRecord({ id: vehicle.id, mode: "view" })} onEdit={!archivedOnly ? () => setRecord({ id: vehicle.id, mode: "edit" }) : undefined} onArchive={!archivedOnly ? () => mutate((db) => archiveVehicle(db, vehicle.id, "Archived by Admin")) : undefined} /></td></tr>)}</tbody></table></div>}
     {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={() => { setSearch(""); setPage(1); }} label="Clear filters" /></div>}
     <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
   </div>;
@@ -2255,17 +2259,7 @@ export function UserManager({ users, mutate, actingUser, cognitoConfig }: { user
       )}
       <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email or role" /></label><label>Role<select aria-label="Filter users by role" value={roleFilter} onChange={(event) => { setRoleFilter(event.target.value); setPage(1); }}><option value="ALL">All roles</option>{Object.entries(roleLabels).map(([role, label]) => <option key={role} value={role}>{label}</option>)}</select></label><label>Status<select aria-label="Filter users by status" value={statusFilter} onChange={(event) => { setStatusFilter(event.target.value); setPage(1); }}><option value="ALL">All statuses</option><option value="ACTIVE">Active</option><option value="ARCHIVED">Archived</option></select></label><ListSearchActions onClear={() => { setSearch(""); setRoleFilter("ALL"); setStatusFilter("ALL"); setPage(1); }} /></div>
       <PaginationToolbar controls={<DownloadMenu report={{ title: "Users", filters: activeFilterSummary({ Search: search.trim(), Role: roleFilter === "ALL" ? "ALL" : roleLabels[roleFilter as Role], Status: statusFilter }), columns: userColumns, rows: filtered }} />} from={paged.from} to={paged.to} totalCount={paged.totalCount} page={paged.page} pageCount={paged.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="User records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
-      <div className="record-list">
-        {paged.items.map((item) => (
-          <div className="managed-record" key={item.id}>
-            <div><strong>{item.name}</strong><span>{item.email} · {roleLabels[item.role]}</span></div>
-            <div className="action-row">
-              <button onClick={() => { setDraft(item); setEditing(true); }}>Edit</button>
-              <button className="danger-action" disabled={item.id === actingUser.id} title={item.id === actingUser.id ? "You cannot archive your own signed-in account" : undefined} onClick={() => mutate((db) => archiveUser(db, item.id, "Archived by Admin", actingUser.id))}>Archive</button>
-            </div>
-          </div>
-        ))}
-      </div>
+      {paged.totalCount > 0 && <div className="table-wrap management-table"><table aria-label="User manager"><thead><tr>{["Name", "Email", "Role", "Status", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{paged.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.email}</td><td>{roleLabels[item.role]}</td><td>Active</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => { setDraft(item); setEditing(true); }}>Edit</button><button type="button" className="grid-action grid-action-danger" disabled={item.id === actingUser.id} title={item.id === actingUser.id ? "You cannot archive your own signed-in account" : undefined} onClick={() => mutate((db) => archiveUser(db, item.id, "Archived by Admin", actingUser.id))}>Archive</button></div></td></tr>)}</tbody></table></div>}
       {paged.totalCount === 0 && <div className="list-empty"><h3>No matching records</h3><FilterClearButton onClick={() => { setSearch(""); setRoleFilter("ALL"); setStatusFilter("ALL"); setPage(1); }} label="Clear filters" /></div>}
       <ResultPagination page={paged.page} pageCount={paged.pageCount} onChange={setPage} />
     </div>
@@ -2351,17 +2345,10 @@ function RemoteUserManager({ config, actorId }: { config: CognitoConfig; actorId
     </form>}
     <div className="store-filter-grid"><label className="list-search">Search<input aria-label="Search remote users" value={search} onChange={(event) => { setSearch(event.target.value); setPage(1); }} placeholder="Name, email, role, branch or status" /></label><ListSearchActions onClear={clearSearch} /></div>
     <PaginationToolbar from={pagedUsers.from} to={pagedUsers.to} totalCount={pagedUsers.totalCount} page={pagedUsers.page} pageCount={pagedUsers.pageCount} onPageChange={setPage} pageSize={pageSize} pageSizeAriaLabel="Remote user records per page" onPageSizeChange={(value) => { setPageSize(value); setPage(1); }} />
-    {loading ? <p className="empty-state">Loading users…</p> : <div className="record-list">{pagedUsers.items.map((item) => <div className="managed-record" key={item.id}>
-      <div><strong>{item.name}</strong><span>{item.email} · {item.roles.map((role) => role.name).join(", ")}</span><span>{item.branches.map((branch) => branch.name).join(", ")} · <b className={`membership-status ${item.status.toLowerCase()}`}>{item.status === "INVITED" ? "Invitation pending" : item.status}</b></span></div>
-      <div className="action-row">
-        {item.status === "INVITED" && <button disabled={busy} onClick={() => void run(() => adminUsersApi.resend(config, item.id))}>Resend invite</button>}
-        <button disabled={busy} onClick={() => { setDraft({ id: item.id, name: item.name, email: item.email, roleIds: item.roleIds, branchIds: item.branchIds, version: item.version }); setEditing(true); }}>Edit</button>
-        <button className="danger-action" disabled={busy || item.id === actorId} title={item.id === actorId ? "You cannot archive your own signed-in account" : undefined} onClick={() => {
-          const reason = window.prompt("Why is this user being archived?");
-          if (reason?.trim()) void run(() => adminUsersApi.archive(config, item.id, reason));
-        }}>Archive</button>
-      </div>
-    </div>)}</div>}
+    {loading ? <p className="empty-state">Loading users…</p> : pagedUsers.totalCount > 0 && <div className="table-wrap management-table"><table aria-label="User manager"><thead><tr>{["Name", "Email", "Roles", "Branches", "Status", "Actions"].map((header) => <th key={header}>{header}</th>)}</tr></thead><tbody>{pagedUsers.items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.email}</td><td>{item.roles.map((role) => role.name).join(", ") || "—"}</td><td>{item.branches.map((branch) => branch.name).join(", ") || "—"}</td><td><b className={`membership-status ${item.status.toLowerCase()}`}>{item.status === "INVITED" ? "Invitation pending" : item.status}</b></td><td><div className="grid-actions">{item.status === "INVITED" && <button type="button" className="grid-action" disabled={busy} onClick={() => void run(() => adminUsersApi.resend(config, item.id))}>Resend invite</button>}<button type="button" className="grid-action" disabled={busy} onClick={() => { setDraft({ id: item.id, name: item.name, email: item.email, roleIds: item.roleIds, branchIds: item.branchIds, version: item.version }); setEditing(true); }}>Edit</button><button type="button" className="grid-action grid-action-danger" disabled={busy || item.id === actorId} title={item.id === actorId ? "You cannot archive your own signed-in account" : undefined} onClick={() => {
+      const reason = window.prompt("Why is this user being archived?");
+      if (reason?.trim()) void run(() => adminUsersApi.archive(config, item.id, reason));
+    }}>Archive</button></div></td></tr>)}</tbody></table></div>}
     {!loading && pagedUsers.totalCount === 0 && <div className="list-empty"><h3>No matching users</h3><FilterClearButton onClick={clearSearch} label="Clear filters" /></div>}
     <ResultPagination page={pagedUsers.page} pageCount={pagedUsers.pageCount} onChange={setPage} />
   </div>;

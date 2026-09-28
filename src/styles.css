@@ -673,6 +673,156 @@ main {
 @media (max-width: 420px) { .operational-dashboard .command-card { padding: 1rem; }.operational-dashboard .command-metric-primary strong { font-size: 1.85rem; } }
 @media (prefers-reduced-motion: reduce) { .operational-dashboard .command-card, .operational-dashboard .command-metric, .operational-dashboard .collection-pace-track span { transition: none; }.operational-dashboard .command-card:hover, .operational-dashboard .command-metric:hover, .operational-dashboard .command-card-open:hover { transform: none; } }
 
+/* Dashboard only: the command center uses four distinct operational colour fields. */
+.operational-dashboard {
+  gap: 1.5rem;
+  isolation: isolate;
+}
+
+.operational-dashboard .command-grid {
+  gap: 1.1rem;
+}
+
+.operational-dashboard .command-card {
+  position: relative;
+  gap: 1.05rem;
+  padding: 1.35rem;
+  border-width: 1px;
+  border-radius: 22px;
+  box-shadow: 0 14px 32px rgba(35, 55, 82, .07);
+  animation: command-card-enter .42s both cubic-bezier(.2, .75, .35, 1);
+}
+
+.operational-dashboard .command-card::before {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 4px;
+  border-radius: 22px 0 0 22px;
+  content: "";
+}
+
+.operational-dashboard .command-card:nth-child(2) { animation-delay: .05s; }
+.operational-dashboard .command-card:nth-child(3) { animation-delay: .1s; }
+.operational-dashboard .command-card:nth-child(4) { animation-delay: .15s; }
+
+.operational-dashboard .command-flow {
+  background: radial-gradient(circle at 100% 0, rgba(103, 213, 158, .28), transparent 32%), linear-gradient(145deg, #eafbf1 0%, #f9fffb 74%);
+}
+.operational-dashboard .command-cashflow {
+  background: radial-gradient(circle at 100% 0, rgba(99, 176, 246, .26), transparent 32%), linear-gradient(145deg, #ebf6ff 0%, #fbfdff 74%);
+}
+.operational-dashboard .command-reach {
+  background: radial-gradient(circle at 100% 0, rgba(176, 136, 239, .25), transparent 32%), linear-gradient(145deg, #f5efff 0%, #fdfbff 74%);
+}
+.operational-dashboard .command-inventory {
+  background: radial-gradient(circle at 100% 0, rgba(255, 187, 56, .28), transparent 32%), linear-gradient(145deg, #fff5dc 0%, #fffdfa 74%);
+}
+.operational-dashboard .command-flow::before { background: #36ac73; }
+.operational-dashboard .command-cashflow::before { background: #438dde; }
+.operational-dashboard .command-reach::before { background: #9067ce; }
+.operational-dashboard .command-inventory::before { background: #dfa036; }
+
+.operational-dashboard .command-card-heading {
+  position: relative;
+  min-height: 50px;
+}
+
+.operational-dashboard .command-icon-tile {
+  width: 46px;
+  height: 46px;
+  border: 1px solid rgba(255, 255, 255, .7);
+  border-radius: 15px;
+  box-shadow: inset 0 1px rgba(255, 255, 255, .72), 0 5px 12px rgba(44, 72, 96, .08);
+}
+
+.operational-dashboard .command-card h2 { font-size: 1.12rem; }
+.operational-dashboard .command-card-heading p { max-width: 23rem; }
+
+.operational-dashboard .command-metrics { gap: .76rem; }
+.operational-dashboard .command-metric {
+  position: relative;
+  min-height: 66px;
+  padding: .76rem .84rem;
+  border-color: rgba(91, 116, 140, .15);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .7);
+  box-shadow: inset 0 1px rgba(255, 255, 255, .88);
+}
+
+.operational-dashboard .command-metric::after {
+  position: absolute;
+  right: .75rem;
+  bottom: .7rem;
+  width: 22px;
+  height: 3px;
+  border-radius: 99px;
+  background: currentColor;
+  content: "";
+  opacity: .18;
+}
+
+.operational-dashboard .command-flow .command-metric-primary,
+.operational-dashboard .command-cashflow-metrics .command-metric-primary { min-height: 94px; }
+.operational-dashboard .command-metric-primary strong { font-size: clamp(2rem, 3vw, 2.65rem); letter-spacing: -.055em; }
+.operational-dashboard .command-metric-secondary { min-height: 46px; }
+.operational-dashboard .command-metric-supporting { min-height: 60px; }
+
+.operational-dashboard .collection-pace {
+  gap: .56rem;
+  padding: .78rem .84rem .72rem;
+  border: 1px solid rgba(67, 141, 222, .13);
+  border-radius: 15px;
+  background: rgba(255, 255, 255, .48);
+}
+.operational-dashboard .collection-complete { min-height: 57px; }
+.operational-dashboard .collection-pace-track { height: 8px; background: #cfe5fb; box-shadow: inset 0 1px 2px rgba(46, 105, 172, .12); }
+.operational-dashboard .collection-bars { height: 27px; gap: 6px; }
+.operational-dashboard .collection-bars i { background: linear-gradient(180deg, #8bc4f7, #478fda); }
+
+.operational-dashboard .customer-trend {
+  height: 68px;
+  margin: auto 0 0;
+  padding: .28rem .1rem 0;
+  border-radius: 15px;
+  background: linear-gradient(180deg, rgba(255, 255, 255, .48), rgba(255, 255, 255, 0));
+}
+.operational-dashboard .customer-trend path:first-child { filter: drop-shadow(0 3px 3px rgba(116, 77, 183, .18)); }
+
+.operational-dashboard .inventory-signal {
+  min-height: 43px;
+  margin: auto 0 0;
+  padding: 0 .78rem;
+  border: 1px solid rgba(207, 145, 35, .14);
+  border-radius: 13px;
+  background: rgba(255, 255, 255, .48);
+}
+.operational-dashboard .inventory-signal i { width: 9px; height: 9px; box-shadow: 0 0 0 4px rgba(239, 189, 82, .13); }
+
+.operational-dashboard .command-card-footer { padding-top: .95rem; }
+.operational-dashboard .command-card-open { color: #234967; }
+.operational-dashboard .command-card:hover {
+  box-shadow: 0 20px 42px rgba(35, 55, 82, .14);
+  transform: translateY(-4px);
+}
+.operational-dashboard .command-metric:hover {
+  box-shadow: inset 0 1px rgba(255, 255, 255, .92), 0 7px 16px rgba(45, 70, 96, .09);
+  transform: translateY(-2px);
+}
+
+@keyframes command-card-enter {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@media (max-width: 700px) {
+  .operational-dashboard .command-grid { gap: .9rem; }
+  .operational-dashboard .command-card { min-height: 0; padding: 1.15rem; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .operational-dashboard .command-card { animation: none; }
+}
+
 .board-heading {
   grid-column: 1 / -1;
 }
@@ -2005,6 +2155,10 @@ th {
   .table-wrap,
   .numbered-pages {
     display: none;
+  }
+
+  .management-table {
+    display: block;
   }
 
   .mobile-table-fallback,
