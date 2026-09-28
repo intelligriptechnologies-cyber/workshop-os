@@ -2,6 +2,7 @@ import {
   Banknote,
   Boxes,
   Camera,
+  CalendarDays,
   Car,
   Check,
   ChevronFirst,
@@ -26,7 +27,9 @@ import {
   Search,
   Settings,
   ShieldCheck,
+  Sparkles,
   UserRound,
+  UsersRound,
   Workflow,
   Wrench,
 } from "lucide-react";
@@ -147,7 +150,7 @@ import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor } from "./materials";
 import { JOB_CARD_TABS, isStubTab, type JobCardTabKey } from "./job-card-layout";
 import { Dialog, DownloadMenu, FilterClearButton, handleTabListKeyDown, ListSearchActions, SearchSelect } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
-import { APP_THEME_FONTS, APP_THEME_PALETTES, loadAdminDemoState, PAGE_KEY_BY_MENU_LABEL, resolvePermittedPages, type AdminPageKey, type AppTheme } from "./admin-demo-state";
+import { APP_THEME_FONTS, APP_THEME_PALETTES, loadAdminDemoState, PAGE_LABEL_BY_KEY, ROLE_MENU_PAGE_KEYS, resolvePermittedPages, type AdminPageKey, type AppTheme } from "./admin-demo-state";
 import { renderJobDocument, renderSnapshotDocument, printRenderedDocument, DOCUMENT_LABELS, resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type RenderedDocument } from "./job-documents";
 import { clearDocumentSnapshots, loadDocumentSnapshots, syncDocumentSnapshots } from "./document-snapshots";
 import { renderHtmlToPdf } from "./pdf-render";
@@ -171,59 +174,26 @@ export const roleLabels: Record<Role, string> = {
 const appTagline = "Workshop Management. Simplified.";
 
 type MenuItem = {
+  key: AdminPageKey;
   label: string;
   icon: React.ReactNode;
 };
 
-const roleMenus: Record<Role, MenuItem[]> = {
-  reception: [
-    { label: "Today Queue", icon: <Car size={18} /> },
-    { label: "Customers", icon: <UserRound size={18} /> },
-    { label: "Vehicles", icon: <Car size={18} /> },
-    { label: "Search", icon: <Search size={18} /> },
-  ],
-  service: [
-    { label: "My Queue", icon: <ClipboardList size={18} /> },
-    { label: "Job Cards", icon: <FileText size={18} /> },
-    { label: "Estimate", icon: <ReceiptText size={18} /> },
-    { label: "Follow-ups", icon: <ClipboardCheck size={18} /> },
-    { label: "Media", icon: <Camera size={18} /> },
-    { label: "Search", icon: <Search size={18} /> },
-  ],
-  store: [
-    { label: "Material Requests", icon: <PackageCheck size={18} /> },
-    { label: "Issue Material", icon: <Package size={18} /> },
-    { label: "Reconcile", icon: <Check size={18} /> },
-    { label: "Stock", icon: <Boxes size={18} /> },
-    { label: "Purchase Orders", icon: <ReceiptText size={18} /> },
-    { label: "Search", icon: <Search size={18} /> },
-  ],
-  tech: [
-    { label: "My Tasks", icon: <Wrench size={18} /> },
-    { label: "Work Update", icon: <ClipboardCheck size={18} /> },
-    { label: "QC Prep", icon: <ShieldCheck size={18} /> },
-    { label: "Search", icon: <Search size={18} /> },
-  ],
-  accounts: [
-    { label: "Ready To Invoice", icon: <ClipboardList size={18} /> },
-    { label: "Invoice", icon: <ReceiptText size={18} /> },
-    { label: "Payment", icon: <Banknote size={18} /> },
-    { label: "Delivery", icon: <DoorOpen size={18} /> },
-    { label: "Search", icon: <Search size={18} /> },
-  ],
-  admin: [
-    { label: "Dashboard", icon: <Gauge size={18} /> },
-    { label: "Approvals", icon: <ShieldCheck size={18} /> },
-    { label: "Data Flow", icon: <ClipboardCheck size={18} /> },
-    { label: "Job Cards", icon: <FileText size={18} /> },
-    { label: "Media", icon: <Camera size={18} /> },
-    { label: "Suppliers", icon: <UserRound size={18} /> },
-    { label: "Purchase Orders", icon: <ReceiptText size={18} /> },
-    { label: "Manage", icon: <ShieldCheck size={18} /> },
-    { label: "Search", icon: <Search size={18} /> },
-    { label: "Admin Console", icon: <Settings size={18} /> },
-  ],
+const MENU_ICON_BY_PAGE_KEY: Partial<Record<AdminPageKey, React.ReactNode>> = {
+  "today-queue": <Car size={18} />, customers: <UserRound size={18} />, vehicles: <Car size={18} />, search: <Search size={18} />,
+  "my-queue": <ClipboardList size={18} />, "job-card": <FileText size={18} />, estimate: <ReceiptText size={18} />, "follow-ups": <ClipboardCheck size={18} />, media: <Camera size={18} />,
+  "material-requests": <PackageCheck size={18} />, "issue-material": <Package size={18} />, reconcile: <Check size={18} />, stock: <Boxes size={18} />, approvals: <ShieldCheck size={18} />, suppliers: <UserRound size={18} />, "inward-purchases": <ReceiptText size={18} />,
+  "my-tasks": <Wrench size={18} />, "work-update": <ClipboardCheck size={18} />, "qc-prep": <ShieldCheck size={18} />,
+  "ready-to-invoice": <ClipboardList size={18} />, invoice: <ReceiptText size={18} />, payment: <Banknote size={18} />, delivery: <DoorOpen size={18} />,
+  dashboard: <Gauge size={18} />, "data-flow": <ClipboardCheck size={18} />, jobs: <FileText size={18} />, manage: <ShieldCheck size={18} />, "admin-console": <Settings size={18} />,
 };
+
+export function menuItemsForRole(role: Role, permittedPages: readonly AdminPageKey[]): MenuItem[] {
+  const permitted = new Set(permittedPages);
+  return ROLE_MENU_PAGE_KEYS[role]
+    .filter((key) => permitted.has(key))
+    .map((key) => ({ key, label: PAGE_LABEL_BY_KEY[key], icon: MENU_ICON_BY_PAGE_KEY[key] }));
+}
 
 const demoLogins = [
   "admin@example.com",
@@ -289,8 +259,8 @@ function paymentRowHighlight(mode: PaymentMode) {
   return classes[mode];
 }
 
-function findMenuLabelForPage(role: Role, key: AdminPageKey): string | undefined {
-  return roleMenus[role].find((item) => PAGE_KEY_BY_MENU_LABEL[item.label] === key)?.label;
+function findMenuLabelForPage(role: Role, key: AdminPageKey, permittedPages: readonly AdminPageKey[]): string | undefined {
+  return menuItemsForRole(role, permittedPages).find((item) => item.key === key)?.label;
 }
 
 function workshopRole(names: string[]): Role {
@@ -340,10 +310,18 @@ function App() {
   const [searchNavigate, setSearchNavigate] = useState<{ kind: "jobs" | "customers" | "vehicles"; id: number }>();
   const [stockSearchNavigate, setStockSearchNavigate] = useState<string>();
   const [dashboardDrilldown, setDashboardDrilldown] = useState<DashboardDrilldown>();
+  const [adminStateVersion, setAdminStateVersion] = useState(0);
   const [appTheme, setAppTheme] = useState<AppTheme>(() => loadAdminDemoState().appTheme);
   const [loginError, setLoginError] = useState("");
   const [authConfig, setAuthConfig] = useState<AuthConfig>();
   const [authLoading, setAuthLoading] = useState(true);
+  const currentAdminState = useMemo(() => loadAdminDemoState(), [adminStateVersion]);
+
+  useEffect(() => {
+    if (!user) return;
+    const items = menuItemsForRole(user.role, resolvePermittedPages(currentAdminState, user.role));
+    if (!items.some((item) => item.label === activeMenuItem)) setActiveMenuItem(items[0]?.label ?? "");
+  }, [activeMenuItem, currentAdminState, user]);
 
   useEffect(() => {
     openWorkshopDb().then((database) => {
@@ -385,7 +363,8 @@ function App() {
               role, password: "", externalAuth: true, externalId: session.membership.id,
             };
             setUser(authenticatedUser);
-            setActiveMenuItem(roleMenus[role][0].label);
+            const items = menuItemsForRole(role, resolvePermittedPages(loadAdminDemoState(), role));
+            setActiveMenuItem(items[0]?.label ?? "");
           }
         } catch (error) {
           setLoginError(apiErrorMessage(error));
@@ -485,7 +464,8 @@ function App() {
       return;
     }
     setUser(found);
-    setActiveMenuItem(roleMenus[found.role][0].label);
+    const items = menuItemsForRole(found.role, resolvePermittedPages(loadAdminDemoState(), found.role));
+    setActiveMenuItem(items[0]?.label ?? "");
     setLoginError("");
   };
 
@@ -536,7 +516,8 @@ function App() {
   // Reads the (session-storage backed) Admin Console role/page-access state fresh on every
   // render so a role's permitted pages here reflect the latest Roles & Page Access save made
   // in the Admin Console during this session, without the two stores needing to be merged.
-  const permittedPages = resolvePermittedPages(loadAdminDemoState(), user.role);
+  const permittedPages = resolvePermittedPages(currentAdminState, user.role);
+  const menuItems = menuItemsForRole(user.role, permittedPages);
 
   const leaveSearch = () => { setQuery(""); setSearchCategory(""); setSearchStatus("ALL"); setSearchDateFilter(""); setSearchMonthFilter(""); setSearchPaymentMode("ALL"); };
   const openStockSearchRecord = (item: InventoryItem) => {
@@ -550,30 +531,30 @@ function App() {
       setActiveMenuItem("Search");
       return;
     }
-    const label = findMenuLabelForPage(user.role, "stock");
+    const label = findMenuLabelForPage(user.role, "stock", permittedPages);
     if (label) { setStockSearchNavigate(item.sku); leaveSearch(); setActiveMenuItem(label); }
   };
   const openSearchRecord = (view: JobView, category: Exclude<SearchTableCategory, "stock">) => {
     if (category === "customer") {
-      const label = findMenuLabelForPage(user.role, "customers");
+      const label = findMenuLabelForPage(user.role, "customers", permittedPages);
       if (label) { setSearchNavigate({ kind: "customers", id: view.customer.id }); setActiveMenuItem(label); }
       return;
     }
     if (category === "vehicle") {
-      const label = findMenuLabelForPage(user.role, "vehicles");
+      const label = findMenuLabelForPage(user.role, "vehicles", permittedPages);
       if (label) { setSearchNavigate({ kind: "vehicles", id: view.vehicle.id }); setActiveMenuItem(label); }
       return;
     }
     if (category === "job") {
-      const label = findMenuLabelForPage(user.role, "jobs") ?? findMenuLabelForPage(user.role, "my-queue");
+      const label = findMenuLabelForPage(user.role, "jobs", permittedPages) ?? findMenuLabelForPage(user.role, "my-queue", permittedPages);
       if (label) { setSearchNavigate({ kind: "jobs", id: view.job.id }); setActiveMenuItem(label); }
       return;
     }
     // invoice: prefer the role's own dedicated Invoice workflow page (Accounts) when granted;
     // otherwise fall back to the Jobs/My Queue record workspace, which also surfaces invoice status.
-    const invoiceLabel = permittedPages.includes("invoice") ? findMenuLabelForPage(user.role, "invoice") : undefined;
+    const invoiceLabel = permittedPages.includes("invoice") ? findMenuLabelForPage(user.role, "invoice", permittedPages) : undefined;
     if (invoiceLabel) { setSelectedJobId(view.job.id); leaveSearch(); setActiveMenuItem(invoiceLabel); return; }
-    const jobsLabel = findMenuLabelForPage(user.role, "jobs") ?? findMenuLabelForPage(user.role, "my-queue");
+    const jobsLabel = findMenuLabelForPage(user.role, "jobs", permittedPages) ?? findMenuLabelForPage(user.role, "my-queue", permittedPages);
     if (jobsLabel) { setSearchNavigate({ kind: "jobs", id: view.job.id }); leaveSearch(); setActiveMenuItem(jobsLabel); }
   };
   const openDashboardDrilldown = (drilldown: DashboardDrilldown) => {
@@ -613,7 +594,7 @@ function App() {
         </button>
         <div className="rail-role">{roleLabels[user.role]}</div>
         <nav className="role-nav" aria-label={`${roleLabels[user.role]} menu`}>
-          {roleMenus[user.role].map((item) => (
+          {menuItems.length === 0 ? <p className="empty-state">No pages assigned.</p> : menuItems.map((item) => (
             <button key={item.label} className={activeMenuItem === item.label ? "active" : ""} onClick={() => {
               if (activeMenuItem === "Search" && item.label !== "Search") {
                 setQuery(""); setSearchCategory(""); setSearchStatus("ALL"); setSearchDateFilter(""); setSearchMonthFilter(""); setSearchPaymentMode("ALL");
@@ -647,7 +628,7 @@ function App() {
           </button>
         </header>
 
-        <RoleWorkspace
+        {menuItems.length === 0 ? <section className="workspace single-panel"><div className="list-empty"><h2>No pages assigned</h2><p>Your role has no permitted workspace pages. Contact an Owner/Admin.</p></div></section> : <RoleWorkspace
           activeMenuItem={activeMenuItem}
           jobs={jobs}
           mutate={mutate}
@@ -680,7 +661,9 @@ function App() {
           onNavigate={setActiveMenuItem}
           onDashboardNavigate={openDashboardDrilldown}
           onThemeSaved={setAppTheme}
+          onAdminStateSaved={() => setAdminStateVersion((value) => value + 1)}
         />
+        }
       </main>
     </div>
   );
@@ -774,6 +757,7 @@ function RoleWorkspace({
   onNavigate,
   onDashboardNavigate,
   onThemeSaved,
+  onAdminStateSaved,
 }: {
   activeMenuItem: string;
   jobs: JobView[];
@@ -807,6 +791,7 @@ function RoleWorkspace({
   onNavigate: (label: string) => void;
   onDashboardNavigate: (drilldown: DashboardDrilldown) => void;
   onThemeSaved: (theme: AppTheme) => void;
+  onAdminStateSaved: () => void;
 }) {
   if (activeMenuItem === "Search") {
     return (
@@ -848,7 +833,7 @@ function RoleWorkspace({
   if (user.role === "store") return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "tech") return <Technician activeMenuItem={activeMenuItem} state={state} mutate={mutate} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "accounts") return <Accounts activeMenuItem={activeMenuItem} state={state} view={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} actor={user} />;
-  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} onNavigate={onNavigate} onDashboardNavigate={onDashboardNavigate} dashboardDrilldown={dashboardDrilldown} onThemeSaved={onThemeSaved} />;
+  return <Admin activeMenuItem={activeMenuItem} state={state} selected={selected} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} cognitoConfig={cognitoConfig} onNavigate={onNavigate} onDashboardNavigate={onDashboardNavigate} dashboardDrilldown={dashboardDrilldown} onThemeSaved={onThemeSaved} onAdminStateSaved={onAdminStateSaved} />;
 }
 
 const SEARCH_STATUS_OPTIONS: (MainStatus | "ALL")[] = ["ALL", "NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"];
@@ -1691,11 +1676,22 @@ function AttachmentItem({ attachment, onRemove }: { attachment: { original_name:
 
 function SupplierMasterWorkspace({ state, actor, mutate }: { state: WorkshopState; actor: User; mutate: Mutate }) {
   const [selectedId, setSelectedId] = useState<number | undefined>();
+  const [dialogOpen, setDialogOpen] = useState(false);
   const selected = state.suppliers.find((supplier) => supplier.id === selectedId);
   const [draft, setDraft] = useState({ name: "", contact_name: "", phone: "", email: "", gstin: "", status: "Active" as Supplier["status"] });
   useEffect(() => { if (selected) setDraft({ name: selected.name, contact_name: selected.contact_name, phone: selected.phone, email: selected.email, gstin: selected.gstin, status: selected.status }); }, [selected]);
   const reset = () => { setSelectedId(undefined); setDraft({ name: "", contact_name: "", phone: "", email: "", gstin: "", status: "Active" }); };
-  return <section className="workspace two-panel"><div className="desk-panel"><PanelTitle icon={<UserRound />} title="Supplier Master" subtitle="Admin-managed suppliers; only active suppliers are available on goods receipts." /><div className="table-wrap"><table aria-label="Supplier master"><thead><tr><th>Supplier</th><th>Contact</th><th>GSTIN</th><th>Status</th></tr></thead><tbody>{state.suppliers.map((supplier) => <tr key={supplier.id} className="clickable-row" onClick={() => setSelectedId(supplier.id)}><td>{supplier.name}</td><td>{supplier.contact_name || supplier.phone || "—"}</td><td>{supplier.gstin || "—"}</td><td>{supplier.status}</td></tr>)}</tbody></table></div><button onClick={reset}>New supplier</button></div><form className="desk-panel" onSubmit={(event) => { event.preventDefault(); if (selected) mutate((db) => updateSupplierForActor(db, selected.id, actor.id, draft)); else { let id = 0; if (mutate((db) => { id = createSupplierForActor(db, actor.id, draft); })) setSelectedId(id); } }}><PanelTitle icon={<UserRound />} title={selected ? "Edit supplier" : "Add supplier"} subtitle="Hold and archive preserve purchase history." /><label>Name<input required value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><label>Contact name<input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} /></label><label>Phone<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></label><label>Email<input type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label><label>GSTIN<input value={draft.gstin} onChange={(event) => setDraft({ ...draft, gstin: event.target.value })} /></label><label>Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Supplier["status"] })}><option>Active</option><option>On hold</option></select></label><div className="action-row"><button className="primary-action">Save supplier</button>{selected && <button type="button" className="danger-action" onClick={() => { if (mutate((db) => archiveSupplierForActor(db, selected.id, actor.id))) reset(); }}>Archive supplier</button>}</div></form></section>;
+  const closeDialog = () => { setDialogOpen(false); reset(); };
+  const openNew = () => { reset(); setDialogOpen(true); };
+  const openEdit = (supplier: Supplier) => { setSelectedId(supplier.id); setDialogOpen(true); };
+  const save = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+    const saved = selected
+      ? mutate((db) => updateSupplierForActor(db, selected.id, actor.id, draft))
+      : mutate((db) => { createSupplierForActor(db, actor.id, draft); });
+    if (saved) closeDialog();
+  };
+  return <section className="workspace single-panel"><div className="desk-panel"><div className="panel-actions"><PanelTitle icon={<UserRound />} title="Supplier Master" subtitle="Admin-managed suppliers; only active suppliers are available on goods receipts." /><button type="button" className="primary-action" onClick={openNew}><Plus size={16} />Add new supplier</button></div><div className="table-wrap"><table aria-label="Supplier master"><thead><tr><th>Supplier</th><th>Contact</th><th>GSTIN</th><th>Status</th><th>Actions</th></tr></thead><tbody>{state.suppliers.map((supplier) => <tr key={supplier.id}><td>{supplier.name}</td><td>{supplier.contact_name || supplier.phone || "—"}</td><td>{supplier.gstin || "—"}</td><td>{supplier.status}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => openEdit(supplier)}><Pencil size={15} />Edit</button></div></td></tr>)}</tbody></table></div></div>{dialogOpen && <Dialog title={selected ? "Edit supplier" : "Add supplier"} subtitle="Hold and archive preserve purchase history." onClose={closeDialog} footer={<>{selected && <button type="button" className="danger-action" onClick={() => { if (mutate((db) => archiveSupplierForActor(db, selected.id, actor.id))) closeDialog(); }}>Archive supplier</button>}<button type="submit" form="supplier-form" className="primary-action">Save supplier</button></>}><form id="supplier-form" onSubmit={save}><label>Name<input required data-dialog-initial-focus value={draft.name} onChange={(event) => setDraft({ ...draft, name: event.target.value })} /></label><label>Contact name<input value={draft.contact_name} onChange={(event) => setDraft({ ...draft, contact_name: event.target.value })} /></label><label>Phone<input value={draft.phone} onChange={(event) => setDraft({ ...draft, phone: event.target.value })} /></label><label>Email<input type="email" value={draft.email} onChange={(event) => setDraft({ ...draft, email: event.target.value })} /></label><label>GSTIN<input value={draft.gstin} onChange={(event) => setDraft({ ...draft, gstin: event.target.value })} /></label><label>Status<select value={draft.status} onChange={(event) => setDraft({ ...draft, status: event.target.value as Supplier["status"] })}><option>Active</option><option>On hold</option></select></label></form></Dialog>}</section>;
 }
 
 function StockMovementHistory({ state }: { state: WorkshopState }) {
@@ -1942,7 +1938,7 @@ function MaterialApprovalQueue({ state, actor, mutate, setSelectedJobId, initial
   return <section className="workspace single-panel"><div className="desk-panel"><PanelTitle icon={<ShieldCheck />} title="Approvals" subtitle={`${pending.length} pending job-level material approval${pending.length === 1 ? "" : "s"}`} />{pending.length ? <div className="table-wrap"><table aria-label="Pending material approvals"><thead><tr><th>Job Card</th><th>Vehicle / Customer</th><th>Store user</th><th>Submitted</th><th>Job status</th><th>Outstanding materials</th><th>Actions</th></tr></thead><tbody>{pending.map((view) => { const approval = view.material_approval!; const requester = state.users.find((user) => user.id === approval.submitted_by)?.name ?? "Store"; const materials = view.material_requests.filter((row) => ["Requested", "Re-requested"].includes(row.status ?? "Requested")).map((row) => `${state.inventory.find((item) => item.id === row.item_id)?.name ?? `Item ${row.item_id}`} × ${row.requested_qty}`).join(", "); return <tr key={approval.id}><td><button className="link-action" onClick={() => { setSelectedJobId(view.job.id); setViewing(view); }}>{view.job.job_no}</button></td><td>{view.vehicle.number} · {view.customer.name}</td><td>{requester}</td><td>{formatTimestamp(approval.submitted_at)}</td><td><Status status={view.job.main_status} sub={view.job.sub_status} /></td><td>{materials || "No outstanding rows"}</td><td><button className="primary-action" onClick={() => setReviewing(view)}>Review</button></td></tr>; })}</tbody></table></div> : <div className="list-empty"><h3>No pending approvals</h3><p>Store material approval requests will appear here.</p></div>}</div>{viewing && <JobRecordDialog view={viewing} state={state} mutate={mutate} actor={actor} mode="view" onClose={() => setViewing(undefined)} />}{reviewing && <Dialog title="Review material approval" subtitle={`${reviewing.job.job_no} · decision controls`} onClose={() => setReviewing(undefined)} footer={<><button type="button" className="secondary-action" onClick={() => decide("Approved")}>Approve</button><button type="button" className="danger-action" onClick={() => decide("Rejected")}>Reject</button></>}><p>Approve restores the retained requested rows for Store issue. Reject keeps the job on HOLD for the linked Service Advisor to correct.</p><label>Rejection reason<textarea value={reason} onChange={(event) => setReason(event.target.value)} required placeholder="Required when rejecting" /></label>{error && <p className="error-text" role="alert">{error}</p>}</Dialog>}</section>;
 }
 
-function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig, onNavigate, onDashboardNavigate, dashboardDrilldown, onThemeSaved }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (id: number) => void; user: User; cognitoConfig?: CognitoConfig; onNavigate: (label: string) => void; onDashboardNavigate: (drilldown: DashboardDrilldown) => void; dashboardDrilldown?: DashboardDrilldown; onThemeSaved: (theme: AppTheme) => void }) {
+function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user, cognitoConfig, onNavigate, onDashboardNavigate, dashboardDrilldown, onThemeSaved, onAdminStateSaved }: { activeMenuItem: string; state: WorkshopState; selected?: JobView; mutate: Mutate; setSelectedJobId: (value: number) => void; user: User; cognitoConfig?: CognitoConfig; onNavigate: (label: string) => void; onDashboardNavigate: (drilldown: DashboardDrilldown) => void; dashboardDrilldown?: DashboardDrilldown; onThemeSaved: (theme: AppTheme) => void; onAdminStateSaved: () => void }) {
   if (activeMenuItem === "Data Flow") {
     return <DataFlowWorkspace jobs={state.jobs} users={state.users} />;
   }
@@ -1971,22 +1967,24 @@ function Admin({ activeMenuItem, state, selected, mutate, setSelectedJobId, user
     return <ManagementHub state={state} mutate={mutate} actingUser={user} selected={selected} setSelectedJobId={setSelectedJobId} cognitoConfig={cognitoConfig} />;
   }
   if (activeMenuItem === "Admin Console") {
-    return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} />;
+    return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} />;
   }
   return <OperationalDashboard state={state} onNavigate={onDashboardNavigate} />;
 }
 
-type DashboardMetric = { label: string; value: string | number; tone: string; drilldown: DashboardDrilldown; layout?: "primary" | "projection" | "supporting"; context?: string };
+type DashboardMetric = { label: string; value: string | number; tone: string; drilldown: DashboardDrilldown; layout?: "primary" | "projection" | "supporting" | "secondary"; context?: string };
 type DashboardCard = { title: string; subtitle: string; tone: string; action: string; drilldown: DashboardDrilldown; metrics: DashboardMetric[] };
 
 function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onNavigate: (drilldown: DashboardDrilldown) => void }) {
   const today = localCalendarDate();
   const facts = dashboardFacts(state.jobs, state.inventory, today);
   const currentMonth = facts.currentMonth;
+  const dateLabel = new Date(`${today}T00:00:00`).toLocaleDateString("en-IN", { weekday: "long", day: "numeric", month: "long" });
+  const collectionPace = facts.daysInMonth ? Math.round(facts.daysElapsed / facts.daysInMonth * 100) : 0;
   const cards: DashboardCard[] = [
     { title: "Workshop flow", subtitle: "All job-card history", tone: "flow", action: "View active jobs", drilldown: { destination: "Job Cards", status: "ACTIVE" }, metrics: [
-      { label: "Active today", value: facts.activeToday, tone: "active", drilldown: { destination: "Job Cards", status: "ACTIVE" } },
-      { label: "Total visits", value: facts.totalVisits, tone: "received", drilldown: { destination: "Job Cards" } },
+      { label: "Active today", value: facts.activeToday, tone: "active", layout: "primary", drilldown: { destination: "Job Cards", status: "ACTIVE" } },
+      { label: "Total visits", value: facts.totalVisits, tone: "received", layout: "secondary", drilldown: { destination: "Job Cards" } },
       { label: "In progress", value: facts.inProgress, tone: "progress", drilldown: { destination: "Job Cards", status: "IN_PROGRESS" } },
       { label: "Closed", value: facts.closed, tone: "closed", drilldown: { destination: "Job Cards", status: "CLOSED" } },
       { label: "On hold", value: facts.onHold, tone: "hold", drilldown: { destination: "Job Cards", status: "HOLD" } },
@@ -2009,16 +2007,25 @@ function OperationalDashboard({ state, onNavigate }: { state: WorkshopState; onN
     ] },
   ];
   return <section className="workspace operational-dashboard" aria-label="Workshop command center">
-    <header className="command-header"><div><p className="command-kicker">Workshop command center</p><h1>Operational dashboard</h1><p>Live job flow, customer reach, stock attention and collections.</p></div></header>
-    <div className="command-grid">{cards.map((card) => <article key={card.title} className={`command-card command-${card.tone}`} tabIndex={0} onClick={() => onNavigate(card.drilldown)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onNavigate(card.drilldown); } }}>
-      <div className="command-card-heading"><div><h2>{card.title}</h2><p>{card.subtitle}</p></div></div>
-      <div className={`command-metrics${card.tone === "cashflow" ? " command-cashflow-metrics" : ""}`}>{card.metrics.map((metric) => <button type="button" key={metric.label} className={`command-metric metric-${metric.tone}${metric.layout ? ` command-metric-${metric.layout}` : ""}`} aria-label={`Open ${metric.label}: ${metric.value}`} onClick={(event) => { event.stopPropagation(); onNavigate(metric.drilldown); }}><span>{metric.label}</span><strong>{metric.value}</strong>{metric.context && <small>{metric.context}</small>}</button>)}</div>
-      <div className="command-card-footer"><button type="button" className="command-card-open" aria-label={card.action} onClick={(event) => { event.stopPropagation(); onNavigate(card.drilldown); }}>{card.action} <ChevronRight size={14} /></button></div>
-    </article>)}</div>
+    <header className="command-header">
+      <div><p className="command-kicker">Workshop command center</p><h1>Operational dashboard</h1><p>Live job flow, customer reach, stock attention and collections.</p></div>
+      <div className="command-date" aria-label={`Today: ${dateLabel}`}><CalendarDays size={20} /><div><strong>{dateLabel}</strong><span>Real-time overview</span></div></div>
+    </header>
+    <div className="command-grid">{cards.map((card) => {
+      const icon = card.tone === "flow" ? <Gauge size={21} /> : card.tone === "cashflow" ? <Banknote size={21} /> : card.tone === "reach" ? <UsersRound size={21} /> : <Boxes size={21} />;
+      return <article key={card.title} data-dashboard-card={card.tone} className={`command-card command-${card.tone}`} tabIndex={0} onClick={() => onNavigate(card.drilldown)} onKeyDown={(event) => { if (event.target === event.currentTarget && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onNavigate(card.drilldown); } }}>
+        <div className="command-card-heading"><span className="command-icon-tile" aria-hidden="true">{icon}</span><div><h2>{card.title}</h2><p>{card.subtitle}</p></div></div>
+        <div className={`command-metrics${card.tone === "cashflow" ? " command-cashflow-metrics" : ""}`}>{card.metrics.map((metric) => <button type="button" key={metric.label} className={`command-metric metric-${metric.tone}${metric.layout ? ` command-metric-${metric.layout}` : ""}`} aria-label={`Open ${metric.label}: ${metric.value}`} onClick={(event) => { event.stopPropagation(); onNavigate(metric.drilldown); }}><span>{metric.label}</span><strong>{metric.value}</strong>{metric.context && <small>{metric.context}</small>}</button>)}</div>
+        {card.tone === "cashflow" && <div className="collection-pace" aria-label={`${collectionPace}% of calendar month elapsed`}><div className="collection-pace-label"><span>Collection runway</span><strong>{collectionPace}% elapsed</strong></div><div className="collection-pace-track"><span style={{ width: `${collectionPace}%` }} /></div><div className="collection-bars" aria-hidden="true"><i /><i /><i /><i /><i /><i /><i /></div></div>}
+        {card.tone === "reach" && <svg className="customer-trend" viewBox="0 0 260 62" role="img" aria-label="Decorative customer reach trend"><path d="M2 52C28 48 31 36 53 42S83 51 103 29s33 5 54-8 29-1 46-17 30-1 55-3" fill="none" pathLength="1" /><path d="M2 59H258" /></svg>}
+        {card.tone === "inventory" && <div className="inventory-signal" aria-hidden="true"><Sparkles size={15} /><span>Attention queue</span><i /><i /><i /></div>}
+        <div className="command-card-footer"><button type="button" className="command-card-open" aria-label={card.action} onClick={(event) => { event.stopPropagation(); onNavigate(card.drilldown); }}>{card.action} <ChevronRight size={14} /></button></div>
+      </article>;
+    })}</div>
   </section>;
 }
 
-const managementAreas = ["Users", "Customers", "Vehicles", "Job Cards", "Estimates", "Tasks / QC", "Inventory / Materials", "Invoices", "Payments", "Delivery"] as const;
+const managementAreas = ["Users", "Customers", "Vehicles", "Job Cards", "Estimates", "Invoices", "Payments", "Delivery"] as const;
 type ManagementArea = (typeof managementAreas)[number];
 
 function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId, cognitoConfig }: { state: WorkshopState; mutate: Mutate; actingUser: User; selected?: JobView; setSelectedJobId: (id: number) => void; cognitoConfig?: CognitoConfig }) {
@@ -2039,14 +2046,12 @@ function ManagementHub({ state, mutate, actingUser, selected, setSelectedJobId, 
           {managementAreas.map((item) => <button id={`management-tab-${item.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`} aria-controls="management-active-panel" tabIndex={area === item ? 0 : -1} key={item} role="tab" aria-selected={area === item} className={area === item ? "active" : ""} onClick={() => setArea(item)}>{item}</button>)}
         </div>
         <div id="management-active-panel" role="tabpanel" aria-labelledby={`management-tab-${area.toLowerCase().replaceAll(/[^a-z]+/g, "-")}`}>
-        {(area === "Estimates" || area === "Tasks / QC") && <JobPicker jobs={state.jobs} selectedJobId={managedJob?.job.id} onSelect={setManagedJobId} label={`Job for ${area}`} />}
+        {area === "Estimates" && <JobPicker jobs={state.jobs} selectedJobId={managedJob?.job.id} onSelect={setManagedJobId} label={`Job for ${area}`} />}
         {area === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
         {area === "Customers" && <CustomerManager state={state} mutate={mutate} actor={actingUser} />}
         {area === "Vehicles" && <VehicleManager state={state} mutate={mutate} actor={actingUser} />}
         {area === "Job Cards" && <VisitJobManager state={state} mutate={mutate} actingUser={actingUser} selected={selected} setSelectedJobId={setSelectedJobId} />}
         {area === "Estimates" && <EstimateManager view={managedJob} mutate={mutate} actor={actingUser} />}
-        {area === "Tasks / QC" && <TaskQcManager view={managedJob} users={state.users} mutate={mutate} />}
-        {area === "Inventory / Materials" && <InventoryMaterialsManager state={state} mutate={mutate} />}
         {(area === "Invoices" || area === "Payments" || area === "Delivery") && <BillingManager key={area} mode={area} state={state} actor={actingUser} mutate={mutate} panel={false} />}
         </div>
       </div>

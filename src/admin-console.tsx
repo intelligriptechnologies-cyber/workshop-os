@@ -65,7 +65,7 @@ type AdminTab = (typeof ADMIN_TABS)[number];
 
 type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
 
-export function AdminConsole({ state, mutate, actingUser, cognitoConfig, onThemeSaved }: { state: WorkshopState; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig; onThemeSaved?: (theme: AppTheme) => void }) {
+export function AdminConsole({ state, mutate, actingUser, cognitoConfig, onThemeSaved, onStateSaved }: { state: WorkshopState; mutate: Mutate; actingUser: User; cognitoConfig?: CognitoConfig; onThemeSaved?: (theme: AppTheme) => void; onStateSaved?: () => void }) {
   const [tab, setTab] = useState<AdminTab>("Users");
   const [adminState, setAdminState] = useState<AdminDemoState>(() => loadAdminDemoState());
   const [templateDirty, setTemplateDirty] = useState(false);
@@ -78,6 +78,7 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig, onTheme
       if (entry) next = appendDemoLog(next, entry);
       const saved = saveAdminDemoState(next);
       setAdminState(saved);
+      onStateSaved?.();
       setStorageError("");
       return true;
     } catch (error) {

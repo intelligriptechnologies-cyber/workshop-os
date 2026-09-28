@@ -91,7 +91,7 @@ test("admin hides customer and vehicle pages from its navigation rail", async ({
   await expect(nav.getByRole("button", { name: "Vehicles", exact: true })).toHaveCount(0);
 });
 
-test("admin dashboard keeps live metrics compact, accessible, and responsive", async ({ page }) => {
+test("admin dashboard presents live metrics in an accessible command-center grid", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, "admin@example.com");
 
@@ -100,6 +100,8 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
   const metrics = ["Active today", "Total visits", "In progress", "Closed", "On hold", "Total collections", "Projected monthly collection", "Payments received", "Invoices generated", "Customers served", "Vehicles served", "Low-stock items", "Pending approvals", "Material requests", "Materials issued"];
   await expect(grid.locator(".command-card")).toHaveCount(4);
   await expect(grid.locator(".command-metric")).toHaveCount(15);
+  await expect(dashboard.getByLabel(/^Today:/)).toContainText("Real-time overview");
+  for (const variant of ["flow", "cashflow", "reach", "inventory"]) await expect(grid.locator(`[data-dashboard-card="${variant}"]`)).toHaveCount(1);
   for (const metric of metrics) await expect(grid.getByRole("button", { name: new RegExp(`Open ${metric}:`) })).toBeVisible();
   expect(await grid.evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(2);
   expect(await grid.locator(".command-card").first().evaluate((element) => getComputedStyle(element).height)).toBe(await grid.locator(".command-card").nth(1).evaluate((element) => getComputedStyle(element).height));
@@ -110,6 +112,12 @@ test("admin dashboard keeps live metrics compact, accessible, and responsive", a
   await expect(dashboard.getByLabel("Dashboard reporting month")).toHaveCount(0);
   await expect(grid.locator(".command-cashflow .command-metric-primary")).toHaveCount(1);
   await expect(grid.locator(".command-cashflow .command-metric-projection")).toHaveCount(1);
+  await expect(grid.locator(".collection-pace-track")).toBeVisible();
+  await expect(grid.locator(".collection-bars i")).toHaveCount(7);
+  await expect(grid.locator(".customer-trend")).toBeVisible();
+
+  await grid.locator(".command-card").first().focus();
+  await expect(grid.locator(".command-card").first()).toHaveCSS("outline-style", "solid");
 
   await grid.getByRole("button", { name: /Open Total visits:/ }).click();
   await expect(page.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
