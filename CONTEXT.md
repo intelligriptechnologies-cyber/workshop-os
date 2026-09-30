@@ -150,3 +150,41 @@ Preserve current WorkshopOS job-card fields, permissions, and lifecycle commands
 - Does Download map to an existing job-card export, or should it be omitted for now?
 - Should vehicle/media destructive-action labels always say Archive to match current behavior?
 - What should the page size be? The references show 10 records per page.
+
+## SaaS backend language
+
+**Tenant**: The customer organization and hard data-isolation boundary for a WorkshopOS subscription.
+_Avoid_: Workshop, account
+
+**Branch**: An operational workshop location belonging to one Tenant. A newly provisioned Tenant begins with one Branch.
+_Avoid_: Tenant, shop
+
+**Superadmin**: A platform operator who manages Tenants, tenant billing, and audited support emulation. A Superadmin is not a Tenant Admin.
+_Avoid_: Admin, owner
+
+**Tenant Admin**: The highest-privilege operational user within one Tenant, able to administer that Tenant's roles and settings.
+_Avoid_: Superadmin
+
+**Support emulation**: A temporary, explicitly indicated and audited Superadmin session acting within a Tenant's context.
+_Avoid_: Login as, shared account
+
+**Issued document**: An immutable snapshot of an estimate, invoice, receipt, or gate pass at the point it is issued. Corrections create a separate void, revision, or credit record.
+_Avoid_: Editable document
+
+**Stock reservation**: A commitment of Branch inventory to an approved job requirement before Store issues the material.
+_Avoid_: Stock deduction
+
+**Tenant lifecycle state**: The commercial access state of a Tenant: trial, active, payment due, suspended, or closed.
+_Avoid_: User status
+
+**Permission**: An API-enforced capability granted by a Tenant role; the UI may present it but cannot authorize it.
+_Avoid_: Page visibility
+
+**Attachment**: A tenant-scoped binary file and its metadata, stored in the operational database and linked to a business record.
+_Avoid_: Base64 string, browser-only file
+
+**Platform billing**: Superadmin-managed commercial plan, renewal, due-date, and payment-status information for a Tenant; it is separate from workshop customer invoices and payments.
+_Avoid_: Workshop billing, payment gateway
+
+**Offline mode**: The phase-one state in which an authenticated API session is unavailable. The user may only view previously cached, Tenant- and Branch-scoped data; no operational, financial, inventory, or workflow mutation is accepted or queued.
+_Avoid_: Deferred sync, local source of truth

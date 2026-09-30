@@ -33,9 +33,15 @@ import {
   Workflow,
   Wrench,
 } from "lucide-react";
-import type { Database } from "sql.js";
 import { useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type ReactNode } from "react";
 import { JobPicker, localCalendarDate, todayJobPeriod, type JobPeriod } from "./job-picker";
+import { RemoteIntakeManager, RemoteReceptionIntake } from "./remote-intake";
+import { RemoteJobWorkflow } from "./remote-jobs";
+import { RemoteInventoryWorkspace } from "./remote-inventory";
+import { RemoteMaterialsWorkspace } from "./remote-materials";
+import { RemoteTechnicianWorkspace } from "./remote-execution";
+import { RemoteFinanceWorkspace } from "./remote-finance";
+import { RemoteFollowupsWorkspace } from "./remote-followups";
 import { dashboardFacts } from "./dashboard-metrics";
 import { isServiceActiveJob, serviceFollowupStatus } from "./service-advisor";
 import {
@@ -80,11 +86,8 @@ import {
   isTerminalMainStatus,
   markWashingNeeded,
   markFollowupDone,
-  openWorkshopDb,
   passQc,
   paymentStatus,
-  persist,
-  readState,
   receiveVehicle,
   reconcileMaterial,
   reconcileMaterialQty,
@@ -140,7 +143,7 @@ import type { InwardPurchaseAttachmentInput, InwardPurchaseLineInput, PurchaseOr
 import type { ChecklistItem, Customer, EstimateItem, Followup, InventoryItem, InwardPurchase, JobView, LocalPurchase, MainStatus, MaterialMovement, MaterialPurchaseRequest, MaterialRequest, Payment, PaymentMode, Photo, PurchaseOrder, PurchaseOrderLine, QcCheck, Role, SearchCriteria, SubStatus, Supplier, Task, TaskStatus, User, Vehicle, ViewMode, WorkshopState } from "./types";
 import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } from "./list-utils";
 import type { ExportColumn } from "./export-utils";
-import { beginCognitoLogin, endCognitoSession, loadAuthConfig, loadWorkshopSession, type AuthConfig, type CognitoConfig } from "./auth";
+import { beginCognitoLogin, checkAuthenticatedApiReachability, endCognitoSession, getAuthenticatedApiReachability, loadAuthConfig, loadWorkshopSession, subscribeAuthenticatedApiReachability, type AuthConfig, type AuthenticatedApiReachability, type CognitoConfig } from "./auth";
 import { adminUsersApi, AdminApiError, type AdminDirectory, type AdminUser } from "./admin-users-api";
 import { JobSheetSection } from "./job-sheet-ui";
 import { BodyMarkDiagram } from "./body-mark";
@@ -159,6 +162,7 @@ import { buildInvoiceDraft, canCompleteWithInvoice, canCreateInvoice, GST_RATES,
 import { BillingManager, InvoiceDialog, JobInvoicePanel, JobPaymentPanel, type BillingMode } from "./billing-manager";
 import { compressMediaFile, type JobMediaCategory, type PreparedJobMedia } from "./job-media";
 import { PaginationToolbar, ResultPagination } from "./pagination-toolbar";
+import { createLocalWorkshopDataAccess, type DataAccessReachability, type LegacyLocalMutation, type WorkshopDataAccess } from "./workshop-data-access";
 
 export { ResultPagination } from "./pagination-toolbar";
 
@@ -289,8 +293,10 @@ function apiErrorMessage(error: unknown) {
   return apiErrors[code] ?? "WorkshopOS could not complete the request. Try again.";
 }
 
-function App() {
-  const [db, setDb] = useState<Database>();
+export type AppProps = { dataAccess?: WorkshopDataAccess };
+
+function App({ dataAccess: providedDataAccess }: AppProps = {}) {
+  const dataAccess = useMemo(() => providedDataAccess ?? createLocalWorkshopDataAccess(), [providedDataAccess]);
   const [state, setState] = useState<WorkshopState>();
   const [user, setUser] = useState<User>();
   const [selectedJobId, setSelectedJobId] = useState<number>();
@@ -315,6 +321,11 @@ function App() {
   const [loginError, setLoginError] = useState("");
   const [authConfig, setAuthConfig] = useState<AuthConfig>();
   const [authLoading, setAuthLoading] = useState(true);
+  const [dataError, setDataError] = useState("");
+  const [reachability, setReachability] = useState<DataAccessReachability>(() => dataAccess.getReachability());
+  const [apiReachability, setApiReachability] = useState<AuthenticatedApiReachability>(() => getAuthenticatedApiReachability());
+  const [remoteRefreshVersion, setRemoteRefreshVersion] = useState(0);
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const currentAdminState = useMemo(() => loadAdminDemoState(), [adminStateVersion]);
 
   useEffect(() => {
@@ -324,14 +335,21 @@ function App() {
   }, [activeMenuItem, currentAdminState, user]);
 
   useEffect(() => {
-    openWorkshopDb().then((database) => {
-      setDb(database);
-      const next = readState(database);
+    let active = true;
+    setDataError("");
+    setReachability(dataAccess.getReachability());
+    dataAccess.load().then((next) => {
+      if (!active) return;
       syncDocumentSnapshots(undefined, next.jobs, loadAdminDemoState());
       setState(next);
       setSelectedJobId(next.jobs[0]?.job.id);
+    }).catch((error: unknown) => {
+      if (!active) return;
+      setReachability(dataAccess.getReachability());
+      setDataError(error instanceof Error ? error.message : "Workshop data could not be loaded.");
     });
-  }, []);
+    return () => { active = false; };
+  }, [dataAccess, loadAttempt]);
 
   useEffect(() => {
     const font = APP_THEME_FONTS.find((item) => item.id === appTheme.fontId) ?? APP_THEME_FONTS[0];
@@ -372,6 +390,41 @@ function App() {
       }
     }).finally(() => setAuthLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (authConfig?.mode !== "cognito" || !user?.externalAuth) return;
+    let active = true;
+    let wasOffline = getAuthenticatedApiReachability().status === "offline";
+    const onReachability = (next: AuthenticatedApiReachability) => {
+      if (!active) return;
+      setApiReachability(next);
+      if (next.status === "online" && wasOffline) setRemoteRefreshVersion((value) => value + 1);
+      wasOffline = next.status === "offline";
+    };
+    const unsubscribe = subscribeAuthenticatedApiReachability(onReachability);
+    const probe = () => {
+      void checkAuthenticatedApiReachability(authConfig).catch((error: unknown) => {
+        if (!active) return;
+        if (error instanceof Error && error.message === "AUTHENTICATION_REQUIRED") {
+          setUser(undefined);
+          setActiveMenuItem("");
+          return;
+        }
+        setApiReachability(getAuthenticatedApiReachability());
+      });
+    };
+    probe();
+    window.addEventListener("online", probe);
+    window.addEventListener("focus", probe);
+    const interval = window.setInterval(probe, 30_000);
+    return () => {
+      active = false;
+      unsubscribe();
+      window.removeEventListener("online", probe);
+      window.removeEventListener("focus", probe);
+      window.clearInterval(interval);
+    };
+  }, [authConfig, user?.externalAuth]);
 
   useEffect(() => {
     const moveRailToggle = (clientY: number) => {
@@ -439,21 +492,23 @@ function App() {
   const selected = state?.jobs.find((item) => item.job.id === selectedJobId) ?? state?.jobs[0];
 
   const mutate: Mutate = (action, onError) => {
-    if (!db) return false;
+    if (!state) return false;
     try {
-      action(db);
+      const next = dataAccess.runLegacyMutation(action);
+      if (action === loadLargeDemoDataset) clearDocumentSnapshots();
+      syncDocumentSnapshots(action === loadLargeDemoDataset ? undefined : state.jobs, next.jobs, loadAdminDemoState());
+      setState(next);
+      setDataError("");
+      setReachability(dataAccess.getReachability());
+      if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
+      return true;
     } catch (error) {
       const message = error instanceof Error ? error.message : "Action failed";
+      setDataError(message);
+      setReachability(dataAccess.getReachability());
       if (onError) onError(message); else window.alert(message);
       return false;
     }
-    persist(db);
-    const next = readState(db);
-    if (action === loadLargeDemoDataset) clearDocumentSnapshots();
-    syncDocumentSnapshots(action === loadLargeDemoDataset ? undefined : state?.jobs, next.jobs, loadAdminDemoState());
-    setState(next);
-    if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
-    return true;
   };
 
   const handleLogin = (email: string, password: string) => {
@@ -510,7 +565,8 @@ function App() {
     railToggleStartY.current = event.clientY;
   };
 
-  if (!state || authLoading) return <div className="loading">Loading WorkshopOS...</div>;
+  if (dataError && !state) return <main className="loading" role="alert"><p>{dataError}</p><button className="primary-action" type="button" onClick={() => setLoadAttempt((attempt) => attempt + 1)}>Retry</button></main>;
+  if (!state || authLoading) return <div className="loading">{reachability === "offline" ? "WorkshopOS is offline. Retrying data access…" : "Loading WorkshopOS..."}</div>;
   if (!user) return <LoginScreen onLogin={handleLogin} onCognitoLogin={() => authConfig?.mode === "cognito" && beginCognitoLogin(authConfig)} config={authConfig} error={loginError} />;
 
   // Reads the (session-storage backed) Admin Console role/page-access state fresh on every
@@ -518,6 +574,8 @@ function App() {
   // in the Admin Console during this session, without the two stores needing to be merged.
   const permittedPages = resolvePermittedPages(currentAdminState, user.role);
   const menuItems = menuItemsForRole(user.role, permittedPages);
+  const isRemoteOffline = Boolean(user.externalAuth && authConfig?.mode === "cognito" && apiReachability.status === "offline");
+  const connectionLabel = isRemoteOffline ? "Offline" : "Online";
 
   const leaveSearch = () => { setQuery(""); setSearchCategory(""); setSearchStatus("ALL"); setSearchDateFilter(""); setSearchMonthFilter(""); setSearchPaymentMode("ALL"); };
   const openStockSearchRecord = (item: InventoryItem) => {
@@ -572,7 +630,7 @@ function App() {
   };
 
   return (
-    <div className={`app-shell role-${user.role}${sidebarCollapsed ? " rail-collapsed" : ""}`}>
+    <div className={`app-shell role-${user.role}${sidebarCollapsed ? " rail-collapsed" : ""}${isRemoteOffline ? " api-offline" : ""}`}>
       <aside className="rail">
         <div className="brand">
           <Car size={30} />
@@ -594,6 +652,10 @@ function App() {
           {sidebarCollapsed ? <PanelLeftOpen size={18} /> : <PanelLeftClose size={18} />}
         </button>
         <div className="rail-role">{roleLabels[user.role]}</div>
+        <div className={`connection-state ${isRemoteOffline ? "offline" : "online"}`} role="status" aria-label={`API ${connectionLabel}`} title={isRemoteOffline ? "Offline: cached reads only. Changes are disabled and will not be queued." : "Online: authenticated API is reachable."}>
+          <span aria-hidden="true" className="connection-dot" />
+          <span>{connectionLabel}</span>
+        </div>
         <nav className="role-nav" aria-label={`${roleLabels[user.role]} menu`}>
           {menuItems.length === 0 ? <p className="empty-state">No pages assigned.</p> : menuItems.map((item) => (
             <button key={item.label} className={activeMenuItem === item.label ? "active" : ""} onClick={() => {
@@ -623,13 +685,16 @@ function App() {
             <UserRound size={18} />
             {user.email}
           </div>
+          {dataError && <p className="error-text" role="alert">{dataError}</p>}
           <button className="mobile-logout" onClick={handleLogout} aria-label="Logout">
             <LogOut size={18} />
             Logout
           </button>
         </header>
 
-        {menuItems.length === 0 ? <section className="workspace single-panel"><div className="list-empty"><h2>No pages assigned</h2><p>Your role has no permitted workspace pages. Contact an Owner/Admin.</p></div></section> : <RoleWorkspace
+        {isRemoteOffline && <p className="offline-notice" role="status">Offline — showing cached reads only{apiReachability.lastSuccessfulAt ? ` (last refreshed ${new Date(apiReachability.lastSuccessfulAt).toLocaleString()})` : ""}. Changes are disabled and will not be queued.</p>}
+        {menuItems.length === 0 ? <section className="workspace single-panel"><div className="list-empty"><h2>No pages assigned</h2><p>Your role has no permitted workspace pages. Contact an Owner/Admin.</p></div></section> : <fieldset className="offline-read-only" disabled={isRemoteOffline} aria-describedby={isRemoteOffline ? "offline-mode-explanation" : undefined}><span id="offline-mode-explanation" className="sr-only">Offline mode permits cached reads only. Changes are disabled and are not queued.</span><RoleWorkspace
+          key={`workspace-${remoteRefreshVersion}`}
           activeMenuItem={activeMenuItem}
           jobs={jobs}
           mutate={mutate}
@@ -666,6 +731,7 @@ function App() {
           onThemeSaved={setAppTheme}
           onAdminStateSaved={() => setAdminStateVersion((value) => value + 1)}
         />
+        </fieldset>
         }
       </main>
     </div>
@@ -830,12 +896,27 @@ function RoleWorkspace({
     );
   }
 
+  if (cognitoConfig && ["Job Cards", "My Queue", "Estimate"].includes(activeMenuItem)) return <RemoteJobWorkflow config={cognitoConfig} mode={activeMenuItem === "Estimate" ? "estimates" : "jobs"} />;
   if ((activeMenuItem === "Job Cards" && user.role !== "service") || activeMenuItem === "My Queue") return <EntityList key={`jobs-${dashboardDrilldown?.month ?? ""}-${dashboardDrilldown?.date ?? ""}-${dashboardDrilldown?.status ?? ""}`} kind="jobs" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.destination === activeMenuItem ? { month: dashboardDrilldown.month, date: dashboardDrilldown.date, primary: dashboardDrilldown.status } : undefined} initialSelectedId={searchNavigate?.kind === "jobs" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
+  if (cognitoConfig && activeMenuItem === "Customers") return <RemoteIntakeManager kind="customers" config={cognitoConfig} />;
+  if (cognitoConfig && activeMenuItem === "Vehicles") return <RemoteIntakeManager kind="vehicles" config={cognitoConfig} />;
+  if (cognitoConfig && activeMenuItem === "Stock") return <RemoteInventoryWorkspace config={cognitoConfig} mode="stock" />;
+  if (cognitoConfig && ["Inward Purchases", "Purchase Orders"].includes(activeMenuItem)) return <RemoteInventoryWorkspace config={cognitoConfig} mode="purchasing" />;
+  if (cognitoConfig && activeMenuItem === "Material Requests") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="requests" />;
+  if (cognitoConfig && activeMenuItem === "Issue Material") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="issue" />;
+  if (cognitoConfig && activeMenuItem === "Reconcile") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="reconcile" />;
+  if (cognitoConfig && ["My Tasks", "Work Update", "QC Prep"].includes(activeMenuItem)) return <RemoteTechnicianWorkspace config={cognitoConfig} />;
+  if (cognitoConfig && ["Ready To Invoice", "Invoice"].includes(activeMenuItem)) return <RemoteFinanceWorkspace config={cognitoConfig} mode="invoice" />;
+  if (cognitoConfig && activeMenuItem === "Payment") return <RemoteFinanceWorkspace config={cognitoConfig} mode="payment" />;
+  if (cognitoConfig && activeMenuItem === "Delivery") return <RemoteFinanceWorkspace config={cognitoConfig} mode="delivery" />;
+  if (cognitoConfig && activeMenuItem === "Follow-ups") return <RemoteFollowupsWorkspace config={cognitoConfig} mode="followups" />;
+  if (cognitoConfig && activeMenuItem === "Search") return <RemoteFollowupsWorkspace config={cognitoConfig} mode="search" />;
   if (activeMenuItem === "Customers") return <EntityList key={`customers-${dashboardDrilldown?.month ?? ""}`} kind="customers" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "customers" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "customers" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Vehicles") return <EntityList key={`vehicles-${dashboardDrilldown?.month ?? ""}`} kind="vehicles" state={state} mutate={mutate} actor={user} initialFilters={dashboardDrilldown?.served === "vehicles" ? { month: dashboardDrilldown.month } : undefined} initialSelectedId={searchNavigate?.kind === "vehicles" ? searchNavigate.id : undefined} onInitialSelectionConsumed={onSearchNavigateConsumed} />;
   if (activeMenuItem === "Media") return <EntityList kind="media" state={state} mutate={mutate} actor={user} />;
   if (activeMenuItem === "Purchase Orders" && (user.role === "store" || user.role === "admin")) return <PurchaseOrdersWorkspace state={state} actor={user} mutate={mutate} />;
 
+  if (user.role === "reception" && cognitoConfig) return <RemoteReceptionIntake config={cognitoConfig} />;
   if (user.role === "reception") return <Reception activeMenuItem={activeMenuItem} state={state} mutate={mutate} user={user} selected={selected} setSelectedJobId={setSelectedJobId} />;
   if (user.role === "service") return <ServiceAdvisor activeMenuItem={activeMenuItem} state={state} view={selected?.job.advisor_id === user.id ? selected : state.jobs.find((item) => item.job.advisor_id === user.id)} mutate={mutate} setSelectedJobId={setSelectedJobId} user={user} />;
   if (["Stock", "Material Requests", "Issue Material", "Reconcile"].includes(activeMenuItem) && (user.role === "store" || user.role === "admin")) return <StoreDesk activeMenuItem={activeMenuItem} state={state} actor={user} mutate={mutate} setSelectedJobId={setSelectedJobId} initialStockSearch={stockSearchNavigate} initialDrilldown={dashboardDrilldown} />;
@@ -3865,6 +3946,6 @@ export function money(value: number) {
   return `Rs ${Math.round(value).toLocaleString("en-IN")}`;
 }
 
-export type Mutate = (action: (database: Database) => void, onError?: (message: string) => void) => boolean;
+export type Mutate = (action: LegacyLocalMutation, onError?: (message: string) => void) => boolean;
 
 export default App;

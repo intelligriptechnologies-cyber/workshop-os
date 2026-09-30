@@ -7,6 +7,8 @@ import { activeFilterSummary, DEFAULT_PAGE_SIZE, normalizeSearch, paginate } fro
 import { Info, PanelTitle, UserManager, roleLabels, type Mutate } from "./App";
 import { PaginationToolbar, ResultPagination } from "./pagination-toolbar";
 import type { CognitoConfig } from "./auth";
+import { AdminApiError, adminRolesApi, type AdminRole } from "./admin-users-api";
+import { pagesFromRolePermissions, permissionsFromPages } from "./remote-role-access";
 import {
   ADMIN_PAGE_GROUPS,
   addDemoRole,
@@ -16,6 +18,7 @@ import {
   archiveDemoRole,
   clearDemoLogs,
   confirmInventoryImport,
+  createDefaultAdminDemoState,
   filterDemoLogs,
   loadAdminDemoState,
   normalizeBusinessSettings,
@@ -107,7 +110,7 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig, onTheme
         </div>
         {storageError && <div className="api-error" role="alert"><p>{storageError}</p></div>}
         {tab === "Users" && <UserManager users={state.users} mutate={mutate} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
-        {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />}
+        {tab === "Roles & Page Access" && <RolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} cognitoConfig={cognitoConfig} />}
         {tab === "Business Settings" && <BusinessSettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
         {tab === "App Theme" && <AppThemeTab adminState={adminState} commit={commit} actingUser={actingUser} onThemeSaved={onThemeSaved} />}
         {tab === "Company Settings" && <CompanySettingsTab adminState={adminState} commit={commit} actingUser={actingUser} />}
@@ -123,7 +126,12 @@ export function AdminConsole({ state, mutate, actingUser, cognitoConfig, onTheme
 
 const ALL_PAGE_KEYS: AdminPageKey[] = ADMIN_PAGE_GROUPS.flatMap((group) => group.pages.map((page) => page.key));
 
-function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void; actingUser: User }) {
+function RolesPageAccessTab({ adminState, commit, actingUser, cognitoConfig }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void; actingUser: User; cognitoConfig?: CognitoConfig }) {
+  if (cognitoConfig) return <RemoteRolesPageAccessTab config={cognitoConfig} actingUser={actingUser} />;
+  return <DemoRolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />;
+}
+
+function DemoRolesPageAccessTab({ adminState, commit, actingUser }: { adminState: AdminDemoState; commit: (mutator: (s: AdminDemoState) => AdminDemoState, entry?: LogEntryInput) => void; actingUser: User }) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState<"ALL" | "active" | "archived">("ALL");
   const [page, setPage] = useState(1);
@@ -142,7 +150,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
   const pagedRoles = paginate(roles, page, pageSize);
   const selectedRole = adminState.roles.find((role) => role.id === selectedRoleId);
   const savedPages = selectedRoleId ? resolvePermittedPages(adminState, selectedRoleId) : [];
-  const isOwnerRole = selectedRoleId === "admin";
+  const isOwnerRole = selectedRole?.systemRole === "admin";
   const dirty = selectedRoleId !== undefined && JSON.stringify([...draftPages].sort()) !== JSON.stringify([...savedPages].sort());
 
   useEffect(() => {
@@ -239,7 +247,7 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
               {editingRoleId !== role.id && (
                 <div className="action-row">
                   <button onClick={() => { setEditingRoleId(role.id); setEditDraft({ label: role.label, description: role.description }); }}>Edit</button>
-                  <button className="danger-action" disabled={role.id === "admin" || role.status === "archived"} title={role.id === "admin" ? "Owner/Admin cannot be archived" : undefined} onClick={() => {
+                  <button className="danger-action" disabled={role.systemRole === "admin" || role.status === "archived"} title={role.systemRole === "admin" ? "Owner/Admin cannot be archived" : undefined} onClick={() => {
                     if (!window.confirm(`Archive role "${role.label}"?`)) return;
                     commit((current) => archiveDemoRole(current, role.id), {
                       stream: "feature", level: "warning", area: "Administration", feature: "Roles & Page Access",
@@ -290,6 +298,106 @@ function RolesPageAccessTab({ adminState, commit, actingUser }: { adminState: Ad
       <ResultPagination page={pagedRoles.page} pageCount={pagedRoles.pageCount} onChange={setPage} />
     </div>
   );
+}
+
+const remoteRoleSystemKeys = new Set(["admin", "service", "reception", "accounts", "store", "tech"]);
+
+function remoteRolePages(role: AdminRole): AdminPageKey[] {
+  return pagesFromRolePermissions(role.permissions, ALL_PAGE_KEYS);
+}
+
+function remoteRolePermissions(role: AdminRole | undefined, pages: readonly AdminPageKey[]): string[] {
+  return permissionsFromPages(role?.permissions, pages);
+}
+
+function remoteRoleState(roles: AdminRole[]): AdminDemoState {
+  const base = createDefaultAdminDemoState();
+  const rolePageAccess = Object.fromEntries(roles.map((role) => [role.id, remoteRolePages(role)]));
+  return {
+    ...base,
+    roles: roles.map((role) => ({
+      id: role.id,
+      label: role.name,
+      description: role.description ?? "",
+      systemRole: role.systemKey && remoteRoleSystemKeys.has(role.systemKey) ? role.systemKey as DemoRole["systemRole"] : undefined,
+      isBuiltIn: Boolean(role.systemKey),
+      status: role.status === "ARCHIVED" ? "archived" : "active",
+      createdAt: role.createdAt ?? new Date(0).toISOString(),
+      updatedAt: role.updatedAt ?? new Date(0).toISOString(),
+    })),
+    rolePageAccess,
+  };
+}
+
+function RemoteRolesPageAccessTab({ config, actingUser }: { config: CognitoConfig; actingUser: User }) {
+  const [roles, setRoles] = useState<AdminRole[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const adminState = useMemo(() => remoteRoleState(roles), [roles]);
+
+  const refresh = async (quiet = false) => {
+    if (!quiet) setLoading(true);
+    try {
+      setRoles((await adminRolesApi.list(config)).roles);
+      setError("");
+    } catch (nextError) {
+      setError(nextError instanceof AdminApiError ? nextError.code : "API_FAILED");
+    } finally {
+      if (!quiet) setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    void refresh();
+    const interval = window.setInterval(() => void refresh(true), 30_000);
+    const onFocus = () => void refresh(true);
+    window.addEventListener("focus", onFocus);
+    return () => { window.clearInterval(interval); window.removeEventListener("focus", onFocus); };
+  }, [config]);
+
+  const commit = (mutator: (state: AdminDemoState) => AdminDemoState, _entry?: LogEntryInput) => {
+    if (busy) return false;
+    const next = mutator(adminState);
+    const previousById = new Map(roles.map((role) => [role.id, role]));
+    const created = next.roles.find((role) => !previousById.has(role.id));
+    const archived = next.roles.find((role) => previousById.get(role.id)?.status !== "ARCHIVED" && role.status === "archived");
+    const changed = next.roles.find((role) => {
+      const previous = previousById.get(role.id);
+      return previous && (previous.name !== role.label || (previous.description ?? "") !== role.description || JSON.stringify(remoteRolePages(previous)) !== JSON.stringify(next.rolePageAccess[role.id] ?? []));
+    });
+    const run = created
+      ? () => adminRolesApi.create(config, { name: created.label, description: created.description, permissions: remoteRolePermissions(undefined, next.rolePageAccess[created.id] ?? []) })
+      : archived
+        ? () => adminRolesApi.archive(config, archived.id, `Archived by ${actingUser.name}`)
+        : changed
+          ? () => {
+            const previous = previousById.get(changed.id)!;
+            if (previous.version === undefined) throw new Error("VERSION_MISSING");
+            return adminRolesApi.update(config, { id: changed.id, name: changed.label, description: changed.description, permissions: remoteRolePermissions(previous, next.rolePageAccess[changed.id] ?? []), version: previous.version });
+          }
+          : undefined;
+    if (!run) return true;
+    setBusy(true);
+    void (async () => {
+      try {
+        await run();
+        await refresh(true);
+      } catch (nextError) {
+        setError(nextError instanceof AdminApiError ? nextError.code : nextError instanceof Error ? nextError.message : "API_FAILED");
+        await refresh(true);
+      } finally {
+        setBusy(false);
+      }
+    })();
+    return true;
+  };
+
+  if (loading) return <div className="manager-panel" role="tabpanel"><p className="empty-state">Loading roles…</p></div>;
+  return <>
+    {error && <div className="api-error" role="alert"><p>{error}</p><button onClick={() => void refresh()}>Retry</button></div>}
+    <DemoRolesPageAccessTab adminState={adminState} commit={commit} actingUser={actingUser} />
+  </>;
 }
 
 function GroupFieldset({ group, draftPages, isOwnerRole, onToggleGroup, onTogglePage }: {

@@ -29,6 +29,114 @@ export type WorkshopSession = { membership: SessionMembership; tenant: { id: str
 type Tokens = { accessToken: string; refreshToken?: string; expiresAt: number };
 const TOKEN_KEY = "workshopos.cognito.tokens.v1";
 const OAUTH_KEY = "workshopos.cognito.oauth.v1";
+const READ_CACHE_KEY = "workshopos.auth.read-cache.v1";
+const READ_CACHE_VERSION = 1;
+
+export type AuthenticatedApiReachability = {
+  status: "online" | "offline";
+  lastSuccessfulAt?: string;
+};
+
+type CachedRead = { body: string; contentType: string; savedAt: string };
+type ReadCache = { version: number; scope: string; entries: Record<string, CachedRead> };
+
+let cacheScope: string | undefined;
+let apiReachability: AuthenticatedApiReachability = { status: "online" };
+const reachabilityListeners = new Set<(value: AuthenticatedApiReachability) => void>();
+
+function safeSessionStorage() {
+  try { return sessionStorage; } catch { return undefined; }
+}
+
+function emitReachability(next: AuthenticatedApiReachability) {
+  apiReachability = next;
+  reachabilityListeners.forEach((listener) => listener(next));
+}
+
+function markOnline() {
+  emitReachability({ status: "online", lastSuccessfulAt: new Date().toISOString() });
+}
+
+function markOffline() {
+  emitReachability({ status: "offline", lastSuccessfulAt: apiReachability.lastSuccessfulAt });
+}
+
+function cacheKey(path: string) {
+  return `GET ${path}`;
+}
+
+function readCache() {
+  const storage = safeSessionStorage();
+  if (!storage || !cacheScope) return undefined;
+  try {
+    const saved = storage.getItem(READ_CACHE_KEY);
+    if (!saved) return undefined;
+    const parsed = JSON.parse(saved) as ReadCache;
+    return parsed.version === READ_CACHE_VERSION && parsed.scope === cacheScope ? parsed : undefined;
+  } catch { return undefined; }
+}
+
+function writeCache(cache: ReadCache) {
+  try { safeSessionStorage()?.setItem(READ_CACHE_KEY, JSON.stringify(cache)); } catch { /* Caching is optional. */ }
+}
+
+function cacheRead(path: string, response: Response, scopeAtRequest: string | undefined) {
+  if (!scopeAtRequest || !response.headers.get("content-type")?.includes("application/json")) return;
+  response.clone().text().then((body) => {
+    // Never let a late response from a previous tenant/membership populate the new scope.
+    if (cacheScope !== scopeAtRequest) return;
+    const existing = readCache() ?? { version: READ_CACHE_VERSION, scope: scopeAtRequest, entries: {} };
+    existing.entries[cacheKey(path)] = { body, contentType: response.headers.get("content-type") ?? "application/json", savedAt: new Date().toISOString() };
+    writeCache(existing);
+  }).catch(() => { /* A failed clone is never cached. */ });
+}
+
+function cachedRead(path: string) {
+  const entry = readCache()?.entries[cacheKey(path)];
+  return entry ? new Response(entry.body, { status: 200, headers: { "content-type": entry.contentType, "x-workshopos-cache": "stale", "x-workshopos-cache-saved-at": entry.savedAt } }) : undefined;
+}
+
+function invalidateAuthenticatedSession() {
+  try { safeSessionStorage()?.removeItem(TOKEN_KEY); } catch { /* Session storage may be unavailable. */ }
+  clearAuthenticatedReadCache();
+  cacheScope = undefined;
+}
+
+function sessionScope(session: WorkshopSession) {
+  const membership = session.membership;
+  return JSON.stringify({
+    tenant: session.tenant.id,
+    membership: membership.id,
+    version: membership.version,
+    roles: membership.roleIds.slice().sort(),
+    branches: membership.branchIds.slice().sort(),
+    permissions: membership.permissions.slice().sort(),
+  });
+}
+
+/** Sets the only cache namespace allowed for authenticated API reads. */
+export function setAuthenticatedCacheScope(session: WorkshopSession) {
+  const nextScope = sessionScope(session);
+  if (cacheScope === nextScope) return;
+  cacheScope = nextScope;
+  clearAuthenticatedReadCache();
+  // clearAuthenticatedReadCache intentionally removes prior scopes, then restore this empty scope.
+  writeCache({ version: READ_CACHE_VERSION, scope: nextScope, entries: {} });
+}
+
+/** Removes every cached authenticated response, including another tenant's old namespace. */
+export function clearAuthenticatedReadCache() {
+  try { safeSessionStorage()?.removeItem(READ_CACHE_KEY); } catch { /* Storage may be unavailable. */ }
+}
+
+export function getAuthenticatedApiReachability() {
+  return apiReachability;
+}
+
+export function subscribeAuthenticatedApiReachability(listener: (value: AuthenticatedApiReachability) => void) {
+  reachabilityListeners.add(listener);
+  return () => reachabilityListeners.delete(listener);
+}
 
 const base64Url = (bytes: Uint8Array) =>
   btoa(String.fromCharCode(...bytes)).replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/, "");
@@ -115,7 +223,27 @@ export async function completeCognitoCallback(config: CognitoConfig) {
 export async function authenticatedFetch(config: CognitoConfig, path: string, init: RequestInit = {}) {
   const current = await tokens(config);
   if (!current) throw new Error("AUTHENTICATION_REQUIRED");
-  return fetch(path, { ...init, headers: { ...init.headers, authorization: `Bearer ${current.accessToken}`, accept: "application/json" } });
+  const method = (init.method ?? "GET").toUpperCase();
+  const scopeAtRequest = cacheScope;
+  if (method !== "GET" && apiReachability.status === "offline") throw new Error("OFFLINE_READ_ONLY");
+  try {
+    const response = await fetch(path, { ...init, headers: { ...init.headers, authorization: `Bearer ${current.accessToken}`, accept: "application/json" } });
+    if (response.status === 401 || response.status === 403) {
+      invalidateAuthenticatedSession();
+      return response;
+    }
+    if (response.status >= 500) throw new Error("API_UNREACHABLE");
+    markOnline();
+    if (method === "GET" && init.cache !== "no-store" && response.ok) cacheRead(path, response, scopeAtRequest);
+    return response;
+  } catch (error) {
+    markOffline();
+    if (method === "GET" && init.cache !== "no-store") {
+      const cached = cachedRead(path);
+      if (cached) return cached;
+    }
+    throw error instanceof Error && error.message === "API_UNREACHABLE" ? error : new Error("API_UNREACHABLE");
+  }
 }
 
 export async function loadWorkshopSession(config: CognitoConfig): Promise<WorkshopSession | undefined> {
@@ -123,13 +251,25 @@ export async function loadWorkshopSession(config: CognitoConfig): Promise<Worksh
   const current = await tokens(config);
   if (!current) return undefined;
   const response = await authenticatedFetch(config, "/api/v1/session");
-  if (response.status === 401) { sessionStorage.removeItem(TOKEN_KEY); return undefined; }
+  if (response.status === 401 || response.status === 403) return undefined;
   if (!response.ok) throw new Error((await response.json() as { code?: string }).code ?? "SESSION_FAILED");
-  return response.json() as Promise<WorkshopSession>;
+  const session = await response.json() as WorkshopSession;
+  setAuthenticatedCacheScope(session);
+  return session;
+}
+
+/** A no-cache authenticated probe used by the app shell at startup and on reconnect. */
+export async function checkAuthenticatedApiReachability(config: CognitoConfig) {
+  const response = await authenticatedFetch(config, "/api/v1/session", { cache: "no-store" });
+  if (response.status === 401 || response.status === 403) throw new Error("AUTHENTICATION_REQUIRED");
+  if (!response.ok) throw new Error("API_UNREACHABLE");
+  const session = await response.json() as WorkshopSession;
+  setAuthenticatedCacheScope(session);
+  return getAuthenticatedApiReachability();
 }
 
 export function endCognitoSession(config: CognitoConfig) {
-  sessionStorage.removeItem(TOKEN_KEY);
+  invalidateAuthenticatedSession();
   const url = new URL(config.logoutEndpoint);
   url.search = new URLSearchParams({ client_id: config.clientId, logout_uri: config.logoutUri }).toString();
   location.assign(url);

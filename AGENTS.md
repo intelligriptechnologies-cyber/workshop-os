@@ -39,3 +39,13 @@ re-read whole files.
 After big code changes, refresh the graph with `graft build` (deterministic,
 no API key, $0).
 <!-- graft:end -->
+
+## Agent skills
+
+### Issue tracker
+
+Issues and planning maps are tracked in this repository's GitHub Issues. See `docs/agents/issue-tracker.md`.
+
+### Domain docs
+
+This is a single-context repository: use the root `CONTEXT.md` and `docs/adr/`. See `docs/agents/domain.md`.

@@ -299,6 +299,34 @@ form {
   font-weight: 400;
 }
 
+.connection-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  width: fit-content;
+  margin-top: 10px;
+  border-radius: 999px;
+  padding: 6px 10px;
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+.connection-state.online { color: #176b42; background: #e2f7e9; }
+.connection-state.offline { color: #a32626; background: #ffebeb; }
+.connection-dot { width: 8px; height: 8px; border-radius: 50%; background: currentColor; box-shadow: 0 0 0 2px color-mix(in srgb, currentColor 14%, transparent); }
+
+.offline-notice {
+  margin: 12px 22px 0;
+  border: 1px solid #f2b6b6;
+  border-radius: 8px;
+  background: #fff1f1;
+  color: #852121;
+  padding: 10px 12px;
+}
+
+.offline-read-only { min-inline-size: 0; border: 0; margin: 0; padding: 0; }
+.offline-read-only:disabled { opacity: 0.74; }
+
 .role-nav {
   display: grid;
   gap: 8px;
@@ -356,6 +384,9 @@ form {
 .rail-collapsed .logout span {
   display: none;
 }
+
+.rail-collapsed .connection-state { width: 54px; justify-content: center; padding-inline: 0; }
+.rail-collapsed .connection-state span:last-child { display: none; }
 
 .rail-collapsed .rail-toggle,
 .rail-collapsed .role-nav button,

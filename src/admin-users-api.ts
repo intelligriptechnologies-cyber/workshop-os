@@ -1,6 +1,9 @@
 import { authenticatedFetch, type CognitoConfig } from "./auth";
 
-export type AdminRole = { id: string; name: string; permissions: string[] };
+export type AdminRole = {
+  id: string; name: string; description?: string; status?: "ACTIVE" | "ARCHIVED";
+  systemKey?: string | null; permissions: string[]; version?: number; createdAt?: string; updatedAt?: string;
+};
 export type AdminBranch = { id: string; name: string };
 export type AdminUser = {
   id: string; name: string; email: string; status: "INVITED" | "ACTIVE" | "ARCHIVED";
@@ -34,4 +37,20 @@ export const adminUsersApi = {
     method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason }),
   }),
   resend: (config: CognitoConfig, id: string) => request<{ user: AdminUser }>(config, `/api/v1/admin/users/${id}/resend-invite`, { method: "POST" }),
+};
+
+export const adminRolesApi = {
+  list: (config: CognitoConfig) => request<{ roles: AdminRole[] }>(config, "/api/v1/admin/roles"),
+  create: (config: CognitoConfig, input: { name: string; description: string; permissions: string[] }) =>
+    request<{ role: AdminRole }>(config, "/api/v1/admin/roles", {
+      method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(input),
+    }),
+  update: (config: CognitoConfig, role: Required<Pick<AdminRole, "id" | "name" | "version">> & { description: string; permissions: string[] }) =>
+    request<{ role: AdminRole }>(config, `/api/v1/admin/roles/${role.id}`, {
+      method: "PATCH", headers: { "content-type": "application/json" },
+      body: JSON.stringify({ name: role.name, description: role.description, permissions: role.permissions, version: role.version }),
+    }),
+  archive: (config: CognitoConfig, id: string, reason: string) => request<{ role: AdminRole }>(config, `/api/v1/admin/roles/${id}/archive`, {
+    method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ reason }),
+  }),
 };
