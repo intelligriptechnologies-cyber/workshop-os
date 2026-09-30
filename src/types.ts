@@ -1,6 +1,8 @@
-export type Role = "admin" | "service" | "reception" | "accounts" | "store" | "tech";
+export type Role =
+  "admin" | "service" | "reception" | "accounts" | "store" | "tech";
 
-export type MainStatus = "NEW" | "IN_PROGRESS" | "HOLD" | "COMPLETED" | "CLOSED" | "CANCELLED";
+export type MainStatus =
+  "NEW" | "IN_PROGRESS" | "HOLD" | "COMPLETED" | "CLOSED" | "CANCELLED";
 
 export type ChecklistStage = Exclude<MainStatus, "CANCELLED" | "HOLD">;
 
@@ -27,6 +29,9 @@ export type QcStatus = "Pending" | "Pass" | "Fail";
 export type PaymentStatus = "Pending" | "Partial" | "Paid";
 export type PaymentMode = "UPI" | "Cash" | "Card" | "Bank transfer" | "Other";
 export type ViewMode = "grid" | "table";
+export type BookingStatus =
+  "Booked" | "Confirmed" | "Arrived" | "Rescheduled" | "Cancelled" | "No-show";
+export type BookingArrivalWindow = "" | "Morning" | "Afternoon" | "Evening";
 
 export interface ListQuery {
   search: string;
@@ -86,7 +91,8 @@ export interface MediaListSummary {
   src: string;
   createdAt: string;
 }
-export type SearchCategory = "all" | "job" | "customer" | "vehicle" | "invoice" | "payment";
+export type SearchCategory =
+  "all" | "job" | "customer" | "vehicle" | "invoice" | "payment";
 
 export interface SearchCriteria {
   query: string;
@@ -168,6 +174,76 @@ export interface Visit {
   updated_at?: string;
 }
 
+/** A future reception reservation. It deliberately has no Visit or Job Card until check-in. */
+export interface Booking {
+  id: number;
+  customer_id?: number | null;
+  vehicle_id?: number | null;
+  customer_name: string;
+  mobile: string;
+  customer_type: string;
+  vehicle_no: string;
+  make: string;
+  model: string;
+  color: string;
+  requested_work: string;
+  booking_date: string;
+  arrival_window: BookingArrivalWindow;
+  status: BookingStatus;
+  created_by: number;
+  confirmed_at?: string | null;
+  arrived_at?: string | null;
+  rescheduled_at?: string | null;
+  cancelled_at?: string | null;
+  no_show_at?: string | null;
+  reschedule_reason?: string | null;
+  cancellation_reason?: string | null;
+  no_show_reason?: string | null;
+  /** Set once this future reservation is received at reception. */
+  visit_id?: number | null;
+  /** Set once this future reservation is received at reception. */
+  job_card_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingCallLog {
+  id: number;
+  booking_id: number;
+  note: string;
+  called_by: number;
+  called_at: string;
+}
+
+export interface BookingEvent {
+  id: number;
+  booking_id: number;
+  kind: BookingStatus;
+  actor_id: number;
+  at: string;
+  note: string;
+  previous_booking_date?: string | null;
+  booking_date: string;
+}
+
+/** A per-day advance-booking ceiling. Missing rows use the workshop default. */
+export interface BookingCapacityLimit {
+  booking_date: string;
+  capacity: number;
+  set_by: number;
+  updated_at: string;
+}
+
+/** Records the exceptional Admin approval that admitted a booking over capacity. */
+export interface BookingCapacityOverride {
+  id: number;
+  booking_id: number;
+  booking_date: string;
+  reason: string;
+  approved_by: number;
+  approved_at: string;
+}
+
 export interface JobCard {
   id: number;
   job_no: string;
@@ -224,6 +300,32 @@ export interface EstimateItem {
   gst_rate?: number | null;
   archived_at?: string;
   archived_reason?: string;
+  created_at?: string;
+  updated_at?: string;
+  task_list_item_id?: number | null;
+}
+
+export interface ServiceCatalogItem {
+  id: number;
+  name: string;
+  base_rate: number;
+  gst_rate: number;
+  archived_at?: string | null;
+  archived_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface JobTaskListItem {
+  id: number;
+  job_card_id: number;
+  service_catalog_item_id?: number | null;
+  name: string;
+  base_rate: number;
+  gst_rate: number;
+  done: number;
+  archived_at?: string | null;
+  archived_reason?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -352,7 +454,8 @@ export interface Supplier {
   updated_at: string;
 }
 
-export type InwardPurchaseStatus = "Draft" | "Awaiting PO Approval" | "Approved" | "Received" | "Submitted";
+export type InwardPurchaseStatus =
+  "Draft" | "Awaiting PO Approval" | "Approved" | "Received" | "Submitted";
 
 export interface InwardPurchase {
   id: number;
@@ -411,7 +514,13 @@ export interface InwardPurchaseRevision {
   revised_at: string;
 }
 
-export type PurchaseOrderStatus = "Draft" | "Sent" | "Partially Received" | "Ready to Close" | "Closed" | "Cancelled";
+export type PurchaseOrderStatus =
+  | "Draft"
+  | "Sent"
+  | "Partially Received"
+  | "Ready to Close"
+  | "Closed"
+  | "Cancelled";
 
 /** A new purchasing commitment. Legacy inward_purchases remain receipt history. */
 export interface PurchaseOrder {
@@ -651,6 +760,7 @@ export interface JobView {
   technician: User;
   estimate?: Estimate;
   estimate_items: EstimateItem[];
+  task_list_items: JobTaskListItem[];
   material_requests: MaterialRequest[];
   local_purchases: LocalPurchase[];
   material_purchase_requests: MaterialPurchaseRequest[];
@@ -686,12 +796,18 @@ export interface WorkshopState {
   customers: Customer[];
   vehicles: Vehicle[];
   visits: Visit[];
+  bookings: Booking[];
+  booking_call_logs: BookingCallLog[];
+  booking_events: BookingEvent[];
+  booking_capacity_limits: BookingCapacityLimit[];
+  booking_capacity_overrides: BookingCapacityOverride[];
   jobs: JobView[];
   /** Historical records are deliberately separate so operational screens stay active-only. */
   archived_customers: Customer[];
   archived_vehicles: Vehicle[];
   archived_jobs: JobView[];
   inventory: InventoryItem[];
+  service_catalog: ServiceCatalogItem[];
   attendance: AdvisorAttendance[];
   suppliers: Supplier[];
   inward_purchases: InwardPurchase[];

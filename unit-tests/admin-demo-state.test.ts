@@ -53,11 +53,15 @@ test("defaults represent all six WorkshopOS roles and current menu pages", () =>
   assert.deepEqual(state.roles.map((role) => role.id), ["admin", "service", "reception", "accounts", "store", "tech"]);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Admin Console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).find((page) => page.key === "jobs")?.label, "Job Cards");
+  assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "front-desk")?.pages.find((page) => page.key === "advance-bookings")?.label, "Advance Bookings");
   assert.deepEqual(resolvePermittedPages(state, "store"), ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"]);
   assert.equal(resolvePermittedPages(state, "admin").includes("admin-console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "inward-purchases"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.label === "Suppliers"), false);
   assert.deepEqual(resolvePermittedPages(state, "admin"), [...ROLE_MENU_PAGE_KEYS.admin, ...ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS]);
+  assert.equal(resolveRoleMenuPageKeys("reception", resolvePermittedPages(state, "reception")).includes("advance-bookings"), true);
+  assert.deepEqual(resolveRoleMenuPageKeys("reception", resolvePermittedPages(state, "reception")), ["today-queue", "advance-bookings", "customers", "vehicles", "search"]);
+  assert.equal(resolveRoleMenuPageKeys("admin", resolvePermittedPages(state, "admin")).includes("advance-bookings"), true);
   assert.equal(ROLE_MENU_PAGE_KEYS.admin.includes("stock"), false);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Masters"), false);
 });
@@ -86,6 +90,10 @@ test("role menus retain supported boundaries while honoring page access grants",
 
   const crossRoleGrant = updateRolePageAccess(defaults, "store", ["dashboard", "stock"]);
   assert.deepEqual(resolveRoleMenuPageKeys("store", resolvePermittedPages(crossRoleGrant, "store")), ["stock"]);
+
+  const receptionWithoutBookings = updateRolePageAccess(defaults, "reception", resolvePermittedPages(defaults, "reception").filter((key) => key !== "advance-bookings"));
+  assert.equal(resolveRoleMenuPageKeys("reception", resolvePermittedPages(receptionWithoutBookings, "reception")).includes("advance-bookings"), false);
+  assert.deepEqual(resolveRoleMenuPageKeys("reception", resolvePermittedPages(receptionWithoutBookings, "reception")), ["today-queue", "customers", "vehicles", "search"]);
 });
 
 test("app theme defaults, updates, persists and hydrates legacy sessions", () => {

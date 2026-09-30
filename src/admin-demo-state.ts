@@ -17,6 +17,7 @@ export const BUILT_IN_ROLE_LABELS: Record<Role, string> = {
 
 export type AdminPageKey =
   | "receive-vehicle"
+  | "advance-bookings"
   | "today-queue"
   | "customers"
   | "vehicles"
@@ -63,6 +64,7 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
     pages: [
       { key: "receive-vehicle", label: "Receive Vehicle" },
       { key: "today-queue", label: "Today Queue" },
+      { key: "advance-bookings", label: "Advance Bookings" },
       { key: "customers", label: "Customers" },
       { key: "vehicles", label: "Vehicles" },
       { key: "search", label: "Search" },
@@ -127,12 +129,12 @@ export const PAGE_LABEL_BY_KEY: Readonly<Record<AdminPageKey, string>> = Object.
 
 /** The sidebar is generated from these keys, so roles and Page Access share one page catalogue. */
 export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>> = {
-  reception: ["today-queue", "customers", "vehicles", "search"],
+  reception: ["today-queue", "advance-bookings", "customers", "vehicles", "search"],
   service: ["my-queue", "job-card", "estimate", "follow-ups", "media", "search"],
   store: ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"],
   tech: ["my-tasks", "work-update", "qc-prep", "search"],
   accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search", "admin-console"],
+  admin: ["dashboard", "advance-bookings", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search", "admin-console"],
 };
 
 /** Sidebar workflows are a role-owned subset of saved Page Access grants. */

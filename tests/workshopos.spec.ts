@@ -3,7 +3,7 @@ import XLSX from "xlsx";
 import { readFileSync, statSync } from "node:fs";
 
 const roles = [
-  ["reception@example.com", ["Today Queue", "Customers", "Vehicles", "Search"]],
+  ["reception@example.com", ["Today Queue", "Advance Bookings", "Customers", "Vehicles", "Search"]],
   ["service@example.com", ["My Queue", "Job Card", "Estimate", "Follow-ups", "Media", "Search"]],
   ["store@example.com", ["Material Requests", "Issue Material", "Reconcile", "Stock", "Search"]],
   ["tech@example.com", ["My Tasks", "Work Update", "QC Prep", "Search"]],
@@ -26,6 +26,45 @@ for (const [email, navItems] of roles) {
     }
   });
 }
+
+test("advance bookings are limited to the next two complete months", async ({ page }) => {
+  await loginAs(page, "reception@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Advance Bookings", exact: true }).click();
+
+  const expected = await page.evaluate(() => {
+    const now = new Date();
+    const month = (offset: number) => {
+      const value = new Date(now.getFullYear(), now.getMonth() + offset, 1);
+      return {
+        key: `${value.getFullYear()}-${String(value.getMonth() + 1).padStart(2, "0")}`,
+        label: value.toLocaleDateString("en-IN", { month: "long", year: "numeric" }),
+      };
+    };
+    const first = month(1);
+    const last = month(2);
+    return {
+      first,
+      last,
+      min: `${first.key}-01`,
+      max: `${last.key}-${String(new Date(now.getFullYear(), now.getMonth() + 3, 0).getDate()).padStart(2, "0")}`,
+    };
+  });
+
+  const calendar = page.getByLabel("Booking month calendar");
+  await expect(calendar.getByRole("heading", { level: 3 })).toHaveText(expected.first.label);
+  await expect(calendar.getByRole("button", { name: "Previous month" })).toBeDisabled();
+  await expect(calendar.locator('button[role="gridcell"]:disabled')).not.toHaveCount(0);
+
+  await calendar.getByRole("button", { name: "Next month" }).click();
+  await expect(calendar.getByRole("heading", { level: 3 })).toHaveText(expected.last.label);
+  await expect(calendar.getByRole("button", { name: "Next month" })).toBeDisabled();
+
+  await page.getByRole("button", { name: "Create Booking" }).click();
+  const dateInput = page.getByRole("dialog", { name: "Create advance booking" }).getByLabel("Booking date");
+  await expect(dateInput).toHaveValue(`${expected.last.key}-01`);
+  await expect(dateInput).toHaveAttribute("min", expected.min);
+  await expect(dateInput).toHaveAttribute("max", expected.max);
+});
 
 test("Accounts Ready To Invoice lists only active pending invoices and is read only", async ({ page }) => {
   await loginAs(page, "accounts@example.com");
@@ -196,6 +235,53 @@ test("reception creates a linked customer vehicle visit and job searchable after
   await expect(details).toHaveAttribute("aria-selected", "true");
   await expect(dialog.getByRole("tabpanel", { name: "Details" })).toBeVisible();
   await expect(dialog.getByTestId("damage-diagram")).toHaveCount(0);
+  const customerPicker = dialog.getByRole("combobox", {
+    name: "Existing customer",
+  });
+  const vehiclePicker = dialog.getByRole("combobox", {
+    name: "Existing vehicle",
+  });
+  const rahulVehicle = "OD02AB1234 · Hyundai Creta · Rahul Sharma · 9876543210";
+
+  await customerPicker.fill("9876543210");
+  await dialog
+    .getByRole("option", { name: "Rahul Sharma · 9876543210" })
+    .click();
+  await expect(dialog.getByLabel("Customer Name")).toHaveValue("Rahul Sharma");
+  await expect(dialog.getByLabel("Mobile")).toHaveValue("9876543210");
+  await expect(dialog.getByLabel("Vehicle Number")).toHaveValue("OD02AB1234");
+  await expect(dialog.getByLabel("Make")).toHaveValue("Hyundai");
+  await expect(dialog.getByLabel("Model")).toHaveValue("Creta");
+
+  await customerPicker.click();
+  await dialog
+    .getByRole("option", { name: "Clear customer and vehicle" })
+    .click();
+  await expect(dialog.getByLabel("Customer Name")).toHaveValue("");
+  await expect(dialog.getByLabel("Vehicle Number")).toHaveValue("");
+
+  await vehiclePicker.fill("Rahul Sharma");
+  await dialog.getByRole("option", { name: rahulVehicle }).click();
+  await expect(dialog.getByLabel("Customer Name")).toHaveValue("Rahul Sharma");
+  await expect(dialog.getByLabel("Mobile")).toHaveValue("9876543210");
+  await expect(dialog.getByLabel("Vehicle Number")).toHaveValue("OD02AB1234");
+
+  await vehiclePicker.click();
+  await dialog.getByRole("option", { name: "Clear vehicle" }).click();
+  await expect(dialog.getByLabel("Customer Name")).toHaveValue("Rahul Sharma");
+  await expect(dialog.getByLabel("Vehicle Number")).toHaveValue("");
+
+  await vehiclePicker.fill("OD02AB1234");
+  await expect(dialog.getByRole("option", { name: rahulVehicle })).toBeVisible();
+  await vehiclePicker.fill("Creta");
+  await dialog.getByRole("option", { name: rahulVehicle }).click();
+  await expect(dialog.getByLabel("Customer Name")).toHaveValue("Rahul Sharma");
+  await expect(dialog.getByLabel("Model")).toHaveValue("Creta");
+
+  await customerPicker.click();
+  await dialog
+    .getByRole("option", { name: "Clear customer and vehicle" })
+    .click();
   await dialog.getByLabel("Customer Name").fill("E2E Customer");
   await dialog.getByLabel("Mobile").fill("9000099999");
   await dialog.getByLabel("Vehicle Number").fill("OD02E2E9999");
@@ -1785,28 +1871,27 @@ test("estimate dialog stages item CRUD and persists only on Save", async ({ page
   await expect(page.getByText("E2E estimate note")).toBeVisible();
 });
 
-test("non-owner roles see lifecycle mutations as read only while the linked advisor can act", async ({ page }) => {
-  await loginAs(page, "admin@example.com");
-  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
-  await page.getByRole("tab", { name: "Users", exact: true }).click();
-  await page.getByRole("button", { name: "Add User" }).click();
-  await page.getByLabel("User name").fill("Other Advisor");
-  await page.getByLabel("User email").fill("other.advisor@example.com");
-  await page.getByLabel("User role").selectOption("service");
-  await page.getByLabel("User password").fill("admin123");
-  await page.getByRole("button", { name: "Save User" }).click();
-  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
-  const reassignedJob = "JC-2026-001247";
-  await page.locator(".record-card").filter({ hasText: reassignedJob }).getByRole("button", { name: "Edit", exact: true }).click();
-  const editor = page.getByRole("dialog", { name: /Edit Job/ });
-  await editor.locator("label").filter({ hasText: /^Advisor/ }).locator("select").selectOption({ label: "Other Advisor" });
-  await editor.getByRole("button", { name: "Save Job Card" }).click();
-  await editor.getByRole("button", { name: "Go Back" }).click();
-  await page.locator(".logout").click();
+test("service advisor Job Card shows assigned active jobs without preset delivery filters", async ({ page }) => {
   await loginAs(page, "service@example.com");
-  await expect(page.getByText(reassignedJob)).toHaveCount(0);
+  await page.locator(".role-nav").getByRole("button", { name: "My Queue", exact: true }).click();
+  const queue = page.locator(".embedded-list");
+  await expect(queue).toContainText("JC-2026-001247");
+  await expect(queue).not.toContainText("JC-2026-001245");
+  await expect(queue).not.toContainText("JC-2026-001246");
+  await expect(queue.locator(".row-list").getByText("CLOSED", { exact: true })).toHaveCount(0);
+  await expect(queue.locator(".row-list").getByText("CANCELLED", { exact: true })).toHaveCount(0);
+
   await page.locator(".role-nav").getByRole("button", { name: "Job Card", exact: true }).click();
-  await expect(page.getByRole("region", { name: "Job lifecycle" }).getByRole("button", { name: /Close Job|Cancel Job|Start Rework|Complete Work|Start Work|Reopen Job/ }).first()).toBeVisible();
+  const jobCards = page.locator(".service-advisor-list");
+  await expect(jobCards.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
+  await expect(jobCards.getByLabel("Job cards estimated delivery date")).toHaveValue("");
+  await expect(jobCards.getByLabel("Job cards month-year")).toHaveValue("");
+  await expect(jobCards).toContainText("JC-2026-001247");
+  await expect(jobCards).not.toContainText("JC-2026-001245");
+  await expect(jobCards).not.toContainText("JC-2026-001246");
+  await expect(jobCards.locator("tbody").getByText("CLOSED", { exact: true })).toHaveCount(0);
+  await expect(jobCards.locator("tbody").getByText("CANCELLED", { exact: true })).toHaveCount(0);
+  await expect(jobCards.locator("tbody tr")).toHaveCount(1);
 });
 
 test("job card media validates, compresses, edits, archives, stays session-only, and responds on mobile", async ({ page }) => {
@@ -2022,6 +2107,7 @@ test("job sheet intake fields and damage marks persist through the Job Card edit
   await page.locator(".record-card").first().getByRole("button", { name: "Edit", exact: true }).click();
   const sheet = page.getByRole("region", { name: "Job sheet" });
   await sheet.getByLabel("Service Type").selectOption("PPF");
+  await sheet.getByLabel("Estimated Delivery Date").fill("2026-10-15");
   await sheet.getByLabel("Engine Number").fill("ENG-E2E-1");
   await sheet.getByLabel("Address").fill("12 MG Road");
   await sheet.getByRole("button", { name: "Save Job Sheet" }).click();
@@ -2055,6 +2141,7 @@ test("job sheet intake fields and damage marks persist through the Job Card edit
   await expect(view.getByText("ENG-E2E-1")).toBeVisible();
   await expect(view.getByText("12 MG Road")).toBeVisible();
   await expect(view.getByText("PPF", { exact: true })).toBeVisible();
+  await expect(view.getByText("2026-10-15", { exact: true })).toBeVisible();
   await page.getByRole("tab", { name: "Body Mark" }).click();
   await expect(page.getByRole("region", { name: "Body mark" }).getByTestId("damage-mark")).toHaveCount(1);
 });
