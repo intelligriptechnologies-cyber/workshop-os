@@ -1884,14 +1884,27 @@ test("service advisor Job Card shows assigned active jobs without preset deliver
   await page.locator(".role-nav").getByRole("button", { name: "Job Card", exact: true }).click();
   const jobCards = page.locator(".service-advisor-list");
   await expect(jobCards.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
-  await expect(jobCards.getByLabel("Job cards estimated delivery date")).toHaveValue("");
-  await expect(jobCards.getByLabel("Job cards month-year")).toHaveValue("");
+  await expect(jobCards.getByLabel("Estimated delivery date")).toHaveValue("");
+  await expect(jobCards.getByLabel("Job created month-year")).toHaveValue("");
+  for (const label of ["Main status", "Workflow status", "Customer filter", "Vehicle filter", "Service advisor filter", "Sort results"])
+    await expect(jobCards.getByLabel(label)).toBeVisible();
   await expect(jobCards).toContainText("JC-2026-001247");
   await expect(jobCards).not.toContainText("JC-2026-001245");
   await expect(jobCards).not.toContainText("JC-2026-001246");
   await expect(jobCards.locator("tbody").getByText("CLOSED", { exact: true })).toHaveCount(0);
   await expect(jobCards.locator("tbody").getByText("CANCELLED", { exact: true })).toHaveCount(0);
   await expect(jobCards.locator("tbody tr")).toHaveCount(1);
+  await expect(jobCards.getByRole("columnheader", { name: "Service Advisor", exact: true })).toBeVisible();
+  await expect(jobCards.getByRole("columnheader", { name: "Follow-up Status", exact: true })).toHaveCount(0);
+  const assignedJob = jobCards.locator("tbody tr").filter({ hasText: "JC-2026-001247" });
+  await expect(assignedJob).toContainText("Service advisor 1");
+  await expect(assignedJob.getByRole("button", { name: "View", exact: true })).toBeVisible();
+  await expect(assignedJob.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
+  await assignedJob.getByRole("button", { name: "Edit", exact: true }).click();
+  const editDialog = page.getByRole("dialog", { name: "Edit Job JC-2026-001247" });
+  await expect(editDialog).toBeVisible();
+  await expect(editDialog.getByRole("region", { name: "Job lifecycle" }).first()).toBeVisible();
+  await expect(editDialog.getByLabel("Service advisor (locked)")).toBeVisible();
 });
 
 test("job card media validates, compresses, edits, archives, stays session-only, and responds on mobile", async ({ page }) => {

@@ -457,17 +457,21 @@ function CatalogServiceTaskDialog({
         </button>
       }
     >
-      <form id="service-task-dialog-form" onSubmit={save}>
-        <div className="form-grid">
-          <label>
-            Service name
-            <input
-              data-dialog-initial-focus
-              aria-label="Catalog service name"
-              value={name}
-              onChange={(event) => setName(event.target.value)}
-            />
-          </label>
+      <form
+        id="service-task-dialog-form"
+        className="service-task-dialog-form"
+        onSubmit={save}
+      >
+        <label>
+          Service name
+          <input
+            data-dialog-initial-focus
+            aria-label="Catalog service name"
+            value={name}
+            onChange={(event) => setName(event.target.value)}
+          />
+        </label>
+        <div className="service-task-rate-grid">
           <label>
             Pre-GST base rate
             <input
@@ -479,14 +483,14 @@ function CatalogServiceTaskDialog({
               onChange={(event) => setRate(Number(event.target.value))}
             />
           </label>
+          <SearchSelect
+            label="Applicable GST"
+            options={CATALOG_GST_OPTIONS}
+            value={gstRate}
+            onChange={(value) => setGstRate(Number(value))}
+            placeholder="Select GST rate"
+          />
         </div>
-        <SearchSelect
-          label="Applicable GST"
-          options={CATALOG_GST_OPTIONS}
-          value={gstRate}
-          onChange={(value) => setGstRate(Number(value))}
-          placeholder="Select GST rate"
-        />
         {error && <p className="error-text" role="alert">{error}</p>}
       </form>
     </Dialog>

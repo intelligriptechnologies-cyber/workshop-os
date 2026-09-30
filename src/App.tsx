@@ -697,7 +697,7 @@ function App() {
             (searchDateFilter ||
               !searchMonthFilter ||
               (searchCategory === "job"
-                ? view.job.estimated_delivery
+                ? jobCreatedDate(view)
                 : view.visit.received_at.slice(0, 7)
               )?.slice(0, 7) === searchMonthFilter),
         ),
@@ -1524,6 +1524,13 @@ function SearchPortal({
 }) {
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [jobWorkflow, setJobWorkflow] = useState("ALL");
+  const [jobCustomer, setJobCustomer] = useState("");
+  const [jobVehicle, setJobVehicle] = useState("ALL");
+  const [jobAdvisor, setJobAdvisor] = useState("ALL");
+  const [jobSort, setJobSort] = useState("newest");
+  const [jobArchivedOnly, setJobArchivedOnly] = useState(false);
+  const [jobViewMode, setJobViewMode] = useState<ViewMode>("table");
   const [activeLowStockOnly, setActiveLowStockOnly] = useState(
     lowStockOnly || initialLowStockOnly,
   );
@@ -1605,10 +1612,31 @@ function SearchPortal({
     setPaymentMode("ALL");
     setLowStockOnly(false);
     setActiveLowStockOnly(false);
+    setJobWorkflow("ALL"); setJobCustomer(""); setJobVehicle("ALL"); setJobAdvisor("ALL"); setJobSort("newest"); setJobArchivedOnly(false);
     setPage(1);
   };
 
-  const paged = paginate(jobs, page, pageSize);
+  const jobRows = useMemo(() => {
+    const source = jobArchivedOnly && actor.role === "admin" ? state.archived_jobs : jobs;
+    return source.filter((view) =>
+      (!query || normalizeSearch(`${view.job.job_no} ${view.vehicle.number} ${view.vehicle.make} ${view.vehicle.model} ${view.customer.name} ${view.customer.mobile}`).includes(normalizeSearch(query))) &&
+      (status === "ALL" || view.job.main_status === status) &&
+      (!dateFilter || view.job.estimated_delivery === dateFilter) &&
+      (!monthFilter || jobCreatedDate(view).slice(0, 7) === monthFilter) &&
+      (jobWorkflow === "ALL" || view.job.sub_status === jobWorkflow) &&
+      (!jobCustomer || normalizeSearch(`${view.customer.name} ${view.customer.mobile}`).includes(normalizeSearch(jobCustomer))) &&
+      (jobVehicle === "ALL" || String(view.vehicle.id) === jobVehicle) &&
+      (jobAdvisor === "ALL" || String(view.advisor.id) === jobAdvisor),
+    ).sort((a, b) => {
+      if (jobSort === "oldest") return a.job.id - b.job.id;
+      if (jobSort === "amount-high") return jobTotal(b) - jobTotal(a);
+      if (jobSort === "amount-low") return jobTotal(a) - jobTotal(b);
+      if (jobSort === "delivery-soonest") return (a.job.estimated_delivery || "9999-12-31").localeCompare(b.job.estimated_delivery || "9999-12-31");
+      if (jobSort === "delivery-latest") return (b.job.estimated_delivery || "").localeCompare(a.job.estimated_delivery || "");
+      return b.job.id - a.job.id;
+    });
+  }, [jobs, state.archived_jobs, actor.role, query, status, dateFilter, monthFilter, jobWorkflow, jobCustomer, jobVehicle, jobAdvisor, jobSort, jobArchivedOnly]);
+  const paged = paginate(category === "job" ? jobRows : jobs, page, pageSize);
   const stockRows = useMemo(() => {
     const needle = normalizeSearch(query);
     return state.inventory.filter(
@@ -1666,7 +1694,7 @@ function SearchPortal({
         />
       )}
       <div className="list-filter-bar">
-        {!operationalCategory && (
+        {!operationalCategory && category !== "job" && (
           <label className="list-search">
             Search
             <input
@@ -1679,6 +1707,27 @@ function SearchPortal({
             />
           </label>
         )}
+          {category === "job" && (
+            <JobCardFilterFields
+              jobs={jobArchivedOnly && actor.role === "admin" ? state.archived_jobs : state.jobs}
+              values={{ search: query, primary: status, secondary: jobWorkflow, date: dateFilter, month: monthFilter, customer: jobCustomer, vehicle: jobVehicle, advisor: jobAdvisor, sort: jobSort, archivedOnly: jobArchivedOnly }}
+              onChange={(patch) => changeFilters(() => {
+                if (patch.search !== undefined) setQuery(patch.search);
+                if (patch.primary !== undefined) setStatus(patch.primary as SearchCriteria["status"]);
+                if (patch.secondary !== undefined) setJobWorkflow(patch.secondary);
+                if (patch.date !== undefined) setDateFilter(patch.date);
+                if (patch.month !== undefined) setMonthFilter(patch.month);
+                if (patch.customer !== undefined) setJobCustomer(patch.customer);
+                if (patch.vehicle !== undefined) setJobVehicle(patch.vehicle);
+                if (patch.advisor !== undefined) setJobAdvisor(patch.advisor);
+                if (patch.sort !== undefined) setJobSort(patch.sort);
+                if (patch.archivedOnly !== undefined) setJobArchivedOnly(patch.archivedOnly);
+              })}
+              onClear={clearFilters}
+              showArchive={actor.role === "admin"}
+              searchLabel="Search records"
+            />
+          )}
         <div className="list-filter-fields open">
           <label>
             {operationalCategory ? "Workspace" : "Category"}
@@ -1721,7 +1770,7 @@ function SearchPortal({
             category !== "stock" &&
             !entityListKind && (
               <>
-                {category === "job" && (
+                {false && category === "job" && (
                   <label>
                     Status
                     <select
@@ -1774,10 +1823,10 @@ function SearchPortal({
                     </select>
                   </label>
                 )}
-                <label>
-                  {category === "job" ? "Estimated Delivery Date" : "Date"}
+                {category !== "job" && <><label>
+                  Date
                   <input
-                    aria-label={category === "job" ? "Estimated delivery date" : "Search date"}
+                    aria-label="Search date"
                     type="date"
                     value={dateFilter}
                     onChange={(event) =>
@@ -1789,9 +1838,9 @@ function SearchPortal({
                   />
                 </label>
                 <label>
-                  {category === "job" ? "Estimated Delivery Month" : "Month-Year"}
+                  Month-Year
                   <select
-                    aria-label={category === "job" ? "Estimated delivery month" : "Search month-year"}
+                    aria-label="Search month-year"
                     value={monthFilter}
                     onChange={(event) =>
                       changeFilters(() => {
@@ -1809,7 +1858,7 @@ function SearchPortal({
                       </option>
                     ))}
                   </select>
-                </label>
+                </label></>}
               </>
             )}
           {!operationalCategory && <ListSearchActions onClear={clearFilters} />}
@@ -1847,6 +1896,7 @@ function SearchPortal({
       ) : (
         <>
           <PaginationToolbar
+            controls={category === "job" ? <ViewModeToggle value={jobViewMode} onChange={setJobViewMode} /> : undefined}
             from={resultPage.from}
             to={resultPage.to}
             totalCount={resultPage.totalCount}
@@ -3362,11 +3412,18 @@ function ServiceAdvisorList({
     kind === "job-cards" ? "" : localCalendarDate(),
   );
   const [month, setMonth] = useState("");
+  const [mainStatus, setMainStatus] = useState("ALL");
+  const [workflow, setWorkflow] = useState("ALL");
+  const [customer, setCustomer] = useState("");
+  const [vehicle, setVehicle] = useState("ALL");
+  const [advisor, setAdvisor] = useState("ALL");
+  const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [viewMode, setViewMode] = useState<ViewMode>("table");
   const [selected, setSelected] = useState<JobView>();
   const [dialog, setDialog] = useState<
-    "job" | "estimate" | "followup" | "followup-view"
+    "job" | "edit" | "estimate" | "followup" | "followup-view"
   >();
   const needle = normalizeSearch(useDeferredValue(search));
   const listedJobs = useMemo(
@@ -3380,7 +3437,7 @@ function ServiceAdvisorList({
           listedJobs
             .map((item) =>
               kind === "job-cards"
-                ? item.job.estimated_delivery?.slice(0, 7) ?? ""
+                ? jobCreatedDate(item).slice(0, 7)
                 : item.visit.received_at.slice(0, 7),
             )
             .filter((value) => /^\d{4}-\d{2}$/.test(value)),
@@ -3400,13 +3457,25 @@ function ServiceAdvisorList({
         return (
           (!needle ||
             normalizeSearch(
-              `${item.job.job_no} ${item.vehicle.number} ${item.customer.name}`,
+              `${item.job.job_no} ${item.vehicle.number} ${item.vehicle.make} ${item.vehicle.model} ${item.customer.name} ${item.customer.mobile}`,
             ).includes(needle)) &&
           (!date || filteredDate === date) && // Exact date intentionally takes precedence over month/year.
-          (date || !month || filteredDate.slice(0, 7) === month)
+          (kind !== "job-cards" || !month || jobCreatedDate(item).slice(0, 7) === month) &&
+          (kind !== "job-cards" || mainStatus === "ALL" || item.job.main_status === mainStatus) &&
+          (kind !== "job-cards" || workflow === "ALL" || item.job.sub_status === workflow) &&
+          (kind !== "job-cards" || !customer || normalizeSearch(`${item.customer.name} ${item.customer.mobile}`).includes(normalizeSearch(customer))) &&
+          (kind !== "job-cards" || vehicle === "ALL" || String(item.vehicle.id) === vehicle) &&
+          (kind !== "job-cards" || advisor === "ALL" || String(item.advisor.id) === advisor)
         );
+      }).sort((a, b) => {
+        if (kind !== "job-cards" || sort === "newest") return b.job.id - a.job.id;
+        if (sort === "oldest") return a.job.id - b.job.id;
+        if (sort === "amount-high") return jobTotal(b) - jobTotal(a);
+        if (sort === "amount-low") return jobTotal(a) - jobTotal(b);
+        if (sort === "delivery-soonest") return (a.job.estimated_delivery || "9999-12-31").localeCompare(b.job.estimated_delivery || "9999-12-31");
+        return (b.job.estimated_delivery || "").localeCompare(a.job.estimated_delivery || "");
       }),
-    [listedJobs, needle, date, month, kind],
+    [listedJobs, needle, date, month, kind, mainStatus, workflow, customer, vehicle, advisor, sort],
   );
   const paged = paginate(filtered, page, pageSize);
   useEffect(() => {
@@ -3422,9 +3491,13 @@ function ServiceAdvisorList({
     setSearch("");
     setDate("");
     setMonth("");
+    setMainStatus("ALL"); setWorkflow("ALL"); setCustomer(""); setVehicle("ALL"); setAdvisor("ALL"); setSort("newest");
     setPage(1);
   };
-  const open = (row: JobView, next: "job" | "estimate" | "followup") => {
+  const open = (
+    row: JobView,
+    next: "job" | "edit" | "estimate" | "followup",
+  ) => {
     setSelected(row);
     setDialog(next);
   };
@@ -3440,7 +3513,9 @@ function ServiceAdvisorList({
       header: "Estimate status",
       value: (row) => row.estimate?.status ?? "Not created",
     },
-    { header: "Follow-up status", value: serviceFollowupStatus },
+    ...(kind === "job-cards"
+      ? [{ header: "Service Advisor", value: (row: JobView) => row.advisor.name }]
+      : [{ header: "Follow-up status", value: serviceFollowupStatus }]),
   ];
   const followupTone = (status: string) =>
     status.startsWith("Done(") ? "done" : "pending";
@@ -3462,6 +3537,16 @@ function ServiceAdvisorList({
           mutate={mutate}
           actor={actor}
           mode="view"
+          onClose={() => setDialog(undefined)}
+        />
+      )}
+      {selected && dialog === "edit" && (
+        <JobRecordDialog
+          view={selected}
+          state={state}
+          mutate={mutate}
+          actor={actor}
+          mode="edit"
           onClose={() => setDialog(undefined)}
         />
       )}
@@ -3500,6 +3585,26 @@ function ServiceAdvisorList({
         </div>
       </div>
       <div className="list-filter-bar">
+        {kind === "job-cards" ? (
+          <JobCardFilterFields
+            jobs={listedJobs}
+            values={{ search, primary: mainStatus, secondary: workflow, date, month, customer, vehicle, advisor, sort, archivedOnly: false }}
+            onChange={(patch) => {
+              if (patch.search !== undefined) setSearch(patch.search);
+              if (patch.primary !== undefined) setMainStatus(patch.primary);
+              if (patch.secondary !== undefined) setWorkflow(patch.secondary);
+              if (patch.date !== undefined) setDate(patch.date);
+              if (patch.month !== undefined) setMonth(patch.month);
+              if (patch.customer !== undefined) setCustomer(patch.customer);
+              if (patch.vehicle !== undefined) setVehicle(patch.vehicle);
+              if (patch.advisor !== undefined) setAdvisor(patch.advisor);
+              if (patch.sort !== undefined) setSort(patch.sort);
+              setPage(1);
+            }}
+            onClear={clear}
+            searchLabel={`Search ${title.toLowerCase()}`}
+          />
+        ) : <>
         <label className="list-search">
           Search
           <input
@@ -3514,9 +3619,9 @@ function ServiceAdvisorList({
         </label>
         <div className="list-filter-fields open">
           <label>
-            {kind === "job-cards" ? "Estimated Delivery Date" : "Received date"}
+            Received date
             <input
-              aria-label={kind === "job-cards" ? `${title} estimated delivery date` : `${title} received date`}
+              aria-label={`${title} received date`}
               type="date"
               value={date}
               onChange={(event) => {
@@ -3547,21 +3652,23 @@ function ServiceAdvisorList({
           </label>
           <ListSearchActions onClear={clear} />
         </div>
+        </>}
       </div>
       <PaginationToolbar
         controls={
-          <ListExportControls
-            report={{
+          <><ListExportControls report={{
               title,
               filters: activeFilterSummary({
                 Search: search.trim(),
                 [kind === "job-cards" ? "Estimated Delivery Date" : "Received date"]: date,
-                [kind === "job-cards" ? "Estimated Delivery Month" : "Received month"]: date ? "" : month,
+                [kind === "job-cards" ? "Job Created Month-Year" : "Received month"]: month,
+                ...(kind === "job-cards" ? { "Main status": mainStatus, Workflow: workflow, Customer: customer, Vehicle: vehicle, "Service advisor": advisor, Sort: sort } : {}),
               }),
               columns,
               rows: filtered,
-            }}
-          />
+            }} />
+            {kind === "job-cards" && <ViewModeToggle value={viewMode} onChange={setViewMode} />}
+          </>
         }
         from={paged.from}
         to={paged.to}
@@ -3587,7 +3694,7 @@ function ServiceAdvisorList({
                 {kind === "job-cards" && <th>Estimated Delivery Date</th>}
                 {kind !== "followups" && <th>Job Status</th>}
                 <th>Estimate Status</th>
-                <th>Follow-up Status</th>
+                <th>{kind === "job-cards" ? "Service Advisor" : "Follow-up Status"}</th>
                 <th>Actions</th>
               </tr>
             </thead>
@@ -3618,7 +3725,9 @@ function ServiceAdvisorList({
                     )}
                     <td>{row.estimate?.status ?? "Not created"}</td>
                     <td>
-                      {kind === "followups" ? (
+                      {kind === "job-cards" ? (
+                        row.advisor.name
+                      ) : kind === "followups" ? (
                         <span
                           className={`service-followup-status service-followup-status-${tone}`}
                           role="status"
@@ -3632,12 +3741,25 @@ function ServiceAdvisorList({
                     <td>
                       <div className="grid-actions">
                         {kind === "job-cards" && (
-                          <button
-                            className="grid-action"
-                            onClick={() => open(row, "job")}
-                          >
-                            View
-                          </button>
+                          <>
+                            <button
+                              type="button"
+                              className="grid-action"
+                              onClick={() => open(row, "job")}
+                            >
+                              View
+                            </button>
+                            {actor.role === "service" &&
+                              actor.id === row.job.advisor_id && (
+                                <button
+                                  type="button"
+                                  className="grid-action"
+                                  onClick={() => open(row, "edit")}
+                                >
+                                  Edit
+                                </button>
+                              )}
+                          </>
                         )}
                         {kind === "estimates" && (
                           <>
@@ -15098,6 +15220,7 @@ function JobRecordDialog({
           users={state.users}
           actor={actor}
           mutate={mutate}
+          visible
         />
       )}
       <div
@@ -16559,6 +16682,50 @@ type EntityFilters = {
   archivedOnly: boolean;
 };
 
+type JobCardFilterValues = Pick<
+  EntityFilters,
+  "search" | "primary" | "secondary" | "date" | "month" | "customer" | "vehicle" | "advisor" | "sort" | "archivedOnly"
+>;
+
+const jobCreatedDate = (view: JobView) =>
+  (view.job.created_at || view.visit.received_at || "").slice(0, 10);
+
+const jobCreatedMonths = (jobs: JobView[]) =>
+  [...new Set(jobs.map(jobCreatedDate).map((date) => date.slice(0, 7)).filter((month) => /^\d{4}-\d{2}$/.test(month)))].sort().reverse();
+
+function JobCardFilterFields({
+  jobs,
+  values,
+  onChange,
+  onClear,
+  showArchive = false,
+  searchLabel = "Search job cards",
+}: {
+  jobs: JobView[];
+  values: JobCardFilterValues;
+  onChange: (patch: Partial<JobCardFilterValues>) => void;
+  onClear: () => void;
+  showArchive?: boolean;
+  searchLabel?: string;
+}) {
+  const workflows = [...new Set(jobs.map((item) => item.job.sub_status))].sort();
+  const vehicles = [...new Map(jobs.map((item) => [item.vehicle.id, item.vehicle])).values()].sort((a, b) => a.number.localeCompare(b.number));
+  const advisors = [...new Map(jobs.map((item) => [item.advisor.id, item.advisor])).values()].sort((a, b) => a.name.localeCompare(b.name));
+  return <div className="job-card-filter-grid" data-job-card-filters>
+    <label className="list-search">Search<input aria-label={searchLabel} value={values.search} placeholder="Job, vehicle, customer or mobile" onChange={(event) => onChange({ search: event.target.value })} /></label>
+    <label>Main status<select aria-label="Main status" value={values.primary} onChange={(event) => onChange({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>
+    <label>Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>
+    <label>Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>
+    <label>Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>
+    <label>Customer<input aria-label="Customer filter" value={values.customer} placeholder="Name or mobile" onChange={(event) => onChange({ customer: event.target.value })} /></label>
+    <label>Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>
+    <label>Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+    <label>Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>
+    {showArchive && <Switch label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} />}
+    <ListSearchActions onClear={onClear} />
+  </div>;
+}
+
 function EntityList({
   kind,
   state,
@@ -16589,7 +16756,7 @@ function EntityList({
     secondary: "ALL",
     date: "",
     month: "",
-    customer: "ALL",
+    customer: "",
     vehicle: "ALL",
     advisor: "ALL",
     sort: kind === "jobs" ? "newest" : "alphabetical",
@@ -16670,11 +16837,11 @@ function EntityList({
           (secondaryFilter === "ALL" ||
             item.job.sub_status === secondaryFilter) &&
           (!dateFilter || item.job.estimated_delivery === dateFilter) &&
-          (dateFilter ||
-            !monthFilter ||
-            item.job.estimated_delivery?.slice(0, 7) === monthFilter) &&
-          (customerFilter === "ALL" ||
-            String(item.customer.id) === customerFilter) &&
+          (!monthFilter || jobCreatedDate(item).slice(0, 7) === monthFilter) &&
+          (!customerFilter ||
+            normalizeSearch(`${item.customer.name} ${item.customer.mobile}`).includes(
+              normalizeSearch(customerFilter),
+            )) &&
           (vehicleFilter === "ALL" ||
             String(item.vehicle.id) === vehicleFilter) &&
           (advisorFilter === "ALL" || String(item.advisor.id) === advisorFilter)
@@ -16682,7 +16849,10 @@ function EntityList({
       })
       .sort((a, b) => {
         if (sort === "oldest") return a.job.id - b.job.id;
-        if (sort === "amount") return jobTotal(b) - jobTotal(a);
+        if (sort === "amount-high") return jobTotal(b) - jobTotal(a);
+        if (sort === "amount-low") return jobTotal(a) - jobTotal(b);
+        if (sort === "delivery-soonest") return (a.job.estimated_delivery || "9999-12-31").localeCompare(b.job.estimated_delivery || "9999-12-31");
+        if (sort === "delivery-latest") return (b.job.estimated_delivery || "").localeCompare(a.job.estimated_delivery || "");
         return b.job.id - a.job.id;
       });
   }, [
@@ -17007,13 +17177,8 @@ function EntityList({
           Workflow: secondaryFilter,
           Sort: sort,
           "Estimated Delivery Date": dateFilter,
-          "Estimated Delivery Month": dateFilter ? "" : monthFilter,
-          Customer:
-            customerFilter === "ALL"
-              ? "ALL"
-              : (jobCustomerOptions.find(
-                  (item) => String(item.id) === customerFilter,
-                )?.name ?? customerFilter),
+          "Job Created Month-Year": monthFilter,
+          Customer: customerFilter,
           Vehicle:
             vehicleFilter === "ALL"
               ? "ALL"
@@ -17246,7 +17411,20 @@ function EntityList({
             filtersOpen ? "list-filter-fields open" : "list-filter-fields"
           }
         >
-          {role === "admin" && (
+          {kind === "jobs" && (
+            <JobCardFilterFields
+              jobs={archivedOnly && role === "admin" ? state.archived_jobs : state.jobs}
+              values={{ search: effectiveSearch, primary: filter, secondary: secondaryFilter, date: dateFilter, month: monthFilter, customer: customerFilter, vehicle: vehicleFilter, advisor: advisorFilter, sort, archivedOnly }}
+              onChange={(patch) => {
+                if (patch.search !== undefined && onExternalSearchChange) onExternalSearchChange(patch.search);
+                else updateFilters(patch);
+                if (patch.archivedOnly !== undefined) setSelectedId(undefined);
+              }}
+              onClear={clearFilters}
+              showArchive={role === "admin"}
+            />
+          )}
+          {role === "admin" && kind !== "jobs" && (
             <Switch
               label="Show archived only"
               checked={archivedOnly}
@@ -17256,7 +17434,7 @@ function EntityList({
               }}
             />
           )}
-          {kind === "jobs" && (
+          {false && kind === "jobs" && (
             <>
               <label>
                 Main status
@@ -17490,7 +17668,7 @@ function EntityList({
               </label>
             </>
           )}
-          {kind !== "media" && (
+          {kind !== "media" && kind !== "jobs" && (
             <label>
               Sort
               <select
@@ -17500,18 +17678,7 @@ function EntityList({
                   updateFilters({ sort: event.target.value })
                 }
               >
-                {kind === "jobs" ? (
-                  <>
-                    <option value="newest">Newest</option>
-                    <option value="oldest">Oldest</option>
-                    <option value="amount">Amount</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="alphabetical">Alphabetical</option>
-                    <option value="recent">Recent</option>
-                  </>
-                )}
+                <><option value="alphabetical">Alphabetical</option><option value="recent">Recent</option></>
               </select>
             </label>
           )}

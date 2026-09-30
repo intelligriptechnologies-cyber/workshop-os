@@ -1105,6 +1105,17 @@ main {
   gap: 10px;
 }
 
+.service-task-dialog-form {
+  display: grid;
+  gap: 10px;
+}
+
+.service-task-rate-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
 .locked-assignment-field {
   padding: 9px 10px;
   border: 1px solid #d59c36;
@@ -2326,6 +2337,10 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .service-task-rate-grid {
+    grid-template-columns: 1fr;
+  }
+
   .row {
     grid-template-columns: 1fr;
   }
@@ -2646,6 +2661,24 @@ th {
 .entity-list-page.kind-jobs .direct-job-card-filter-grid > * { min-width: 0; }
 .entity-list-page.kind-jobs .direct-job-card-filter-grid input,
 .entity-list-page.kind-jobs .direct-job-card-filter-grid select { min-width: 0; width: 100%; max-width: 100%; }
+
+/* The Job Card toolbar is deliberately a fixed two-row control grid. */
+.job-card-filter-grid {
+  display: grid;
+  grid-template-columns: minmax(13rem, 1.65fr) repeat(5, minmax(7.25rem, 1fr));
+  gap: .65rem;
+  align-items: end;
+  width: 100%;
+}
+.job-card-filter-grid > * { min-width: 0; }
+.job-card-filter-grid label { display: grid; gap: .28rem; min-width: 0; }
+.job-card-filter-grid input, .job-card-filter-grid select { width: 100%; min-width: 0; }
+.job-card-filter-grid > :nth-child(6) { grid-column: 1 / span 1; }
+.job-card-filter-grid .ui-switch, .job-card-filter-grid .list-search-actions { align-self: end; min-height: 42px; }
+@media (max-width: 760px) {
+  .job-card-filter-grid { grid-template-columns: 1fr; }
+  .job-card-filter-grid > :nth-child(6) { grid-column: auto; }
+}
 .toggle-switch > input {
   position: absolute;
   inset: 0;
