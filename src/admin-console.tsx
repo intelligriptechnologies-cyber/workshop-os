@@ -302,7 +302,7 @@ function ServiceTaskCatalog({
           Add Service Task
         </button>
       </div>
-      <div className="store-filter-grid">
+      <div className="store-filter-grid compact-management-toolbar">
         <label className="list-search">
           Search catalog
           <input
@@ -666,7 +666,7 @@ function RolesPageAccessTab({
         </Dialog>
       )}
 
-      <div className="store-filter-grid">
+      <div className="store-filter-grid compact-management-toolbar">
         <label className="list-search">
           Search
           <input

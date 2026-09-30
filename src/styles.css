@@ -2583,101 +2583,62 @@ th {
   margin-left: auto;
 }
 
+/* The four account and catalogue filter toolbars stay compact on desktop while
+   retaining the shared stacked controls below the mobile breakpoint. */
+@media (min-width: 701px) {
+  .compact-management-toolbar {
+    display: flex;
+    flex-wrap: nowrap;
+    align-items: end;
+    gap: .65rem;
+  }
+  .compact-management-toolbar > label {
+    flex: 0 1 8rem;
+    min-width: 7rem;
+  }
+  .compact-management-toolbar > .list-search {
+    flex: 1 1 16rem;
+    min-width: 12rem;
+  }
+  .compact-management-toolbar > .list-search-actions {
+    flex: 0 0 auto;
+    margin-left: 0;
+  }
+}
+
 .management-hub .billing-panel-filter-grid {
   flex-wrap: nowrap;
 }
 
-/* Keep the full Job Cards filter set on one desktop row without affecting the
-   Management Hub's other toolbars. */
-.management-hub .job-card-filter-grid {
-  display: flex;
-}
-.management-hub .job-card-filter-grid > label {
-  min-width: 0;
-}
-.management-hub .job-card-filter-grid input,
-.management-hub .job-card-filter-grid select {
-  min-width: 0;
-  width: 100%;
-  max-width: 100%;
-}
-.management-hub .job-card-filter-grid > .list-search {
-  flex: 1 1 16rem;
-  min-width: 10rem;
-}
-.management-hub .job-card-filter-grid > .job-card-status-filter {
-  flex: 0 1 7.5rem;
-  min-width: 6rem;
-}
-.management-hub .job-card-filter-grid > .job-card-date-filter,
-.management-hub .job-card-filter-grid > .job-card-month-filter {
-  flex: 0 1 8.5rem;
-  min-width: 7rem;
-}
-.management-hub .job-card-filter-grid > .job-card-archived-filter {
-  flex: 0 1 auto;
-  min-width: auto;
-}
-.management-hub .job-card-filter-grid > .list-search-actions {
-  flex: 0 0 auto;
-  margin-left: 0;
-}
-
-.management-hub .job-card-filter-grid > .toggle-switch {
-  display: inline-flex;
-  position: relative;
-  align-items: center;
-  min-height: 42px;
-  gap: .55rem;
-  cursor: pointer;
-}
-.entity-list-page.kind-jobs .direct-job-card-filter-bar {
-  display: block;
-}
-.entity-list-page.kind-jobs .direct-job-card-filter-grid {
+/* Job Card filters stay compact, wrapping complete fields on smaller desktops. */
+.job-card-filter-grid {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
-  gap: .65rem;
-}
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search { flex: 1 1 16rem; min-width: 14rem; }
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-status-filter { flex: 0 1 9rem; min-width: 8rem; }
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-date-filter { flex: 0 1 10rem; min-width: 9rem; }
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-month-filter { flex: 1 1 13rem; min-width: 11rem; }
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .job-card-archived-filter { flex: 0 0 auto; }
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions {
-  flex: 0 0 auto;
-  margin-left: 0;
-  justify-self: start;
-}
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > .toggle-switch {
-  display: inline-flex;
-  position: relative;
-  align-items: center;
-  min-height: 42px;
-  gap: .55rem;
-  cursor: pointer;
-}
-.entity-list-page.kind-jobs .direct-job-card-filter-grid > * { min-width: 0; }
-.entity-list-page.kind-jobs .direct-job-card-filter-grid input,
-.entity-list-page.kind-jobs .direct-job-card-filter-grid select { min-width: 0; width: 100%; max-width: 100%; }
-
-/* The Job Card toolbar is deliberately a fixed two-row control grid. */
-.job-card-filter-grid {
-  display: grid;
-  grid-template-columns: minmax(13rem, 1.65fr) repeat(5, minmax(7.25rem, 1fr));
   gap: .65rem;
   align-items: end;
   width: 100%;
 }
 .job-card-filter-grid > * { min-width: 0; }
-.job-card-filter-grid label { display: grid; gap: .28rem; min-width: 0; }
-.job-card-filter-grid input, .job-card-filter-grid select { width: 100%; min-width: 0; }
-.job-card-filter-grid > :nth-child(6) { grid-column: 1 / span 1; }
-.job-card-filter-grid .ui-switch, .job-card-filter-grid .list-search-actions { align-self: end; min-height: 42px; }
+.job-card-filter-grid label { display: grid; gap: .28rem; min-width: 0; white-space: nowrap; }
+.job-card-filter-grid input, .job-card-filter-grid select { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+.job-card-filter-grid > .job-card-search-filter,
+.job-card-filter-grid > .job-card-customer-filter { flex: 0 1 14rem; width: 14rem; }
+.job-card-filter-grid > .job-card-status-filter { flex: 0 1 8.5rem; width: 8.5rem; }
+.job-card-filter-grid > .job-card-workflow-filter { flex: 0 1 9rem; width: 9rem; }
+.job-card-filter-grid > .job-card-date-filter { flex: 0 1 10.5rem; width: 10.5rem; }
+.job-card-filter-grid > .job-card-month-filter { flex: 0 1 11.5rem; width: 11.5rem; }
+.job-card-filter-grid > .job-card-vehicle-filter { flex: 0 1 8rem; width: 8rem; }
+.job-card-filter-grid > .job-card-advisor-filter { flex: 0 1 10rem; width: 10rem; }
+.job-card-filter-grid > .job-card-sort-filter { flex: 0 1 11.5rem; width: 11.5rem; }
+.job-card-archive-filter { display: grid; gap: .28rem; flex: 0 0 auto; white-space: nowrap; }
+.job-card-archive-switch { align-self: start; min-height: 42px; }
+.job-card-archive-switch .ui-switch-label,
+.job-card-archive-switch .ui-switch-state { display: none; }
+.job-card-filter-grid > .list-search-actions { align-self: end; flex: 0 0 auto; margin-left: 0; min-height: 42px; }
 @media (max-width: 760px) {
-  .job-card-filter-grid { grid-template-columns: 1fr; }
-  .job-card-filter-grid > :nth-child(6) { grid-column: auto; }
+  .job-card-filter-grid > * { flex-basis: 100%; width: 100%; }
+  .job-card-filter-grid > .list-search-actions { justify-content: stretch; }
+  .job-card-filter-grid > .list-search-actions .filter-clear-action { width: 100%; }
 }
 .toggle-switch > input {
   position: absolute;
@@ -2853,33 +2814,15 @@ th {
   .management-hub .store-filter-grid > .list-search-actions button {
     flex: 1 1 0;
   }
-  .management-hub .job-card-filter-grid {
-    display: flex;
-  }
-  .management-hub .job-card-filter-grid > .list-search-actions {
-    justify-self: auto;
-  }
-  .management-hub .job-card-filter-grid > .list-search-actions .filter-clear-action {
+  .compact-management-toolbar > label,
+  .compact-management-toolbar > .list-search-actions {
     width: 100%;
   }
-  .entity-list-page.kind-jobs .direct-job-card-filter-grid {
-    display: flex;
-    flex-direction: column;
-    align-items: stretch;
+  .compact-management-toolbar > .list-search-actions {
+    justify-content: stretch;
   }
-  .entity-list-page.kind-jobs {
-    min-width: 0;
-    overflow-x: hidden;
-  }
-  .entity-list-page.kind-jobs .direct-job-card-filter-grid > * {
-    grid-column: 1 / -1 !important;
-  }
-  .entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions {
-    justify-self: auto;
-    width: 100%;
-  }
-  .entity-list-page.kind-jobs .direct-job-card-filter-grid > .list-search-actions .filter-clear-action {
-    width: 100%;
+  .compact-management-toolbar > .list-search-actions button {
+    flex: 1 1 0;
   }
   .management-hub .job-selector { flex-wrap: wrap; }
   .management-hub .billing-date-filters { grid-template-columns: 1fr; }

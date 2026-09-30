@@ -27,6 +27,25 @@ for (const [email, navItems] of roles) {
   });
 }
 
+test("service Job Cards view toggle switches between table and grid results", async ({ page }) => {
+  await loginAs(page, "service@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Card", exact: true }).click();
+
+  const viewMode = page.getByRole("group", { name: "View mode" });
+  await expect(viewMode.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".service-advisor-list .table-wrap table")).toBeVisible();
+
+  await viewMode.getByRole("button", { name: "Grid" }).click();
+  await expect(viewMode.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".service-advisor-list .record-card").first()).toBeVisible();
+  await expect(page.locator(".service-advisor-list .table-wrap table")).toHaveCount(0);
+
+  await viewMode.getByRole("button", { name: "Table" }).click();
+  await expect(viewMode.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
+  await expect(page.locator(".service-advisor-list .table-wrap table")).toBeVisible();
+  await expect(page.locator(".service-advisor-list .record-card")).toHaveCount(0);
+});
+
 test("advance bookings are limited to the next two complete months", async ({ page }) => {
   await loginAs(page, "reception@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Advance Bookings", exact: true }).click();
@@ -351,6 +370,10 @@ test("Management Hub filters use compact Month-Year toolbars and remain keyboard
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   const hub = page.locator(".management-hub");
 
+  await page.getByRole("tab", { name: "Users", exact: true }).click();
+  await expect(hub.getByLabel("Search users")).toBeVisible();
+  await expectManagementToolbarHasOneRow(hub, ".compact-management-toolbar");
+
   await page.getByRole("tab", { name: "Invoices", exact: true }).click();
   const invoices = hub.locator('[data-billing-manager="Invoices"]');
   await expect(invoices.getByLabel("Search invoices")).toBeVisible();
@@ -384,11 +407,37 @@ test("Management Hub filters use compact Month-Year toolbars and remain keyboard
   await expectManagementToolbarHasOneRow(hub, ".job-selector");
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("tab", { name: "Users", exact: true }).click();
+  await expectManagementToolbarStacks(hub, ".compact-management-toolbar");
+  await expectNoPageOverflow(page);
   await page.getByRole("tab", { name: "Job Cards", exact: true }).click();
   await expect(hub.getByLabel("Search job cards")).toBeVisible();
   await expectNoPageOverflow(page);
   await page.getByRole("tab", { name: "Estimates", exact: true }).click();
   await expectManagementToolbarStacks(hub, ".job-selector");
+  await expectNoPageOverflow(page);
+});
+
+test("admin catalogue and role filters stay compact on desktop and stack on mobile", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
+
+  await page.getByRole("tab", { name: "Service Task Catalog", exact: true }).click();
+  const catalog = page.getByRole("tabpanel", { name: "Service Task Catalog" });
+  await expect(catalog.getByLabel("Search catalog services")).toBeVisible();
+  await expectManagementToolbarHasOneRow(catalog, ".compact-management-toolbar");
+
+  await page.getByRole("tab", { name: "Roles & Page Access", exact: true }).click();
+  const roles = page.getByRole("tabpanel").filter({ has: page.getByRole("heading", { name: "Roles & Page Access" }) });
+  await expect(roles.getByLabel("Search roles")).toBeVisible();
+  await expectManagementToolbarHasOneRow(roles, ".compact-management-toolbar");
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectManagementToolbarStacks(roles, ".compact-management-toolbar");
+  await expectNoPageOverflow(page);
+  await page.getByRole("tab", { name: "Service Task Catalog", exact: true }).click();
+  await expectManagementToolbarStacks(catalog, ".compact-management-toolbar");
   await expectNoPageOverflow(page);
 });
 
@@ -2234,4 +2283,50 @@ test("estimate approval and invoice creation enable Completed with per-line GST 
   await expect(create).toBeHidden();
   await expect(editor.getByRole("table", { name: "Invoice lines" })).toBeVisible();
   await expect(editor.getByRole("button", { name: "Complete Work" })).toBeEnabled();
+});
+test("searchable pickers dismiss outside interactions and still select options", async ({ page }) => {
+  await loginAs(page, "reception@example.com");
+  await page.getByRole("button", { name: "Create New Visit" }).click();
+  const visit = page.getByRole("dialog", { name: "Create New Visit" });
+  const customerPicker = visit.getByRole("combobox", { name: "Existing customer" });
+  const customerOptions = visit.getByRole("listbox");
+  await customerPicker.fill("Rahul");
+  await expect(customerOptions).toBeVisible();
+  await visit.getByLabel("Customer Name").click();
+  await expect(customerOptions).toBeHidden();
+  await expect(customerPicker).toHaveAttribute("aria-expanded", "false");
+  await customerPicker.fill("Rahul");
+  await customerOptions.getByRole("option", { name: /Rahul Sharma/ }).click();
+  await expect(visit.getByLabel("Customer Name")).toHaveValue("Rahul Sharma");
+  await visit.getByRole("button", { name: "Go Back" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
+  const editor = page.getByRole("dialog", { name: /Edit Job/ });
+  await editor.getByRole("tab", { name: "Materials" }).click();
+  const inventoryPicker = editor.getByRole("combobox", { name: "Item", exact: true });
+  const inventoryOptions = editor.getByRole("listbox", { name: "Item options" });
+  await inventoryPicker.fill("Tack");
+  await expect(inventoryOptions).toBeVisible();
+  await editor.getByLabel("Qty").click();
+  await expect(inventoryOptions).toBeHidden();
+  await expect(inventoryPicker).toHaveAttribute("aria-expanded", "false");
+  await inventoryPicker.fill("Tack");
+  await inventoryOptions.getByRole("option").first().click();
+  await expect(inventoryPicker).toHaveValue(/Tack/);
+  await editor.getByRole("button", { name: "Go Back" }).click();
+
+  await page.locator(".role-nav").getByRole("button", { name: "Data Flow", exact: true }).click();
+  const jobPicker = page.getByRole("combobox", { name: "Find a job" });
+  const jobOptions = page.getByRole("listbox", { name: "Matching jobs" });
+  await jobPicker.fill("OD02");
+  await expect(jobOptions).toBeVisible();
+  await page.getByLabel("Visit month").click();
+  await expect(jobOptions).toBeHidden();
+  await expect(jobPicker).toHaveAttribute("aria-expanded", "false");
+  await jobPicker.fill("OD02");
+  await jobOptions.getByRole("option").first().click();
+  await expect(page.getByRole("region", { name: "Chronological data flow" })).toBeVisible();
 });

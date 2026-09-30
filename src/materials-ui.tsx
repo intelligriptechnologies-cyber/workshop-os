@@ -1,20 +1,23 @@
-import { useEffect, useId, useState } from "react";
+import { useEffect, useId, useRef, useState } from "react";
 import type { Database } from "sql.js";
 import { addMaterialRowForActor, cancelMaterialRowForActor, createMaterialPurchaseRequestForActor, deleteMaterialRowForActor, editIssuedMaterialRowForActor, reRequestMaterialRowForActor, requestMaterialRowForActor, updateMaterialRowForActor } from "./db";
 import { canManageMaterialRows, filterInventory, materialRowActionsFor, materialRowStatus, pickerLabel } from "./materials";
 import type { InventoryItem, JobView, MaterialPurchaseRequest, MaterialRequest, User } from "./types";
 import type { Mutate } from "./App";
+import { usePickerDismissal } from "./ui-kit";
 
 export function InventoryPicker({ inventory, value, onChange, label, disabled = false, allOptionLabel, onSelectAll }: { inventory: InventoryItem[]; value?: number; onChange: (id: number) => void; label: string; disabled?: boolean; allOptionLabel?: string; onSelectAll?: () => void }) {
   const selected = inventory.find((item) => item.id === value);
   const [query, setQuery] = useState(selected?.name ?? ""); const [open, setOpen] = useState(false); const [activeIndex, setActiveIndex] = useState(0); const listId = useId();
+  const rootRef = useRef<HTMLDivElement>(null);
+  usePickerDismissal(rootRef, open, () => setOpen(false));
   const allSelected = Boolean(allOptionLabel && value === undefined);
   const matches = filterInventory(inventory, (selected && query === selected.name) || (allSelected && query === allOptionLabel) ? "" : query).slice(0, 8);
   const options: Array<InventoryItem | undefined> = allOptionLabel ? [undefined, ...matches] : matches;
   useEffect(() => { setQuery(allSelected ? allOptionLabel! : selected?.name ?? ""); }, [allOptionLabel, allSelected, selected?.id]);
   const choose = (item: InventoryItem) => { onChange(item.id); setQuery(item.name); setOpen(false); };
   const chooseOption = (option: InventoryItem | undefined) => { if (option) choose(option); else if (onSelectAll) { onSelectAll(); setQuery(allOptionLabel ?? ""); setOpen(false); } };
-  return <div className="inventory-picker"><input aria-label={label} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && options[activeIndex] ? `${listId}-${options[activeIndex]!.id}` : open && allOptionLabel ? `${listId}-all` : undefined} aria-autocomplete="list" disabled={disabled} value={query} placeholder="Type to search inventory" onFocus={() => { setOpen(true); setActiveIndex(0); }} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); }} onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, Math.max(options.length - 1, 0))); } else if (event.key === "ArrowUp") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.max(index - 1, 0)); } else if (event.key === "Enter" && open && options[activeIndex] !== undefined) { event.preventDefault(); chooseOption(options[activeIndex]); } else if (event.key === "Enter" && open && allOptionLabel && activeIndex === 0) { event.preventDefault(); chooseOption(undefined); } else if (event.key === "Escape") setOpen(false); }} />
+  return <div className="inventory-picker" ref={rootRef}><input aria-label={label} role="combobox" aria-expanded={open} aria-controls={listId} aria-activedescendant={open && options[activeIndex] ? `${listId}-${options[activeIndex]!.id}` : open && allOptionLabel ? `${listId}-all` : undefined} aria-autocomplete="list" disabled={disabled} value={query} placeholder="Type to search inventory" onFocus={() => { setOpen(true); setActiveIndex(0); }} onChange={(event) => { setQuery(event.target.value); setOpen(true); setActiveIndex(0); }} onKeyDown={(event) => { if (event.key === "ArrowDown") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.min(index + 1, Math.max(options.length - 1, 0))); } else if (event.key === "ArrowUp") { event.preventDefault(); setOpen(true); setActiveIndex((index) => Math.max(index - 1, 0)); } else if (event.key === "Enter" && open && options[activeIndex] !== undefined) { event.preventDefault(); chooseOption(options[activeIndex]); } else if (event.key === "Enter" && open && allOptionLabel && activeIndex === 0) { event.preventDefault(); chooseOption(undefined); } else if (event.key === "Escape") setOpen(false); }} />
     {open && <ul id={listId} role="listbox" aria-label={`${label} options`} className="inventory-picker-options">{options.map((option, index) => <li id={option ? `${listId}-${option.id}` : `${listId}-all`} key={option?.id ?? "all"} role="option" aria-selected={index === activeIndex}><button type="button" onMouseDown={(event) => event.preventDefault()} onClick={() => chooseOption(option)}>{option ? pickerLabel(option) : allOptionLabel}</button></li>)}{matches.length === 0 && !allOptionLabel && <li className="empty-state">No matching inventory</li>}</ul>}
     {selected && <small className="picker-stock">in stock: {selected.stock_qty} {selected.unit}</small>}</div>;
 }

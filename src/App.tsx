@@ -235,6 +235,7 @@ import {
   ListSearchActions,
   SearchSelect,
   Switch,
+  usePickerDismissal,
 } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
 import { BookingCalendar } from "./booking-calendar";
@@ -3684,6 +3685,33 @@ function ServiceAdvisorList({
         }}
       />
       {paged.totalCount ? (
+        viewMode === "grid" && kind === "job-cards" ? (
+          <div className="record-grid jobs">
+            {paged.items.map((row) => (
+              <article
+                className={`record-card job-card job-status-${row.job.main_status.toLowerCase()}`}
+                key={row.job.id}
+              >
+                <div className="record-identity">
+                  <strong>{row.vehicle.number}</strong>
+                  <span>{row.vehicle.make} {row.vehicle.model}</span>
+                </div>
+                <h3>{row.job.job_no}</h3>
+                <p>{row.customer.name} · {row.customer.mobile}</p>
+                <Status status={row.job.main_status} sub={row.job.sub_status} />
+                <Info label="Estimated Delivery Date" value={row.job.estimated_delivery || "—"} />
+                <Info label="Estimate Status" value={row.estimate?.status ?? "Not created"} />
+                <Info label="Service Advisor" value={row.advisor.name} />
+                <div className="grid-actions">
+                  <button type="button" className="grid-action" onClick={() => open(row, "job")}>View</button>
+                  {actor.role === "service" && actor.id === row.job.advisor_id && (
+                    <button type="button" className="grid-action" onClick={() => open(row, "edit")}>Edit</button>
+                  )}
+                </div>
+              </article>
+            ))}
+          </div>
+        ) : (
         <div className="table-wrap">
           <table>
             <thead>
@@ -3821,6 +3849,7 @@ function ServiceAdvisorList({
             </tbody>
           </table>
         </div>
+        )
       ) : (
         <div className="list-empty">
           <h3>No matching records</h3>
@@ -10295,7 +10324,7 @@ export function UserManager({
           </form>
         </Dialog>
       )}
-      <div className="store-filter-grid">
+      <div className="store-filter-grid compact-management-toolbar">
         <label className="list-search">
           Search
           <input
@@ -10684,7 +10713,7 @@ function RemoteUserManager({
           </div>
         </form>
       )}
-      <div className="store-filter-grid">
+      <div className="store-filter-grid compact-management-toolbar">
         <label className="list-search">
           Search
           <input
@@ -14180,7 +14209,7 @@ function DataFlowWorkspace({
   const [selectedId, setSelectedId] = useState<number>();
   const [open, setOpen] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
-  const rootRef = useRef<HTMLDivElement>(null);
+  const jobPickerRef = useRef<HTMLDivElement>(null);
   const months = useMemo(() => dataFlowMonths(jobs), [jobs]);
   const dates = useMemo(() => dataFlowDates(jobs, month), [jobs, month]);
   const options = useMemo(
@@ -14189,13 +14218,7 @@ function DataFlowWorkspace({
   );
   const selected = jobs.find((view) => view.job.id === selectedId);
 
-  useEffect(() => {
-    const dismiss = (event: PointerEvent) => {
-      if (!rootRef.current?.contains(event.target as Node)) setOpen(false);
-    };
-    document.addEventListener("pointerdown", dismiss);
-    return () => document.removeEventListener("pointerdown", dismiss);
-  }, []);
+  usePickerDismissal(jobPickerRef, open, () => setOpen(false));
 
   useEffect(() => {
     if (selectedId && !options.some((view) => view.job.id === selectedId))
@@ -14246,7 +14269,7 @@ function DataFlowWorkspace({
           title="Data Flow"
           subtitle={selected?.job.job_no ?? "Select a job"}
         />
-        <div className="data-flow-filters" ref={rootRef}>
+        <div className="data-flow-filters">
           <label>
             Visit month
             <select
@@ -14297,7 +14320,7 @@ function DataFlowWorkspace({
               ))}
             </select>
           </label>
-          <div className="data-flow-combobox">
+          <div className="data-flow-combobox" ref={jobPickerRef}>
             <label htmlFor="data-flow-job-search">Find a job</label>
             <input
               id="data-flow-job-search"
@@ -16712,16 +16735,16 @@ function JobCardFilterFields({
   const vehicles = [...new Map(jobs.map((item) => [item.vehicle.id, item.vehicle])).values()].sort((a, b) => a.number.localeCompare(b.number));
   const advisors = [...new Map(jobs.map((item) => [item.advisor.id, item.advisor])).values()].sort((a, b) => a.name.localeCompare(b.name));
   return <div className="job-card-filter-grid" data-job-card-filters>
-    <label className="list-search">Search<input aria-label={searchLabel} value={values.search} placeholder="Job, vehicle, customer or mobile" onChange={(event) => onChange({ search: event.target.value })} /></label>
-    <label>Main status<select aria-label="Main status" value={values.primary} onChange={(event) => onChange({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>
-    <label>Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>
-    <label>Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>
-    <label>Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>
-    <label>Customer<input aria-label="Customer filter" value={values.customer} placeholder="Name or mobile" onChange={(event) => onChange({ customer: event.target.value })} /></label>
-    <label>Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>
-    <label>Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-    <label>Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>
-    {showArchive && <Switch label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} />}
+    <label className="list-search job-card-search-filter">Search<input aria-label={searchLabel} value={values.search} placeholder="Job, vehicle, customer or mobile" onChange={(event) => onChange({ search: event.target.value })} /></label>
+    <label className="job-card-status-filter">Main status<select aria-label="Main status" value={values.primary} onChange={(event) => onChange({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>
+    <label className="job-card-workflow-filter">Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>
+    <label className="job-card-date-filter">Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>
+    <label className="job-card-month-filter">Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>
+    <label className="job-card-customer-filter">Customer<input aria-label="Customer filter" value={values.customer} placeholder="Name or mobile" onChange={(event) => onChange({ customer: event.target.value })} /></label>
+    <label className="job-card-vehicle-filter">Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>
+    <label className="job-card-advisor-filter">Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
+    <label className="job-card-sort-filter">Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>
+    {showArchive && <div className="job-card-archive-filter"><span>Show archived only</span><Switch className="job-card-archive-switch" label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} /></div>}
     <ListSearchActions onClear={onClear} />
   </div>;
 }
