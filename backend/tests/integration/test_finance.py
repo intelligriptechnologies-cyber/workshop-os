@@ -100,6 +100,7 @@ def test_pre_payment_void_keeps_number_and_allows_numbered_replacement() -> None
         job_id = _approved_job(client, headers)
         first = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={}).json()
         assert client.post(f"/api/v1/invoices/{first['id']}/void", headers=headers, json={"reason": "typo"}).json()["status"] == "VOID"
+        assert client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={}).status_code == 422
         replacement = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"replacesInvoiceId": first["id"]}).json()
         assert replacement["number"] != first["number"]
 
@@ -129,6 +130,7 @@ def test_invoice_uses_approved_snapshot_and_paid_correction_is_credit_note_then_
         with get_engine().begin() as connection:
             event = connection.execute(text("SELECT related_document_id FROM financial_document_events WHERE document_id=:document_id AND event_type='CREDITED'"), {"document_id": invoice["documentId"]}).scalar_one()
         assert event == credit.json()["documentId"]
+        assert client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={}).status_code == 422
         replacement = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"replacesInvoiceId": invoice["id"]})
         assert replacement.status_code == 201, replacement.text
         assert replacement.json()["number"] != invoice["number"]
