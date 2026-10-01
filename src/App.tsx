@@ -119,6 +119,7 @@ import {
   issuePurchaseOrderForActor,
   recordPurchaseOrderReceiptForActor,
   confirmPurchaseOrderForActor,
+  closePurchaseOrderForActor,
   setPurchaseOrderStatusForActor,
   recordStockInwardForActor,
   savePurchaseOrderQuotationForActor,
@@ -4976,6 +4977,34 @@ function PurchaseOrdersWorkspace({
   };
   const confirmationFor = (line: PurchaseOrderLine) =>
     state.purchase_order_confirmations.find((confirmation) => confirmation.purchase_order_line_id === line.id);
+  const downloadClosedAudit = (order: PurchaseOrder, orderLines: PurchaseOrderLine[]) => {
+    const confirmationByLine = new Map(
+      state.purchase_order_confirmations
+        .filter((confirmation) => confirmation.purchase_order_id === order.id)
+        .map((confirmation) => [confirmation.purchase_order_line_id, confirmation]),
+    );
+    const quote = (value: string | number) => `"${String(value).replaceAll('"', '""')}"`;
+    const rows = [
+      ["Purchase Order", order.po_number],
+      ["Status", "PO Closed"],
+      ["Order date", order.order_date],
+      ["Supplier", supplierName(order.supplier_id)],
+      [],
+      ["SKU", "Item", "Ordered", "Accepted", "Returned", "Damaged", "Wasted", "Pre-GST unit cost"],
+      ...orderLines.map((line) => {
+        const item = state.inventory.find((candidate) => candidate.id === line.item_id);
+        const confirmation = confirmationByLine.get(line.id);
+        return [item?.sku ?? "", item?.name ?? line.item_name, line.ordered_qty, confirmation?.accepted_qty ?? 0, confirmation?.returned_qty ?? 0, confirmation?.damaged_qty ?? 0, confirmation?.wasted_qty ?? 0, line.unit_cost];
+      }),
+    ];
+    const blob = new Blob([rows.map((row) => row.map(quote).join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `${order.po_number}-closed-audit.csv`;
+    link.click();
+    URL.revokeObjectURL(url);
+  };
   const close = () => {
     setDialog(undefined);
     setSelectedId(undefined);
@@ -5474,6 +5503,19 @@ function PurchaseOrdersWorkspace({
                   Confirm quantities
                 </button>
               )}
+              {actor.role === "admin" && selected.status === "PO Confirmation" && (
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() =>
+                    mutate((db) =>
+                      closePurchaseOrderForActor(db, selected.id, actor.id),
+                    )
+                  }
+                >
+                  Close PO & post Stock Inward
+                </button>
+              )}
               {actor.role === "admin" && [
                 "Draft",
                 "Sent",
@@ -5521,6 +5563,21 @@ function PurchaseOrdersWorkspace({
         >
           <div className="inward-dialog-content">
             <PurchaseOrderLifecycle status={selected.status} />
+            {selected.status === "Closed" && (
+              <section className="purchase-order-stage-context" aria-label="Closed Purchase Order audit">
+                <strong>PO Closed — view only</strong>
+                <p>
+                  Accepted quantities were posted to Stock Inward at closure. This commercial record is locked for audit.
+                </p>
+                <button
+                  type="button"
+                  className="workflow-action action-document"
+                  onClick={() => downloadClosedAudit(selected, selectedLines)}
+                >
+                  <Download size={15} /> Download closed PO audit
+                </button>
+              </section>
+            )}
             {selected.status === "PO Request Approved" && (
               <p className="purchase-order-stage-context">
                 {actor.role === "admin"
@@ -5532,6 +5589,7 @@ function PurchaseOrdersWorkspace({
               "PO Issued",
               "PO Received",
               "PO Confirmation",
+              "Closed",
               "Partially Received",
               "Ready to Close",
             ].includes(selected.status) && (

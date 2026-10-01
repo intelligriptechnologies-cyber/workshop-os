@@ -4046,6 +4046,170 @@ export function issuePurchaseOrderForActor(
   );
 }
 
+export interface PurchaseOrderReceiptInput {
+  note?: string;
+  lines: Array<{ purchase_order_line_id: number; delivered_qty: number }>;
+}
+
+/** Records a physical supplier delivery without posting inventory. */
+export function recordPurchaseOrderReceiptForActor(
+  db: Database,
+  purchaseOrderId: number,
+  actorId: number,
+  input: PurchaseOrderReceiptInput,
+) {
+  assertPurchaseActor(db, actorId, true);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [purchaseOrderId]);
+  if (!["PO Issued", "PO Received"].includes(order.status))
+    throw new Error("Deliveries can only be recorded for an issued or received Purchase Order.");
+  if (!input.lines?.length) throw new Error("Record at least one delivered quantity.");
+  const orderLines = all<PurchaseOrderLine>(db, "select * from purchase_order_lines where purchase_order_id=?", [purchaseOrderId]);
+  const requested = new Map(input.lines.map((line) => [line.purchase_order_line_id, line]));
+  if (requested.size !== input.lines.length || input.lines.some((line) => !Number.isFinite(line.delivered_qty) || line.delivered_qty <= 0))
+    throw new Error("Each delivered quantity must be greater than zero.");
+  if (input.lines.some((line) => !orderLines.some((orderLine) => orderLine.id === line.purchase_order_line_id)))
+    throw new Error("Every delivery line must belong to this Purchase Order.");
+  for (const line of orderLines) {
+    const deliveredNow = requested.get(line.id)?.delivered_qty ?? 0;
+    if (!deliveredNow) continue;
+    const deliveredBefore = scalar<number>(db, `select coalesce(sum(receipt_line.delivered_qty),0) from purchase_order_receipt_lines receipt_line join purchase_order_receipts receipt on receipt.id=receipt_line.purchase_order_receipt_id where receipt.purchase_order_id=? and receipt_line.purchase_order_line_id=?`, [purchaseOrderId, line.id]);
+    if (deliveredBefore + deliveredNow > line.ordered_qty)
+      throw new Error("Delivered quantity cannot exceed the ordered quantity.");
+  }
+  db.run("begin immediate transaction");
+  try {
+    const receiptId = insert(db, "insert into purchase_order_receipts(purchase_order_id,received_by,received_at,note) values(?,?,datetime('now'),?)", [purchaseOrderId, actorId, input.note?.trim() ?? ""]);
+    for (const line of input.lines)
+      insert(db, "insert into purchase_order_receipt_lines(purchase_order_receipt_id,purchase_order_line_id,delivered_qty) values(?,?,?)", [receiptId, line.purchase_order_line_id, line.delivered_qty]);
+    db.run("update purchase_orders set status='PO Received',updated_at=datetime('now') where id=?", [purchaseOrderId]);
+    db.run("commit");
+    return receiptId;
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
+}
+
+export interface PurchaseOrderConfirmationInput {
+  lines: Array<{ purchase_order_line_id: number; accepted_qty: number; returned_qty: number; damaged_qty: number; wasted_qty: number }>;
+}
+
+/** Validates a full delivery disposition; Stock Inward is deferred until closure. */
+export function confirmPurchaseOrderForActor(
+  db: Database,
+  purchaseOrderId: number,
+  actorId: number,
+  input: PurchaseOrderConfirmationInput,
+) {
+  assertPurchaseActor(db, actorId, true);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [purchaseOrderId]);
+  if (order.status !== "PO Received") throw new Error("Only a received Purchase Order can be confirmed.");
+  const orderLines = all<PurchaseOrderLine>(db, "select * from purchase_order_lines where purchase_order_id=? order by id", [purchaseOrderId]);
+  const confirmations = new Map(input.lines?.map((line) => [line.purchase_order_line_id, line]) ?? []);
+  if (confirmations.size !== input.lines.length || confirmations.size !== orderLines.length || orderLines.some((line) => !confirmations.has(line.id)))
+    throw new Error("Confirmation must account for every Purchase Order line.");
+  for (const line of orderLines) {
+    const delivery = scalar<number>(db, `select coalesce(sum(receipt_line.delivered_qty),0) from purchase_order_receipt_lines receipt_line join purchase_order_receipts receipt on receipt.id=receipt_line.purchase_order_receipt_id where receipt.purchase_order_id=? and receipt_line.purchase_order_line_id=?`, [purchaseOrderId, line.id]);
+    const confirmation = confirmations.get(line.id)!;
+    const quantities = [confirmation.accepted_qty, confirmation.returned_qty, confirmation.damaged_qty, confirmation.wasted_qty];
+    if (quantities.some((quantity) => !Number.isFinite(quantity) || quantity < 0)) throw new Error("Confirmation quantities cannot be negative.");
+    if (quantities.reduce((sum, quantity) => sum + quantity, 0) !== delivery)
+      throw new Error("Accepted, returned, damaged, and wasted quantities must equal the delivered quantity.");
+  }
+  db.run("begin immediate transaction");
+  try {
+    for (const line of orderLines) {
+      const confirmation = confirmations.get(line.id)!;
+      insert(db, "insert into purchase_order_confirmations(purchase_order_id,purchase_order_line_id,accepted_qty,returned_qty,damaged_qty,wasted_qty,confirmed_by,confirmed_at) values(?,?,?,?,?,?,?,datetime('now'))", [purchaseOrderId, line.id, confirmation.accepted_qty, confirmation.returned_qty, confirmation.damaged_qty, confirmation.wasted_qty, actorId]);
+    }
+    db.run("update purchase_orders set status='PO Confirmation',updated_at=datetime('now') where id=?", [purchaseOrderId]);
+    db.run("commit");
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
+}
+
+/**
+ * Closes a fully confirmed Purchase Order and posts its accepted quantities as
+ * the single traceable Stock Inward event. The transaction makes retries safe:
+ * a retry reads the already-closed record and returns the original inwards.
+ */
+export function closePurchaseOrderForActor(
+  db: Database,
+  purchaseOrderId: number,
+  actorId: number,
+) {
+  assertPurchaseActor(db, actorId, true);
+  db.run("begin immediate transaction");
+  try {
+    const order = one<PurchaseOrder>(
+      db,
+      "select * from purchase_orders where id=?",
+      [purchaseOrderId],
+    );
+    if (order.status === "Closed") {
+      const inwardIds = all<{ id: number }>(
+        db,
+        "select id from stock_inwards where purchase_order_id=? order by id",
+        [purchaseOrderId],
+      ).map((inward) => inward.id);
+      db.run("commit");
+      return inwardIds;
+    }
+    if (order.status !== "PO Confirmation")
+      throw new Error("Only a fully confirmed Purchase Order can be closed.");
+
+    const lines = all<PurchaseOrderLine>(
+      db,
+      "select * from purchase_order_lines where purchase_order_id=? order by id",
+      [purchaseOrderId],
+    );
+    const confirmations = all<PurchaseOrderConfirmation>(
+      db,
+      "select * from purchase_order_confirmations where purchase_order_id=? order by purchase_order_line_id",
+      [purchaseOrderId],
+    );
+    const confirmationForLine = new Map(
+      confirmations.map((confirmation) => [confirmation.purchase_order_line_id, confirmation]),
+    );
+    if (
+      !lines.length ||
+      confirmations.length !== lines.length ||
+      lines.some((line) => !confirmationForLine.has(line.id))
+    )
+      throw new Error("Every Purchase Order line must be confirmed before closure.");
+
+    const inwardIds: number[] = [];
+    for (const line of lines) {
+      const acceptedQty = confirmationForLine.get(line.id)!.accepted_qty;
+      if (acceptedQty <= 0) continue;
+      const note = `Accepted on PO closure: ${order.po_number}`;
+      const ledgerId = insert(
+        db,
+        "insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,-?,'po-closure-inward',?,datetime('now'),?)",
+        [line.item_id, acceptedQty, actorId, note],
+      );
+      const inwardId = insert(
+        db,
+        "insert into stock_inwards(item_id,qty,note,purchase_order_id,purchase_order_line_id,ledger_id,received_by,received_at) values(?,?,?,?,?,?,?,datetime('now'))",
+        [line.item_id, acceptedQty, note, purchaseOrderId, line.id, ledgerId, actorId],
+      );
+      movement(db, 0, line.item_id, "STOCK_IN", acceptedQty, note);
+      inwardIds.push(inwardId);
+    }
+    db.run(
+      "update purchase_orders set status='Closed',updated_at=datetime('now') where id=?",
+      [purchaseOrderId],
+    );
+    db.run("commit");
+    return inwardIds;
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
+}
+
 function assertPurchaseOrderLine(db: Database, line: PurchaseOrderLineInput) {
   return assertPurchaseLine(db, { ...line, received_qty: line.ordered_qty });
 }
@@ -4265,6 +4429,10 @@ export function recordStockInwardForActor(
       );
       if (["Draft", "Cancelled", "Closed"].includes(order.status))
         throw new Error("Select an open purchase order line.");
+      if (order.status.startsWith("PO "))
+        throw new Error(
+          "Purchase Order Stock Inward is posted automatically when the confirmed PO closes.",
+        );
       orderId = order.id;
     }
     const note = input.note?.trim() || "Stock inward";
@@ -6910,6 +7078,15 @@ export function migrateSchema(db: Database) {
   ensureColumn(db, "purchase_order_lines", "source_purchase_order_line_id", "integer");
   db.run(
     "create table if not exists purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null)",
+  );
+  db.run(
+    "create table if not exists purchase_order_receipts(id integer primary key, purchase_order_id integer not null, received_by integer not null, received_at text not null, note text not null default '')",
+  );
+  db.run(
+    "create table if not exists purchase_order_receipt_lines(id integer primary key, purchase_order_receipt_id integer not null, purchase_order_line_id integer not null, delivered_qty real not null)",
+  );
+  db.run(
+    "create table if not exists purchase_order_confirmations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null unique, accepted_qty real not null, returned_qty real not null, damaged_qty real not null, wasted_qty real not null, confirmed_by integer not null, confirmed_at text not null)",
   );
   db.run(
     "create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null)",

@@ -9,8 +9,11 @@ import {
   createSupplierForActor,
   issuePurchaseOrderForActor,
   migrateSchema,
+  readState,
+  closePurchaseOrderForActor,
   confirmPurchaseOrderForActor,
   recordPurchaseOrderReceiptForActor,
+  recordStockInwardForActor,
 } from "../src/db";
 
 async function database() {
@@ -61,6 +64,39 @@ test("Admin records multiple partial PO deliveries without changing stock", asyn
   assert.throws(
     () => recordPurchaseOrderReceiptForActor(db, po, 2, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 1 }] }),
     /Only Admin/,
+  );
+});
+
+test("closing a confirmed PO posts accepted stock once and locks its audit record", async () => {
+  const { db, po, lineId } = await issuedOrder();
+  recordPurchaseOrderReceiptForActor(db, po, 1, {
+    lines: [{ purchase_order_line_id: lineId, delivered_qty: 5 }],
+  });
+
+  assert.throws(
+    () => closePurchaseOrderForActor(db, po, 1),
+    /Only a fully confirmed Purchase Order can be closed/i,
+  );
+
+  confirmPurchaseOrderForActor(db, po, 1, {
+    lines: [{ purchase_order_line_id: lineId, accepted_qty: 3, returned_qty: 1, damaged_qty: 1, wasted_qty: 0 }],
+  });
+  assert.equal(readState(db).inventory.find((item) => item.id === 1)?.stock_qty, 10);
+  assert.throws(
+    () => recordStockInwardForActor(db, 1, { item_id: 1, qty: 3, purchase_order_line_id: lineId }),
+    /automatically when the confirmed PO closes/i,
+  );
+
+  const first = closePurchaseOrderForActor(db, po, 1);
+  const retry = closePurchaseOrderForActor(db, po, 1);
+  assert.deepEqual(retry, first);
+  assert.deepEqual(db.exec("select status from purchase_orders where id=?", [po])[0].values, [["Closed"]]);
+  assert.deepEqual(db.exec("select qty,purchase_order_id,purchase_order_line_id from stock_inwards where purchase_order_id=?", [po])[0].values, [[3, po, lineId]]);
+  assert.deepEqual(db.exec("select qty,type from stock_ledger where item_id=1 and type='po-closure-inward'" )[0].values, [[-3, "po-closure-inward"]]);
+  assert.equal(readState(db).inventory.find((item) => item.id === 1)?.stock_qty, 13);
+  assert.throws(
+    () => recordPurchaseOrderReceiptForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 1 }] }),
+    /only be recorded for an issued or received Purchase Order/i,
   );
 });
 
