@@ -49,6 +49,7 @@ import {
   todayJobPeriod,
   type JobPeriod,
 } from "./job-picker";
+import { RemoteFinanceWorkspace } from "./remote-finance";
 import { dashboardFacts } from "./dashboard-metrics";
 import { isServiceActiveJob, serviceFollowupStatus } from "./service-advisor";
 import { ExpectedTodayBookings } from "./booking-expected-today";
@@ -1346,6 +1347,15 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
+  if (
+    cognitoConfig &&
+    ["Ready To Invoice", "Invoice"].includes(activeMenuItem)
+  )
+    return <RemoteFinanceWorkspace config={cognitoConfig} mode="invoice" />;
+  if (cognitoConfig && activeMenuItem === "Payment")
+    return <RemoteFinanceWorkspace config={cognitoConfig} mode="payment" />;
+  if (cognitoConfig && activeMenuItem === "Delivery")
+    return <RemoteFinanceWorkspace config={cognitoConfig} mode="delivery" />;
   if (activeMenuItem === "Search") {
     return (
       <SearchPortal
