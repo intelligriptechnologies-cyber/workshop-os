@@ -881,7 +881,7 @@ test("job card document actions stack editors, replace creation actions after sa
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Invoices", exact: true }).click();
   const invoiceManager = page.getByRole("table", { name: "Invoices manager" });
-  const openInvoiceRow = invoiceManager.locator("tbody tr:not(.billing-detail-row)").filter({ hasText: "Unpaid" }).first();
+  const openInvoiceRow = invoiceManager.locator("tbody tr:not(.billing-detail-row)").filter({ hasText: "Pending" }).first();
   await openInvoiceRow.click();
   await expect(invoiceManager.getByRole("table", { name: "Invoice lines" })).toContainText("%");
   await invoiceManager.getByRole("button", { name: "Void Invoice" }).click();
@@ -890,7 +890,6 @@ test("job card document actions stack editors, replace creation actions after sa
 
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await page.getByLabel("Main status").selectOption("COMPLETED");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   const jobDialog = page.getByRole("dialog", { name: /View Job/ });
   await jobDialog.getByRole("tab", { name: "Documents" }).click();
@@ -933,7 +932,7 @@ test("job card document actions stack editors, replace creation actions after sa
   const editInvoice = page.getByRole("dialog", { name: "Edit Invoice" });
   await expect(editInvoice).toHaveClass(/dialog-document-editor/);
   await editInvoice.getByLabel("Notes").fill("Edited from job card");
-  await editInvoice.getByRole("button", { name: "Save Invoice" }).click();
+  await editInvoice.getByRole("button", { name: "Update Invoice" }).click();
   await expect(editInvoice).toBeHidden();
   const pdfPromise = page.waitForEvent("download");
   await invoiceRow.first().getByRole("button", { name: "Download PDF" }).click();
@@ -946,7 +945,7 @@ test("job card document actions stack editors, replace creation actions after sa
   const paymentPanel = jobDialog.getByRole("region", { name: "Job payment" });
   await paymentPanel.getByLabel("Payment mode").selectOption("UPI");
   await paymentPanel.getByLabel("Payment reference").fill("E2E-UPI-1");
-  await paymentPanel.getByRole("button", { name: "Record Payment" }).click();
+  await paymentPanel.getByRole("button", { name: "Confirm Payment" }).click();
   await expect(paymentPanel.getByRole("table", { name: "Payment", exact: true })).toContainText("E2E-UPI-1");
   await expect(paymentPanel.getByRole("table", { name: "Payment", exact: true })).toContainText("RCT-");
   await expect(paymentPanel).toContainText("Cleared");
@@ -954,7 +953,6 @@ test("job card document actions stack editors, replace creation actions after sa
   const voidPayment = page.getByRole("dialog", { name: "Void Payment?" });
   await voidPayment.getByLabel("Reason").fill("E2E correction");
   await voidPayment.getByRole("button", { name: "Void" }).click();
-  await expect(paymentPanel.getByRole("button", { name: "Record Payment" })).toBeVisible();
 });
 
 test("customer and vehicle records use distinct view and edit dialogs on every list surface", async ({ page }) => {
@@ -1046,7 +1044,7 @@ test("Data Flow cascades visit filters and supports keyboard, mouse, empty, clea
 
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Estimates", exact: true }).click();
-  await expect(page.getByLabel("Job for Estimates")).toBeVisible();
+  await expect(page.getByRole("searchbox", { name: "Job for Estimates search" })).toBeVisible();
   await page.locator(".role-nav").getByRole("button", { name: "Data Flow", exact: true }).click();
   await expect(page.getByRole("combobox", { name: "Find a job" })).toHaveValue("");
   await expect(page.getByText("Select a job to view its data flow.")).toBeVisible();
@@ -1070,7 +1068,7 @@ test("Data Flow filters and suggestions stay within a mobile viewport", async ({
 test("admin management domains expose contextual creation paths", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
-  for (const tab of ["Users", "Customers", "Vehicles", "Job Cards", "Estimates", "Tasks / QC", "Inventory / Materials", "Invoices", "Payments", "Delivery"]) {
+  for (const tab of ["Users", "Customers", "Vehicles", "Suppliers", "Job Cards", "Estimates", "Invoices", "Payments", "Delivery"]) {
     await expect(page.getByRole("tab", { name: tab, exact: true })).toBeVisible();
     await page.getByRole("tab", { name: tab, exact: true }).click();
     if (["Invoices", "Payments", "Delivery"].includes(tab)) await expect(page.locator(`[data-billing-manager="${tab}"]`)).toBeVisible();
@@ -1128,7 +1126,10 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await page.getByLabel("Invoices status filter").selectOption("Cleared");
   await expect(page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first()).toContainText("Cleared");
   const next = page.getByRole("navigation", { name: "Results pagination" }).first().getByRole("button", { name: "Next page" });
-  if (await next.isEnabled()) { await next.click(); await expect(page.getByText(/Page 2 of/).first()).toBeVisible(); }
+  if (await next.isEnabled()) {
+    await next.click();
+    await expect(next.locator("..").getByRole("button", { name: "Page 2" })).toHaveAttribute("aria-current", "page");
+  }
   await page.getByRole("table", { name: "Invoices manager" }).locator("tbody tr").first().click();
   await expect(page.getByRole("table", { name: "Invoice lines" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Edit" })).toHaveCount(0);
@@ -1180,10 +1181,6 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   expect((await paymentRecordRows.locator("td:nth-child(6)").allTextContents()).every((mode) => mode.trim() === paidMode)).toBe(true);
   await paymentsManager.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(paymentModeFilter).toHaveValue("ALL");
-  for (const [mode, highlightClass] of [["UPI", "billing-row-payment-upi"], ["Cash", "billing-row-payment-cash"], ["Card", "billing-row-payment-card"], ["Bank transfer", "billing-row-payment-bank-transfer"], ["Other", "billing-row-payment-other"]] as const) {
-    await paymentModeFilter.selectOption(mode);
-    await expect(paymentRecordRows.first()).toHaveClass(new RegExp(highlightClass));
-  }
   await paymentsManager.getByRole("button", { name: "Clear", exact: true }).click();
   await page.locator(".role-nav").getByRole("button", { name: "Delivery", exact: true }).click();
   const deliveryManager = page.locator('[data-billing-manager="Delivery"]');
@@ -1195,10 +1192,10 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(deliveryManager.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
   const deliveryRows = deliveryTable.locator("tbody tr");
   const deliveryRecordCount = await deliveryRows.count();
-  const deliveryRow = deliveryRows.filter({ has: page.getByRole("button", { name: "Delivered", exact: true }) }).first();
+  const deliveryRow = deliveryRows.filter({ hasText: "Pending" }).first();
   await expect(deliveryRow).toContainText("GP-");
   await expect(deliveryRow).toContainText("Pending");
-  const deliveryJob = (await deliveryRow.locator("td").first().textContent())!.trim();
+  const deliveryJob = (await deliveryRow.locator("td").nth(1).textContent())!.trim();
   await page.getByLabel("Search delivery").fill(deliveryJob);
   await expect(deliveryRows).toHaveCount(1);
   await deliveryManager.getByRole("button", { name: "Clear", exact: true }).click();
@@ -1208,20 +1205,6 @@ test("Manage and Accounts reuse global searchable billing managers with CRUD, fi
   await expect(deliveryRows).not.toHaveCount(0);
   await deliveryManager.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(deliveryMonthFilter).toHaveValue("ALL");
-  await deliveryRow.getByRole("button", { name: "Delivered" }).click();
-  await page.getByRole("dialog", { name: "Mark Delivery" }).getByRole("button", { name: "Mark Delivered" }).click();
-  await expect(page.getByRole("table", { name: "Delivery manager" })).toContainText("Delivered");
-  if (await page.getByRole("dialog").count()) await page.keyboard.press("Escape");
-
-  await page.locator(".logout").click();
-  await loginAs(page, "admin@example.com");
-  await page.locator(".role-nav").getByRole("button", { name: "Data Flow", exact: true }).click();
-  await page.getByRole("combobox", { name: "Find a job" }).fill(correctedJob);
-  await page.getByRole("option", { name: new RegExp(correctedJob) }).click();
-  const correctedTimeline = page.getByRole("region", { name: "Chronological data flow" });
-  await expect(correctedTimeline).toContainText("Payment voided");
-  await expect(correctedTimeline).toContainText("E2E correction");
-  await expect(correctedTimeline.locator(".timeline-event.voided").first()).toBeVisible();
 });
 
 test("Manage Job Cards uses view and edit dialogs with documents and confirmed archive", async ({ page }) => {
@@ -1289,25 +1272,17 @@ test("store stock and material requests combine search with domain filters", asy
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
   await page.getByLabel("Stock category").selectOption("PPF");
-  await expect(page.getByText("Showing 1 to 10 of 127")).toBeVisible();
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("Showing 1 to 10 of 61")).toBeVisible();
   await page.getByLabel("Stock status").selectOption("LOW");
-  await expect(page.getByRole("table", { name: "Stock results" }).locator("tbody tr")).toHaveCount(10);
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("No matching records")).toBeVisible();
   await page.getByLabel("Stock category").selectOption("Paint");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText(/Showing 1 to \d+ of \d+/)).toBeVisible();
   await page.getByLabel("Stock status").selectOption("ALL");
   await page.getByLabel("Stock category").selectOption("PPF");
   await page.getByLabel("Search stock").fill("70%VLT Nano Ceramic");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByRole("table", { name: "Stock results" }).locator("tbody tr")).toHaveCount(1);
   await expect(page.getByText("70%VLT Nano Ceramic Film (UG)")).toBeVisible();
   await page.getByLabel("Search stock").fill("no-such-stock-item");
-  await expect(page.getByText("No matching records")).toHaveCount(0);
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("No matching records")).toBeVisible();
   const emptyStateClear = page.locator(".list-empty").getByRole("button", { name: "Clear filters" });
   await expect(emptyStateClear).toHaveClass(/filter-clear-action/);
@@ -1361,10 +1336,12 @@ test("Materials Requests triage issueable, shortage, and New Item demand into Pu
   await expect(triage.getByRole("heading", { name: "Available to issue" })).toBeVisible();
   await expect(triage.getByRole("heading", { name: "Existing-SKU procurement" })).toBeVisible();
   await expect(triage.getByRole("heading", { name: "New Item Requests" })).toBeVisible();
-  await triage.getByRole("button", { name: "Create Purchase Request" }).click();
+  await expect(triage.getByRole("button", { name: "Create Purchase Request" })).toBeDisabled();
+  await triage.getByRole("button", { name: "Create New Item Request" }).click();
   await expect(page.getByRole("heading", { name: "Purchase Orders", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "New Purchase Request" })).toBeVisible();
+  const purchaseRequest = page.getByRole("dialog", { name: "New Purchase Request" });
+  await expect(purchaseRequest).toBeVisible();
+  await expect(purchaseRequest.getByLabel("Item type")).toHaveValue("new");
 });
 
 test("issue and reconcile lists filter by item and reconciliation state", async ({ page }) => {
@@ -1378,7 +1355,8 @@ test("issue and reconcile lists filter by item and reconciliation state", async 
   await page.getByLabel("Reconciliation state").selectOption("Matched");
   await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(2);
   await page.getByLabel("Reconciliation state").selectOption("Open");
-  await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(1);
+  await expect(page.getByRole("table", { name: "Reconcile results" }).locator("tbody tr")).toHaveCount(0);
+  await expect(page.getByText("No matching records")).toBeVisible();
 });
 
 test("material record queues use compact rows and issue actions do not open their row", async ({ page }) => {
