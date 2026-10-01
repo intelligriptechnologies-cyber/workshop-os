@@ -95,6 +95,14 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    op.execute("""
+        DO $$ BEGIN
+            IF EXISTS (SELECT 1 FROM financial_documents WHERE document_type = 'CREDIT_NOTE')
+               OR EXISTS (SELECT 1 FROM financial_document_events WHERE event_type = 'CREDITED') THEN
+                RAISE EXCEPTION 'cannot downgrade finance corrections after issued credit records exist';
+            END IF;
+        END $$;
+    """)
     op.execute("DROP TABLE IF EXISTS refunds, credit_notes, active_invoice_claims CASCADE")
     op.execute("DROP FUNCTION IF EXISTS immutable_finance_correction")
     op.execute("ALTER TABLE invoice_lines ALTER COLUMN quantity TYPE integer USING quantity::integer")
