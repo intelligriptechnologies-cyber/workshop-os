@@ -3636,6 +3636,27 @@ export interface PurchaseRequestInput {
   lines: PurchaseRequestLineInput[];
 }
 
+export interface NewItemSkuInput {
+  sku: string;
+  category: string;
+  name: string;
+  unit: string;
+  low_stock_qty: number;
+  selling_price: number;
+}
+
+export interface PurchaseRequestApprovalLineInput {
+  purchase_order_line_id: number;
+  supplier_id: number;
+  unit_cost: number;
+  /** Required when approving a New Item Request that has no SKU yet. */
+  inventory_item?: NewItemSkuInput;
+}
+
+export interface PurchaseRequestApprovalInput {
+  lines: PurchaseRequestApprovalLineInput[];
+}
+
 export interface PurchaseOrderQuotationInput {
   purchase_order_line_id: number;
   supplier_name: string;
@@ -3864,6 +3885,106 @@ export function cancelPurchaseRequestForActor(
     "update purchase_orders set status='Cancelled',updated_at=datetime('now') where id=?",
     [id],
   );
+}
+
+/**
+ * Admin's commercial approval boundary. A request may contain lines sourced by
+ * different suppliers, so it becomes one approved PO per supplier. The first
+ * supplier group keeps the permanent request number; subsequent groups receive
+ * their own permanent PO number and retain a source link to the request.
+ */
+export function approvePurchaseRequestForActor(
+  db: Database,
+  purchaseOrderId: number,
+  actorId: number,
+  input: PurchaseRequestApprovalInput,
+) {
+  assertPurchaseActor(db, actorId, true);
+  const order = one<PurchaseOrder>(
+    db,
+    "select * from purchase_orders where id=?",
+    [purchaseOrderId],
+  );
+  if (order.status !== "PO Request")
+    throw new Error("Only Purchase Requests under review can be approved.");
+  const requestLines = all<PurchaseOrderLine>(
+    db,
+    "select * from purchase_order_lines where purchase_order_id=? order by id",
+    [purchaseOrderId],
+  );
+  if (!input.lines?.length || input.lines.length !== requestLines.length)
+    throw new Error("Approval needs a supplier and pre-GST price for every requested line.");
+  const byId = new Map(input.lines.map((line) => [line.purchase_order_line_id, line]));
+  if (byId.size !== requestLines.length || requestLines.some((line) => !byId.has(line.id)))
+    throw new Error("Approval must cover every requested line exactly once.");
+  const suppliedSkus = new Set<string>();
+  for (const requestLine of requestLines) {
+    const line = byId.get(requestLine.id)!;
+    const supplier = maybe<Supplier>(db, "select * from suppliers where id=?", [line.supplier_id]);
+    if (!supplier || supplier.status !== "Active")
+      throw new Error("Select an active supplier for every requested line.");
+    if (!Number.isFinite(line.unit_cost) || line.unit_cost <= 0)
+      throw new Error("Enter a pre-GST unit price greater than zero for every requested line.");
+    if (requestLine.item_id !== 0) continue;
+    const item = line.inventory_item;
+    if (!item || !item.sku.trim() || !item.category.trim() || !item.name.trim() || !item.unit.trim())
+      throw new Error(`Complete SKU, category, name, and unit for New Item Request \"${requestLine.item_name}\".`);
+    if (!Number.isFinite(item.low_stock_qty) || item.low_stock_qty < 0 || !Number.isFinite(item.selling_price) || item.selling_price < 0)
+      throw new Error("New Item SKU stock threshold and selling price cannot be negative.");
+    const sku = item.sku.trim().toUpperCase();
+    if (suppliedSkus.has(sku) || maybe<InventoryItem>(db, "select * from inventory where upper(sku)=?", [sku]))
+      throw new Error(`SKU ${sku} already exists in inventory.`);
+    suppliedSkus.add(sku);
+  }
+
+  db.run("begin immediate transaction");
+  try {
+    const resolved = requestLines.map((requestLine) => {
+      const approval = byId.get(requestLine.id)!;
+      let itemId = requestLine.item_id;
+      if (itemId === 0) {
+        const item = approval.inventory_item!;
+        itemId = createInventoryItem(db, {
+          sku: item.sku.trim().toUpperCase(), category: item.category.trim(), name: item.name.trim(),
+          unit: item.unit.trim(), stock_qty: 0, low_stock_qty: item.low_stock_qty, selling_price: item.selling_price,
+        });
+      }
+      return { requestLine, approval, itemId };
+    });
+    const groups = new Map<number, typeof resolved>();
+    for (const entry of resolved) {
+      const group = groups.get(entry.approval.supplier_id) ?? [];
+      group.push(entry);
+      groups.set(entry.approval.supplier_id, group);
+    }
+    const supplierGroups = [...groups.values()].sort((left, right) => left[0].requestLine.id - right[0].requestLine.id);
+    const writeLine = (targetOrderId: number, entry: typeof resolved[number], sourceLineId: number | null) => {
+      const values = totalsForPurchaseLine({ item_id: entry.itemId, received_qty: entry.requestLine.ordered_qty, unit_cost: entry.approval.unit_cost, discount: 0, gst_rate: 0 });
+      if (sourceLineId === null) {
+        db.run("update purchase_order_lines set item_id=?,unit_cost=?,discount=0,gst_rate=0,subtotal=?,gst_amount=?,total=? where id=?", [entry.itemId, values.unitCost, values.subtotal, values.gstAmount, values.total, entry.requestLine.id]);
+      } else {
+        insert(db, "insert into purchase_order_lines(purchase_order_id,item_id,item_name,unit,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total,source_purchase_order_line_id) values(?,?,?,?,?,?,?,?,?,?,?,?)", [targetOrderId, entry.itemId, entry.requestLine.item_name, entry.requestLine.unit, entry.requestLine.ordered_qty, values.unitCost, 0, 0, values.subtotal, values.gstAmount, values.total, sourceLineId]);
+      }
+      return values.total;
+    };
+    const firstGroup = supplierGroups[0];
+    const retained = new Set(firstGroup.map((entry) => entry.requestLine.id));
+    db.run(`delete from purchase_order_lines where purchase_order_id=? and id not in (${[...retained].map(() => "?").join(",")})`, [purchaseOrderId, ...retained]);
+    const firstTotal = firstGroup.reduce((total, entry) => total + writeLine(purchaseOrderId, entry, null), 0);
+    db.run("update purchase_orders set supplier_id=?,status='PO Request Approved',subtotal=?,discount_total=0,gst_total=0,total=?,updated_at=datetime('now') where id=?", [firstGroup[0].approval.supplier_id, firstTotal, firstTotal, purchaseOrderId]);
+    const approvedIds = [purchaseOrderId];
+    for (const group of supplierGroups.slice(1)) {
+      const childId = insert(db, "insert into purchase_orders(supplier_id,po_number,order_date,notes,status,subtotal,discount_total,gst_total,total,created_by,created_at,updated_at,source_purchase_order_id) values(?,?,?,?,'PO Request Approved',0,0,0,0,?,datetime('now'),datetime('now'),?)", [group[0].approval.supplier_id, nextPurchaseRequestNumber(db), order.order_date, `Split from ${order.po_number}${order.notes ? ` · ${order.notes}` : ""}`, order.created_by, purchaseOrderId]);
+      const childTotal = group.reduce((total, entry) => total + writeLine(childId, entry, entry.requestLine.id), 0);
+      db.run("update purchase_orders set subtotal=?,total=? where id=?", [childTotal, childTotal, childId]);
+      approvedIds.push(childId);
+    }
+    db.run("commit");
+    return approvedIds;
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
 }
 
 function assertPurchaseOrderLine(db: Database, line: PurchaseOrderLineInput) {
@@ -6598,9 +6719,9 @@ export function createSchema(db: Database) {
     create table if not exists inward_purchase_revisions(id integer primary key, purchase_id integer not null, revision_no integer not null, reason text not null, revised_by integer not null, revised_at text not null, unique(purchase_id, revision_no));
     create table if not exists inward_purchase_revision_lines(id integer primary key, revision_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
     create table if not exists inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null);
-    create table if not exists purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null);
+    create table if not exists purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null, source_purchase_order_id integer);
     create unique index if not exists purchase_orders_number_unique on purchase_orders(po_number);
-    create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, item_name text not null default '', unit text not null default '', ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, item_name text not null default '', unit text not null default '', ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null, subtotal real not null, gst_amount real not null, total real not null, source_purchase_order_line_id integer);
     create table if not exists purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null);
     create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
@@ -6686,6 +6807,8 @@ export function migrateSchema(db: Database) {
   );
   ensureColumn(db, "purchase_order_lines", "item_name", "text not null default ''");
   ensureColumn(db, "purchase_order_lines", "unit", "text not null default ''");
+  ensureColumn(db, "purchase_orders", "source_purchase_order_id", "integer");
+  ensureColumn(db, "purchase_order_lines", "source_purchase_order_line_id", "integer");
   db.run(
     "create table if not exists purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null)",
   );

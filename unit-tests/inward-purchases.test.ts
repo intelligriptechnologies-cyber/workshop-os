@@ -7,6 +7,7 @@ import {
   createPurchaseRequestForActor,
   cancelPurchaseRequestForActor,
   approveInwardPurchaseForActor,
+  approvePurchaseRequestForActor,
   createPurchaseOrderForActor,
   createSchema,
   createSupplierForActor,
@@ -127,6 +128,40 @@ test("Admin can optionally save a manual quotation only for a requested PO line"
   assert.throws(() => savePurchaseOrderQuotationForActor(db, request, 1, { purchase_order_line_id: 999, supplier_name: "Wrong line", quoted_qty: 1, unit_cost: 20 }), /line from this Purchase Request/);
   db.run("update purchase_orders set status='Draft' where id=?", [request]);
   assert.throws(() => savePurchaseOrderQuotationForActor(db, request, 1, { purchase_order_line_id: Number(lines[0][0]), supplier_name: "Late quote", quoted_qty: 1, unit_cost: 20 }), /while a Purchase Request is under review/);
+});
+
+test("only Admin can commercially approve a request, enriching new items at zero stock and splitting suppliers", async () => {
+  const db = await database();
+  const firstSupplier = createSupplierForActor(db, 1, { name: "Primary supplier" });
+  const secondSupplier = createSupplierForActor(db, 1, { name: "Specialist supplier" });
+  const request = createPurchaseRequestForActor(db, 2, {
+    order_date: "2026-10-01",
+    lines: [{ item_id: 1, ordered_qty: 3 }, { item_name: "Ceramic coating", unit: "bottle", ordered_qty: 2 }],
+  });
+  const lines = db.exec("select id from purchase_order_lines where purchase_order_id=? order by id", [request])[0].values;
+  const approval = {
+    lines: [
+      { purchase_order_line_id: Number(lines[0][0]), supplier_id: firstSupplier, unit_cost: 110 },
+      { purchase_order_line_id: Number(lines[1][0]), supplier_id: secondSupplier, unit_cost: 500, inventory_item: { sku: "COAT-01", category: "Detailing", name: "Ceramic coating", unit: "bottle", low_stock_qty: 1, selling_price: 750 } },
+    ],
+  };
+  assert.throws(() => approvePurchaseRequestForActor(db, request, 2, approval), /Only Admin/);
+  assert.throws(() => approvePurchaseRequestForActor(db, request, 1, { lines: [approval.lines[0]] }), /every requested line/);
+  const approved = approvePurchaseRequestForActor(db, request, 1, approval);
+  assert.equal(approved.length, 2);
+  assert.deepEqual(
+    db.exec("select po_number,supplier_id,status,source_purchase_order_id from purchase_orders order by id")[0].values,
+    [["PO-WOS-A-00001", firstSupplier, "PO Request Approved", null], ["PO-WOS-A-00002", secondSupplier, "PO Request Approved", request]],
+  );
+  assert.deepEqual(
+    db.exec("select sku,stock_qty from inventory where sku='COAT-01'")[0].values,
+    [["COAT-01", 0]],
+  );
+  assert.deepEqual(
+    db.exec("select item_id,unit_cost from purchase_order_lines where purchase_order_id=?", [request])[0].values,
+    [[1, 110]],
+  );
+  assert.throws(() => approvePurchaseRequestForActor(db, request, 1, approval), /Only Purchase Requests/);
 });
 
 test("migration preserves legacy submitted receipts as read-only received history", async () => {

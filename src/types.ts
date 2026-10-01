@@ -516,6 +516,7 @@ export interface InwardPurchaseRevision {
 
 export type PurchaseOrderStatus =
   | "PO Request"
+  | "PO Request Approved"
   | "Draft"
   | "Sent"
   | "Partially Received"
@@ -538,6 +539,8 @@ export interface PurchaseOrder {
   created_by: number;
   created_at: string;
   updated_at: string;
+  /** Child orders created when Admin splits a Purchase Request by supplier. */
+  source_purchase_order_id?: number | null;
 }
 
 export interface PurchaseOrderLine {
@@ -554,6 +557,8 @@ export interface PurchaseOrderLine {
   subtotal: number;
   gst_amount: number;
   total: number;
+  /** The requested line copied into a supplier-specific child Purchase Order. */
+  source_purchase_order_line_id?: number | null;
 }
 
 /** A manually captured supplier quote used only during Admin price review. */
