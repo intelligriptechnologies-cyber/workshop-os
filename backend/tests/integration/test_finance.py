@@ -11,7 +11,7 @@ def _reset_database() -> None:
     from app.database import get_engine
     with get_engine().begin() as connection:
         for table in (
-            "financial_document_events", "delivery_acknowledgements", "payments", "invoice_lines", "invoices", "financial_documents", "document_sequences",
+            "refunds", "credit_notes", "financial_document_events", "delivery_acknowledgements", "payments", "invoice_lines", "active_invoice_claims", "invoices", "financial_documents", "document_sequences",
             "qc_results", "evidence_attachments", "work_updates", "technician_tasks", "qc_checks", "stock_ledger", "material_ledger", "material_reservations",
             "stock_inwards", "purchase_order_lines", "purchase_orders", "suppliers", "catalogue_items", "job_events", "estimate_decisions", "estimate_lines", "estimates", "job_cards",
             "tenant_audit_events", "visits", "vehicles", "customers", "support_emulations", "tenant_admin_invitations", "platform_billing", "branch_settings", "tenant_settings",
@@ -60,11 +60,11 @@ def test_issued_invoice_payment_receipt_void_and_handover_are_scoped_and_immutab
         _activate_owner(str(south["id"]), "south-finance-user")
         headers = {"x-workshopos-identity": "north-finance-user"}
         job_id = _approved_job(client, headers)
-        invoice = client.post(f"/api/v1/jobs/{job_id}/invoices", headers={**headers, "Idempotency-Key": "issue-1"}, json={"lines": [{"description": "Annual service", "quantity": 1, "unitAmountPaise": 100000, "gstRateBps": 1800}], "customerState": "Karnataka"})
+        invoice = client.post(f"/api/v1/jobs/{job_id}/invoices", headers={**headers, "Idempotency-Key": "issue-1"}, json={"customerState": "Karnataka"})
         assert invoice.status_code == 201, invoice.text
         invoice = invoice.json()
         assert invoice["totalPaise"] == 118000 and invoice["status"] == "UNPAID"
-        assert client.post(f"/api/v1/jobs/{job_id}/invoices", headers={**headers, "Idempotency-Key": "issue-1"}, json={"lines": [{"description": "ignored", "quantity": 1, "unitAmountPaise": 1}]}).json()["id"] == invoice["id"]
+        assert client.post(f"/api/v1/jobs/{job_id}/invoices", headers={**headers, "Idempotency-Key": "issue-1"}, json={}).json()["id"] == invoice["id"]
         assert client.get(f"/api/v1/jobs/{job_id}/invoices", headers={"x-workshopos-identity": "south-finance-user"}).json() == []
         partial = client.post(f"/api/v1/invoices/{invoice['id']}/payments", headers={**headers, "Idempotency-Key": "pay-1"}, json={"amountPaise": 18000, "method": "upi", "reference": "UPI-1"})
         assert partial.status_code == 201, partial.text
@@ -81,6 +81,9 @@ def test_issued_invoice_payment_receipt_void_and_handover_are_scoped_and_immutab
         assert handover.status_code == 200, handover.text
         content = client.get(handover.json()["contentPath"], headers=headers)
         assert content.status_code == 200 and b"GATE_PASS" in content.content
+        assert content.headers["content-disposition"].startswith("attachment;")
+        assert content.headers["x-content-type-options"] == "nosniff"
+        assert "sandbox" in content.headers["content-security-policy"]
         with get_engine().begin() as connection:
             with pytest.raises(Exception):
                 connection.execute(text("UPDATE financial_documents SET document_no='forged' WHERE id=:id"), {"id": invoice["documentId"]})
@@ -95,7 +98,33 @@ def test_pre_payment_void_keeps_number_and_allows_numbered_replacement() -> None
         _activate_owner(str(north["id"]), "void-finance-user")
         headers = {"x-workshopos-identity": "void-finance-user"}
         job_id = _approved_job(client, headers)
-        first = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"lines": [{"description": "Old", "quantity": 1, "unitAmountPaise": 10000}]}).json()
+        first = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={}).json()
         assert client.post(f"/api/v1/invoices/{first['id']}/void", headers=headers, json={"reason": "typo"}).json()["status"] == "VOID"
-        replacement = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"replacesInvoiceId": first["id"], "lines": [{"description": "Correct", "quantity": 1, "unitAmountPaise": 20000}]}).json()
+        replacement = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"replacesInvoiceId": first["id"]}).json()
         assert replacement["number"] != first["number"]
+
+
+@pytest.mark.integration
+def test_invoice_uses_approved_snapshot_and_paid_correction_is_credit_note_then_refund() -> None:
+    _reset_database()
+    from app.main import app
+    with TestClient(app) as client:
+        north = _provision(client, "credited-finance")
+        _activate_owner(str(north["id"]), "credited-finance-user")
+        headers = {"x-workshopos-identity": "credited-finance-user"}
+        job_id = _approved_job(client, headers)
+        issued = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={
+            "lines": [{"description": "caller cannot bill this", "quantity": 1, "unitAmountPaise": 1}],
+        })
+        assert issued.status_code == 201, issued.text
+        invoice = issued.json()
+        assert invoice["lines"][0]["description"] == "Service"
+        assert invoice["totalPaise"] == 118000
+        assert client.post(f"/api/v1/invoices/{invoice['id']}/payments", headers=headers, json={"amountPaise": invoice["totalPaise"], "method": "upi"}).status_code == 201
+        credit = client.post(f"/api/v1/invoices/{invoice['id']}/credit-notes", headers=headers, json={"amountPaise": invoice["totalPaise"], "reason": "Customer correction"})
+        assert credit.status_code == 201, credit.text
+        refund = client.post(f"/api/v1/credit-notes/{credit.json()['id']}/refunds", headers=headers, json={"amountPaise": invoice["totalPaise"], "method": "upi", "reference": "REV-1"})
+        assert refund.status_code == 201, refund.text
+        replacement = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"replacesInvoiceId": invoice["id"]})
+        assert replacement.status_code == 201, replacement.text
+        assert replacement.json()["number"] != invoice["number"]

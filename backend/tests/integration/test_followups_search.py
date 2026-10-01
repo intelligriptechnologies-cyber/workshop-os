@@ -11,7 +11,7 @@ def _reset_database() -> None:
     from app.database import get_engine
     with get_engine().begin() as connection:
         for table in (
-            "followups", "financial_document_events", "delivery_acknowledgements", "payments", "invoice_lines", "invoices", "financial_documents", "document_sequences",
+            "followups", "refunds", "credit_notes", "financial_document_events", "delivery_acknowledgements", "payments", "invoice_lines", "active_invoice_claims", "invoices", "financial_documents", "document_sequences",
             "qc_results", "evidence_attachments", "work_updates", "technician_tasks", "qc_checks", "stock_ledger", "material_ledger", "material_reservations",
             "stock_inwards", "purchase_order_lines", "purchase_orders", "suppliers", "catalogue_items", "job_events", "estimate_decisions", "estimate_lines", "estimates", "job_cards",
             "tenant_audit_events", "visits", "vehicles", "customers", "support_emulations", "tenant_admin_invitations", "platform_billing", "branch_settings", "tenant_settings",
@@ -47,7 +47,7 @@ def _job_and_invoice(client: TestClient, headers: dict[str, str]) -> int:
     estimate = client.post(f"/api/v1/jobs/{job['id']}/estimates", headers=headers, json={"lines": [{"kind": "labour", "description": "Service", "quantity": 1, "rate": 1000, "gstRate": 18}]}).json()
     approved = client.post(f"/api/v1/estimates/{estimate['id']}/decision", headers=headers, json={"outcome": "approved", "channel": "in_person", "decidedAt": datetime.now(timezone.utc).isoformat()})
     assert approved.status_code == 200, approved.text
-    invoice = client.post(f"/api/v1/jobs/{job['id']}/invoices", headers=headers, json={"lines": [{"description": "Annual service", "quantity": 1, "unitAmountPaise": 100000}]})
+    invoice = client.post(f"/api/v1/jobs/{job['id']}/invoices", headers=headers, json={})
     assert invoice.status_code == 201, invoice.text
     return int(job["id"])
 
