@@ -3746,12 +3746,9 @@ export interface PurchaseOrderInput {
 }
 
 /** Store-facing input before an Admin has assigned a supplier or prices. */
-export interface PurchaseRequestLineInput {
-  item_id?: number;
-  item_name?: string;
-  unit?: string;
-  ordered_qty: number;
-}
+export type PurchaseRequestLineInput =
+  | { item_id: number; ordered_qty: number }
+  | { item_name: string; unit: string; ordered_qty: number };
 
 export interface PurchaseRequestInput {
   order_date: string;
@@ -3759,7 +3756,7 @@ export interface PurchaseRequestInput {
   lines: PurchaseRequestLineInput[];
 }
 
-function purchaseRequestNumberForOrdinal(ordinal: number) {
+export function purchaseRequestNumberForOrdinal(ordinal: number) {
   let value = Math.floor(ordinal / 99_999) + 1;
   let letters = "";
   while (value > 0) {
@@ -3770,7 +3767,7 @@ function purchaseRequestNumberForOrdinal(ordinal: number) {
   return `PO-WOS-${letters}-${String((ordinal % 99_999) + 1).padStart(5, "0")}`;
 }
 
-function purchaseRequestOrdinal(poNumber: string) {
+export function purchaseRequestOrdinal(poNumber: string) {
   const match = /^PO-WOS-([A-Z]+)-(\d{5})$/.exec(poNumber);
   if (!match) return -1;
   const letters = [...match[1]].reduce(
@@ -3781,12 +3778,23 @@ function purchaseRequestOrdinal(poNumber: string) {
   return (letters - 1) * 99_999 + serial - 1;
 }
 
-function nextPurchaseRequestNumber(db: Database) {
-  const latest = all<{ po_number: string }>(
-    db,
-    "select po_number from purchase_orders where po_number like 'PO-WOS-%'",
-  ).reduce((max, order) => Math.max(max, purchaseRequestOrdinal(order.po_number)), -1);
+export function nextPurchaseRequestNumberForOrders(
+  orders: readonly Pick<PurchaseOrder, "po_number">[],
+) {
+  const latest = orders.reduce(
+    (max, order) => Math.max(max, purchaseRequestOrdinal(order.po_number)),
+    -1,
+  );
   return purchaseRequestNumberForOrdinal(latest + 1);
+}
+
+function nextPurchaseRequestNumber(db: Database) {
+  return nextPurchaseRequestNumberForOrders(
+    all<Pick<PurchaseOrder, "po_number">>(
+      db,
+      "select po_number from purchase_orders where po_number like 'PO-WOS-%'",
+    ),
+  );
 }
 
 function assertPurchaseRequestInput(db: Database, input: PurchaseRequestInput) {
@@ -3797,9 +3805,11 @@ function assertPurchaseRequestInput(db: Database, input: PurchaseRequestInput) {
   for (const line of input.lines) {
     if (!Number.isFinite(line.ordered_qty) || line.ordered_qty <= 0)
       throw new Error("Requested quantity must be greater than zero.");
-    if (line.item_id && line.item_id > 0) {
+    if ("item_id" in line) {
+      if (!Number.isInteger(line.item_id) || line.item_id <= 0)
+        throw new Error("An existing inventory SKU is required.");
       one<InventoryItem>(db, "select * from inventory where id=?", [line.item_id]);
-    } else if (!line.item_name?.trim()) {
+    } else if (!line.item_name.trim() || !line.unit.trim()) {
       throw new Error("A new item request needs an item name.");
     }
   }
@@ -3819,9 +3829,9 @@ function replacePurchaseRequestLines(
       "insert into purchase_order_lines(purchase_order_id,item_id,item_name,unit,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,0,0,0,0,0,0)",
       [
         purchaseOrderId,
-        line.item_id && line.item_id > 0 ? line.item_id : 0,
-        line.item_name?.trim() ?? "",
-        line.unit?.trim() ?? "",
+        "item_id" in line ? line.item_id : 0,
+        "item_name" in line ? line.item_name.trim() : "",
+        "unit" in line ? line.unit.trim() : "",
         line.ordered_qty,
       ],
     );
@@ -3830,6 +3840,23 @@ function replacePurchaseRequestLines(
     "update purchase_orders set subtotal=0,discount_total=0,gst_total=0,total=0,updated_at=datetime('now') where id=?",
     [purchaseOrderId],
   );
+}
+
+function assertMutablePurchaseRequestAccess(
+  db: Database,
+  id: number,
+  actorId: number,
+) {
+  const actor = assertPurchaseActor(db, actorId);
+  const order = one<PurchaseOrder>(
+    db,
+    "select * from purchase_orders where id=?",
+    [id],
+  );
+  if (order.status !== "PO Request")
+    throw new Error("Only unreviewed Purchase Requests can be changed.");
+  if (actor.role !== "store" || order.created_by !== actor.id)
+    throw new Error("Only the requesting Store user can change this Purchase Request.");
 }
 
 /** Creates a Store Purchase Request. Supplier and pricing are intentionally absent. */
@@ -3863,13 +3890,8 @@ export function updatePurchaseRequestForActor(
   actorId: number,
   input: PurchaseRequestInput,
 ) {
-  const actor = assertPurchaseActor(db, actorId);
+  assertMutablePurchaseRequestAccess(db, id, actorId);
   assertPurchaseRequestInput(db, input);
-  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [id]);
-  if (order.status !== "PO Request")
-    throw new Error("Only unreviewed Purchase Requests can be edited.");
-  if (actor.role !== "admin" && order.created_by !== actor.id)
-    throw new Error("Only the requesting Store user or Admin can edit this Purchase Request.");
   db.run("begin immediate transaction");
   try {
     db.run(
@@ -3889,12 +3911,7 @@ export function cancelPurchaseRequestForActor(
   id: number,
   actorId: number,
 ) {
-  const actor = assertPurchaseActor(db, actorId);
-  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [id]);
-  if (order.status !== "PO Request")
-    throw new Error("Only unreviewed Purchase Requests can be cancelled.");
-  if (actor.role !== "admin" && order.created_by !== actor.id)
-    throw new Error("Only the requesting Store user or Admin can cancel this Purchase Request.");
+  assertMutablePurchaseRequestAccess(db, id, actorId);
   db.run(
     "update purchase_orders set status='Cancelled',updated_at=datetime('now') where id=?",
     [id],
@@ -3962,7 +3979,7 @@ export function createPurchaseOrderForActor(
   actorId: number,
   input: PurchaseOrderInput,
 ) {
-  assertPurchaseActor(db, actorId);
+  assertPurchaseActor(db, actorId, true);
   assertPurchaseOrderInput(db, input);
   const id = insert(
     db,
@@ -3984,7 +4001,7 @@ export function updatePurchaseOrderForActor(
   actorId: number,
   input: PurchaseOrderInput,
 ) {
-  assertPurchaseActor(db, actorId);
+  assertPurchaseActor(db, actorId, true);
   assertPurchaseOrderInput(db, input);
   const order = one<PurchaseOrder>(
     db,
@@ -4011,7 +4028,7 @@ export function setPurchaseOrderStatusForActor(
   actorId: number,
   action: "send" | "cancel" | "close",
 ) {
-  assertPurchaseActor(db, actorId);
+  assertPurchaseActor(db, actorId, true);
   const order = one<PurchaseOrder>(
     db,
     "select * from purchase_orders where id=?",

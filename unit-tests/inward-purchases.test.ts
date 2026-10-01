@@ -64,18 +64,34 @@ test("Store creates editable Purchase Requests with permanent auto-generated PO 
   );
   assert.throws(
     () => updatePurchaseRequestForActor(db, second, 4, { order_date: "2026-10-03", lines: [{ item_id: 1, ordered_qty: 1 }] }),
-    /Only the requesting Store user or Admin can edit this Purchase Request/,
+    /Only the requesting Store user can change this Purchase Request/,
   );
   cancelPurchaseRequestForActor(db, first, 2);
   assert.equal(db.exec("select status from purchase_orders where id=?", [first])[0].values[0][0], "Cancelled");
   assert.throws(
     () => updatePurchaseRequestForActor(db, first, 2, { order_date: "2026-10-03", lines: [{ item_id: 1, ordered_qty: 1 }] }),
-    /Only unreviewed Purchase Requests can be edited/,
+    /Only unreviewed Purchase Requests can be changed/,
+  );
+  assert.throws(
+    () => updatePurchaseRequestForActor(db, second, 1, { order_date: "2026-10-03", lines: [{ item_id: 1, ordered_qty: 1 }] }),
+    /Only the requesting Store user can change this Purchase Request/,
   );
 });
 
-test("PO request numbering rolls over from Z to AA and never reuses a cancelled number", async () => {
+test("Store cannot bypass Purchase Requests with a supplier-priced PO or later-stage command", async () => {
   const db = await database();
+  const supplier = createSupplierForActor(db, 1, { name: "Admin-only PO supplier" });
+  const input = { supplier_id: supplier, po_number: "PO-ADMIN-ONLY", order_date: "2026-10-01", lines: [{ item_id: 1, ordered_qty: 1, unit_cost: 100 }] };
+  assert.throws(() => createPurchaseOrderForActor(db, 2, input), /Only Admin/);
+  const order = createPurchaseOrderForActor(db, 1, input);
+  assert.throws(() => setPurchaseOrderStatusForActor(db, order, 2, "send"), /Only Admin/);
+});
+
+test("PO request numbering rolls over after 99,999 and never reuses a cancelled number", async () => {
+  const db = await database();
+  db.run("insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(0,'PO-WOS-A-99999','2026-10-01','','Cancelled',2,datetime('now'),datetime('now'))");
+  const rollover = createPurchaseRequestForActor(db, 2, { order_date: "2026-10-01", lines: [{ item_id: 1, ordered_qty: 1 }] });
+  assert.equal(db.exec("select po_number from purchase_orders where id=?", [rollover])[0].values[0][0], "PO-WOS-B-00001");
   db.run("insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(0,'PO-WOS-Z-99999','2026-10-01','','Cancelled',2,datetime('now'),datetime('now'))");
   const request = createPurchaseRequestForActor(db, 2, { order_date: "2026-10-01", lines: [{ item_id: 1, ordered_qty: 1 }] });
   assert.equal(db.exec("select po_number from purchase_orders where id=?", [request])[0].values[0][0], "PO-WOS-AA-00001");
@@ -130,8 +146,8 @@ test("an Admin revision retains the original receipt and applies only the quanti
 test("purchase orders reconcile linked stock inwards without creating a second receipt movement", async () => {
   const db = await database();
   const supplier = createSupplierForActor(db, 1, { name: "Acme Supplies" });
-  const po = createPurchaseOrderForActor(db, 2, { supplier_id: supplier, po_number: "PO-100", order_date: "2026-09-28", lines: [{ item_id: 1, ordered_qty: 5, unit_cost: 100, discount: 0, gst_rate: 18 }] });
-  setPurchaseOrderStatusForActor(db, po, 2, "send");
+  const po = createPurchaseOrderForActor(db, 1, { supplier_id: supplier, po_number: "PO-100", order_date: "2026-09-28", lines: [{ item_id: 1, ordered_qty: 5, unit_cost: 100, discount: 0, gst_rate: 18 }] });
+  setPurchaseOrderStatusForActor(db, po, 1, "send");
   const lineId = Number(db.exec("select id from purchase_order_lines where purchase_order_id=1")[0].values[0][0]);
   recordStockInwardForActor(db, 2, { item_id: 1, qty: 3, purchase_order_line_id: lineId });
   assert.equal(materialStockOnHand(db, 1), 13);
@@ -148,13 +164,13 @@ test("PO links reject mismatches and terminal orders while manual inward remains
   const db = await database();
   const supplier = createSupplierForActor(db, 1, { name: "Link Safety Supplies" });
   db.run("insert into inventory(id,sku,category,name,unit,stock_qty,low_stock_qty) values (2,'FILTER','Parts','Oil filter','piece',0,1)");
-  const po = createPurchaseOrderForActor(db, 2, { supplier_id: supplier, po_number: "PO-LINK-SAFE", order_date: "2026-09-28", lines: [{ item_id: 1, ordered_qty: 2, unit_cost: 10 }] });
+  const po = createPurchaseOrderForActor(db, 1, { supplier_id: supplier, po_number: "PO-LINK-SAFE", order_date: "2026-09-28", lines: [{ item_id: 1, ordered_qty: 2, unit_cost: 10 }] });
   const lineId = Number(db.exec("select id from purchase_order_lines where purchase_order_id=?", [po])[0].values[0][0]);
   assert.throws(() => recordStockInwardForActor(db, 2, { item_id: 1, qty: 1, purchase_order_line_id: lineId }), /open purchase order line/);
-  setPurchaseOrderStatusForActor(db, po, 2, "send");
+  setPurchaseOrderStatusForActor(db, po, 1, "send");
   assert.throws(() => recordStockInwardForActor(db, 2, { item_id: 2, qty: 1, purchase_order_line_id: lineId }), /different inventory item/);
   recordStockInwardForActor(db, 2, { item_id: 1, qty: 1, purchase_order_line_id: lineId });
-  setPurchaseOrderStatusForActor(db, po, 2, "cancel");
+  setPurchaseOrderStatusForActor(db, po, 1, "cancel");
   assert.equal(db.exec("select status from purchase_orders where id=?", [po])[0].values[0][0], "Cancelled");
   assert.throws(() => recordStockInwardForActor(db, 2, { item_id: 1, qty: 1, purchase_order_line_id: lineId }), /open purchase order line/);
   recordStockInwardForActor(db, 2, { item_id: 1, qty: 1 });
