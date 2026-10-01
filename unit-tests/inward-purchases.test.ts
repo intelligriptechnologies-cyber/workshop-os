@@ -4,6 +4,8 @@ import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
 import {
   createInwardPurchaseDraft,
+  createPurchaseRequestForActor,
+  cancelPurchaseRequestForActor,
   approveInwardPurchaseForActor,
   createPurchaseOrderForActor,
   createSchema,
@@ -17,13 +19,14 @@ import {
   setPurchaseOrderStatusForActor,
   submitInwardPurchaseForActor,
   updateInwardPurchaseDraftForActor,
+  updatePurchaseRequestForActor,
 } from "../src/db";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
   const db = new SQL.Database();
   createSchema(db);
-  db.run("insert into users(id,email,name,role,password) values (1,'owner@test','Owner','admin','x'),(2,'store@test','Store','store','x'),(3,'service@test','Service','service','x')");
+  db.run("insert into users(id,email,name,role,password) values (1,'owner@test','Owner','admin','x'),(2,'store@test','Store','store','x'),(3,'service@test','Service','service','x'),(4,'other-store@test','Other Store','store','x')");
   db.run("insert into inventory(id,sku,category,name,unit,stock_qty,low_stock_qty) values (1,'OIL','Fluids','Engine oil','litre',10,2)");
   migrateSchema(db);
   return db;
@@ -31,6 +34,52 @@ async function database() {
 
 const scan = { original_name: "supplier-invoice.pdf", mime_type: "application/pdf", byte_size: 10, document_url: "data:application/pdf;base64,AA==" };
 const line = { item_id: 1, received_qty: 5, unit_cost: 100, discount: 10, gst_rate: 18 };
+
+test("Store creates editable Purchase Requests with permanent auto-generated PO numbers", async () => {
+  const db = await database();
+  const first = createPurchaseRequestForActor(db, 2, {
+    order_date: "2026-10-01",
+    lines: [{ item_id: 1, ordered_qty: 3 }, { item_name: "Custom polishing pad", unit: "piece", ordered_qty: 4 }],
+  });
+  const second = createPurchaseRequestForActor(db, 2, {
+    order_date: "2026-10-01",
+    lines: [{ item_id: 1, ordered_qty: 1 }],
+  });
+  assert.deepEqual(
+    db.exec("select po_number,status,supplier_id from purchase_orders order by id")[0].values,
+    [["PO-WOS-A-00001", "PO Request", 0], ["PO-WOS-A-00002", "PO Request", 0]],
+  );
+  assert.deepEqual(
+    db.exec("select item_id,item_name,unit,ordered_qty from purchase_order_lines where purchase_order_id=? order by id", [first])[0].values,
+    [[1, "", "", 3], [0, "Custom polishing pad", "piece", 4]],
+  );
+  updatePurchaseRequestForActor(db, first, 2, {
+    order_date: "2026-10-02",
+    notes: "Urgent",
+    lines: [{ item_id: 1, ordered_qty: 5 }],
+  });
+  assert.deepEqual(
+    db.exec("select po_number,order_date,notes from purchase_orders where id=?", [first])[0].values,
+    [["PO-WOS-A-00001", "2026-10-02", "Urgent"]],
+  );
+  assert.throws(
+    () => updatePurchaseRequestForActor(db, second, 4, { order_date: "2026-10-03", lines: [{ item_id: 1, ordered_qty: 1 }] }),
+    /Only the requesting Store user or Admin can edit this Purchase Request/,
+  );
+  cancelPurchaseRequestForActor(db, first, 2);
+  assert.equal(db.exec("select status from purchase_orders where id=?", [first])[0].values[0][0], "Cancelled");
+  assert.throws(
+    () => updatePurchaseRequestForActor(db, first, 2, { order_date: "2026-10-03", lines: [{ item_id: 1, ordered_qty: 1 }] }),
+    /Only unreviewed Purchase Requests can be edited/,
+  );
+});
+
+test("PO request numbering rolls over from Z to AA and never reuses a cancelled number", async () => {
+  const db = await database();
+  db.run("insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(0,'PO-WOS-Z-99999','2026-10-01','','Cancelled',2,datetime('now'),datetime('now'))");
+  const request = createPurchaseRequestForActor(db, 2, { order_date: "2026-10-01", lines: [{ item_id: 1, ordered_qty: 1 }] });
+  assert.equal(db.exec("select po_number from purchase_orders where id=?", [request])[0].values[0][0], "PO-WOS-AA-00001");
+});
 
 test("migration preserves legacy submitted receipts as read-only received history", async () => {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });

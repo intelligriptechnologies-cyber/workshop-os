@@ -515,6 +515,7 @@ export interface InwardPurchaseRevision {
 }
 
 export type PurchaseOrderStatus =
+  | "PO Request"
   | "Draft"
   | "Sent"
   | "Partially Received"
@@ -543,6 +544,9 @@ export interface PurchaseOrderLine {
   id: number;
   purchase_order_id: number;
   item_id: number;
+  /** Populated for a New Item Request before Admin creates its SKU. */
+  item_name: string;
+  unit: string;
   ordered_qty: number;
   unit_cost: number;
   discount: number;

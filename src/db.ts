@@ -3745,6 +3745,162 @@ export interface PurchaseOrderInput {
   lines: PurchaseOrderLineInput[];
 }
 
+/** Store-facing input before an Admin has assigned a supplier or prices. */
+export interface PurchaseRequestLineInput {
+  item_id?: number;
+  item_name?: string;
+  unit?: string;
+  ordered_qty: number;
+}
+
+export interface PurchaseRequestInput {
+  order_date: string;
+  notes?: string;
+  lines: PurchaseRequestLineInput[];
+}
+
+function purchaseRequestNumberForOrdinal(ordinal: number) {
+  let value = Math.floor(ordinal / 99_999) + 1;
+  let letters = "";
+  while (value > 0) {
+    value -= 1;
+    letters = String.fromCharCode(65 + (value % 26)) + letters;
+    value = Math.floor(value / 26);
+  }
+  return `PO-WOS-${letters}-${String((ordinal % 99_999) + 1).padStart(5, "0")}`;
+}
+
+function purchaseRequestOrdinal(poNumber: string) {
+  const match = /^PO-WOS-([A-Z]+)-(\d{5})$/.exec(poNumber);
+  if (!match) return -1;
+  const letters = [...match[1]].reduce(
+    (value, letter) => value * 26 + letter.charCodeAt(0) - 64,
+    0,
+  );
+  const serial = Number(match[2]);
+  return (letters - 1) * 99_999 + serial - 1;
+}
+
+function nextPurchaseRequestNumber(db: Database) {
+  const latest = all<{ po_number: string }>(
+    db,
+    "select po_number from purchase_orders where po_number like 'PO-WOS-%'",
+  ).reduce((max, order) => Math.max(max, purchaseRequestOrdinal(order.po_number)), -1);
+  return purchaseRequestNumberForOrdinal(latest + 1);
+}
+
+function assertPurchaseRequestInput(db: Database, input: PurchaseRequestInput) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.order_date))
+    throw new Error("A valid order date is required.");
+  if (!input.lines?.length)
+    throw new Error("A Purchase Request needs at least one item line.");
+  for (const line of input.lines) {
+    if (!Number.isFinite(line.ordered_qty) || line.ordered_qty <= 0)
+      throw new Error("Requested quantity must be greater than zero.");
+    if (line.item_id && line.item_id > 0) {
+      one<InventoryItem>(db, "select * from inventory where id=?", [line.item_id]);
+    } else if (!line.item_name?.trim()) {
+      throw new Error("A new item request needs an item name.");
+    }
+  }
+}
+
+function replacePurchaseRequestLines(
+  db: Database,
+  purchaseOrderId: number,
+  lines: readonly PurchaseRequestLineInput[],
+) {
+  db.run("delete from purchase_order_lines where purchase_order_id=?", [
+    purchaseOrderId,
+  ]);
+  for (const line of lines) {
+    insert(
+      db,
+      "insert into purchase_order_lines(purchase_order_id,item_id,item_name,unit,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,0,0,0,0,0,0)",
+      [
+        purchaseOrderId,
+        line.item_id && line.item_id > 0 ? line.item_id : 0,
+        line.item_name?.trim() ?? "",
+        line.unit?.trim() ?? "",
+        line.ordered_qty,
+      ],
+    );
+  }
+  db.run(
+    "update purchase_orders set subtotal=0,discount_total=0,gst_total=0,total=0,updated_at=datetime('now') where id=?",
+    [purchaseOrderId],
+  );
+}
+
+/** Creates a Store Purchase Request. Supplier and pricing are intentionally absent. */
+export function createPurchaseRequestForActor(
+  db: Database,
+  actorId: number,
+  input: PurchaseRequestInput,
+) {
+  const actor = assertPurchaseActor(db, actorId);
+  assertPurchaseRequestInput(db, input);
+  db.run("begin immediate transaction");
+  try {
+    const id = insert(
+      db,
+      "insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(?,?,?,?, 'PO Request',?,datetime('now'),datetime('now'))",
+      [0, nextPurchaseRequestNumber(db), input.order_date, input.notes?.trim() ?? "", actor.id],
+    );
+    replacePurchaseRequestLines(db, id, input.lines);
+    db.run("commit");
+    return id;
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
+}
+
+/** Only the requesting Store user may amend an unreviewed Purchase Request. */
+export function updatePurchaseRequestForActor(
+  db: Database,
+  id: number,
+  actorId: number,
+  input: PurchaseRequestInput,
+) {
+  const actor = assertPurchaseActor(db, actorId);
+  assertPurchaseRequestInput(db, input);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [id]);
+  if (order.status !== "PO Request")
+    throw new Error("Only unreviewed Purchase Requests can be edited.");
+  if (actor.role !== "admin" && order.created_by !== actor.id)
+    throw new Error("Only the requesting Store user or Admin can edit this Purchase Request.");
+  db.run("begin immediate transaction");
+  try {
+    db.run(
+      "update purchase_orders set order_date=?,notes=?,updated_at=datetime('now') where id=?",
+      [input.order_date, input.notes?.trim() ?? "", id],
+    );
+    replacePurchaseRequestLines(db, id, input.lines);
+    db.run("commit");
+  } catch (error) {
+    db.run("rollback");
+    throw error;
+  }
+}
+
+export function cancelPurchaseRequestForActor(
+  db: Database,
+  id: number,
+  actorId: number,
+) {
+  const actor = assertPurchaseActor(db, actorId);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [id]);
+  if (order.status !== "PO Request")
+    throw new Error("Only unreviewed Purchase Requests can be cancelled.");
+  if (actor.role !== "admin" && order.created_by !== actor.id)
+    throw new Error("Only the requesting Store user or Admin can cancel this Purchase Request.");
+  db.run(
+    "update purchase_orders set status='Cancelled',updated_at=datetime('now') where id=?",
+    [id],
+  );
+}
+
 function assertPurchaseOrderLine(db: Database, line: PurchaseOrderLineInput) {
   return assertPurchaseLine(db, { ...line, received_qty: line.ordered_qty });
 }
@@ -6479,7 +6635,7 @@ export function createSchema(db: Database) {
     create table if not exists inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null);
     create table if not exists purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null);
     create unique index if not exists purchase_orders_number_unique on purchase_orders(po_number);
-    create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, item_name text not null default '', unit text not null default '', ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
     create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
     create table if not exists followups(id integer primary key, job_card_id integer, note text, due_at text, done integer);
@@ -6562,6 +6718,8 @@ export function migrateSchema(db: Database) {
   db.run(
     "create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null)",
   );
+  ensureColumn(db, "purchase_order_lines", "item_name", "text not null default ''");
+  ensureColumn(db, "purchase_order_lines", "unit", "text not null default ''");
   db.run(
     "create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null)",
   );

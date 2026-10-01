@@ -111,8 +111,9 @@ import {
   transitionJobStatusForActor,
   searchJobs,
   stockIn,
-  createPurchaseOrderForActor,
-  updatePurchaseOrderForActor,
+  createPurchaseRequestForActor,
+  updatePurchaseRequestForActor,
+  cancelPurchaseRequestForActor,
   setPurchaseOrderStatusForActor,
   recordStockInwardForActor,
   submitInwardPurchaseForActor,
@@ -157,7 +158,7 @@ import {
 import type {
   InwardPurchaseAttachmentInput,
   InwardPurchaseLineInput,
-  PurchaseOrderInput,
+  PurchaseRequestInput,
 } from "./db";
 import type {
   ChecklistItem,
@@ -4766,8 +4767,9 @@ function PurchaseStockIssueEditor({
 
 type PurchaseFormLine = InwardPurchaseLineInput & { key: string };
 
-type PurchaseOrderFormLine = PurchaseOrderInput["lines"][number] & {
+type PurchaseRequestFormLine = PurchaseRequestInput["lines"][number] & {
   key: string;
+  new_item: boolean;
 };
 
 /** Active purchasing is a commitment register. Legacy invoices below remain history only. */
@@ -4784,16 +4786,14 @@ function PurchaseOrdersWorkspace({
   const [dialog, setDialog] = useState<"form" | "view">();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
-  const [supplierId, setSupplierId] = useState(0);
-  const [poNumber, setPoNumber] = useState("");
   const [orderDate, setOrderDate] = useState(
     new Date().toISOString().slice(0, 10),
   );
   const [notes, setNotes] = useState("");
-  const [lines, setLines] = useState<PurchaseOrderFormLine[]>([]);
+  const [lines, setLines] = useState<PurchaseRequestFormLine[]>([]);
   const supplierName = (id: number) =>
     state.suppliers.find((supplier) => supplier.id === id)?.name ??
-    "Unknown supplier";
+    id > 0 ? "Unknown supplier" : "Supplier pending";
   const legacyOrderIds = new Set(
     state.inward_purchases
       .map((purchase) => purchase.purchase_order_id)
@@ -4802,7 +4802,10 @@ function PurchaseOrdersWorkspace({
   const orders = state.purchase_orders.filter(
     (order) => !legacyOrderIds.has(order.id),
   );
-  const selected = orders.find((order) => order.id === selectedId);
+  const visibleOrders = actor.role === "store"
+    ? orders.filter((order) => order.created_by === actor.id)
+    : orders;
+  const selected = visibleOrders.find((order) => order.id === selectedId);
   const selectedLines = selected
     ? state.purchase_order_lines.filter(
         (line) => line.purchase_order_id === selected.id,
@@ -4818,8 +4821,6 @@ function PurchaseOrdersWorkspace({
   };
   const openNew = () => {
     setSelectedId(undefined);
-    setSupplierId(0);
-    setPoNumber("");
     setOrderDate(new Date().toISOString().slice(0, 10));
     setNotes("");
     setLines(
@@ -4828,10 +4829,8 @@ function PurchaseOrdersWorkspace({
             {
               key: crypto.randomUUID(),
               item_id: state.inventory[0].id,
+              new_item: false,
               ordered_qty: 1,
-              unit_cost: 0,
-              discount: 0,
-              gst_rate: 0,
             },
           ]
         : [],
@@ -4840,8 +4839,6 @@ function PurchaseOrdersWorkspace({
   };
   const openEdit = (order: PurchaseOrder) => {
     setSelectedId(order.id);
-    setSupplierId(order.supplier_id);
-    setPoNumber(order.po_number);
     setOrderDate(order.order_date);
     setNotes(order.notes);
     setLines(
@@ -4849,11 +4846,11 @@ function PurchaseOrdersWorkspace({
         .filter((line) => line.purchase_order_id === order.id)
         .map((line) => ({
           key: String(line.id),
-          item_id: line.item_id,
+          item_id: line.item_id || undefined,
+          item_name: line.item_name,
+          unit: line.unit,
+          new_item: line.item_id === 0,
           ordered_qty: line.ordered_qty,
-          unit_cost: line.unit_cost,
-          discount: line.discount,
-          gst_rate: line.gst_rate,
         })),
     );
     setDialog("form");
@@ -4863,38 +4860,33 @@ function PurchaseOrdersWorkspace({
     setDialog("view");
   };
   const valid =
-    supplierId > 0 &&
-    poNumber.trim() &&
     /^\d{4}-\d{2}-\d{2}$/.test(orderDate) &&
     lines.length > 0 &&
     lines.every(
       (line) =>
         line.ordered_qty > 0 &&
-        line.unit_cost >= 0 &&
-        (line.discount ?? 0) >= 0 &&
-        (line.gst_rate ?? 0) >= 0 &&
-        (line.gst_rate ?? 0) <= 100,
+        (line.new_item ? Boolean(line.item_name?.trim()) : Boolean(line.item_id)),
     );
   const save = () => {
-    const input: PurchaseOrderInput = {
-      supplier_id: supplierId,
-      po_number: poNumber,
+    const input: PurchaseRequestInput = {
       order_date: orderDate,
       notes,
-      lines: lines.map(({ key: _key, ...line }) => line),
+      lines: lines.map(({ key: _key, new_item, item_id, ...line }) =>
+        new_item ? { ...line } : { ...line, item_id },
+      ),
     };
     let id = selectedId;
     if (
       mutate((db) => {
-        if (id) updatePurchaseOrderForActor(db, id, actor.id, input);
-        else id = createPurchaseOrderForActor(db, actor.id, input);
+        if (id) updatePurchaseRequestForActor(db, id, actor.id, input);
+        else id = createPurchaseRequestForActor(db, actor.id, input);
       })
     ) {
       setSelectedId(id);
       setDialog("view");
     }
   };
-  const filtered = orders.filter(
+  const filtered = visibleOrders.filter(
     (order) =>
       (status === "ALL" || order.status === status) &&
       (!search.trim() ||
@@ -4923,9 +4915,11 @@ function PurchaseOrdersWorkspace({
             title="Purchase Orders"
             subtitle="Ordering commitments; stock is recorded only through Stock Inward."
           />
-          <button className="primary-action" onClick={openNew}>
-            <Plus size={16} /> New purchase order
-          </button>
+          {actor.role === "store" && (
+            <button className="primary-action" onClick={openNew}>
+              <Plus size={16} /> New Purchase Request
+            </button>
+          )}
         </div>
         <div className="store-filter-grid register-filter-toolbar">
           <label className="list-search">
@@ -4946,6 +4940,7 @@ function PurchaseOrdersWorkspace({
             >
               <option value="ALL">All statuses</option>
               {[
+                "PO Request",
                 "Draft",
                 "Sent",
                 "Partially Received",
@@ -5009,7 +5004,8 @@ function PurchaseOrdersWorkspace({
                     </td>
                     <td>
                       <div className="grid-actions purchase-order-actions">
-                        {order.status === "Draft" && (
+                        {order.status === "PO Request" &&
+                          (actor.role === "admin" || order.created_by === actor.id) && (
                           <button
                             type="button"
                             className="workflow-action action-secondary purchase-order-action"
@@ -5045,8 +5041,8 @@ function PurchaseOrdersWorkspace({
       {dialog === "form" && (
         <Dialog
           wide
-          title={selectedId ? `Edit ${poNumber}` : "New purchase order"}
-          subtitle="Only draft POs are editable. Sending never affects inventory."
+          title={selectedId ? `Edit ${selected?.po_number ?? "Purchase Request"}` : "New Purchase Request"}
+          subtitle="PO number is assigned automatically. Supplier and pricing are completed by Admin after review."
           onClose={close}
           footer={
             <button
@@ -5055,38 +5051,19 @@ function PurchaseOrdersWorkspace({
               disabled={!valid}
               onClick={save}
             >
-              {selectedId ? "Save draft" : "Create draft"}
+              {selectedId ? "Save request" : "Create request"}
             </button>
           }
         >
           <div className="inward-dialog-content">
             <div className="form-grid">
               <label>
-                Supplier
-                <select
-                  data-dialog-initial-focus
-                  aria-label="PO supplier"
-                  value={supplierId}
-                  onChange={(event) =>
-                    setSupplierId(Number(event.target.value))
-                  }
-                >
-                  <option value={0}>Select active supplier</option>
-                  {state.suppliers
-                    .filter((supplier) => supplier.status === "Active")
-                    .map((supplier) => (
-                      <option key={supplier.id} value={supplier.id}>
-                        {supplier.name}
-                      </option>
-                    ))}
-                </select>
-              </label>
-              <label>
                 PO number
                 <input
                   aria-label="PO number"
-                  value={poNumber}
-                  onChange={(event) => setPoNumber(event.target.value)}
+                  value={selected?.po_number ?? "Assigned automatically when requested"}
+                  disabled
+                  readOnly
                 />
               </label>
               <label>
@@ -5119,10 +5096,8 @@ function PurchaseOrdersWorkspace({
                       {
                         key: crypto.randomUUID(),
                         item_id: state.inventory[0].id,
+                        new_item: false,
                         ordered_qty: 1,
-                        unit_cost: 0,
-                        discount: 0,
-                        gst_rate: 0,
                       },
                     ])
                   }
@@ -5132,20 +5107,19 @@ function PurchaseOrdersWorkspace({
               </div>
               {lines.map((line, index) => (
                 <div className="receipt-line-row" key={line.key}>
-                  <InventoryPicker
-                    inventory={state.inventory}
-                    value={line.item_id}
-                    onChange={(item_id) =>
-                      setLines((current) =>
-                        current.map((candidate) =>
-                          candidate.key === line.key
-                            ? { ...candidate, item_id }
-                            : candidate,
-                        ),
-                      )
-                    }
-                    label={`PO line ${index + 1} item`}
-                  />
+                  <label>
+                    Item type
+                    <select value={line.new_item ? "new" : "inventory"} onChange={(event) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, new_item: event.target.value === "new", item_id: event.target.value === "new" ? undefined : state.inventory[0]?.id, item_name: "", unit: "" } : candidate))}>
+                      <option value="inventory">Existing inventory SKU</option>
+                      <option value="new">New item request</option>
+                    </select>
+                  </label>
+                  {line.new_item ? (
+                    <>
+                      <label>New item name<input aria-label={`PO line ${index + 1} new item name`} value={line.item_name ?? ""} onChange={(event) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, item_name: event.target.value } : candidate))} /></label>
+                      <label>Unit<input aria-label={`PO line ${index + 1} unit`} value={line.unit ?? ""} onChange={(event) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, unit: event.target.value } : candidate))} /></label>
+                    </>
+                  ) : <InventoryPicker inventory={state.inventory} value={line.item_id ?? 0} onChange={(item_id) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, item_id } : candidate))} label={`PO line ${index + 1} item`} />}
                   <label>
                     Qty
                     <input
@@ -5160,26 +5134,6 @@ function PurchaseOrdersWorkspace({
                               ? {
                                   ...candidate,
                                   ordered_qty: Number(event.target.value),
-                                }
-                              : candidate,
-                          ),
-                        )
-                      }
-                    />
-                  </label>
-                  <label>
-                    Unit cost
-                    <input
-                      type="number"
-                      min="0"
-                      value={line.unit_cost}
-                      onChange={(event) =>
-                        setLines((current) =>
-                          current.map((candidate) =>
-                            candidate.key === line.key
-                              ? {
-                                  ...candidate,
-                                  unit_cost: Number(event.target.value),
                                 }
                               : candidate,
                           ),
@@ -5214,7 +5168,7 @@ function PurchaseOrdersWorkspace({
           onClose={close}
           footer={
             <>
-              {selected.status === "Draft" && (
+              {selected.status === "Draft" && actor.role === "admin" && (
                 <>
                   <button
                     type="button"
@@ -5240,7 +5194,30 @@ function PurchaseOrdersWorkspace({
                   </button>
                 </>
               )}
-              {[
+              {selected.status === "PO Request" &&
+                (actor.role === "admin" || selected.created_by === actor.id) && (
+                  <>
+                    <button
+                      type="button"
+                      className="primary-action"
+                      onClick={() => openEdit(selected)}
+                    >
+                      Edit request
+                    </button>
+                    <button
+                      type="button"
+                      className="danger-action"
+                      onClick={() =>
+                        mutate((db) =>
+                          cancelPurchaseRequestForActor(db, selected.id, actor.id),
+                        )
+                      }
+                    >
+                      Cancel request
+                    </button>
+                  </>
+                )}
+              {actor.role === "admin" && [
                 "Draft",
                 "Sent",
                 "Partially Received",
