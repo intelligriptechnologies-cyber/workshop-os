@@ -421,7 +421,6 @@ main {
   min-height: 42px;
   border: 1px solid #15616d;
   border-radius: 7px;
-  background: #15616d;
   color: #fff;
   font: inherit;
   font-weight: 600;
@@ -430,17 +429,26 @@ main {
 .search-topbar-controls select {
   min-width: 12rem;
   padding: 0 .65rem;
+  background: var(--grid-header-background);
+  color: #18222d;
 }
 
 .search-topbar-controls .filter-clear-action {
   padding: .35rem .7rem;
   text-decoration: none;
+  border-color: #c7cdd4;
+  background: #e5e7eb;
+  color: #26323d;
 }
 
-.search-topbar-controls select:hover,
+.search-topbar-controls select:hover {
+  background: var(--grid-header-background);
+}
+
 .search-topbar-controls .filter-clear-action:hover:not(:disabled) {
-  background: #0e6268;
-  color: #fff;
+  border-color: #aeb6bf;
+  background: #d7dbe0;
+  color: #18222d;
 }
 
 .search-topbar-controls select:focus-visible,
@@ -450,9 +458,9 @@ main {
 }
 
 .search-topbar-controls .filter-clear-action:disabled {
-  border-color: #8caeb1;
-  background: #8caeb1;
-  color: #fff;
+  border-color: #d5d9de;
+  background: #f1f3f5;
+  color: #7a8490;
   cursor: not-allowed;
 }
 
@@ -2732,30 +2740,80 @@ th {
 .job-card-archive-switch .ui-switch-state { display: none; }
 .job-card-filter-grid > .list-search-actions { align-self: end; flex: 0 0 auto; margin-left: 0; min-height: 42px; }
 
-/* The direct Job Cards page deliberately groups its complete filter set into
-   two desktop rows. Other Job Card contexts retain the shared wrapping bar. */
-.job-card-filter-grid--direct {
+/* Each Job Card context opts into an explicit presentation variant. Search and
+   admin keep the complete set in two aligned rows; service is a table-only
+   toolbar without customer or advisor controls. */
+.job-card-filter-grid--admin,
+.job-card-filter-grid--search,
+.job-card-filter-grid--service {
   display: grid;
   gap: .65rem;
 }
-.job-card-filter-grid--direct .job-card-filter-row {
+.job-card-filter-grid--admin .job-card-filter-row,
+.job-card-filter-grid--search .job-card-filter-row,
+.job-card-filter-grid--service .job-card-filter-row {
   display: grid;
   gap: .65rem;
   align-items: end;
 }
-.job-card-filter-grid--direct .job-card-filter-row:first-child {
+.job-card-filter-grid--admin .job-card-filter-row:first-child {
   grid-template-columns: minmax(12rem, 1.4fr) repeat(4, minmax(0, 1fr));
 }
-.job-card-filter-grid--direct .job-card-filter-row:last-child {
+.job-card-filter-grid--admin .job-card-filter-row:last-child {
   grid-template-columns: minmax(12rem, 1.4fr) repeat(3, minmax(0, 1fr)) auto auto;
 }
-.job-card-filter-grid--direct .job-card-filter-row > label,
-.job-card-filter-grid--direct .job-card-archive-filter,
-.job-card-filter-grid--direct .list-search-actions {
+.job-card-filter-grid--search .job-card-filter-row {
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+}
+.job-card-filter-grid--service .job-card-filter-row {
+  grid-template-columns: minmax(12rem, 1.4fr) repeat(6, minmax(0, 1fr)) auto;
+}
+.job-card-filter-grid--admin .job-card-filter-row > label,
+.job-card-filter-grid--search .job-card-filter-row > label,
+.job-card-filter-grid--service .job-card-filter-row > label,
+.job-card-filter-grid--admin .job-card-archive-filter,
+.job-card-filter-grid--search .job-card-archive-filter,
+.job-card-filter-grid--admin .list-search-actions,
+.job-card-filter-grid--search .list-search-actions,
+.job-card-filter-grid--service .list-search-actions {
   min-width: 0;
   width: auto;
 }
-.job-card-filter-grid--direct .list-search-actions {
+.job-card-filter-grid--admin .list-search-actions,
+.job-card-filter-grid--search .list-search-actions,
+.job-card-filter-grid--service .list-search-actions {
+  align-self: end;
+  min-height: 42px;
+}
+.job-card-filter-grid--search .job-card-archive-filter,
+.job-card-filter-grid--search .list-search-actions,
+.job-card-filter-grid--search .list-search-actions .filter-clear-action {
+  width: 100%;
+}
+.job-card-filter-grid--search .list-search-actions { justify-content: stretch; }
+
+/* Search keeps each workspace's fields and behavior, but presents them in the
+   same aligned desktop grid and narrow-screen stack as Job Card search. */
+.search-filter-layout {
+  display: grid;
+  grid-template-columns: 1fr;
+  width: 100%;
+}
+.search-filter-layout .search-filter-row,
+.store-filter-grid.search-filter-layout {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: .65rem;
+  align-items: end;
+  width: 100%;
+}
+.search-filter-layout .search-filter-row > *,
+.store-filter-grid.search-filter-layout > * {
+  min-width: 0;
+  width: auto;
+}
+.search-filter-layout .list-search-actions,
+.store-filter-grid.search-filter-layout .list-search-actions {
   align-self: end;
   min-height: 42px;
 }
@@ -2763,11 +2821,33 @@ th {
   .job-card-filter-grid > * { flex-basis: 100%; width: 100%; }
   .job-card-filter-grid > .list-search-actions { justify-content: stretch; }
   .job-card-filter-grid > .list-search-actions .filter-clear-action { width: 100%; }
-  .job-card-filter-grid--direct .job-card-filter-row { grid-template-columns: 1fr; }
-  .job-card-filter-grid--direct .job-card-filter-row > *,
-  .job-card-filter-grid--direct .list-search-actions,
-  .job-card-filter-grid--direct .list-search-actions .filter-clear-action { width: 100%; }
-  .job-card-filter-grid--direct .list-search-actions { justify-content: stretch; }
+  .job-card-filter-grid--admin .job-card-filter-row,
+  .job-card-filter-grid--search .job-card-filter-row,
+  .job-card-filter-grid--service .job-card-filter-row { grid-template-columns: 1fr; }
+  .job-card-filter-grid--admin .job-card-filter-row:first-child,
+  .job-card-filter-grid--admin .job-card-filter-row:last-child { grid-template-columns: 1fr; }
+  .job-card-filter-grid--admin .job-card-filter-row > *,
+  .job-card-filter-grid--search .job-card-filter-row > *,
+  .job-card-filter-grid--service .job-card-filter-row > *,
+  .job-card-filter-grid--admin .list-search-actions,
+  .job-card-filter-grid--search .list-search-actions,
+  .job-card-filter-grid--service .list-search-actions,
+  .job-card-filter-grid--admin .list-search-actions .filter-clear-action,
+  .job-card-filter-grid--search .list-search-actions .filter-clear-action,
+  .job-card-filter-grid--service .list-search-actions .filter-clear-action { width: 100%; }
+  .job-card-filter-grid--admin .list-search-actions,
+  .job-card-filter-grid--search .list-search-actions,
+  .job-card-filter-grid--service .list-search-actions { justify-content: stretch; }
+  .search-filter-layout .search-filter-row,
+  .store-filter-grid.search-filter-layout { grid-template-columns: 1fr; }
+  .search-filter-layout .search-filter-row > *,
+  .store-filter-grid.search-filter-layout > *,
+  .search-filter-layout .list-search-actions,
+  .store-filter-grid.search-filter-layout .list-search-actions,
+  .search-filter-layout .list-search-actions .filter-clear-action,
+  .store-filter-grid.search-filter-layout .list-search-actions .filter-clear-action { width: 100%; }
+  .search-filter-layout .list-search-actions,
+  .store-filter-grid.search-filter-layout .list-search-actions { justify-content: stretch; }
 }
 .toggle-switch > input {
   position: absolute;

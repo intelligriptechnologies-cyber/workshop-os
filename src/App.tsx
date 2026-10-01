@@ -1618,12 +1618,10 @@ function SearchPortal({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [jobWorkflow, setJobWorkflow] = useState("ALL");
-  const [jobCustomer, setJobCustomer] = useState("");
   const [jobVehicle, setJobVehicle] = useState("ALL");
   const [jobAdvisor, setJobAdvisor] = useState("ALL");
   const [jobSort, setJobSort] = useState("newest");
   const [jobArchivedOnly, setJobArchivedOnly] = useState(false);
-  const [jobViewMode, setJobViewMode] = useState<ViewMode>("table");
   const [activeLowStockOnly, setActiveLowStockOnly] = useState(
     lowStockOnly || initialLowStockOnly,
   );
@@ -1677,7 +1675,7 @@ function SearchPortal({
     setPaymentMode("ALL");
     setLowStockOnly(false);
     setActiveLowStockOnly(false);
-    setJobWorkflow("ALL"); setJobCustomer(""); setJobVehicle("ALL"); setJobAdvisor("ALL"); setJobSort("newest"); setJobArchivedOnly(false);
+    setJobWorkflow("ALL"); setJobVehicle("ALL"); setJobAdvisor("ALL"); setJobSort("newest"); setJobArchivedOnly(false);
     setPage(1);
   };
   const clearJobCardFilters = () => {
@@ -1686,7 +1684,6 @@ function SearchPortal({
     setDateFilter("");
     setMonthFilter("");
     setJobWorkflow("ALL");
-    setJobCustomer("");
     setJobVehicle("ALL");
     setJobAdvisor("ALL");
     setJobSort("newest");
@@ -1706,7 +1703,6 @@ function SearchPortal({
       (!dateFilter || view.job.estimated_delivery === dateFilter) &&
       (!monthFilter || jobCreatedDate(view).slice(0, 7) === monthFilter) &&
       (jobWorkflow === "ALL" || view.job.sub_status === jobWorkflow) &&
-      (!jobCustomer || normalizeSearch(`${view.customer.name} ${view.customer.mobile}`).includes(normalizeSearch(jobCustomer))) &&
       (jobVehicle === "ALL" || String(view.vehicle.id) === jobVehicle) &&
       (jobAdvisor === "ALL" || String(view.advisor.id) === jobAdvisor),
     ).sort((a, b) => {
@@ -1717,7 +1713,7 @@ function SearchPortal({
       if (jobSort === "delivery-latest") return (b.job.estimated_delivery || "").localeCompare(a.job.estimated_delivery || "");
       return b.job.id - a.job.id;
     });
-  }, [jobs, state.archived_jobs, actor.role, query, status, dateFilter, monthFilter, jobWorkflow, jobCustomer, jobVehicle, jobAdvisor, jobSort, jobArchivedOnly]);
+  }, [jobs, state.archived_jobs, actor.role, query, status, dateFilter, monthFilter, jobWorkflow, jobVehicle, jobAdvisor, jobSort, jobArchivedOnly]);
   const paged = paginate(category === "job" ? jobRows : jobs, page, pageSize);
   const stockRows = useMemo(() => {
     const needle = normalizeSearch(query);
@@ -1775,7 +1771,7 @@ function SearchPortal({
           onClose={() => setRecord(undefined)}
         />
       )}
-      <div className="list-filter-bar">
+      {!operationalCategory && <div className="list-filter-bar">
         {!operationalCategory && category !== "job" && (
           <label className="list-search">
             Search
@@ -1792,14 +1788,13 @@ function SearchPortal({
           {category === "job" && (
             <JobCardFilterFields
               jobs={jobArchivedOnly && actor.role === "admin" ? state.archived_jobs : state.jobs}
-              values={{ search: query, primary: status, secondary: jobWorkflow, date: dateFilter, month: monthFilter, customer: jobCustomer, vehicle: jobVehicle, advisor: jobAdvisor, sort: jobSort, archivedOnly: jobArchivedOnly }}
+              values={{ search: query, primary: status, secondary: jobWorkflow, date: dateFilter, month: monthFilter, customer: "", vehicle: jobVehicle, advisor: jobAdvisor, sort: jobSort, archivedOnly: jobArchivedOnly }}
               onChange={(patch) => changeFilters(() => {
                 if (patch.search !== undefined) setQuery(patch.search);
                 if (patch.primary !== undefined) setStatus(patch.primary as SearchCriteria["status"]);
                 if (patch.secondary !== undefined) setJobWorkflow(patch.secondary);
                 if (patch.date !== undefined) setDateFilter(patch.date);
                 if (patch.month !== undefined) setMonthFilter(patch.month);
-                if (patch.customer !== undefined) setJobCustomer(patch.customer);
                 if (patch.vehicle !== undefined) setJobVehicle(patch.vehicle);
                 if (patch.advisor !== undefined) setJobAdvisor(patch.advisor);
                 if (patch.sort !== undefined) setJobSort(patch.sort);
@@ -1808,7 +1803,7 @@ function SearchPortal({
               onClear={clearJobCardFilters}
               showArchive={actor.role === "admin"}
               searchLabel="Search records"
-              directLayout
+              variant="search"
             />
           )}
         <div className="list-filter-fields open">
@@ -1914,7 +1909,7 @@ function SearchPortal({
               </>
             )}
         </div>
-      </div>
+      </div>}
 
       {operationalCategory ? (
         <AdminSearchOperationalWorkspace
@@ -1943,11 +1938,11 @@ function SearchPortal({
             changeFilters(() => setQuery(value))
           }
           hideSearch
+          filterLayout="search"
         />
       ) : (
         <>
           <PaginationToolbar
-            controls={category === "job" ? <ViewModeToggle value={jobViewMode} onChange={setJobViewMode} /> : undefined}
             from={resultPage.from}
             to={resultPage.to}
             totalCount={resultPage.totalCount}
@@ -2026,6 +2021,7 @@ function AdminSearchOperationalWorkspace({
         state={state}
         mutate={mutate}
         actor={actor}
+        filterLayout="search"
       />
     );
   if (category === "follow-ups")
@@ -2037,6 +2033,7 @@ function AdminSearchOperationalWorkspace({
         state={state}
         mutate={mutate}
         actor={actor}
+        filterLayout="search"
       />
     );
   const activeMenuItem =
@@ -2055,6 +2052,7 @@ function AdminSearchOperationalWorkspace({
       actor={actor}
       mutate={mutate}
       setSelectedJobId={() => undefined}
+      filterLayout="search"
     />
   );
 }
@@ -3442,16 +3440,18 @@ function ServiceAdvisorList({
   state,
   mutate,
   actor,
+  filterLayout = "default",
 }: {
   kind: ServiceListKind;
   jobs: JobView[];
   state: WorkshopState;
   mutate: Mutate;
   actor: User;
+  filterLayout?: "default" | "search";
 }) {
   const [search, setSearch] = useState("");
   const [date, setDate] = useState(() =>
-    kind === "job-cards" ? "" : localCalendarDate(),
+    kind === "estimates" ? localCalendarDate() : "",
   );
   const [month, setMonth] = useState("");
   const [mainStatus, setMainStatus] = useState("ALL");
@@ -3462,14 +3462,15 @@ function ServiceAdvisorList({
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
-  const [viewMode, setViewMode] = useState<ViewMode>("table");
+  // Job Cards for service advisors are intentionally table-only.
+  const isGridView = false;
   const [selected, setSelected] = useState<JobView>();
   const [dialog, setDialog] = useState<
     "job" | "edit" | "estimate" | "followup" | "followup-view"
   >();
   const needle = normalizeSearch(useDeferredValue(search));
   const listedJobs = useMemo(
-    () => (kind === "job-cards" ? jobs : jobs.filter(isServiceActiveJob)),
+    () => (kind === "followups" || kind === "job-cards" ? jobs : jobs.filter(isServiceActiveJob)),
     [jobs, kind],
   );
   const months = useMemo(
@@ -3626,7 +3627,7 @@ function ServiceAdvisorList({
           </p>
         </div>
       </div>
-      <div className="list-filter-bar">
+      <div className={`list-filter-bar${filterLayout === "search" ? " search-filter-layout" : ""}`}>
         {kind === "job-cards" ? (
           <JobCardFilterFields
             jobs={listedJobs}
@@ -3645,6 +3646,7 @@ function ServiceAdvisorList({
             }}
             onClear={clear}
             searchLabel={`Search ${title.toLowerCase()}`}
+            variant="service"
           />
         ) : <>
         <label className="list-search">
@@ -3659,7 +3661,7 @@ function ServiceAdvisorList({
             placeholder="Job, vehicle or customer"
           />
         </label>
-        <div className="list-filter-fields open">
+        <div className={`list-filter-fields open${filterLayout === "search" ? " search-filter-row" : ""}`}>
           <label>
             Received date
             <input
@@ -3709,7 +3711,6 @@ function ServiceAdvisorList({
               columns,
               rows: filtered,
             }} />
-            {kind === "job-cards" && <ViewModeToggle value={viewMode} onChange={setViewMode} />}
           </>
         }
         from={paged.from}
@@ -3726,7 +3727,7 @@ function ServiceAdvisorList({
         }}
       />
       {paged.totalCount ? (
-        viewMode === "grid" && kind === "job-cards" ? (
+        isGridView && kind === "job-cards" ? (
           <div className="record-grid jobs">
             {paged.items.map((row) => (
               <article
@@ -4434,6 +4435,7 @@ function StoreDesk({
   onCreatePurchaseRequest,
   initialStockSearch,
   initialDrilldown,
+  filterLayout = "default",
 }: {
   activeMenuItem: string;
   state: WorkshopState;
@@ -4444,6 +4446,7 @@ function StoreDesk({
   onCreatePurchaseRequest?: (draft: ProcurementDraft) => void;
   initialStockSearch?: string;
   initialDrilldown?: DashboardDrilldown;
+  filterLayout?: "default" | "search";
 }) {
   const [stockTab, setStockTab] = useState<
     "Inventory List" | "Low Stock" | "Stock Movements"
@@ -4538,6 +4541,7 @@ function StoreDesk({
             onEditStock={setEditingStock}
             initialSearch={initialStockSearch}
             initialPrimary={initialDrilldown?.status}
+            filterLayout={filterLayout}
             headerAction={actor.role === "admin" ? (
               <button
                 type="button"
@@ -4557,6 +4561,7 @@ function StoreDesk({
             inventory={lowStock}
             requests={requests}
             onOpenJob={openJob}
+            filterLayout={filterLayout}
           />
         )}
         {stockTab === "Stock Movements" && (
@@ -4609,6 +4614,7 @@ function StoreDesk({
           onOpenJob={openJob}
           onNeedsApproval={setApprovalCandidate}
           initialMonth={initialDrilldown?.month}
+          filterLayout={filterLayout}
         />
         <details className="workflow-disclosure">
           <summary>Procurement and issue workflow</summary>
@@ -4651,6 +4657,7 @@ function StoreDesk({
           onNeedsApproval={setApprovalCandidate}
           initialMonth={initialDrilldown?.month}
           initialPrimary={initialDrilldown?.status}
+          filterLayout={filterLayout}
         />
         <details className="workflow-disclosure">
           <summary>Issue workflow</summary>
@@ -4697,6 +4704,7 @@ function StoreDesk({
         requests={reconcileRequests}
         onOpenJob={openJob}
         onReconcile={setReconcileCandidate}
+        filterLayout={filterLayout}
       />
       {reconcileCandidate && (
         <ReconcileEditor
@@ -7819,6 +7827,7 @@ function StoreList({
   initialMonth,
   initialPrimary,
   headerAction,
+  filterLayout = "default",
 }: {
   kind: StoreListKind;
   inventory: InventoryItem[];
@@ -7837,6 +7846,7 @@ function StoreList({
   initialMonth?: string;
   initialPrimary?: string;
   headerAction?: ReactNode;
+  filterLayout?: "default" | "search";
 }) {
   const [search, setSearch] = useState(initialSearch ?? "");
   const deferredSearch = useDeferredValue(search);
@@ -8206,7 +8216,7 @@ function StoreList({
         </section>
       )}
       <div
-        className={
+        className={`${
           kind === "stock"
             ? "store-filter-grid stock-filter-grid"
             : kind === "reconcile"
@@ -8214,7 +8224,7 @@ function StoreList({
               : isMaterialRecordList
                 ? "store-filter-grid material-record-filter-grid"
                 : "store-filter-grid"
-        }
+        }${filterLayout === "search" ? " search-filter-layout search-filter-row" : ""}`}
       >
         {!isMaterialRecordList && (
           <label className="list-search">
@@ -17076,7 +17086,7 @@ function JobCardFilterFields({
   onClear,
   showArchive = false,
   searchLabel = "Search job cards",
-  directLayout = false,
+  variant,
 }: {
   jobs: JobView[];
   values: JobCardFilterValues;
@@ -17084,7 +17094,7 @@ function JobCardFilterFields({
   onClear: () => void;
   showArchive?: boolean;
   searchLabel?: string;
-  directLayout?: boolean;
+  variant: "admin" | "search" | "service";
 }) {
   const workflows = [...new Set(jobs.map((item) => item.job.sub_status))].sort();
   const vehicles = [...new Map(jobs.map((item) => [item.vehicle.id, item.vehicle])).values()].sort((a, b) => a.number.localeCompare(b.number));
@@ -17101,11 +17111,14 @@ function JobCardFilterFields({
   const archive = showArchive ? <div className="job-card-archive-filter"><span>Show archived only</span><Switch className="job-card-archive-switch" label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} /></div> : null;
   const clear = <ListSearchActions onClear={onClear} />;
 
-  return <div className={`job-card-filter-grid${directLayout ? " job-card-filter-grid--direct" : ""}`} data-job-card-filters>
-    {directLayout ? <>
+  return <div className={`job-card-filter-grid job-card-filter-grid--${variant}`} data-job-card-filters>
+    {variant === "service" ? <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}{vehicle}{sort}{clear}</div> : variant === "search" ? <>
+      <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}</div>
+      <div className="job-card-filter-row">{vehicle}{advisor}{sort}{archive}{clear}</div>
+    </> : <>
       <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}</div>
       <div className="job-card-filter-row">{customer}{vehicle}{advisor}{sort}{archive}{clear}</div>
-    </> : <>{search}{status}{workflow}{deliveryDate}{month}{customer}{vehicle}{advisor}{sort}{archive}{clear}</>}
+    </>}
   </div>;
 }
 
@@ -17120,6 +17133,7 @@ function EntityList({
   externalSearch,
   onExternalSearchChange,
   hideSearch = false,
+  filterLayout = "default",
 }: {
   kind: EntityKind;
   state: WorkshopState;
@@ -17131,6 +17145,7 @@ function EntityList({
   externalSearch?: string;
   onExternalSearchChange?: (value: string) => void;
   hideSearch?: boolean;
+  filterLayout?: "default" | "search";
 }) {
   const { role, id: userId } = actor;
   const emptyFilters: EntityFilters = {
@@ -17766,7 +17781,7 @@ function EntityList({
           )}
         </Dialog>
       )}
-      <div className="list-filter-bar">
+      <div className={`list-filter-bar${filterLayout === "search" ? " search-filter-layout" : ""}`}>
         {!hideSearch && kind !== "jobs" && (
           <label className="list-search">
             Search
@@ -17790,9 +17805,7 @@ function EntityList({
           {filtersOpen ? "Hide filters" : "Show filters"}
         </button>
         <div
-          className={
-            filtersOpen ? "list-filter-fields open" : "list-filter-fields"
-          }
+          className={`${filtersOpen || filterLayout === "search" ? "list-filter-fields open" : "list-filter-fields"}${filterLayout === "search" ? " search-filter-row" : ""}`}
         >
           {kind === "jobs" && (
             <JobCardFilterFields
@@ -17805,7 +17818,7 @@ function EntityList({
               }}
               onClear={clearFilters}
               showArchive={role === "admin"}
-              directLayout={!hideSearch}
+              variant="admin"
             />
           )}
           {role === "admin" && kind !== "jobs" && (

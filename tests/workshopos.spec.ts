@@ -27,23 +27,28 @@ for (const [email, navItems] of roles) {
   });
 }
 
-test("service Job Cards view toggle switches between table and grid results", async ({ page }) => {
+test("service Job Cards uses a one-row table toolbar without customer, advisor, or view controls", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, "service@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Card", exact: true }).click();
 
-  const viewMode = page.getByRole("group", { name: "View mode" });
-  await expect(viewMode.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
+  const toolbar = page.locator(".job-card-filter-grid--service");
   await expect(page.locator(".service-advisor-list .table-wrap table")).toBeVisible();
+  await expect(page.getByRole("group", { name: "View mode" })).toHaveCount(0);
+  await expect(toolbar.getByLabel("Customer filter")).toHaveCount(0);
+  await expect(toolbar.getByLabel("Service advisor filter")).toHaveCount(0);
+  await expect(toolbar.locator(".job-card-filter-row")).toHaveCount(1);
+  const desktopRows = await toolbar.locator(".job-card-filter-row > label, .job-card-filter-row > .list-search-actions").evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().bottom))).size);
+  expect(desktopRows).toBe(1);
 
-  await viewMode.getByRole("button", { name: "Grid" }).click();
-  await expect(viewMode.getByRole("button", { name: "Grid" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".service-advisor-list .record-card").first()).toBeVisible();
-  await expect(page.locator(".service-advisor-list .table-wrap table")).toHaveCount(0);
+  const assignedJob = await page.locator(".service-advisor-list .table-wrap table tbody tr").first().locator("td").first().textContent();
+  await toolbar.getByLabel("Search job cards").fill(assignedJob ?? "");
+  await expect(page.locator(".service-advisor-list .table-wrap table tbody tr")).toHaveCount(1);
+  await toolbar.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(toolbar.getByLabel("Search job cards")).toHaveValue("");
 
-  await viewMode.getByRole("button", { name: "Table" }).click();
-  await expect(viewMode.getByRole("button", { name: "Table" })).toHaveAttribute("aria-pressed", "true");
-  await expect(page.locator(".service-advisor-list .table-wrap table")).toBeVisible();
-  await expect(page.locator(".service-advisor-list .record-card")).toHaveCount(0);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoPageOverflow(page);
 });
 
 test("service My Queue is a responsive active-job table with direct record actions", async ({ page }) => {
@@ -2295,53 +2300,67 @@ test("owner adds, requests and cancels a material row with an over-stock warning
   await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("dialog", { name: /Edit Job/ });
   await editor.getByRole("tab", { name: "Materials" }).click();
-  await editor.getByLabel("Add material item", { exact: true }).fill("Tack");
-  await expect(editor.getByRole("option", { name: /in stock: 14/ })).toBeVisible();
-  await editor.getByRole("option", { name: /Tack Cloth/ }).getByRole("button").click();
-  await editor.getByLabel("Add material quantity").fill("20");
-  await editor.getByRole("button", { name: "Add row" }).click();
-  const row = editor.getByRole("list", { name: "Material rows" }).locator("li").filter({ hasText: "Draft" });
-  await expect(row).toContainText("in stock: 14");
-  await expect(row.getByRole("status")).toContainText("more than the 14 in stock");
+  const itemPicker = editor.getByRole("combobox", { name: "Item", exact: true });
+  const itemOptions = editor.getByRole("listbox", { name: "Item options" });
+  await itemPicker.fill("Tack");
+  await itemOptions.getByRole("option", { name: /Tack Cloth/ }).click();
+  await editor.getByLabel("Qty", { exact: true }).fill("999999");
+  await editor.getByRole("button", { name: "Add Row" }).click();
+  const row = editor.getByRole("table", { name: "Material rows" }).locator("tbody tr").filter({ hasText: "Tack Cloth" });
+  await expect(row).toContainText(/more than the \d+(?:\.\d+)? in stock/);
   await expect(row.getByRole("button", { name: "Delete" })).toBeVisible();
-  await row.getByRole("button", { name: "Request", exact: true }).click();
-  const requested = editor.getByRole("list", { name: "Material rows" }).locator("li").filter({ hasText: "Tack Cloth" });
+  await row.getByRole("button", { name: "Request Item", exact: true }).click();
+  const requested = editor.getByRole("table", { name: "Material rows" }).locator("tbody tr").filter({ hasText: "Tack Cloth" });
   await expect(requested).toContainText("Requested");
   await expect(requested.getByRole("button", { name: "Delete" })).toHaveCount(0);
-  await requested.getByRole("button", { name: "Cancel request" }).click();
+  await requested.getByRole("button", { name: "Cancel Request" }).click();
   await expect(requested).toContainText("Cancelled");
 });
 
-test("owner releases a requested row, then edits it as Issued with a note", async ({ page }) => {
+test("Store releases a requested row, then Admin edits it as Issued with a note", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("dialog", { name: /Edit Job/ });
   await editor.getByRole("tab", { name: "Materials" }).click();
-  await editor.getByLabel("Add material item", { exact: true }).fill("Tack");
-  await editor.getByRole("option", { name: /Tack Cloth/ }).getByRole("button").click();
-  await editor.getByLabel("Add material quantity").fill("2");
-  await editor.getByRole("button", { name: "Add row" }).click();
-  const row = editor.getByRole("list", { name: "Material rows" }).locator("li").last();
-  await row.getByRole("button", { name: "Request", exact: true }).click();
-  await row.getByRole("button", { name: "Release" }).click();
-  await expect(row).toContainText("Issued");
-  await expect(row).toContainText("in stock: 12");
-  await row.getByRole("button", { name: "Edit issued row" }).click();
-  await row.getByLabel("Material quantity").fill("3");
-  await row.getByRole("button", { name: "Save issued edit" }).click();
-  await expect(row.getByRole("alert")).toContainText("note is required");
-  await row.getByLabel("Edit note").fill("Customer wanted more");
-  await row.getByRole("button", { name: "Save issued edit" }).click();
-  await expect(row).toContainText("in stock: 11");
-  await expect(row).toContainText("Issued");
+  const itemPicker = editor.getByRole("combobox", { name: "Item", exact: true });
+  const itemOptions = editor.getByRole("listbox", { name: "Item options" });
+  await itemPicker.fill("Tack");
+  await itemOptions.getByRole("option", { name: /Tack Cloth/ }).click();
+  await editor.getByLabel("Qty", { exact: true }).fill("2");
+  await editor.getByRole("button", { name: "Add Row" }).click();
+  const row = editor.getByRole("table", { name: "Material rows" }).locator("tbody tr").filter({ hasText: "Tack Cloth" });
+  await row.getByRole("button", { name: "Request Item", exact: true }).click();
+  await editor.getByRole("button", { name: "Go Back" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Issue Material", exact: true }).click();
+  await page.getByLabel("Item", { exact: true }).fill("Tack");
+  await page.getByRole("option", { name: /Tack Cloth/ }).click();
+  await page.getByRole("table", { name: "Issue Material results" }).getByRole("button", { name: "Issue Material", exact: true }).click();
+  await page.getByRole("dialog", { name: "Confirm material release" }).getByRole("button", { name: "Confirm release", exact: true }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
+  const issuedEditor = page.getByRole("dialog", { name: /Edit Job/ });
+  await issuedEditor.getByRole("tab", { name: "Materials" }).click();
+  const issuedRow = issuedEditor.getByRole("table", { name: "Material rows" }).locator("tbody tr").filter({ hasText: "Tack Cloth" });
+  await expect(issuedRow).toContainText("Issued");
+  await issuedRow.getByRole("button", { name: "Edit Request" }).click();
+  const issuedEditorRow = issuedEditor.getByRole("row", { name: /Tack Cloth.*Issued/ });
+  await issuedEditorRow.getByRole("spinbutton", { name: "Qty", exact: true }).fill("3");
+  await issuedEditorRow.getByRole("button", { name: "Save" }).click();
+  await expect(issuedEditorRow.getByRole("alert")).toContainText("note is required");
+  await issuedEditorRow.getByLabel("Edit request note").fill("Customer wanted more");
+  await issuedEditorRow.getByRole("button", { name: "Save" }).click();
+  await expect(issuedEditorRow).toContainText("Issued");
 });
 
 test("estimate approval and invoice creation enable Completed with per-line GST totals", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await page.getByLabel("Main status").selectOption("IN_PROGRESS");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await page.locator(".record-card").first().getByRole("button", { name: "Edit", exact: true }).click();
   const editor = page.getByRole("dialog", { name: /Edit Job/ });
   await editor.getByRole("tab", { name: "Invoice" }).click();
