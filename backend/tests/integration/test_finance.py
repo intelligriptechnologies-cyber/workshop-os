@@ -12,7 +12,7 @@ def _reset_database() -> None:
     with get_engine().begin() as connection:
         for table in (
             "financial_document_events", "delivery_acknowledgements", "payments", "invoice_lines", "invoices", "financial_documents", "document_sequences",
-            "qc_results", "job_attachments", "work_updates", "technician_tasks", "qc_checks", "stock_ledger", "material_ledger", "material_reservations",
+            "qc_results", "evidence_attachments", "work_updates", "technician_tasks", "qc_checks", "stock_ledger", "material_ledger", "material_reservations",
             "stock_inwards", "purchase_order_lines", "purchase_orders", "suppliers", "catalogue_items", "job_events", "estimate_decisions", "estimate_lines", "estimates", "job_cards",
             "tenant_audit_events", "visits", "vehicles", "customers", "support_emulations", "tenant_admin_invitations", "platform_billing", "branch_settings", "tenant_settings",
             "membership_roles", "role_permissions", "tenant_roles", "membership_branches", "tenant_memberships", "superadmins", "branches", "platform_users", "tenants",
