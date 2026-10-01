@@ -112,6 +112,7 @@ import {
   searchJobs,
   stockIn,
   createPurchaseRequestForActor,
+  approvePurchaseRequestForActor,
   nextPurchaseRequestNumberForOrders,
   updatePurchaseRequestForActor,
   cancelPurchaseRequestForActor,
@@ -160,6 +161,7 @@ import type {
   InwardPurchaseAttachmentInput,
   InwardPurchaseLineInput,
   PurchaseRequestInput,
+  PurchaseRequestApprovalInput,
 } from "./db";
 import type {
   ChecklistItem,
@@ -4874,6 +4876,18 @@ type PurchaseRequestFormLine = {
   ordered_qty: number;
 };
 
+type PurchaseRequestApprovalFormLine = {
+  purchase_order_line_id: number;
+  supplier_id: number;
+  unit_cost: number;
+  sku: string;
+  category: string;
+  name: string;
+  unit: string;
+  low_stock_qty: number;
+  selling_price: number;
+};
+
 /** Active purchasing is a commitment register. Legacy invoices below remain history only. */
 function PurchaseOrdersWorkspace({
   state,
@@ -4889,7 +4903,7 @@ function PurchaseOrdersWorkspace({
   onProcurementDraftConsumed: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number>();
-  const [dialog, setDialog] = useState<"form" | "view">();
+  const [dialog, setDialog] = useState<"form" | "view" | "approve">();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [orderDate, setOrderDate] = useState(
@@ -4897,6 +4911,7 @@ function PurchaseOrdersWorkspace({
   );
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseRequestFormLine[]>([]);
+  const [approvalLines, setApprovalLines] = useState<PurchaseRequestApprovalFormLine[]>([]);
   useEffect(() => {
     if (!procurementDraft) return;
     setSelectedId(undefined);
@@ -4980,6 +4995,39 @@ function PurchaseOrdersWorkspace({
   const openView = (order: PurchaseOrder) => {
     setSelectedId(order.id);
     setDialog("view");
+  };
+  const beginApproval = (order: PurchaseOrder) => {
+    setSelectedId(order.id);
+    setApprovalLines(
+      state.purchase_order_lines
+        .filter((line) => line.purchase_order_id === order.id)
+        .map((line) => ({
+          purchase_order_line_id: line.id,
+          supplier_id: state.suppliers.find((supplier) => supplier.status === "Active")?.id ?? 0,
+          unit_cost: 0,
+          sku: "",
+          category: "",
+          name: line.item_name,
+          unit: line.unit,
+          low_stock_qty: 0,
+          selling_price: 0,
+        })),
+    );
+    setDialog("approve");
+  };
+  const approveRequest = () => {
+    if (!selected) return;
+    const input: PurchaseRequestApprovalInput = {
+      lines: approvalLines.map((line) => ({
+        purchase_order_line_id: line.purchase_order_line_id,
+        supplier_id: line.supplier_id,
+        unit_cost: line.unit_cost,
+        inventory_item: selectedLines.find((candidate) => candidate.id === line.purchase_order_line_id)?.item_id
+          ? undefined
+          : { sku: line.sku, category: line.category, name: line.name, unit: line.unit, low_stock_qty: line.low_stock_qty, selling_price: line.selling_price },
+      })),
+    };
+    if (mutate((db) => approvePurchaseRequestForActor(db, selected.id, actor.id, input))) setDialog("view");
   };
   const valid =
     /^\d{4}-\d{2}-\d{2}$/.test(orderDate) &&
@@ -5071,6 +5119,7 @@ function PurchaseOrdersWorkspace({
               <option value="ALL">All statuses</option>
               {[
                 "PO Request",
+                "PO Request Approved",
                 "Draft",
                 "Sent",
                 "Partially Received",
@@ -5336,6 +5385,15 @@ function PurchaseOrdersWorkspace({
               {selected.status === "PO Request" &&
                 (actor.role === "admin" || selected.created_by === actor.id) && (
                   <>
+                    {actor.role === "admin" && (
+                      <button
+                        type="button"
+                        className="primary-action"
+                        onClick={() => beginApproval(selected)}
+                      >
+                        Review & approve request
+                      </button>
+                    )}
                     <button
                       type="button"
                       className="primary-action"
@@ -5475,6 +5533,33 @@ function PurchaseOrdersWorkspace({
                   not received.
                 </p>
               )}
+          </div>
+        </Dialog>
+      )}
+      {dialog === "approve" && selected && (
+        <Dialog
+          wide
+          title={`Approve ${selected.po_number}`}
+          subtitle="Assign each line to an active supplier and enter its pre-GST price. Different suppliers create traceable supplier-specific Purchase Orders."
+          onClose={close}
+          footer={<button type="button" className="primary-action" onClick={approveRequest}>Approve Purchase Request</button>}
+        >
+          <div className="inward-dialog-content" aria-label="Purchase Request commercial approval">
+            <p className="muted">New Item Requests need catalogue details now. Their SKU is created with zero stock and will not become issuable until later receipt and closure steps.</p>
+            {selectedLines.map((requestLine, index) => {
+              const formLine = approvalLines.find((line) => line.purchase_order_line_id === requestLine.id);
+              if (!formLine) return null;
+              const item = state.inventory.find((candidate) => candidate.id === requestLine.item_id);
+              const update = (patch: Partial<PurchaseRequestApprovalFormLine>) => setApprovalLines((current) => current.map((line) => line.purchase_order_line_id === requestLine.id ? { ...line, ...patch } : line));
+              return <section className="approval-line" key={requestLine.id}>
+                <h4>{index + 1}. {item ? `${item.sku} · ${item.name}` : requestLine.item_name} <span className="muted">× {requestLine.ordered_qty} {item?.unit ?? requestLine.unit}</span></h4>
+                <div className="form-grid">
+                  <label>Supplier<select aria-label={`Supplier for PO line ${index + 1}`} value={formLine.supplier_id} onChange={(event) => update({ supplier_id: Number(event.target.value) })}><option value={0}>Select active supplier</option>{state.suppliers.filter((supplier) => supplier.status === "Active").map((supplier) => <option key={supplier.id} value={supplier.id}>{supplier.name}</option>)}</select></label>
+                  <label>Pre-GST unit cost<input aria-label={`Pre-GST price for PO line ${index + 1}`} type="number" min="0.01" step="0.01" value={formLine.unit_cost || ""} onChange={(event) => update({ unit_cost: Number(event.target.value) })} /></label>
+                </div>
+                {!item && <div className="form-grid approval-new-item"><label>SKU<input aria-label={`SKU for PO line ${index + 1}`} value={formLine.sku} onChange={(event) => update({ sku: event.target.value })} /></label><label>Category<input aria-label={`Category for PO line ${index + 1}`} value={formLine.category} onChange={(event) => update({ category: event.target.value })} /></label><label>Name<input aria-label={`Catalogue name for PO line ${index + 1}`} value={formLine.name} onChange={(event) => update({ name: event.target.value })} /></label><label>Unit<input aria-label={`Catalogue unit for PO line ${index + 1}`} value={formLine.unit} onChange={(event) => update({ unit: event.target.value })} /></label><label>Low-stock threshold<input aria-label={`Low stock threshold for PO line ${index + 1}`} type="number" min="0" value={formLine.low_stock_qty} onChange={(event) => update({ low_stock_qty: Number(event.target.value) })} /></label><label>Selling price<input aria-label={`Selling price for PO line ${index + 1}`} type="number" min="0" value={formLine.selling_price} onChange={(event) => update({ selling_price: Number(event.target.value) })} /></label></div>}
+              </section>;
+            })}
           </div>
         </Dialog>
       )}

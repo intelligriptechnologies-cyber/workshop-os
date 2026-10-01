@@ -2118,6 +2118,39 @@ test("Admin records optional quotations and sees an N/A Previous Price Review fo
   await expect(review).toContainText(/Rs\s*42(?:\.00)? pre-GST/);
 });
 
+test("Admin approves a New Item Request with a supplier, price, and zero-stock SKU", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
+  const request = page.getByRole("dialog", { name: "New Purchase Request" });
+  await request.getByLabel("Item type").selectOption("new");
+  await request.getByLabel("PO line 1 new item name").fill("Approval-only sealant");
+  await request.getByLabel("PO line 1 unit").fill("tube");
+  await request.getByRole("button", { name: "Create request" }).click();
+  await page.getByRole("dialog", { name: "PO-WOS-A-00001" }).getByRole("button", { name: "Go Back" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
+  await page.getByRole("tab", { name: "Suppliers", exact: true }).click();
+  await page.getByRole("button", { name: "Add new supplier", exact: true }).click();
+  await page.getByRole("dialog", { name: "Add supplier" }).getByLabel("Name").fill("Approval Supplier");
+  await page.getByRole("button", { name: "Save supplier", exact: true }).click();
+
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "Process", exact: true }).click();
+  await page.getByRole("button", { name: "Review & approve request", exact: true }).click();
+  const approval = page.getByRole("dialog", { name: "Approve PO-WOS-A-00001" });
+  await approval.getByLabel("Supplier for PO line 1").selectOption({ label: "Approval Supplier" });
+  await approval.getByLabel("Pre-GST price for PO line 1").fill("320");
+  await approval.getByLabel("SKU for PO line 1").fill("SEAL-001");
+  await approval.getByLabel("Category for PO line 1").fill("Detailing");
+  await approval.getByLabel("Catalogue name for PO line 1").fill("Approval-only sealant");
+  await approval.getByLabel("Catalogue unit for PO line 1").fill("tube");
+  await approval.getByRole("button", { name: "Approve Purchase Request", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "PO-WOS-A-00001" })).toContainText("PO Request Approved");
+});
+
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {
   const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);
