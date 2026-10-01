@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { authenticatedFetch, type CognitoConfig } from "./auth";
 import { financeApi, type RemoteInvoice, type RemotePayment, type RemoteHandover } from "./finance-api";
-import { canReplaceRemoteInvoice, canVoidRemoteInvoice, remoteDocumentFilename } from "./finance-ui";
+import { canReplaceRemoteInvoice, canVoidRemoteInvoice, isActiveRemoteInvoice, remoteDocumentFilename } from "./finance-ui";
 import { jobsApi, type RemoteJob } from "./jobs-api";
 
 type Mode = "invoice" | "payment" | "delivery";
@@ -17,7 +17,7 @@ export function RemoteFinanceWorkspace({ config, mode }: { config: CognitoConfig
   const [deliveredBy, setDeliveredBy] = useState(""); const [finalOdometer, setFinalOdometer] = useState(""); const [acknowledgement, setAcknowledgement] = useState("");
   const [error, setError] = useState(""); const [busy, setBusy] = useState(false);
   const selected = useMemo(() => jobs.find((job) => job.id === selectedId) ?? jobs[0], [jobs, selectedId]);
-  const active = invoices.find((invoice) => !invoice.voided);
+  const active = invoices.find(isActiveRemoteInvoice);
 
   const refresh = async () => {
     const nextJobs = await jobsApi.list(config); setJobs(nextJobs);
@@ -25,7 +25,7 @@ export function RemoteFinanceWorkspace({ config, mode }: { config: CognitoConfig
     setSelectedId(job?.id);
     if (!job) { setInvoices([]); setPayments([]); setDelivery(undefined); return; }
     const nextInvoices = await financeApi.invoices(config, job.id); setInvoices(nextInvoices);
-    const current = nextInvoices.find((invoice) => !invoice.voided);
+    const current = nextInvoices.find(isActiveRemoteInvoice);
     setPayments(current ? await financeApi.payments(config, current.id) : []);
     setDelivery(await financeApi.delivery(config, job.id));
   };
@@ -81,6 +81,6 @@ export function RemoteFinanceWorkspace({ config, mode }: { config: CognitoConfig
 }
 
 function InvoiceRows({ invoices, busy, onDownload, onVoid, onReplace, onCreditRefund }: { invoices: RemoteInvoice[]; busy: boolean; onDownload: (path: string, number: string) => Promise<void>; onVoid?: (invoice: RemoteInvoice) => void; onReplace?: (invoice: RemoteInvoice) => void; onCreditRefund?: (invoice: RemoteInvoice) => void }) {
-  const activeExists = invoices.some((invoice) => !invoice.voided);
+  const activeExists = invoices.some(isActiveRemoteInvoice);
   return <div className="table-wrap"><table aria-label="Issued invoices"><thead><tr><th>Invoice</th><th>Total</th><th>Paid</th><th>Balance</th><th>Status</th><th>Document</th>{(onVoid || onReplace || onCreditRefund) && <th>Correction</th>}</tr></thead><tbody>{invoices.map((invoice) => <tr key={invoice.id}><td>{invoice.number}</td><td>{money(invoice.totalPaise)}</td><td>{money(invoice.paidPaise)}</td><td>{money(invoice.balancePaise)}</td><td>{invoice.status}</td><td><button disabled={busy} onClick={() => void onDownload(invoice.contentPath, invoice.number)}>Download</button></td>{(onVoid || onReplace || onCreditRefund) && <td><div className="grid-actions">{onVoid && canVoidRemoteInvoice(invoice) && <button className="danger-action" disabled={busy} onClick={() => onVoid(invoice)}>Void with reason</button>}{onCreditRefund && (invoice.status === "PARTIAL" || invoice.status === "SETTLED") && <button className="danger-action" disabled={busy} onClick={() => onCreditRefund(invoice)}>Credit & refund</button>}{onReplace && canReplaceRemoteInvoice(invoice, activeExists) && <button disabled={busy} onClick={() => onReplace(invoice)}>Issue replacement</button>}</div></td>}</tr>)}</tbody></table></div>;
 }
