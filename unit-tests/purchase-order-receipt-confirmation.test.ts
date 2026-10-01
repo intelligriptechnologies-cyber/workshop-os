@@ -64,30 +64,34 @@ test("Admin records multiple partial PO deliveries without changing stock", asyn
   );
 });
 
-test("Admin confirmation accounts for every delivered unit and gates the PO Confirmation stage", async () => {
+test("Admin confirms a partial delivery when every delivered unit is accounted for", async () => {
   const { db, po, lineId } = await issuedOrder();
-  recordPurchaseOrderReceiptForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 5 }] });
+  recordPurchaseOrderReceiptForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 3 }] });
 
   assert.throws(
-    () => confirmPurchaseOrderForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, accepted_qty: 3, returned_qty: 1, damaged_qty: 0, wasted_qty: 0 }] }),
+    () => confirmPurchaseOrderForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, accepted_qty: 1, returned_qty: 1, damaged_qty: 0, wasted_qty: 0 }] }),
     /must equal the delivered quantity/i,
   );
   assert.throws(
-    () => confirmPurchaseOrderForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, accepted_qty: 6, returned_qty: 0, damaged_qty: 0, wasted_qty: 0 }] }),
+    () => confirmPurchaseOrderForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, accepted_qty: 4, returned_qty: 0, damaged_qty: 0, wasted_qty: 0 }] }),
     /must equal the delivered quantity/i,
   );
 
   confirmPurchaseOrderForActor(db, po, 1, {
-    lines: [{ purchase_order_line_id: lineId, accepted_qty: 3, returned_qty: 1, damaged_qty: 1, wasted_qty: 0 }],
+    lines: [{ purchase_order_line_id: lineId, accepted_qty: 1, returned_qty: 1, damaged_qty: 1, wasted_qty: 0 }],
   });
   assert.deepEqual(db.exec("select status from purchase_orders where id=?", [po])[0].values, [["PO Confirmation"]]);
   assert.deepEqual(
     db.exec("select accepted_qty,returned_qty,damaged_qty,wasted_qty from purchase_order_confirmations where purchase_order_line_id=?", [lineId])[0].values,
-    [[3, 1, 1, 0]],
+    [[1, 1, 1, 0]],
   );
   assert.equal(db.exec("select count(*) from stock_inwards")[0].values[0][0], 0);
   assert.throws(
     () => recordPurchaseOrderReceiptForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 1 }] }),
     /only be recorded for an issued or received Purchase Order/i,
+  );
+  assert.throws(
+    () => confirmPurchaseOrderForActor(db, po, 2, { lines: [{ purchase_order_line_id: lineId, accepted_qty: 3, returned_qty: 0, damaged_qty: 0, wasted_qty: 0 }] }),
+    /Only Admin/,
   );
 });
