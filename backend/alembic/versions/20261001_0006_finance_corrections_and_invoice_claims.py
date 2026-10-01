@@ -26,8 +26,14 @@ def _scoped(table: str) -> None:
 
 
 def upgrade() -> None:
+    op.execute("ALTER TABLE document_sequences DROP CONSTRAINT document_sequences_document_type_check")
+    op.execute("ALTER TABLE document_sequences ADD CONSTRAINT document_sequences_document_type_check CHECK (document_type IN ('INVOICE','RECEIPT','GATE_PASS','CREDIT_NOTE'))")
     op.execute("ALTER TABLE financial_documents DROP CONSTRAINT financial_documents_document_type_check")
     op.execute("ALTER TABLE financial_documents ADD CONSTRAINT financial_documents_document_type_check CHECK (document_type IN ('INVOICE','RECEIPT','GATE_PASS','CREDIT_NOTE'))")
+    op.execute("ALTER TABLE financial_document_events DROP CONSTRAINT financial_document_events_event_type_check")
+    op.execute("ALTER TABLE financial_document_events ADD CONSTRAINT financial_document_events_event_type_check CHECK (event_type IN ('VOID','REPLACED','CREDITED'))")
+    op.execute("ALTER TABLE financial_document_events DROP CONSTRAINT financial_document_events_document_id_event_type_key")
+    op.execute("ALTER TABLE financial_document_events ADD CONSTRAINT financial_document_events_correction_link_key UNIQUE (document_id,event_type,related_document_id)")
     op.execute("ALTER TABLE invoice_lines ALTER COLUMN quantity TYPE numeric(14,3) USING quantity::numeric")
     op.execute("""
         CREATE TABLE active_invoice_claims (
@@ -94,3 +100,9 @@ def downgrade() -> None:
     op.execute("ALTER TABLE invoice_lines ALTER COLUMN quantity TYPE integer USING quantity::integer")
     op.execute("ALTER TABLE financial_documents DROP CONSTRAINT financial_documents_document_type_check")
     op.execute("ALTER TABLE financial_documents ADD CONSTRAINT financial_documents_document_type_check CHECK (document_type IN ('INVOICE','RECEIPT','GATE_PASS'))")
+    op.execute("ALTER TABLE financial_document_events DROP CONSTRAINT financial_document_events_event_type_check")
+    op.execute("ALTER TABLE financial_document_events ADD CONSTRAINT financial_document_events_event_type_check CHECK (event_type IN ('VOID','REPLACED'))")
+    op.execute("ALTER TABLE financial_document_events DROP CONSTRAINT financial_document_events_correction_link_key")
+    op.execute("ALTER TABLE financial_document_events ADD CONSTRAINT financial_document_events_document_id_event_type_key UNIQUE (document_id,event_type)")
+    op.execute("ALTER TABLE document_sequences DROP CONSTRAINT document_sequences_document_type_check")
+    op.execute("ALTER TABLE document_sequences ADD CONSTRAINT document_sequences_document_type_check CHECK (document_type IN ('INVOICE','RECEIPT','GATE_PASS'))")

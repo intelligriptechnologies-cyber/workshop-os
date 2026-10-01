@@ -13,6 +13,7 @@ import binascii
 import hashlib
 import html
 import json
+import re
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_HALF_UP
 from typing import Annotated, Literal
@@ -122,7 +123,9 @@ def _branch_profile(session, branch_id: object) -> dict[str, object]:
 def _prefix(profile: dict[str, object], document_type: str) -> str:
     configured = profile.get("documentPrefixes")
     if isinstance(configured, dict) and isinstance(configured.get(document_type), str) and configured[document_type].strip():
-        return configured[document_type].strip().upper()
+        candidate = re.sub(r"[^A-Z0-9-]", "", configured[document_type].strip().upper())[:24]
+        if candidate:
+            return candidate
     return {"INVOICE": "INV", "RECEIPT": "RCP", "GATE_PASS": "GP", "CREDIT_NOTE": "CRN"}[document_type]
 
 
@@ -180,6 +183,12 @@ def _document(row: dict[str, object], *, voided: bool = False) -> dict[str, obje
     return {"id": row["id"], "jobId": row["job_card_id"], "type": row["document_type"], "number": row["document_no"],
             "fiscalYear": row["fiscal_year"], "templateVersion": row["template_version"], "issuedAt": row["issued_at"],
             "voided": voided, "contentPath": f"/api/v1/financial-documents/{row['id']}/content"}
+
+
+def _download_filename(value: object, extension: str = "") -> str:
+    """Keep Content-Disposition a header, never an injection surface."""
+    name = re.sub(r"[^A-Za-z0-9._-]", "_", str(value)).strip("._")[:180] or "download"
+    return f"{name}{extension}" if extension and not name.endswith(extension) else name
 
 
 def _voided(session, document_id: int) -> bool:
@@ -385,6 +394,10 @@ def issue_credit_note(invoice_id: int, input: CreditNoteIssue, scope: ScopedTena
     row = session.execute(text("""INSERT INTO credit_notes (tenant_id,branch_id,invoice_id,issued_document_id,amount_paise,reason,request_key,created_by)
         VALUES (:tenant_id,:branch_id,:invoice_id,:document_id,:amount,:reason,:request_key,:actor_id) RETURNING id"""),
         {"tenant_id": str(current.tenant_id), "branch_id": str(invoice["branch_id"]), "invoice_id": invoice_id, "document_id": document["id"], "amount": input.amount_paise, "reason": input.reason.strip(), "request_key": request_key.strip() if request_key else None, "actor_id": str(current.actor_id)}).mappings().one()
+    session.execute(text("""INSERT INTO financial_document_events
+        (tenant_id,branch_id,document_id,event_type,reason,related_document_id,request_key,actor_id)
+        VALUES (:tenant_id,:branch_id,:document_id,'CREDITED',:reason,:related_document_id,:request_key,:actor_id)"""),
+        {"tenant_id": str(current.tenant_id), "branch_id": str(invoice["branch_id"]), "document_id": invoice["issued_document_id"], "reason": input.reason.strip(), "related_document_id": document["id"], "request_key": request_key.strip() if request_key else None, "actor_id": str(current.actor_id)})
     if credited + input.amount_paise >= int(invoice["total_paise"]):
         session.execute(text("DELETE FROM active_invoice_claims WHERE invoice_id=:invoice_id"), {"invoice_id": invoice_id})
     payload = _credit_note(session, int(row["id"]))
@@ -522,7 +535,7 @@ def get_document_content(document_id: int, scope: ScopedTenant) -> Response:
     if row is None:
         raise auth_error("FINANCIAL_DOCUMENT_NOT_FOUND", status.HTTP_404_NOT_FOUND)
     return Response(content=bytes(row["artifact"]), media_type=row["content_type"], headers={
-        "Content-Disposition": f'attachment; filename="{row["document_no"]}.html"',
+        "Content-Disposition": f'attachment; filename="{_download_filename(row["document_no"], ".html")}"',
         "Content-Security-Policy": "sandbox; default-src 'none'; style-src 'unsafe-inline'",
         "X-Content-Type-Options": "nosniff",
     })
@@ -536,6 +549,6 @@ def get_supporting_attachment(payment_id: int, scope: ScopedTenant) -> Response:
     if row is None or row["supporting_artifact"] is None:
         raise auth_error("SUPPORTING_ATTACHMENT_NOT_FOUND", status.HTTP_404_NOT_FOUND)
     return Response(content=bytes(row["supporting_artifact"]), media_type=row["supporting_content_type"], headers={
-        "Content-Disposition": f'attachment; filename="{row["supporting_filename"]}"',
+        "Content-Disposition": f'attachment; filename="{_download_filename(row["supporting_filename"])}"',
         "X-Content-Type-Options": "nosniff",
     })
