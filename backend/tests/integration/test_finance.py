@@ -125,6 +125,10 @@ def test_invoice_uses_approved_snapshot_and_paid_correction_is_credit_note_then_
         assert credit.status_code == 201, credit.text
         refund = client.post(f"/api/v1/credit-notes/{credit.json()['id']}/refunds", headers=headers, json={"amountPaise": invoice["totalPaise"], "method": "upi", "reference": "REV-1"})
         assert refund.status_code == 201, refund.text
+        from app.database import get_engine
+        with get_engine().begin() as connection:
+            event = connection.execute(text("SELECT related_document_id FROM financial_document_events WHERE document_id=:document_id AND event_type='CREDITED'"), {"document_id": invoice["documentId"]}).scalar_one()
+        assert event == credit.json()["documentId"]
         replacement = client.post(f"/api/v1/jobs/{job_id}/invoices", headers=headers, json={"replacesInvoiceId": invoice["id"]})
         assert replacement.status_code == 201, replacement.text
         assert replacement.json()["number"] != invoice["number"]
