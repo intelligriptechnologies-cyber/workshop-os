@@ -2103,39 +2103,25 @@ async function loginAs(page: import("@playwright/test").Page, email: string) {
   await page.getByRole("button", { name: "Login" }).click();
 }
 
-test("Store creates a purchase order and reconciles its receipt through Stock Inward", async ({ page }) => {
-  await loginAs(page, "admin@example.com");
-  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
-  await page.getByRole("tab", { name: "Suppliers", exact: true }).click();
-  await page.getByRole("button", { name: "Add new supplier", exact: true }).click();
-  await page.getByLabel("Name", { exact: true }).fill("E2E Receiving Supplier");
-  await page.getByRole("button", { name: "Save supplier" }).click();
-  await page.getByRole("button", { name: "Logout" }).click();
+test("Store creates a Purchase Request without supplier access or later-stage actions", async ({ page }) => {
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
-  await page.getByRole("button", { name: "New purchase order" }).click();
-  await page.getByLabel("PO supplier").selectOption({ index: 1 });
-  await page.getByLabel("PO number").fill("E2E-PO-001");
-  const picker = page.getByRole("combobox", { name: "PO line 1 item", exact: true });
-  await picker.fill("oil");
-  await picker.press("ArrowDown");
-  await picker.press("Enter");
-  await picker.press("Escape");
-  await page.getByLabel("PO line 1 quantity").fill("2");
-  await page.getByRole("button", { name: "Create draft" }).click();
-  await page.getByRole("button", { name: "Send saved PO" }).click();
-  await expect(page.getByText("Shortages and excesses are flags only")).toBeVisible();
-  await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
-  await page.getByRole("button", { name: "Quick Add Stock", exact: true }).click();
-  const inward = page.getByRole("dialog", { name: "Quick Add Stock" });
-  await inward.getByLabel("Existing SKU").click();
-  await inward.getByRole("option").filter({ hasText: "oil" }).first().click();
-  await inward.getByLabel("Inward quantity").fill("2");
-  await inward.getByLabel("Purchase order").selectOption({ label: "E2E-PO-001" });
-  await inward.getByLabel("Purchase order line").selectOption({ label: /E2E-PO-001/ });
-  await inward.getByRole("button", { name: "Record Inward" }).click();
-  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
-  await expect(page.getByRole("table", { name: "Purchase order register" })).toContainText("Ready to Close");
+  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
+
+  const request = page.getByRole("dialog", { name: "New Purchase Request" });
+  await expect(request.getByLabel("PO number")).toHaveValue("PO-WOS-A-00001");
+  await expect(request.getByLabel("PO supplier")).toBeDisabled();
+  await expect(request.getByText(/supplier and pricing are completed by Admin/i)).toBeVisible();
+  await request.getByLabel("Item type").selectOption("new");
+  await request.getByLabel("PO line 1 new item name").fill("Workshop label");
+  await expect(request.getByRole("button", { name: "Create request" })).toBeDisabled();
+  await request.getByLabel("PO line 1 unit").fill("piece");
+  await request.getByLabel("PO line 1 quantity").fill("2");
+  await request.getByRole("button", { name: "Create request" }).click();
+
+  const process = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
+  await expect(process.getByRole("button", { name: /Send saved PO|Close PO|Cancel PO/ })).toHaveCount(0);
+  await expect(process.getByRole("button", { name: "Edit request" })).toBeVisible();
 });
 
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {

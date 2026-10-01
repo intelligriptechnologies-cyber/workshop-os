@@ -112,6 +112,7 @@ import {
   searchJobs,
   stockIn,
   createPurchaseRequestForActor,
+  nextPurchaseRequestNumberForOrders,
   updatePurchaseRequestForActor,
   cancelPurchaseRequestForActor,
   setPurchaseOrderStatusForActor,
@@ -4767,9 +4768,13 @@ function PurchaseStockIssueEditor({
 
 type PurchaseFormLine = InwardPurchaseLineInput & { key: string };
 
-type PurchaseRequestFormLine = PurchaseRequestInput["lines"][number] & {
+type PurchaseRequestFormLine = {
   key: string;
   new_item: boolean;
+  item_id?: number;
+  item_name?: string;
+  unit?: string;
+  ordered_qty: number;
 };
 
 /** Active purchasing is a commitment register. Legacy invoices below remain history only. */
@@ -4801,6 +4806,9 @@ function PurchaseOrdersWorkspace({
   );
   const orders = state.purchase_orders.filter(
     (order) => !legacyOrderIds.has(order.id),
+  );
+  const nextPurchaseRequestNumber = nextPurchaseRequestNumberForOrders(
+    state.purchase_orders,
   );
   const visibleOrders = actor.role === "store"
     ? orders.filter((order) => order.created_by === actor.id)
@@ -4865,14 +4873,22 @@ function PurchaseOrdersWorkspace({
     lines.every(
       (line) =>
         line.ordered_qty > 0 &&
-        (line.new_item ? Boolean(line.item_name?.trim()) : Boolean(line.item_id)),
+        (line.new_item
+          ? Boolean(line.item_name?.trim()) && Boolean(line.unit?.trim())
+          : Boolean(line.item_id)),
     );
   const save = () => {
     const input: PurchaseRequestInput = {
       order_date: orderDate,
       notes,
-      lines: lines.map(({ key: _key, new_item, item_id, ...line }) =>
-        new_item ? { ...line } : { ...line, item_id },
+      lines: lines.map((line) =>
+        line.new_item
+          ? {
+              item_name: line.item_name?.trim() ?? "",
+              unit: line.unit?.trim() ?? "",
+              ordered_qty: line.ordered_qty,
+            }
+          : { item_id: line.item_id ?? 0, ordered_qty: line.ordered_qty },
       ),
     };
     let id = selectedId;
@@ -5061,7 +5077,7 @@ function PurchaseOrdersWorkspace({
                 PO number
                 <input
                   aria-label="PO number"
-                  value={selected?.po_number ?? "Assigned automatically when requested"}
+                  value={selected?.po_number ?? nextPurchaseRequestNumber}
                   disabled
                   readOnly
                 />
@@ -5081,6 +5097,15 @@ function PurchaseOrdersWorkspace({
                   aria-label="PO notes"
                   value={notes}
                   onChange={(event) => setNotes(event.target.value)}
+                />
+              </label>
+              <label>
+                Supplier
+                <input
+                  aria-label="PO supplier"
+                  value="Assigned by Admin after request"
+                  disabled
+                  readOnly
                 />
               </label>
             </div>
