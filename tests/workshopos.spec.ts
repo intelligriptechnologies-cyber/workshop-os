@@ -467,7 +467,7 @@ test("admin catalogue and role filters stay compact on desktop and stack on mobi
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
 
-  await page.getByRole("tab", { name: "Service Task Catalog", exact: true }).click();
+  await page.getByRole("tab", { name: "Service Task", exact: true }).click();
   const catalog = page.getByRole("tabpanel", { name: "Service Task Catalog" });
   await expect(catalog.getByLabel("Search catalog services")).toBeVisible();
   await expectManagementToolbarHasOneRow(catalog, ".compact-management-toolbar");
@@ -480,7 +480,7 @@ test("admin catalogue and role filters stay compact on desktop and stack on mobi
   await page.setViewportSize({ width: 390, height: 844 });
   await expectManagementToolbarStacks(roles, ".compact-management-toolbar");
   await expectNoPageOverflow(page);
-  await page.getByRole("tab", { name: "Service Task Catalog", exact: true }).click();
+  await page.getByRole("tab", { name: "Service Task", exact: true }).click();
   await expectManagementToolbarStacks(catalog, ".compact-management-toolbar");
   await expectNoPageOverflow(page);
 });
@@ -530,13 +530,15 @@ test("direct Job Cards uses one clear two-row filter toolbar", async ({ page }) 
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
 
-  const toolbar = page.locator(".job-card-filter-grid--direct");
+  const toolbar = page.locator(".job-card-filter-grid--admin");
   const date = toolbar.getByLabel("Estimated delivery date");
   const month = toolbar.getByLabel("Job created month-year");
   const archived = toolbar.getByRole("switch", { name: "Show archived only" });
 
   await expect(page.getByLabel("Search job cards")).toHaveCount(1);
   await expect(page.getByRole("button", { name: "Clear", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("group", { name: "View mode" }).getByRole("button", { name: "Grid", exact: true })).toBeVisible();
+  await expect(page.getByRole("group", { name: "View mode" }).getByRole("button", { name: "Table", exact: true })).toBeVisible();
   await expect(toolbar.locator(".job-card-filter-row")).toHaveCount(2);
   await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Search");
   await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Main status");
@@ -648,25 +650,49 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await expect(searchClear).toBeDisabled();
   await page.getByLabel("Search category").selectOption("job");
   await expect(page.getByLabel("Search records")).toHaveValue("  od02AB1234  ");
-  const jobFilters = page.locator(".job-card-filter-grid--direct");
+  const jobFilters = page.locator(".job-card-filter-grid--search");
   await expect(jobFilters.locator(".job-card-filter-row")).toHaveCount(2);
+  await expect(page.getByRole("group", { name: "View mode" })).toHaveCount(0);
+  await expect(jobFilters.getByLabel("Customer filter")).toHaveCount(0);
   const desktopRows = await jobFilters.locator(".job-card-filter-row").evaluateAll((rows) => new Set(rows.map((row) => Math.round(row.getBoundingClientRect().bottom))).size);
   expect(desktopRows).toBe(2);
+  const desktopColumns = await jobFilters.locator(".job-card-filter-row").evaluateAll((rows) => rows.map((row) => Array.from(row.children).map((control) => Math.round(control.getBoundingClientRect().width))));
+  expect(desktopColumns).toHaveLength(2);
+  for (const columns of desktopColumns) {
+    expect(columns).toHaveLength(5);
+    expect(Math.max(...columns) - Math.min(...columns)).toBeLessThanOrEqual(1);
+  }
   const monthYear = page.getByLabel("Job created month-year");
   await expect(monthYear).toBeVisible();
   const monthValues = await monthYear.locator("option").evaluateAll((options) => options.map((option) => option.getAttribute("value") ?? ""));
   expect(monthValues[0]).toBe("");
   expect(monthValues.slice(1)).toEqual([...monthValues.slice(1)].sort().reverse());
   await page.getByLabel("Main status").selectOption("IN_PROGRESS");
+  await page.getByLabel("Workflow status").selectOption({ index: 1 });
+  await page.getByLabel("Estimated delivery date").fill("2026-01-01");
+  await monthYear.selectOption({ index: 1 });
+  await page.getByLabel("Vehicle filter").selectOption({ index: 1 });
+  await page.getByLabel("Service advisor filter").selectOption({ index: 1 });
+  await page.getByLabel("Sort results").selectOption("oldest");
+  await page.getByRole("switch", { name: "Show archived only" }).click();
   await jobFilters.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(page.getByLabel("Search category")).toHaveValue("job");
   await expect(page.getByLabel("Search records")).toHaveValue("");
   await expect(page.getByLabel("Main status")).toHaveValue("ALL");
+  await expect(page.getByLabel("Workflow status")).toHaveValue("ALL");
+  await expect(page.getByLabel("Estimated delivery date")).toHaveValue("");
+  await expect(monthYear).toHaveValue("");
+  await expect(page.getByLabel("Vehicle filter")).toHaveValue("ALL");
+  await expect(page.getByLabel("Service advisor filter")).toHaveValue("ALL");
+  await expect(page.getByLabel("Sort results")).toHaveValue("newest");
+  await expect(page.getByRole("switch", { name: "Show archived only" })).toHaveAttribute("aria-checked", "false");
   await page.getByLabel("Search records").fill("inv-08947");
   await page.getByLabel("Search category").selectOption("invoice");
   await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
   await expect(page.getByText("INV-08947")).toBeVisible();
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expectNoPageOverflow(page);
 });
 
 test("admin Search exposes operational workspaces without restoring hidden rail entries", async ({ page }) => {
@@ -695,6 +721,54 @@ test("admin Search exposes operational workspaces without restoring hidden rail 
   await expect(page.getByText("All workshop jobs")).toBeVisible();
   await categorySelect.selectOption("follow-ups");
   await expect(page.getByRole("heading", { name: "Follow-ups", exact: true })).toBeVisible();
+});
+
+test("Search gives delegated categories the shared filter grid without changing their filters", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
+  const categorySelect = page.getByLabel("Search category");
+  const searchToolbar = page.locator(".search-topbar-controls");
+  await categorySelect.selectOption("job");
+  const categoryBackground = await categorySelect.evaluate((control) => getComputedStyle(control).backgroundColor);
+  const headerBackground = await page.locator("th").first().evaluate((header) => getComputedStyle(header).backgroundColor);
+  expect(categoryBackground).toBe(headerBackground);
+  await expect(searchToolbar.getByRole("button", { name: "Clear category", exact: true })).toHaveCSS("background-color", "rgb(229, 231, 235)");
+
+  for (const [category, selector] of [
+    ["customer", ".entity-list-page .search-filter-layout .search-filter-row"],
+    ["vehicle", ".entity-list-page .search-filter-layout .search-filter-row"],
+    ["material-requests", ".material-record-filter-grid.search-filter-layout"],
+    ["issue-material", ".material-record-filter-grid.search-filter-layout"],
+    ["reconcile", ".reconcile-filter-grid.search-filter-layout"],
+    ["estimate", ".service-advisor-list .search-filter-layout .search-filter-row"],
+    ["follow-ups", ".service-advisor-list .search-filter-layout .search-filter-row"],
+  ] as const) {
+    await categorySelect.selectOption(category);
+    const filters = page.locator(selector);
+    await expect(filters).toBeVisible();
+    await expect(filters.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
+    if (["customer", "vehicle", "material-requests", "issue-material", "reconcile", "estimate", "follow-ups"].includes(category))
+      await expect(page.locator(".portal > .list-filter-bar")).toHaveCount(0);
+    if (category === "customer" || category === "vehicle") {
+      await expect(filters.getByLabel("Search records")).toBeVisible();
+      await expect(filters.getByLabel("Search records")).toHaveCount(1);
+      const rows = await filters.locator(":scope > label, :scope > .ui-switch, :scope > .list-search-actions").evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().bottom))).size);
+      expect(rows).toBe(1);
+    }
+  }
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await categorySelect.selectOption("customer");
+  const entityControls = page.locator(".entity-search-filter-row > label, .entity-search-filter-row > .ui-switch, .entity-search-filter-row > .list-search-actions");
+  const entityWidths = await entityControls.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().width)));
+  expect(entityWidths.every((width) => width > 0)).toBe(true);
+  expect(new Set(entityWidths).size).toBe(1);
+  await expectNoPageOverflow(page);
+  await categorySelect.selectOption("reconcile");
+  const controls = page.locator(".reconcile-filter-grid.search-filter-layout > *");
+  const widths = await controls.evaluateAll((items) => items.map((item) => Math.round(item.getBoundingClientRect().width)));
+  expect(widths.every((width) => width > 0)).toBe(true);
+  expect(new Set(widths).size).toBe(1);
 });
 
 test("non-admin Search keeps its existing category availability", async ({ page }) => {
@@ -737,7 +811,6 @@ test("admin loads the deterministic large dataset and paginates core lists", asy
   await page.getByRole("button", { name: "Next page", exact: true }).first().click();
   await expect(page.getByText("Showing 21 to 40 of 144")).toBeVisible();
   await page.getByLabel("Search job cards").fill("JC-2026-002001");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.getByText("Showing 1 to 1 of 1")).toBeVisible();
 });
 
@@ -762,6 +835,12 @@ test("core entity lists switch views and expose deterministic totals", async ({ 
     await expect(page.locator("tbody tr")).toHaveCount(10);
     await page.getByRole("button", { name: "Grid", exact: true }).click();
     await expect(page.locator(".record-card")).toHaveCount(10);
+    await page.getByRole("button", { name: "Next page", exact: true }).first().click();
+    await expect(page.getByText(`Showing 11 to 20 of ${total}`)).toBeVisible();
+    await page.getByLabel("Search records").fill("definitely-no-workshop-record");
+    await expect(page.getByText("Showing 0 to 0 of 0")).toBeVisible();
+    await page.locator(".entity-search-filter-row").getByRole("button", { name: "Clear", exact: true }).click();
+    await expect(page.getByText(`Showing 1 to 10 of ${total}`)).toBeVisible();
   }
 });
 
@@ -846,7 +925,6 @@ test("job dialogs expose distinct modes, documents, focus return and shared sear
 
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search category").selectOption("job");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("table", { name: "Job Card search results" }).locator("tbody tr").first().getByRole("button", { name: "View" }).click();
   await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
 });
@@ -1217,14 +1295,14 @@ test("Manage Job Cards uses view and edit dialogs with documents and confirmed a
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Job Cards", exact: true }).click();
 
-  await page.getByRole("button", { name: "Create Job Card", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: "Create Job Card" })).toBeVisible();
+  await page.getByRole("button", { name: "Add Job Card", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Add Job Card" })).toBeVisible();
   await page.getByRole("button", { name: "Go Back" }).click();
-  await expect(page.getByRole("dialog", { name: "Create Job Card" })).toBeHidden();
+  await expect(page.getByRole("dialog", { name: "Add Job Card" })).toBeHidden();
 
   const table = page.getByRole("table", { name: "Managed job cards" });
   const firstRow = table.locator("tbody tr").first();
-  await expect(table.locator("thead th")).toHaveText(["Job Card", "Vehicle", "Customer", "Status", "Actions"]);
+  await expect(table.locator("thead th")).toHaveText(["Job Card", "Vehicle", "Customer", "Estimated Delivery Date", "Status", "Actions"]);
   await expect(firstRow.getByRole("button", { name: "View", exact: true })).toBeVisible();
   await expect(firstRow.getByRole("button", { name: "Edit", exact: true })).toBeVisible();
 
@@ -1237,7 +1315,7 @@ test("Manage Job Cards uses view and edit dialogs with documents and confirmed a
   await page.getByRole("button", { name: "Go Back" }).click();
 
   await firstRow.getByRole("button", { name: "Edit", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Save Job Card" })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save Job Details" })).toBeVisible();
   const archive = page.getByRole("button", { name: "Archive Job", exact: true });
   await expect(archive).toBeVisible();
   page.once("dialog", (dialog) => dialog.accept());
@@ -1398,6 +1476,9 @@ test("store reconciliation states use status pills and shared table actions", as
 
 test("reconciliation opens per row, requires zero-return acknowledgement, and preserves row navigation", async ({ page }) => {
   await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Issue Material", exact: true }).click();
+  await page.getByRole("table", { name: "Issue Material results" }).getByRole("button", { name: "Issue Material", exact: true }).first().click();
+  await page.getByRole("dialog", { name: "Confirm material release" }).getByRole("button", { name: "Confirm release", exact: true }).click();
   await page.locator(".role-nav").getByRole("button", { name: "Reconcile", exact: true }).click();
 
   const results = page.getByRole("table", { name: "Reconcile results" });
@@ -1448,8 +1529,13 @@ test("store material queues default to today and keep record filters, exports an
     const month = page.getByLabel(`${pageName} record month`);
     const disclosure = page.locator(".workspace:visible .workflow-disclosure");
     await expect(date).toHaveValue(today);
-    if (await disclosure.getAttribute("open") === null) await disclosure.locator("summary").getByText(pageName === "Material Requests" ? "Purchase, Stock & Issue" : "Issue workflow", { exact: true }).click();
-    await expect(disclosure).toHaveAttribute("open", "");
+    if (pageName === "Material Requests")
+      await expect(page.getByRole("region", { name: "Material procurement triage" })).toBeVisible();
+    else {
+      if (await disclosure.getAttribute("open") === null)
+        await disclosure.locator("summary").getByText("Issue workflow", { exact: true }).click();
+      await expect(disclosure).toHaveAttribute("open", "");
+    }
 
     const availableMonth = month.locator("option").nth(1);
     if (await availableMonth.count()) {
@@ -1495,8 +1581,6 @@ test("PDF and Excel downloads use the current filtered rows and visible columns"
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
   await page.getByLabel("Stock category").selectOption("PPF");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
-
   await page.getByRole("button", { name: "Download", exact: true }).click();
   const pdfPromise = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "PDF" }).click();
@@ -1511,12 +1595,11 @@ test("PDF and Excel downloads use the current filtered rows and visible columns"
   const ppfRows = await readWorksheet(await ppfDownloadPromise);
   expect(ppfRows[0][0]).toBe("Stock");
   expect(ppfRows[2][1]).toContain("Category: PPF");
-  expect(ppfRows[4]).toEqual(["SKU", "Item", "Category", "Stock", "Unit", "Minimum", "Status"]);
+  expect(ppfRows[4]).toEqual(["SKU", "Item", "Category", "Stock", "Unit", "Minimum", "Sell Price", "Status"]);
   expect(ppfRows.slice(5)).toHaveLength(61);
   expect(ppfRows.slice(5).every((row) => row[2] === "PPF")).toBeTruthy();
 
   await page.getByLabel("Stock category").selectOption("Paint");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByRole("button", { name: "Download", exact: true }).click();
   const paintDownloadPromise = page.waitForEvent("download");
   await page.getByRole("menuitem", { name: "Excel" }).click();
@@ -1533,6 +1616,7 @@ test("store pagination resets after filtering", async ({ page }) => {
   await page.getByRole("button", { name: "Load Large Demo Dataset" }).click();
   await page.getByRole("button", { name: "Logout" }).click();
   await loginAs(page, "store@example.com");
+  await page.getByLabel("Material Requests record date").fill("");
   await page.getByRole("button", { name: "Next page", exact: true }).first().click();
   await expect(page.getByText(/Showing 11 to 20 of/)).toBeVisible();
   await page.getByLabel("Status").selectOption("Pending");
@@ -1608,7 +1692,8 @@ test("App Theme previews, saves live UI tokens, and restores the default", async
   await expect(page.getByLabel("App theme preview")).toHaveCSS("font-family", /Georgia/);
   await page.getByRole("button", { name: "Save App Theme", exact: true }).click();
   await expect(page.getByText("App theme saved for this session.")).toBeVisible();
-  await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.getByRole("group", { name: "View mode" }).getByRole("button", { name: "Table", exact: true }).click();
   await expect(page.locator(".rail")).toHaveCSS("background-color", "rgb(220, 236, 255)");
   await expect(page.locator(".role-nav button.active")).toHaveCSS("background-color", "rgb(200, 225, 255)");
   await expect(page.locator("table th").first()).toHaveCSS("background-color", "rgb(212, 232, 251)");
@@ -1671,7 +1756,6 @@ test("tax and billing settings validate, normalize, persist, audit and drive inv
   await page.getByRole("button", { name: "Load Large Demo Dataset" }).click();
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await page.getByLabel("Main status").selectOption("CLOSED");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("tab", { name: "Documents" }).click();
   const invoiceRow = page.locator(".document-row").filter({ has: page.getByText("Invoice", { exact: true }) });
@@ -1735,7 +1819,6 @@ test("job documents download financial PDFs, print other templated reports and e
   await page.getByRole("button", { name: "Load Large Demo Dataset" }).click();
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await page.getByLabel("Main status").selectOption("CLOSED");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   await expect(page.locator(".record-card").first().locator(".doc-chip")).toHaveCount(4);
   await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("tab", { name: "Documents" }).click();
@@ -1769,16 +1852,14 @@ test("job lifecycle editor is ordered, status is read-only, and every action req
   const editor = page.getByRole("dialog", { name: /Edit Job/ });
   await expect(editor.getByLabel("Main Status")).toBeDisabled();
   await expect(editor.getByLabel("Sub Status")).toHaveCount(0);
-  await expect(editor.getByRole("region", { name: "Job lifecycle" }).locator(".lifecycle-checklist li")).toHaveCount(3);
-  await expect(editor.getByRole("tab")).toHaveText(["Details", "Body Mark", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
-  await expect(editor.getByRole("group", { name: "Downloads" })).toBeVisible();
+  await expect(editor.getByRole("region", { name: "Job lifecycle" }).locator(".lifecycle-checklist li")).toHaveCount(6);
+  await expect(editor.getByRole("tab")).toHaveText(["Details", "Task List", "Body Mark", "Materials", "Documents", "Photos / Media", "Invoice", "Payment"]);
   await editor.getByRole("tab", { name: "Materials" }).click();
   await expect(editor.getByRole("region", { name: "Job materials" })).toBeVisible();
   await editor.getByRole("tab", { name: "Documents" }).click();
   await expect(editor.getByRole("region", { name: "Current job documents" })).toBeVisible();
   await expect(editor.getByRole("region", { name: "Current job documents" }).getByText("Job Card", { exact: true })).toBeVisible();
   await expect(editor.getByText(/remaining:|All steps complete/)).toBeVisible();
-  await expect(editor.getByRole("button", { name: "Close Job" })).toBeVisible();
   await expect(editor.getByRole("button", { name: "Start Rework" })).toBeVisible();
   await editor.getByRole("button", { name: "Start Rework" }).click();
   const confirmation = page.getByRole("dialog", { name: "Start Rework?" });
@@ -1796,8 +1877,8 @@ test("lifecycle surfaces provide keyboard tabs, stacked dialogs, accessible name
   await page.setViewportSize({ width: 390, height: 844 });
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
+  await page.getByRole("button", { name: "Show filters", exact: true }).click();
   await page.getByLabel("Search job cards").fill("JC-2026-001247");
-  await page.getByLabel("Search job cards").press("Enter");
   const editCard = page.locator(".record-card").filter({ hasText: "JC-2026-001247" });
   const editTrigger = editCard.getByRole("button", { name: "Edit", exact: true });
   await editTrigger.click();
@@ -1805,6 +1886,8 @@ test("lifecycle surfaces provide keyboard tabs, stacked dialogs, accessible name
   await expect(jobDialog).toBeVisible();
   await expect(jobDialog.getByRole("tab", { name: "Details" })).toHaveAttribute("tabindex", "0");
   await jobDialog.getByRole("tab", { name: "Details" }).focus();
+  await page.keyboard.press("ArrowRight");
+  await page.keyboard.press("ArrowRight");
   await page.keyboard.press("ArrowRight");
   await expect(jobDialog.getByRole("tab", { name: "Materials" })).toHaveAttribute("aria-selected", "true");
   await page.keyboard.press("ArrowRight");
@@ -1844,6 +1927,7 @@ test("lifecycle surfaces provide keyboard tabs, stacked dialogs, accessible name
   await page.keyboard.press("Home");
   await expect(managementTabs.getByRole("tab", { name: "Users", exact: true })).toHaveAttribute("aria-selected", "true");
   await page.getByRole("tab", { name: "Estimates", exact: true }).click();
+  await page.getByLabel("Job results").selectOption({ index: 1 });
   const estimateTrigger = page.getByRole("button", { name: /Edit Estimate|Create Estimate/ });
   await estimateTrigger.click();
   const estimate = page.getByRole("dialog", { name: /Estimate$/ });
@@ -1869,6 +1953,7 @@ test("estimate dialog stages item CRUD and persists only on Save", async ({ page
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Estimates", exact: true }).click();
+  await page.getByLabel("Job results").selectOption({ index: 1 });
   await page.getByRole("button", { name: "Edit Estimate" }).click();
   let dialog = page.getByRole("dialog", { name: "Edit Estimate" });
   const savedDescription = await dialog.getByLabel("Item 1 description").inputValue();
@@ -1908,7 +1993,7 @@ test("service advisor Job Card shows assigned active jobs without preset deliver
   await expect(jobCards.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
   await expect(jobCards.getByLabel("Estimated delivery date")).toHaveValue("");
   await expect(jobCards.getByLabel("Job created month-year")).toHaveValue("");
-  for (const label of ["Main status", "Workflow status", "Customer filter", "Vehicle filter", "Service advisor filter", "Sort results"])
+  for (const label of ["Main status", "Workflow status", "Vehicle filter", "Sort results"])
     await expect(jobCards.getByLabel(label)).toBeVisible();
   await expect(jobCards).toContainText("JC-2026-001247");
   await expect(jobCards).not.toContainText("JC-2026-001245");
@@ -1929,16 +2014,54 @@ test("service advisor Job Card shows assigned active jobs without preset deliver
   await expect(editDialog.getByLabel("Service advisor (locked)")).toBeVisible();
 });
 
+test("service follow-ups show all assigned jobs and resolve the earlier open contact", async ({ page }) => {
+  await loginAs(page, "service@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Follow-ups", exact: true }).click();
+
+  const followups = page.locator(".service-advisor-list");
+  await expect(followups.getByLabel("Follow-ups received date")).toHaveValue("");
+  await expect(followups).toContainText("JC-2026-001247");
+  await expect(followups.locator("tbody tr")).toHaveCount(1);
+  await followups.getByLabel("Search follow-ups").fill("JC-2026-001247");
+  await expect(followups.locator("tbody tr")).toHaveCount(1);
+  await followups.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(followups.getByLabel("Search follow-ups")).toHaveValue("");
+
+  const row = followups.locator("tbody tr").filter({ hasText: "JC-2026-001247" });
+  await expect(row.getByRole("button", { name: "Add Follow-up", exact: true })).toBeVisible();
+  await row.getByRole("button", { name: "Add Follow-up", exact: true }).click();
+  let dialog = page.getByRole("dialog", { name: "Follow-ups" });
+  await dialog.getByLabel("Note").fill("Initial unanswered call");
+  await dialog.getByRole("button", { name: "Save Follow-up", exact: true }).click();
+  await expect(row.getByRole("status")).toHaveText("Pending (0/1)");
+
+  await row.getByRole("button", { name: "Add Follow-up", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Follow-ups" });
+  await dialog.getByLabel("Note").fill("Customer confirmed the update");
+  await dialog.getByRole("checkbox", { name: "Mark this follow-up done" }).click();
+  await dialog.getByRole("button", { name: "Save Follow-up", exact: true }).click();
+  await expect(row.getByRole("status")).toHaveText("Done(2)");
+
+  await row.getByRole("button", { name: "Add Follow-up", exact: true }).click();
+  dialog = page.getByRole("dialog", { name: "Follow-ups" });
+  await expect(dialog.getByRole("region", { name: "Follow-up history" })).toContainText("Initial unanswered call");
+  await expect(dialog.getByRole("region", { name: "Follow-up history" })).toContainText("Customer confirmed the update");
+  await dialog.getByLabel("Note").fill("Follow-up requested after the call");
+  await dialog.getByRole("button", { name: "Save Follow-up", exact: true }).click();
+  await expect(row.getByRole("status")).toHaveText("Pending (2/3)");
+});
+
 test("job card media validates, compresses, edits, archives, stays session-only, and responds on mobile", async ({ page }) => {
   const png = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=", "base64");
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
-  await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
-  const job = page.getByRole("dialog", { name: /View Job/ });
+  await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "Edit", exact: true }).click();
+  const job = page.getByRole("dialog", { name: /Edit Job/ });
   await job.getByRole("tab", { name: "Photos / Media" }).click();
   const media = job.getByRole("region", { name: "Job card photos and media" });
   await expect(media.getByRole("tab", { name: "Before Work" })).toHaveAttribute("aria-selected", "true");
   await expect(media.getByRole("tab", { name: "After Work" })).toBeVisible();
+  await media.getByRole("tab", { name: "After Work" }).click();
 
   await media.getByLabel("Image file").setInputFiles({ name: "unsafe.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg></svg>") });
   await expect(media.getByRole("alert")).toContainText("JPEG, PNG, or WebP");
@@ -1948,7 +2071,7 @@ test("job card media validates, compresses, edits, archives, stays session-only,
   await media.getByLabel("Photo label").fill("Arrival inspection");
   await media.getByLabel("Image file").setInputFiles({ name: "before.png", mimeType: "image/png", buffer: png });
   await expect(media.getByText(/Ready: 1 × 1/)).toBeVisible();
-  await media.getByRole("button", { name: "Upload to Before Work" }).click();
+  await media.getByRole("button", { name: "Upload to After Work" }).click();
   const uploaded = media.getByRole("article").filter({ hasText: "Arrival inspection" });
   const uploadedImage = uploaded.getByRole("img", { name: "Arrival inspection" });
   await expect(uploadedImage).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
@@ -1960,14 +2083,15 @@ test("job card media validates, compresses, edits, archives, stays session-only,
   await edit.getByLabel("Photo label").fill("Completed inspection");
   await edit.getByLabel("Work phase").selectOption("After Work");
   await edit.getByRole("button", { name: "Save metadata" }).click();
+  await media.getByRole("tab", { name: "Before Work" }).click();
   await expect(media.getByText("No before work images yet.")).toBeVisible();
   await media.getByRole("tab", { name: "After Work" }).click();
   await expect(media.getByRole("img", { name: "Completed inspection" })).toBeVisible();
 
-  await media.getByRole("tab", { name: "Before Work" }).click();
+  await media.getByRole("tab", { name: "After Work" }).click();
   await media.getByLabel("Photo label").fill("Archive candidate");
   await media.getByLabel("Image file").setInputFiles({ name: "archive.png", mimeType: "image/png", buffer: png });
-  await media.getByRole("button", { name: "Upload to Before Work" }).click();
+  await media.getByRole("button", { name: "Upload to After Work" }).click();
   const candidate = media.getByRole("article").filter({ hasText: "Archive candidate" });
   await candidate.getByRole("button", { name: "Archive" }).click();
   const archive = page.getByRole("dialog", { name: "Archive photo?" });
@@ -1993,7 +2117,7 @@ test("job card media validates, compresses, edits, archives, stays session-only,
   await page.reload();
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
-  await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
+  await page.locator(".record-card").filter({ hasText: "JC-2026-001246" }).getByRole("button", { name: "View", exact: true }).click();
   await page.getByRole("dialog", { name: /View Job/ }).getByRole("tab", { name: "Photos / Media" }).click();
   await expect(page.getByText("Completed inspection")).toHaveCount(0);
 });
@@ -2001,9 +2125,10 @@ test("job card media validates, compresses, edits, archives, stays session-only,
 test("linked advisor can change job media while other authorized job viewers are read only", async ({ page }) => {
   await loginAs(page, "service@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "My Queue", exact: true }).click();
-  await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
+  await page.getByRole("table", { name: "My Queue" }).getByRole("button", { name: "View", exact: true }).first().click();
   let job = page.getByRole("dialog", { name: /View Job/ });
   await job.getByRole("tab", { name: "Photos / Media" }).click();
+  await job.getByRole("tab", { name: "After Work" }).click();
   await expect(job.getByLabel("Image file")).toBeVisible();
   await job.getByRole("button", { name: "Go Back" }).click();
   await page.locator(".logout").click();
@@ -2011,7 +2136,6 @@ test("linked advisor can change job media while other authorized job viewers are
   await loginAs(page, "reception@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Search", exact: true }).click();
   await page.getByLabel("Search category").selectOption("job");
-  await page.locator("main").getByRole("button", { name: "Search", exact: true }).click();
   const results = page.getByRole("table", { name: "Job Card search results" });
   await expect(results.getByRole("button", { name: "View" }).first()).toBeVisible();
   await expect(results.getByRole("button", { name: "Edit", exact: true })).toHaveCount(0);
@@ -2180,6 +2304,11 @@ test("Admin issues an approved Purchase Order and both roles can see its Supplie
   await confirmation.getByRole("button", { name: "Confirm quantities", exact: true }).click();
   await expect(issued).toContainText("PO Confirmation");
   await expect(issued).toContainText("2");
+  await issued.getByRole("button", { name: "Close PO & post Stock Inward", exact: true }).click();
+  await expect(issued).toContainText("PO Closed — view only");
+  await expect(issued).toContainText("3 piece · Accepted on PO closure");
+  await expect(issued.getByRole("button", { name: "Download closed PO audit", exact: true })).toBeVisible();
+  await expect(issued.getByRole("button", { name: "Record delivery", exact: true })).toHaveCount(0);
   await issued.getByRole("button", { name: "Go Back" }).click();
   await page.getByRole("button", { name: "Logout" }).click();
 
@@ -2187,11 +2316,13 @@ test("Admin issues an approved Purchase Order and both roles can see its Supplie
   await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
   await page.getByRole("button", { name: "Process", exact: true }).click();
   const storeView = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
-  await expect(storeView).toContainText("PO Confirmation");
+  await expect(storeView).toContainText("PO Closed — view only");
   await expect(storeView.getByRole("button", { name: "Issue Purchase Order", exact: true })).toHaveCount(0);
   await expect(storeView.getByRole("button", { name: "Record delivery", exact: true })).toHaveCount(0);
   await expect(storeView.getByRole("button", { name: "Confirm quantities", exact: true })).toHaveCount(0);
-  await expect(storeView.getByRole("region", { name: "Supplier Basket" })).toContainText("Issued Order Supplies");
+  await expect(storeView.getByRole("button", { name: "Close PO & post Stock Inward", exact: true })).toHaveCount(0);
+  await expect(storeView.getByRole("button", { name: "Download closed PO audit", exact: true })).toBeVisible();
+  await expect(storeView).toContainText("Accepted on PO closure: PO-WOS-A-00001");
 });
 
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {

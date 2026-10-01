@@ -50,7 +50,11 @@ import {
   type JobPeriod,
 } from "./job-picker";
 import { dashboardFacts } from "./dashboard-metrics";
-import { isServiceActiveJob, serviceFollowupStatus } from "./service-advisor";
+import {
+  canAddServiceFollowup,
+  isServiceActiveJob,
+  serviceFollowupStatus,
+} from "./service-advisor";
 import { ExpectedTodayBookings } from "./booking-expected-today";
 import {
   addFollowup,
@@ -75,6 +79,7 @@ import {
   createEstimate,
   createEstimateItem,
   createFollowup,
+  createResolvedFollowup,
   createInventoryItem,
   createInwardPurchaseDraft,
   createSupplierForActor,
@@ -1774,8 +1779,8 @@ function SearchPortal({
           onClose={() => setRecord(undefined)}
         />
       )}
-      {!operationalCategory && <div className="list-filter-bar">
-        {!operationalCategory && category !== "job" && (
+      {!operationalCategory && !entityListKind && <div className="list-filter-bar">
+        {!operationalCategory && category !== "job" && !entityListKind && (
           <label className="list-search">
             Search
             <input
@@ -1940,7 +1945,6 @@ function SearchPortal({
           onExternalSearchChange={(value) =>
             changeFilters(() => setQuery(value))
           }
-          hideSearch
           filterLayout="search"
         />
       ) : (
@@ -3384,6 +3388,7 @@ function ServiceAdvisor({
     (item) =>
       item.job.advisor_id === user.id && isServiceActiveJob(item),
   );
+  const assignedJobs = state.jobs.filter((item) => item.job.advisor_id === user.id);
   if (activeMenuItem === "My Queue") {
     return (
       <section className="workspace">
@@ -3417,7 +3422,7 @@ function ServiceAdvisor({
               ? "estimates"
               : "followups"
         }
-        jobs={assignedActiveJobs}
+        jobs={activeMenuItem === "Follow-ups" ? assignedJobs : assignedActiveJobs}
         state={state}
         mutate={mutate}
         actor={user}
@@ -3864,27 +3869,25 @@ function ServiceAdvisorList({
                           </>
                         )}
                         {kind === "followups" && (
-                          <>
+                          canAddServiceFollowup(row) ? (
                             <button
                               className="grid-action"
                               onClick={() => open(row, "followup")}
                             >
                               Add Follow-up
                             </button>
-                            {tone === "done" && (
-                              <a
-                                className="link-action"
-                                href="#follow-up-history"
-                                onClick={(event) => {
-                                  event.preventDefault();
-                                  setSelected(row);
-                                  setDialog("followup-view");
-                                }}
-                              >
-                                View
-                              </a>
-                            )}
-                          </>
+                          ) : (
+                            <button
+                              type="button"
+                              className="grid-action"
+                              onClick={() => {
+                                setSelected(row);
+                                setDialog("followup-view");
+                              }}
+                            >
+                              View
+                            </button>
+                          )
                         )}
                       </div>
                     </td>
@@ -3970,7 +3973,7 @@ function ServiceFollowupDialog({
   mutate: Mutate;
   onClose: () => void;
 }) {
-  const editable = mode === "add" && isServiceActiveJob(view);
+  const editable = mode === "add" && canAddServiceFollowup(view);
   const [note, setNote] = useState("");
   const [done, setDone] = useState(false);
   const [outcome, setOutcome] = useState("");
@@ -4031,7 +4034,7 @@ function ServiceFollowupDialog({
               done: done ? 1 : 0,
               outcome: outcome.trim(),
             })
-          : (createdId = createFollowup(db, {
+          : (createdId = (done ? createResolvedFollowup : createFollowup)(db, {
               job_card_id: view.job.id,
               note: note.trim(),
               due_at: localCalendarDate(),
@@ -17331,6 +17334,11 @@ function EntityList({
     setFilters((current) => ({ ...current, ...patch }));
     setPage(1);
   };
+  const updateSearch = (value: string) => {
+    if (onExternalSearchChange) onExternalSearchChange(value);
+    else updateFilters({ search: value });
+    setPage(1);
+  };
   const clearFilters = () => {
     setFilters(emptyFilters);
     onExternalSearchChange?.("");
@@ -17932,18 +17940,14 @@ function EntityList({
         </Dialog>
       )}
       <div className={`list-filter-bar${filterLayout === "search" ? " search-filter-layout" : ""}`}>
-        {!hideSearch && kind !== "jobs" && (
+        {!hideSearch && kind !== "jobs" && filterLayout !== "search" && (
           <label className="list-search">
             Search
             <input
               aria-label={`Search ${title.toLocaleLowerCase()}`}
               value={effectiveSearch}
               placeholder={searchPlaceholder(kind)}
-              onChange={(event) =>
-                onExternalSearchChange
-                  ? onExternalSearchChange(event.target.value)
-                  : updateFilters({ search: event.target.value })
-              }
+              onChange={(event) => updateSearch(event.target.value)}
             />
           </label>
         )}
@@ -17955,8 +17959,19 @@ function EntityList({
           {filtersOpen ? "Hide filters" : "Show filters"}
         </button>
         <div
-          className={`${filtersOpen || filterLayout === "search" ? "list-filter-fields open" : "list-filter-fields"}${filterLayout === "search" ? " search-filter-row" : ""}`}
+          className={`${filtersOpen || filterLayout === "search" ? "list-filter-fields open" : "list-filter-fields"}${filterLayout === "search" ? " search-filter-row" : ""}${filterLayout === "search" && kind !== "jobs" ? " entity-search-filter-row" : ""}`}
         >
+          {!hideSearch && kind !== "jobs" && filterLayout === "search" && (
+            <label className="list-search">
+              Search
+              <input
+                aria-label="Search records"
+                value={effectiveSearch}
+                placeholder={searchPlaceholder(kind)}
+                onChange={(event) => updateSearch(event.target.value)}
+              />
+            </label>
+          )}
           {kind === "jobs" && (
             <JobCardFilterFields
               jobs={archivedOnly && role === "admin" ? state.archived_jobs : state.jobs}

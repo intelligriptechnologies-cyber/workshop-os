@@ -2807,6 +2807,9 @@ th {
   align-items: end;
   width: 100%;
 }
+.search-filter-layout .entity-search-filter-row {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+}
 .search-filter-layout .search-filter-row > *,
 .store-filter-grid.search-filter-layout > * {
   min-width: 0;

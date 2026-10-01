@@ -97,6 +97,9 @@ const ADMIN_TABS = [
   "Support & Logs",
 ] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
+const ADMIN_TAB_LABELS: Partial<Record<AdminTab, string>> = {
+  "Service Task Catalog": "Service Task",
+};
 
 type LogEntryInput = Omit<DemoLogEntry, "id" | "timestamp">;
 
@@ -178,7 +181,7 @@ export function AdminConsole({
                 setTab(item);
               }}
             >
-              {item}
+              {ADMIN_TAB_LABELS[item] ?? item}
             </button>
           ))}
         </div>
