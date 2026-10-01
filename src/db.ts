@@ -42,6 +42,9 @@ import type {
   PurchaseOrder,
   PurchaseOrderLine,
   PurchaseOrderQuotation,
+  PurchaseOrderReceipt,
+  PurchaseOrderReceiptLine,
+  PurchaseOrderConfirmation,
   StockInward,
   Invoice,
   InvoiceItem,
@@ -256,6 +259,18 @@ export function readState(db: Database): WorkshopState {
   const purchase_order_quotations = all<PurchaseOrderQuotation>(
     db,
     "select * from purchase_order_quotations order by purchase_order_line_id, quote_date desc, id desc",
+  );
+  const purchase_order_receipts = all<PurchaseOrderReceipt>(
+    db,
+    "select * from purchase_order_receipts order by received_at, id",
+  );
+  const purchase_order_receipt_lines = all<PurchaseOrderReceiptLine>(
+    db,
+    "select * from purchase_order_receipt_lines order by id",
+  );
+  const purchase_order_confirmations = all<PurchaseOrderConfirmation>(
+    db,
+    "select * from purchase_order_confirmations order by purchase_order_line_id",
   );
   const stock_inwards = all<StockInward>(
     db,
@@ -525,6 +540,9 @@ export function readState(db: Database): WorkshopState {
     purchase_orders,
     purchase_order_lines,
     purchase_order_quotations,
+    purchase_order_receipts,
+    purchase_order_receipt_lines,
+    purchase_order_confirmations,
     stock_inwards,
   };
 }
@@ -6367,6 +6385,43 @@ export function createFollowup(db: Database, payload: Omit<Followup, "id">) {
   return id;
 }
 
+/**
+ * Records a completed customer contact and closes every earlier live open
+ * follow-up for the same job as part of the same database operation.
+ */
+export function createResolvedFollowup(
+  db: Database,
+  payload: Omit<Followup, "id">,
+  timestamp = new Date().toISOString(),
+) {
+  db.run("savepoint create_resolved_followup");
+  try {
+    const id = insert(
+      db,
+      "insert into followups(job_card_id, note, due_at, done, outcome, created_at, updated_at) values (?, ?, ?, 1, ?, ?, ?)",
+      [
+        payload.job_card_id,
+        payload.note,
+        payload.due_at,
+        payload.outcome ?? "",
+        timestamp,
+        timestamp,
+      ],
+    );
+    db.run(
+      "update followups set done=1, updated_at=? where job_card_id=? and archived_at is null and done=0 and id<>?",
+      [timestamp, payload.job_card_id, id],
+    );
+    reconcileArtifactChecklist(db, payload.job_card_id, 0, timestamp);
+    db.run("release savepoint create_resolved_followup");
+    return id;
+  } catch (error) {
+    db.run("rollback to savepoint create_resolved_followup");
+    db.run("release savepoint create_resolved_followup");
+    throw error;
+  }
+}
+
 export function updateFollowup(
   db: Database,
   id: number,
@@ -6764,6 +6819,9 @@ export function createSchema(db: Database) {
     create unique index if not exists purchase_orders_number_unique on purchase_orders(po_number);
     create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, item_name text not null default '', unit text not null default '', ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null, subtotal real not null, gst_amount real not null, total real not null, source_purchase_order_line_id integer);
     create table if not exists purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null);
+    create table if not exists purchase_order_receipts(id integer primary key, purchase_order_id integer not null, received_by integer not null, received_at text not null, note text not null default '');
+    create table if not exists purchase_order_receipt_lines(id integer primary key, purchase_order_receipt_id integer not null, purchase_order_line_id integer not null, delivered_qty real not null);
+    create table if not exists purchase_order_confirmations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null unique, accepted_qty real not null, returned_qty real not null, damaged_qty real not null, wasted_qty real not null, confirmed_by integer not null, confirmed_at text not null);
     create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
     create table if not exists followups(id integer primary key, job_card_id integer, note text, due_at text, done integer);

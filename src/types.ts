@@ -518,6 +518,8 @@ export type PurchaseOrderStatus =
   | "PO Request"
   | "PO Request Approved"
   | "PO Issued"
+  | "PO Received"
+  | "PO Confirmation"
   | "Draft"
   | "Sent"
   | "Partially Received"
@@ -575,6 +577,35 @@ export interface PurchaseOrderQuotation {
   created_by: number;
   created_at: string;
   updated_at: string;
+}
+
+/** A supplier delivery recorded against an issued Purchase Order. It does not change inventory. */
+export interface PurchaseOrderReceipt {
+  id: number;
+  purchase_order_id: number;
+  received_by: number;
+  received_at: string;
+  note: string;
+}
+
+export interface PurchaseOrderReceiptLine {
+  id: number;
+  purchase_order_receipt_id: number;
+  purchase_order_line_id: number;
+  delivered_qty: number;
+}
+
+/** Admin's final disposition of a delivered Purchase Order line, before closure posts Stock Inward. */
+export interface PurchaseOrderConfirmation {
+  id: number;
+  purchase_order_id: number;
+  purchase_order_line_id: number;
+  accepted_qty: number;
+  returned_qty: number;
+  damaged_qty: number;
+  wasted_qty: number;
+  confirmed_by: number;
+  confirmed_at: string;
 }
 
 /** A physical receipt. Its linked ledger row is the sole inventory movement. */
@@ -842,6 +873,9 @@ export interface WorkshopState {
   purchase_orders: PurchaseOrder[];
   purchase_order_lines: PurchaseOrderLine[];
   purchase_order_quotations: PurchaseOrderQuotation[];
+  purchase_order_receipts: PurchaseOrderReceipt[];
+  purchase_order_receipt_lines: PurchaseOrderReceiptLine[];
+  purchase_order_confirmations: PurchaseOrderConfirmation[];
   stock_inwards: StockInward[];
 }
 

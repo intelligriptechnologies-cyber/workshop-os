@@ -117,6 +117,8 @@ import {
   updatePurchaseRequestForActor,
   cancelPurchaseRequestForActor,
   issuePurchaseOrderForActor,
+  recordPurchaseOrderReceiptForActor,
+  confirmPurchaseOrderForActor,
   setPurchaseOrderStatusForActor,
   recordStockInwardForActor,
   savePurchaseOrderQuotationForActor,
@@ -4040,7 +4042,13 @@ function ServiceFollowupDialog({
       if (!editingId) saved.id = createdId;
       setHistory((items) => [
         saved,
-        ...items.filter((item) => item.id !== saved.id),
+        ...items
+          .filter((item) => item.id !== saved.id)
+          .map((item) =>
+            done && !editingId && !item.done
+              ? { ...item, done: 1, updated_at: timestamp }
+              : item,
+          ),
       ]);
       if (keepOpen) resetComposer();
       else onClose();
@@ -4913,7 +4921,7 @@ function PurchaseOrdersWorkspace({
   onProcurementDraftConsumed: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number>();
-  const [dialog, setDialog] = useState<"form" | "view" | "approve">();
+  const [dialog, setDialog] = useState<"form" | "view" | "approve" | "receipt" | "confirm">();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("ALL");
   const [orderDate, setOrderDate] = useState(
@@ -4922,6 +4930,8 @@ function PurchaseOrdersWorkspace({
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseRequestFormLine[]>([]);
   const [approvalLines, setApprovalLines] = useState<PurchaseRequestApprovalFormLine[]>([]);
+  const [receiptLines, setReceiptLines] = useState<Array<{ purchase_order_line_id: number; delivered_qty: number }>>([]);
+  const [confirmationLines, setConfirmationLines] = useState<Array<{ purchase_order_line_id: number; accepted_qty: number; returned_qty: number; damaged_qty: number; wasted_qty: number }>>([]);
   useEffect(() => {
     if (!procurementDraft) return;
     setSelectedId(undefined);
@@ -4958,10 +4968,14 @@ function PurchaseOrdersWorkspace({
         (line) => line.purchase_order_id === selected.id,
       )
     : [];
-  const receivedFor = (line: PurchaseOrderLine) =>
-    state.stock_inwards
-      .filter((inward) => inward.purchase_order_line_id === line.id)
-      .reduce((sum, inward) => sum + inward.qty, 0);
+  const deliveredFor = (line: PurchaseOrderLine) => {
+    const receiptIds = new Set(state.purchase_order_receipts.map((receipt) => receipt.id));
+    return state.purchase_order_receipt_lines
+      .filter((receiptLine) => receiptIds.has(receiptLine.purchase_order_receipt_id) && receiptLine.purchase_order_line_id === line.id)
+      .reduce((sum, receiptLine) => sum + receiptLine.delivered_qty, 0);
+  };
+  const confirmationFor = (line: PurchaseOrderLine) =>
+    state.purchase_order_confirmations.find((confirmation) => confirmation.purchase_order_line_id === line.id);
   const close = () => {
     setDialog(undefined);
     setSelectedId(undefined);
@@ -5005,6 +5019,16 @@ function PurchaseOrdersWorkspace({
   const openView = (order: PurchaseOrder) => {
     setSelectedId(order.id);
     setDialog("view");
+  };
+  const beginReceipt = (order: PurchaseOrder) => {
+    setSelectedId(order.id);
+    setReceiptLines(state.purchase_order_lines.filter((line) => line.purchase_order_id === order.id).map((line) => ({ purchase_order_line_id: line.id, delivered_qty: 0 })));
+    setDialog("receipt");
+  };
+  const beginConfirmation = (order: PurchaseOrder) => {
+    setSelectedId(order.id);
+    setConfirmationLines(state.purchase_order_lines.filter((line) => line.purchase_order_id === order.id).map((line) => ({ purchase_order_line_id: line.id, accepted_qty: deliveredFor(line), returned_qty: 0, damaged_qty: 0, wasted_qty: 0 })));
+    setDialog("confirm");
   };
   const beginApproval = (order: PurchaseOrder) => {
     setSelectedId(order.id);
@@ -5083,7 +5107,7 @@ function PurchaseOrdersWorkspace({
         ).includes(normalizeSearch(search))),
   );
   const totalReceived = selectedLines.reduce(
-    (sum, line) => sum + receivedFor(line),
+    (sum, line) => sum + deliveredFor(line),
     0,
   );
   const totalOrdered = selectedLines.reduce(
@@ -5091,7 +5115,7 @@ function PurchaseOrdersWorkspace({
     0,
   );
   const receivedValue = selectedLines.reduce(
-    (sum, line) => sum + receivedFor(line) * line.unit_cost,
+    (sum, line) => sum + deliveredFor(line) * line.unit_cost,
     0,
   );
   return (
@@ -5131,6 +5155,8 @@ function PurchaseOrdersWorkspace({
                 "PO Request",
                 "PO Request Approved",
                 "PO Issued",
+                "PO Received",
+                "PO Confirmation",
                 "Draft",
                 "Sent",
                 "Partially Received",
@@ -5169,7 +5195,7 @@ function PurchaseOrdersWorkspace({
                   (line) => line.purchase_order_id === order.id,
                 );
                 const received = orderLines.reduce(
-                  (sum, line) => sum + receivedFor(line),
+                  (sum, line) => sum + deliveredFor(line),
                   0,
                 );
                 return (
@@ -5438,6 +5464,16 @@ function PurchaseOrdersWorkspace({
                   Issue Purchase Order
                 </button>
               )}
+              {actor.role === "admin" && ["PO Issued", "PO Received"].includes(selected.status) && (
+                <button type="button" className="primary-action" onClick={() => beginReceipt(selected)}>
+                  Record delivery
+                </button>
+              )}
+              {actor.role === "admin" && selected.status === "PO Received" && (
+                <button type="button" onClick={() => beginConfirmation(selected)}>
+                  Confirm quantities
+                </button>
+              )}
               {actor.role === "admin" && [
                 "Draft",
                 "Sent",
@@ -5494,6 +5530,8 @@ function PurchaseOrdersWorkspace({
             )}
             {[
               "PO Issued",
+              "PO Received",
+              "PO Confirmation",
               "Partially Received",
               "Ready to Close",
             ].includes(selected.status) && (
@@ -5510,8 +5548,8 @@ function PurchaseOrdersWorkspace({
               remaining · {money(receivedValue)} received value
             </p>
             <p className="muted">
-              Shortages and excesses are flags only; unlinked/manual receipts
-              remain valid and do not alter this reconciliation.
+              Delivery does not update inventory. Admin confirms every delivered unit as
+              accepted, returned, damaged, or wasted before the PO can close.
             </p>
             <div className="table-wrap">
               <table aria-label="Purchase order reconciliation">
@@ -5519,15 +5557,16 @@ function PurchaseOrdersWorkspace({
                   <tr>
                     <th>Item</th>
                     <th>Ordered</th>
-                    <th>Received</th>
-                    <th>Received value</th>
-                    <th>Remaining</th>
-                    <th>Variance</th>
+                    <th>Delivered</th>
+                    <th>Outstanding</th>
+                    <th>Accepted</th>
+                    <th>Exceptions</th>
                   </tr>
                 </thead>
                 <tbody>
                   {selectedLines.map((line) => {
-                    const received = receivedFor(line);
+                    const received = deliveredFor(line);
+                    const confirmation = confirmationFor(line);
                     const item = state.inventory.find(
                       (candidate) => candidate.id === line.item_id,
                     );
@@ -5538,9 +5577,9 @@ function PurchaseOrdersWorkspace({
                         </td>
                         <td>{line.ordered_qty}</td>
                         <td>{received}</td>
-                        <td>{money(received * line.unit_cost)}</td>
                         <td>{Math.max(0, line.ordered_qty - received)}</td>
-                        <td>{received - line.ordered_qty}</td>
+                        <td>{confirmation?.accepted_qty ?? "—"}</td>
+                        <td>{confirmation ? `${confirmation.returned_qty} returned / ${confirmation.damaged_qty} damaged / ${confirmation.wasted_qty} wasted` : "—"}</td>
                       </tr>
                     );
                   })}
@@ -5577,6 +5616,59 @@ function PurchaseOrdersWorkspace({
                   not received.
                 </p>
               )}
+          </div>
+        </Dialog>
+      )}
+      {dialog === "receipt" && selected && (
+        <Dialog
+          title={`Record delivery — ${selected.po_number}`}
+          subtitle="Enter this supplier delivery only. Inventory will not change until the confirmed PO is closed."
+          onClose={close}
+          footer={<button type="button" className="primary-action" onClick={() => {
+            const lines = receiptLines.filter((line) => line.delivered_qty > 0);
+            if (mutate((db) => recordPurchaseOrderReceiptForActor(db, selected.id, actor.id, { lines }))) setDialog("view");
+          }}>Save delivery</button>}
+        >
+          <div className="inward-dialog-content" aria-label="Purchase Order delivery receipt">
+            {selectedLines.map((line, index) => {
+              const item = state.inventory.find((candidate) => candidate.id === line.item_id);
+              const delivered = deliveredFor(line);
+              const formLine = receiptLines.find((candidate) => candidate.purchase_order_line_id === line.id);
+              return <label key={line.id} className="receipt-line-row">
+                {item?.sku} · {item?.name ?? line.item_name} — ordered {line.ordered_qty}, delivered {delivered}, outstanding {line.ordered_qty - delivered}
+                <input aria-label={`Delivered quantity for PO line ${index + 1}`} type="number" min="0" max={Math.max(0, line.ordered_qty - delivered)} step="0.01" value={formLine?.delivered_qty || ""} onChange={(event) => setReceiptLines((current) => current.map((candidate) => candidate.purchase_order_line_id === line.id ? { ...candidate, delivered_qty: Number(event.target.value) } : candidate))} />
+              </label>;
+            })}
+          </div>
+        </Dialog>
+      )}
+      {dialog === "confirm" && selected && (
+        <Dialog
+          wide
+          title={`Confirm quantities — ${selected.po_number}`}
+          subtitle="Every delivered unit must be accepted, returned, damaged, or wasted before this PO can move to confirmation."
+          onClose={close}
+          footer={<button type="button" className="primary-action" onClick={() => {
+            if (mutate((db) => confirmPurchaseOrderForActor(db, selected.id, actor.id, { lines: confirmationLines }))) setDialog("view");
+          }}>Confirm quantities</button>}
+        >
+          <div className="inward-dialog-content" aria-label="Purchase Order quality confirmation">
+            {selectedLines.map((line, index) => {
+              const item = state.inventory.find((candidate) => candidate.id === line.item_id);
+              const delivered = deliveredFor(line);
+              const formLine = confirmationLines.find((candidate) => candidate.purchase_order_line_id === line.id);
+              if (!formLine) return null;
+              const update = (patch: Partial<typeof formLine>) => setConfirmationLines((current) => current.map((candidate) => candidate.purchase_order_line_id === line.id ? { ...candidate, ...patch } : candidate));
+              return <section className="approval-line" key={line.id}>
+                <h4>{index + 1}. {item?.sku} · {item?.name ?? line.item_name} <span className="muted">Delivered {delivered} / ordered {line.ordered_qty}</span></h4>
+                <div className="form-grid">
+                  <label>Accepted<input aria-label={`Accepted quantity for PO line ${index + 1}`} type="number" min="0" step="0.01" value={formLine.accepted_qty} onChange={(event) => update({ accepted_qty: Number(event.target.value) })} /></label>
+                  <label>Returned<input aria-label={`Returned quantity for PO line ${index + 1}`} type="number" min="0" step="0.01" value={formLine.returned_qty} onChange={(event) => update({ returned_qty: Number(event.target.value) })} /></label>
+                  <label>Damaged<input aria-label={`Damaged quantity for PO line ${index + 1}`} type="number" min="0" step="0.01" value={formLine.damaged_qty} onChange={(event) => update({ damaged_qty: Number(event.target.value) })} /></label>
+                  <label>Wasted<input aria-label={`Wasted quantity for PO line ${index + 1}`} type="number" min="0" step="0.01" value={formLine.wasted_qty} onChange={(event) => update({ wasted_qty: Number(event.target.value) })} /></label>
+                </div>
+              </section>;
+            })}
           </div>
         </Dialog>
       )}

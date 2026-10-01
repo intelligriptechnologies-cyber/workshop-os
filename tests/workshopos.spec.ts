@@ -2163,6 +2163,23 @@ test("Admin issues an approved Purchase Order and both roles can see its Supplie
   await expect(basket).toContainText("9000000000");
   await expect(basket).toContainText("nina@example.com");
   await expect(basket).toContainText("3 ordered units across 1 item");
+  await issued.getByRole("button", { name: "Record delivery", exact: true }).click();
+  const firstDelivery = page.getByRole("dialog", { name: /Record delivery/ });
+  await firstDelivery.getByLabel("Delivered quantity for PO line 1").fill("1");
+  await firstDelivery.getByRole("button", { name: "Save delivery", exact: true }).click();
+  await expect(issued).toContainText("PO Received");
+  await issued.getByRole("button", { name: "Record delivery", exact: true }).click();
+  const secondDelivery = page.getByRole("dialog", { name: /Record delivery/ });
+  await secondDelivery.getByLabel("Delivered quantity for PO line 1").fill("2");
+  await secondDelivery.getByRole("button", { name: "Save delivery", exact: true }).click();
+  await expect(issued).toContainText("3 received");
+  await expect(issued).toContainText("0 remaining");
+  await issued.getByRole("button", { name: "Confirm quantities", exact: true }).click();
+  const confirmation = page.getByRole("dialog", { name: /Confirm quantities/ });
+  await confirmation.getByLabel("Accepted quantity for PO line 1").fill("3");
+  await confirmation.getByRole("button", { name: "Confirm quantities", exact: true }).click();
+  await expect(issued).toContainText("PO Confirmation");
+  await expect(issued).toContainText("2");
   await issued.getByRole("button", { name: "Go Back" }).click();
   await page.getByRole("button", { name: "Logout" }).click();
 
@@ -2170,8 +2187,10 @@ test("Admin issues an approved Purchase Order and both roles can see its Supplie
   await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
   await page.getByRole("button", { name: "Process", exact: true }).click();
   const storeView = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
-  await expect(storeView).toContainText("PO Issued");
+  await expect(storeView).toContainText("PO Confirmation");
   await expect(storeView.getByRole("button", { name: "Issue Purchase Order", exact: true })).toHaveCount(0);
+  await expect(storeView.getByRole("button", { name: "Record delivery", exact: true })).toHaveCount(0);
+  await expect(storeView.getByRole("button", { name: "Confirm quantities", exact: true })).toHaveCount(0);
   await expect(storeView.getByRole("region", { name: "Supplier Basket" })).toContainText("Issued Order Supplies");
 });
 
