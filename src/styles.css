@@ -401,6 +401,61 @@ main {
   font-weight: 500;
 }
 
+.search-topbar-controls {
+  display: flex;
+  align-items: end;
+  gap: 8px;
+  margin-left: auto;
+}
+
+.search-topbar-controls label {
+  display: grid;
+  gap: 4px;
+  color: #0e6268;
+  font-size: .78rem;
+  font-weight: 700;
+}
+
+.search-topbar-controls select,
+.search-topbar-controls .filter-clear-action {
+  min-height: 42px;
+  border: 1px solid #15616d;
+  border-radius: 7px;
+  background: #15616d;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+}
+
+.search-topbar-controls select {
+  min-width: 12rem;
+  padding: 0 .65rem;
+}
+
+.search-topbar-controls .filter-clear-action {
+  padding: .35rem .7rem;
+  text-decoration: none;
+}
+
+.search-topbar-controls select:hover,
+.search-topbar-controls .filter-clear-action:hover:not(:disabled) {
+  background: #0e6268;
+  color: #fff;
+}
+
+.search-topbar-controls select:focus-visible,
+.search-topbar-controls .filter-clear-action:focus-visible {
+  outline: 3px solid rgba(21, 97, 109, .32);
+  outline-offset: 2px;
+}
+
+.search-topbar-controls .filter-clear-action:disabled {
+  border-color: #8caeb1;
+  background: #8caeb1;
+  color: #fff;
+  cursor: not-allowed;
+}
+
 .user-pill {
   gap: 8px;
   min-height: 40px;
@@ -1607,6 +1662,36 @@ button.request-line:focus {
   grid-column: 1 / -1;
 }
 
+.my-queue-filter-bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+}
+
+.my-queue-filter-bar > label {
+  flex: 0 1 12rem;
+  min-width: 10rem;
+}
+
+.my-queue-filter-bar > .list-search {
+  flex: 1 1 20rem;
+  min-width: 16rem;
+}
+
+.my-queue-filter-bar > .list-search-actions {
+  margin-left: auto;
+}
+
+@media (max-width: 1180px) {
+  .my-queue-panel .table-wrap {
+    display: block;
+  }
+
+  .my-queue-panel table {
+    min-width: 42rem;
+  }
+}
+
 .ui-switch {
   align-self: end;
   display: inline-flex;
@@ -2316,6 +2401,17 @@ th {
     display: grid;
   }
 
+  .search-topbar-controls {
+    margin-left: 0;
+    align-items: stretch;
+  }
+
+  .search-topbar-controls label,
+  .search-topbar-controls select {
+    min-width: 0;
+    width: 100%;
+  }
+
   .user-pill {
     width: 100%;
     justify-content: center;
@@ -2635,10 +2731,43 @@ th {
 .job-card-archive-switch .ui-switch-label,
 .job-card-archive-switch .ui-switch-state { display: none; }
 .job-card-filter-grid > .list-search-actions { align-self: end; flex: 0 0 auto; margin-left: 0; min-height: 42px; }
+
+/* The direct Job Cards page deliberately groups its complete filter set into
+   two desktop rows. Other Job Card contexts retain the shared wrapping bar. */
+.job-card-filter-grid--direct {
+  display: grid;
+  gap: .65rem;
+}
+.job-card-filter-grid--direct .job-card-filter-row {
+  display: grid;
+  gap: .65rem;
+  align-items: end;
+}
+.job-card-filter-grid--direct .job-card-filter-row:first-child {
+  grid-template-columns: minmax(12rem, 1.4fr) repeat(4, minmax(0, 1fr));
+}
+.job-card-filter-grid--direct .job-card-filter-row:last-child {
+  grid-template-columns: minmax(12rem, 1.4fr) repeat(3, minmax(0, 1fr)) auto auto;
+}
+.job-card-filter-grid--direct .job-card-filter-row > label,
+.job-card-filter-grid--direct .job-card-archive-filter,
+.job-card-filter-grid--direct .list-search-actions {
+  min-width: 0;
+  width: auto;
+}
+.job-card-filter-grid--direct .list-search-actions {
+  align-self: end;
+  min-height: 42px;
+}
 @media (max-width: 760px) {
   .job-card-filter-grid > * { flex-basis: 100%; width: 100%; }
   .job-card-filter-grid > .list-search-actions { justify-content: stretch; }
   .job-card-filter-grid > .list-search-actions .filter-clear-action { width: 100%; }
+  .job-card-filter-grid--direct .job-card-filter-row { grid-template-columns: 1fr; }
+  .job-card-filter-grid--direct .job-card-filter-row > *,
+  .job-card-filter-grid--direct .list-search-actions,
+  .job-card-filter-grid--direct .list-search-actions .filter-clear-action { width: 100%; }
+  .job-card-filter-grid--direct .list-search-actions { justify-content: stretch; }
 }
 .toggle-switch > input {
   position: absolute;
@@ -2737,6 +2866,22 @@ th {
 
   .store-filter-grid .list-search {
     grid-column: auto;
+  }
+
+  .my-queue-filter-bar > label,
+  .my-queue-filter-bar > .list-search,
+  .my-queue-filter-bar > .list-search-actions {
+    flex-basis: 100%;
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .my-queue-filter-bar > .list-search-actions {
+    justify-content: stretch;
+  }
+
+  .my-queue-filter-bar > .list-search-actions button {
+    flex: 1 1 0;
   }
 
   .store-filter-grid > .ui-switch {

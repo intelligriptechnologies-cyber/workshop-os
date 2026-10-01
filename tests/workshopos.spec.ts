@@ -46,6 +46,47 @@ test("service Job Cards view toggle switches between table and grid results", as
   await expect(page.locator(".service-advisor-list .record-card")).toHaveCount(0);
 });
 
+test("service My Queue is a responsive active-job table with direct record actions", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await loginAs(page, "service@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "My Queue", exact: true }).click();
+
+  const queue = page.locator(".my-queue-panel");
+  const toolbar = queue.locator(".my-queue-filter-bar");
+  const table = queue.getByRole("table", { name: "My Queue" });
+  await expect(table).toBeVisible();
+  await expect(table.locator("thead")).toContainText("Job Card");
+  await expect(table.locator("thead")).toContainText("Vehicle");
+  await expect(table.locator("thead")).toContainText("Customer");
+  await expect(table.locator("thead")).toContainText("Status");
+  await expect(table.locator("thead")).toContainText("Workflow");
+  await expect(table.locator("thead")).toContainText("Actions");
+  await expect(table.locator("tbody > tr")).toHaveCount(1);
+  await expect(table).toContainText("JC-2026-001247");
+  await expect(table).not.toContainText("CLOSED");
+  await expect(table).not.toContainText("CANCELLED");
+  await expect(queue.getByText("Selected Job", { exact: true })).toHaveCount(0);
+
+  const filterRows = await toolbar.locator("> label, > .list-search-actions").evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().bottom))).size);
+  expect(filterRows).toBe(1);
+
+  const firstRow = table.locator("tbody > tr").first();
+  const jobNo = (await firstRow.locator("td").first().textContent())!.trim();
+  await firstRow.getByRole("button", { name: "View", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: `View Job ${jobNo}` })).toBeVisible();
+  await page.getByRole("button", { name: "Go Back" }).click();
+  await firstRow.getByRole("button", { name: "Edit", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: `Edit Job ${jobNo}` })).toBeVisible();
+  await page.getByRole("button", { name: "Go Back" }).click();
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  await expect(toolbar.getByLabel("Search my queue")).toBeVisible();
+  await expect(toolbar.getByLabel("My Queue status")).toBeVisible();
+  await expect(toolbar.getByRole("button", { name: "Clear", exact: true })).toBeVisible();
+  await expect(table.getByRole("button", { name: "View", exact: true }).first()).toBeVisible();
+  await expect(table.getByRole("button", { name: "Edit", exact: true }).first()).toBeVisible();
+});
+
 test("advance bookings are limited to the next two complete months", async ({ page }) => {
   await loginAs(page, "reception@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Advance Bookings", exact: true }).click();
@@ -493,33 +534,31 @@ test("Management Hub Job Cards filters received dates, months, archived records,
   expect(clearBox!.width).toBeCloseTo(toolbarBox!.width, 0);
 });
 
-test("direct Job Cards uses the focused received-date toolbar", async ({ page }) => {
+test("direct Job Cards uses one clear two-row filter toolbar", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
 
-  const toolbar = page.locator(".direct-job-card-filter-grid");
-  const date = toolbar.getByLabel("Direct job cards date");
-  const month = toolbar.getByLabel("Direct job cards month-year");
+  const toolbar = page.locator(".job-card-filter-grid--direct");
+  const date = toolbar.getByLabel("Estimated delivery date");
+  const month = toolbar.getByLabel("Job created month-year");
   const archived = toolbar.getByRole("switch", { name: "Show archived only" });
-  const today = await page.evaluate(() => {
-    const now = new Date();
-    const offset = now.getTimezoneOffset() * 60_000;
-    return new Date(now.getTime() - offset).toISOString().slice(0, 10);
-  });
 
-  await expect(date).toHaveValue(today);
-  await expect(toolbar.getByLabel("Job status filter")).toBeVisible();
-  await expect(toolbar.getByLabel("Workflow status")).toHaveCount(0);
-  await expect(toolbar.getByLabel("Customer filter")).toHaveCount(0);
-  await expect(toolbar.getByLabel("Vehicle filter")).toHaveCount(0);
-  await expect(toolbar.getByLabel("Service advisor filter")).toHaveCount(0);
-  await expect(toolbar.getByLabel("Sort results")).toHaveCount(0);
-  const desktopRows = await toolbar.locator("> label, > .list-search-actions").evaluateAll((controls) => {
-    const positions = controls.map((control) => Math.round(control.getBoundingClientRect().bottom));
-    return new Set(positions).size;
-  });
-  expect(desktopRows).toBeLessThanOrEqual(2);
+  await expect(page.getByLabel("Search job cards")).toHaveCount(1);
+  await expect(page.getByRole("button", { name: "Clear", exact: true })).toHaveCount(1);
+  await expect(toolbar.locator(".job-card-filter-row")).toHaveCount(2);
+  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Search");
+  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Main status");
+  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Workflow");
+  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Estimated Delivery Date");
+  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Job Created Month-Year");
+  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Customer");
+  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Vehicle");
+  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Service advisor");
+  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Sort");
+  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Show archived only");
+  const desktopRows = await toolbar.locator(".job-card-filter-row").evaluateAll((rows) => new Set(rows.map((row) => Math.round(row.getBoundingClientRect().bottom))).size);
+  expect(desktopRows).toBe(2);
 
   const months = await month.locator("option").evaluateAll((options) => options.slice(1).map((option) => (option as HTMLOptionElement).value));
   expect(months).not.toHaveLength(0);
@@ -527,22 +566,24 @@ test("direct Job Cards uses the focused received-date toolbar", async ({ page })
   await month.selectOption(months[0]);
   await expect(date).toHaveValue("");
 
-  await date.fill(today);
-  await expect(month).toHaveValue("");
-  await page.locator(".record-card").first().getByRole("button", { name: "View", exact: true }).click();
-  await expect(page.getByRole("dialog", { name: /View Job/ })).toBeVisible();
-  await page.getByRole("button", { name: "Go Back" }).click();
+  await toolbar.getByLabel("Main status").selectOption("NEW");
+  await expect(toolbar.getByLabel("Main status")).toHaveValue("NEW");
+  await toolbar.getByLabel("Workflow status").selectOption("ALL");
+  await date.fill("2026-01-01");
   await archived.click();
   await expect(archived).toHaveAttribute("aria-checked", "true");
-  await expect(page.getByRole("dialog", { name: /View Job/ })).toHaveCount(0);
 
   await toolbar.getByRole("button", { name: "Clear", exact: true }).click();
   await expect(date).toHaveValue("");
   await expect(month).toHaveValue("");
+  await expect(toolbar.getByLabel("Main status")).toHaveValue("ALL");
   await expect(archived).toHaveAttribute("aria-checked", "false");
   await expect(page.getByText(/Showing 1 to/)).toBeVisible();
 
   await page.setViewportSize({ width: 390, height: 844 });
+  await page.getByRole("button", { name: "Show filters", exact: true }).click();
+  const mobileControlRows = await toolbar.locator(".job-card-filter-row > label, .job-card-filter-row > .job-card-archive-filter, .job-card-filter-row > .list-search-actions").evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().top))).size);
+  expect(mobileControlRows).toBeGreaterThan(2);
   const [clearBox, toolbarBox] = await Promise.all([
     toolbar.getByRole("button", { name: "Clear", exact: true }).boundingBox(),
     toolbar.boundingBox(),
@@ -605,19 +646,27 @@ test("search combines entity and lifecycle filters and clears predictably", asyn
   await expect(page.getByLabel("Job status")).toBeHidden();
   await expect(page.getByLabel("Customer type")).toBeVisible();
   await expect(page.getByText("No matching records")).toBeVisible();
-  const searchClear = page.locator(".portal > .list-filter-bar").getByRole("button", { name: "Clear", exact: true });
+  const searchClear = page.locator(".search-topbar-controls").getByRole("button", { name: "Clear category", exact: true });
   await expect(searchClear).toHaveClass(/filter-clear-action/);
   await searchClear.click();
   await expect(page.getByText("Please select a category to activate search")).toBeVisible();
+  await expect(searchClear).toBeDisabled();
   await page.getByLabel("Search category").selectOption("job");
-  await expect(page.getByLabel("Job status")).toBeVisible();
-  const monthYear = page.getByLabel("Search month-year");
+  await expect(page.getByLabel("Search records")).toHaveValue("  od02AB1234  ");
+  const jobFilters = page.locator(".job-card-filter-grid--direct");
+  await expect(jobFilters.locator(".job-card-filter-row")).toHaveCount(2);
+  const desktopRows = await jobFilters.locator(".job-card-filter-row").evaluateAll((rows) => new Set(rows.map((row) => Math.round(row.getBoundingClientRect().bottom))).size);
+  expect(desktopRows).toBe(2);
+  const monthYear = page.getByLabel("Job created month-year");
   await expect(monthYear).toBeVisible();
   const monthValues = await monthYear.locator("option").evaluateAll((options) => options.map((option) => option.getAttribute("value") ?? ""));
   expect(monthValues[0]).toBe("");
   expect(monthValues.slice(1)).toEqual([...monthValues.slice(1)].sort().reverse());
-  await page.getByLabel("Job status").selectOption("IN_PROGRESS");
-  await expect(page.getByText(/Showing 1 to .* of/)).toBeVisible();
+  await page.getByLabel("Main status").selectOption("IN_PROGRESS");
+  await jobFilters.getByRole("button", { name: "Clear", exact: true }).click();
+  await expect(page.getByLabel("Search category")).toHaveValue("job");
+  await expect(page.getByLabel("Search records")).toHaveValue("");
+  await expect(page.getByLabel("Main status")).toHaveValue("ALL");
   await page.getByLabel("Search records").fill("inv-08947");
   await page.getByLabel("Search category").selectOption("invoice");
   await expect(page.getByLabel("Job status")).toBeHidden();

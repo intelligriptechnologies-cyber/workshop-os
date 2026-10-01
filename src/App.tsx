@@ -415,6 +415,38 @@ const ADMIN_OPERATIONAL_SEARCH_CATEGORIES: readonly AdminOperationalSearchCatego
     "estimate",
     "follow-ups",
   ];
+
+function searchCategoriesFor(
+  actor: Pick<User, "role">,
+  permittedPages: readonly AdminPageKey[],
+): SearchCategorySelection[] {
+  // Service Advisors can always search the records they need to advise on, even
+  // when those underlying workspace pages have not been granted.
+  const baseCategories =
+    actor.role === "service"
+      ? (["job", "customer", "vehicle", "invoice"] as SearchTableCategory[])
+      : (Object.keys(CATEGORY_PAGE_KEYS) as SearchTableCategory[]).filter(
+          (item) =>
+            item !== "payment" &&
+            CATEGORY_PAGE_KEYS[item].some((key) => permittedPages.includes(key)),
+        );
+
+  // Customer and Vehicle remain Admin-granted pages even though they are
+  // intentionally absent from the Admin rail; Search is their Admin entry point.
+  return actor.role === "admin"
+    ? [
+        ...Array.from(
+          new Set([
+            ...baseCategories.filter((item) => item !== "stock"),
+            "customer" as const,
+            "vehicle" as const,
+            "payment" as const,
+          ]),
+        ),
+        ...ADMIN_OPERATIONAL_SEARCH_CATEGORIES,
+      ]
+    : baseCategories;
+}
 const ADMIN_OPERATIONAL_SEARCH_LABELS: Record<
   AdminOperationalSearchCategory,
   string
@@ -1026,6 +1058,44 @@ function App() {
             <p>{roleLabels[user.role]}</p>
             <h1>{headlineFor(user.role)}</h1>
           </div>
+          {activeMenuItem === "Search" && (
+            <div className="search-topbar-controls">
+              <label>
+                Search category
+                <select
+                  aria-label="Search category"
+                  value={searchCategory}
+                  onChange={(event) => {
+                    const nextCategory = event.target.value as
+                      | SearchCategorySelection
+                      | "";
+                    setSearchCategory(nextCategory);
+                    if (nextCategory !== "job") setSearchStatus("ALL");
+                    if (nextCategory !== "payment") setSearchPaymentMode("ALL");
+                    if (nextCategory !== "stock") {
+                      setSearchLowStockOnly(false);
+                    }
+                  }}
+                >
+                  <option value="">Select a category</option>
+                  {searchCategoriesFor(user, permittedPages).map((item) => (
+                    <option key={item} value={item}>
+                      {item in ADMIN_OPERATIONAL_SEARCH_LABELS
+                        ? ADMIN_OPERATIONAL_SEARCH_LABELS[
+                            item as AdminOperationalSearchCategory
+                          ]
+                        : SEARCH_CATEGORY_LABELS[item as SearchTableCategory]}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <FilterClearButton
+                label="Clear category"
+                disabled={!searchCategory}
+                onClick={() => setSearchCategory("")}
+              />
+            </div>
+          )}
           <div className="user-pill">
             <UserRound size={18} />
             {user.email}
@@ -1544,34 +1614,6 @@ function SearchPortal({
     mode: "view" | "edit";
   }>();
 
-  // Service Advisors can always search the records they need to advise on, even when
-  // those underlying workspace pages have not been granted.
-  const baseCategories =
-    actor.role === "service"
-      ? (["job", "customer", "vehicle", "invoice"] as SearchTableCategory[])
-      : (Object.keys(CATEGORY_PAGE_KEYS) as SearchTableCategory[]).filter(
-          (item) =>
-            item !== "payment" &&
-            CATEGORY_PAGE_KEYS[item].some((key) =>
-              permittedPages.includes(key),
-            ),
-        );
-  // Customer and Vehicle remain Admin-granted pages even though they are intentionally
-  // absent from the Admin rail; Search is their Admin entry point.
-  const availableCategories: SearchCategorySelection[] =
-    actor.role === "admin"
-      ? [
-          ...Array.from(
-            new Set([
-              ...baseCategories.filter((item) => item !== "stock"),
-              "customer" as const,
-              "vehicle" as const,
-              "payment" as const,
-            ]),
-          ),
-          ...ADMIN_OPERATIONAL_SEARCH_CATEGORIES,
-        ]
-      : baseCategories;
   const operationalCategory =
     actor.role === "admin" &&
     category !== "stock" &&
@@ -1616,6 +1658,23 @@ function SearchPortal({
     setJobWorkflow("ALL"); setJobCustomer(""); setJobVehicle("ALL"); setJobAdvisor("ALL"); setJobSort("newest"); setJobArchivedOnly(false);
     setPage(1);
   };
+  const clearJobCardFilters = () => {
+    setQuery("");
+    setStatus("ALL");
+    setDateFilter("");
+    setMonthFilter("");
+    setJobWorkflow("ALL");
+    setJobCustomer("");
+    setJobVehicle("ALL");
+    setJobAdvisor("ALL");
+    setJobSort("newest");
+    setJobArchivedOnly(false);
+    setPage(1);
+  };
+
+  useEffect(() => {
+    setPage(1);
+  }, [category]);
 
   const jobRows = useMemo(() => {
     const source = jobArchivedOnly && actor.role === "admin" ? state.archived_jobs : jobs;
@@ -1724,43 +1783,13 @@ function SearchPortal({
                 if (patch.sort !== undefined) setJobSort(patch.sort);
                 if (patch.archivedOnly !== undefined) setJobArchivedOnly(patch.archivedOnly);
               })}
-              onClear={clearFilters}
+              onClear={clearJobCardFilters}
               showArchive={actor.role === "admin"}
               searchLabel="Search records"
+              directLayout
             />
           )}
         <div className="list-filter-fields open">
-          <label>
-            {operationalCategory ? "Workspace" : "Category"}
-            <select
-              aria-label="Search category"
-              value={category}
-              onChange={(event) =>
-                changeFilters(() => {
-                  const nextCategory = event.target.value as
-                    SearchCategorySelection | "";
-                  setCategory(nextCategory);
-                  if (nextCategory !== "job") setStatus("ALL");
-                  if (nextCategory !== "payment") setPaymentMode("ALL");
-                  if (nextCategory !== "stock") {
-                    setLowStockOnly(false);
-                    setActiveLowStockOnly(false);
-                  }
-                })
-              }
-            >
-              <option value="">Select a category</option>
-              {availableCategories.map((item) => (
-                <option key={item} value={item}>
-                  {item in ADMIN_OPERATIONAL_SEARCH_LABELS
-                    ? ADMIN_OPERATIONAL_SEARCH_LABELS[
-                        item as AdminOperationalSearchCategory
-                      ]
-                    : SEARCH_CATEGORY_LABELS[item as SearchTableCategory]}
-                </option>
-              ))}
-            </select>
-          </label>
           {category === "stock" && activeLowStockOnly && (
             <span className="search-scope" role="status">
               Low stock only
@@ -1862,7 +1891,6 @@ function SearchPortal({
                 </label></>}
               </>
             )}
-          {!operationalCategory && <ListSearchActions onClear={clearFilters} />}
         </div>
       </div>
 
@@ -3335,8 +3363,8 @@ function ServiceAdvisor({
   );
   if (activeMenuItem === "My Queue") {
     return (
-      <section className="workspace two-panel">
-        <div className="desk-panel">
+      <section className="workspace">
+        <div className="desk-panel my-queue-panel">
           <PanelTitle
             icon={<ClipboardList />}
             title="My Queue"
@@ -3345,18 +3373,9 @@ function ServiceAdvisor({
           <FilterableJobRows
             title="My Queue"
             jobs={assignedActiveJobs}
-            selectedJobId={view?.job.id}
-            onSelect={setSelectedJobId}
             showStatusFilter
+            queueActions={{ state, mutate, actor: user }}
           />
-        </div>
-        <div className="desk-panel">
-          <PanelTitle
-            icon={<FileText />}
-            title="Selected Job"
-            subtitle={view?.job.job_no ?? "Select a job"}
-          />
-          {view && <JobSnapshot view={view} />}
         </div>
       </section>
     );
@@ -16723,6 +16742,7 @@ function JobCardFilterFields({
   onClear,
   showArchive = false,
   searchLabel = "Search job cards",
+  directLayout = false,
 }: {
   jobs: JobView[];
   values: JobCardFilterValues;
@@ -16730,22 +16750,28 @@ function JobCardFilterFields({
   onClear: () => void;
   showArchive?: boolean;
   searchLabel?: string;
+  directLayout?: boolean;
 }) {
   const workflows = [...new Set(jobs.map((item) => item.job.sub_status))].sort();
   const vehicles = [...new Map(jobs.map((item) => [item.vehicle.id, item.vehicle])).values()].sort((a, b) => a.number.localeCompare(b.number));
   const advisors = [...new Map(jobs.map((item) => [item.advisor.id, item.advisor])).values()].sort((a, b) => a.name.localeCompare(b.name));
-  return <div className="job-card-filter-grid" data-job-card-filters>
-    <label className="list-search job-card-search-filter">Search<input aria-label={searchLabel} value={values.search} placeholder="Job, vehicle, customer or mobile" onChange={(event) => onChange({ search: event.target.value })} /></label>
-    <label className="job-card-status-filter">Main status<select aria-label="Main status" value={values.primary} onChange={(event) => onChange({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>
-    <label className="job-card-workflow-filter">Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>
-    <label className="job-card-date-filter">Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>
-    <label className="job-card-month-filter">Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>
-    <label className="job-card-customer-filter">Customer<input aria-label="Customer filter" value={values.customer} placeholder="Name or mobile" onChange={(event) => onChange({ customer: event.target.value })} /></label>
-    <label className="job-card-vehicle-filter">Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>
-    <label className="job-card-advisor-filter">Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>
-    <label className="job-card-sort-filter">Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>
-    {showArchive && <div className="job-card-archive-filter"><span>Show archived only</span><Switch className="job-card-archive-switch" label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} /></div>}
-    <ListSearchActions onClear={onClear} />
+  const search = <label className="list-search job-card-search-filter">Search<input aria-label={searchLabel} value={values.search} placeholder="Job, vehicle, customer or mobile" onChange={(event) => onChange({ search: event.target.value })} /></label>;
+  const status = <label className="job-card-status-filter">Main status<select aria-label="Main status" value={values.primary} onChange={(event) => onChange({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>;
+  const workflow = <label className="job-card-workflow-filter">Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>;
+  const deliveryDate = <label className="job-card-date-filter">Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>;
+  const month = <label className="job-card-month-filter">Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>;
+  const customer = <label className="job-card-customer-filter">Customer<input aria-label="Customer filter" value={values.customer} placeholder="Name or mobile" onChange={(event) => onChange({ customer: event.target.value })} /></label>;
+  const vehicle = <label className="job-card-vehicle-filter">Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>;
+  const advisor = <label className="job-card-advisor-filter">Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>;
+  const sort = <label className="job-card-sort-filter">Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>;
+  const archive = showArchive ? <div className="job-card-archive-filter"><span>Show archived only</span><Switch className="job-card-archive-switch" label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} /></div> : null;
+  const clear = <ListSearchActions onClear={onClear} />;
+
+  return <div className={`job-card-filter-grid${directLayout ? " job-card-filter-grid--direct" : ""}`} data-job-card-filters>
+    {directLayout ? <>
+      <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}</div>
+      <div className="job-card-filter-row">{customer}{vehicle}{advisor}{sort}{archive}{clear}</div>
+    </> : <>{search}{status}{workflow}{deliveryDate}{month}{customer}{vehicle}{advisor}{sort}{archive}{clear}</>}
   </div>;
 }
 
@@ -17407,7 +17433,7 @@ function EntityList({
         </Dialog>
       )}
       <div className="list-filter-bar">
-        {!hideSearch && (
+        {!hideSearch && kind !== "jobs" && (
           <label className="list-search">
             Search
             <input
@@ -17445,6 +17471,7 @@ function EntityList({
               }}
               onClear={clearFilters}
               showArchive={role === "admin"}
+              directLayout={!hideSearch}
             />
           )}
           {role === "admin" && kind !== "jobs" && (
@@ -17705,7 +17732,7 @@ function EntityList({
               </select>
             </label>
           )}
-          <ListSearchActions onClear={clearFilters} />
+          {kind !== "jobs" && <ListSearchActions onClear={clearFilters} />}
         </div>
       </div>
       {kind === "media" && <MediaKpis rows={media} />}
@@ -18316,13 +18343,15 @@ function FilterableJobRows({
   onSelect,
   showStatusFilter = false,
   readyToInvoiceFilters = false,
+  queueActions,
 }: {
   title: string;
   jobs: JobView[];
   selectedJobId?: number;
-  onSelect: (id: number) => void;
+  onSelect?: (id: number) => void;
   showStatusFilter?: boolean;
   readyToInvoiceFilters?: boolean;
+  queueActions?: { state: WorkshopState; mutate: Mutate; actor: User };
 }) {
   const [search, setSearch] = useState("");
   const deferredSearch = useDeferredValue(search);
@@ -18331,6 +18360,8 @@ function FilterableJobRows({
   const [receivedMonth, setReceivedMonth] = useState("");
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
+  const [selected, setSelected] = useState<JobView>();
+  const [dialog, setDialog] = useState<"view" | "edit">();
   const needle = normalizeSearch(deferredSearch);
   const availableReceivedMonths = useMemo(
     () =>
@@ -18383,9 +18414,21 @@ function FilterableJobRows({
   ];
   return (
     <div className="embedded-list">
+      {selected && dialog && queueActions && (
+        <JobRecordDialog
+          view={selected}
+          state={queueActions.state}
+          mutate={queueActions.mutate}
+          actor={queueActions.actor}
+          mode={dialog}
+          onClose={() => setDialog(undefined)}
+        />
+      )}
       <div
         className={
-          readyToInvoiceFilters
+          queueActions
+            ? "store-filter-grid my-queue-filter-bar"
+            : readyToInvoiceFilters
             ? "store-filter-grid ready-to-invoice-filters"
             : "store-filter-grid"
         }
@@ -18494,8 +18537,66 @@ function FilterableJobRows({
           <ReadyToInvoiceRows
             jobs={paged.items}
             selectedJobId={selectedJobId}
-            onSelect={onSelect}
+            onSelect={onSelect ?? (() => {})}
           />
+        ) : queueActions ? (
+          <div className="table-wrap">
+            <table aria-label="My Queue">
+              <thead>
+                <tr>
+                  <th>Job Card</th>
+                  <th>Vehicle</th>
+                  <th>Customer</th>
+                  <th>Status</th>
+                  <th>Workflow</th>
+                  <th>Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {paged.items.map((row) => (
+                  <tr key={row.job.id}>
+                    <td>{row.job.job_no}</td>
+                    <td>{row.vehicle.number}</td>
+                    <td>{row.customer.name}</td>
+                    <td>
+                      <Status
+                        status={row.job.main_status}
+                        sub={row.job.sub_status}
+                      />
+                    </td>
+                    <td>{row.job.sub_status}</td>
+                    <td>
+                      <div className="grid-actions">
+                        <button
+                          type="button"
+                          className="grid-action"
+                          onClick={() => {
+                            setSelected(row);
+                            setDialog("view");
+                          }}
+                        >
+                          View
+                        </button>
+                        {queueActions.actor.role === "service" &&
+                          queueActions.actor.id === row.job.advisor_id && (
+                            <button
+                              type="button"
+                              className="grid-action"
+                              onClick={() => {
+                                setSelected(row);
+                                setDialog("edit");
+                              }}
+                            >
+                              Edit
+                            </button>
+                          )}
+                      </div>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
         ) : (
           <JobRows
             jobs={paged.items}
