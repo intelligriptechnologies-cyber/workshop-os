@@ -20,6 +20,7 @@ from app.inventory import router as inventory_router
 from app.materials import router as materials_router
 from app.execution import router as execution_router
 from app.finance import router as finance_router
+from app.followups import router as followups_router
 
 
 app = FastAPI(title="WorkshopOS API", version="0.1.0")
@@ -31,6 +32,7 @@ app.include_router(inventory_router)
 app.include_router(materials_router)
 app.include_router(execution_router)
 app.include_router(finance_router)
+app.include_router(followups_router)
 
 
 @app.exception_handler(HTTPException)

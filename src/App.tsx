@@ -50,6 +50,7 @@ import {
   type JobPeriod,
 } from "./job-picker";
 import { RemoteFinanceWorkspace } from "./remote-finance";
+import { RemoteFollowupsWorkspace } from "./remote-followups";
 import { dashboardFacts } from "./dashboard-metrics";
 import { isServiceActiveJob, serviceFollowupStatus } from "./service-advisor";
 import { ExpectedTodayBookings } from "./booking-expected-today";
@@ -1347,6 +1348,10 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
+  if (cognitoConfig && activeMenuItem === "Follow-ups")
+    return <RemoteFollowupsWorkspace config={cognitoConfig} mode="followups" />;
+  if (cognitoConfig && activeMenuItem === "Search")
+    return <RemoteFollowupsWorkspace config={cognitoConfig} mode="search" />;
   if (
     cognitoConfig &&
     ["Ready To Invoice", "Invoice"].includes(activeMenuItem)
