@@ -41,6 +41,7 @@ import type {
   InwardPurchaseRevision,
   PurchaseOrder,
   PurchaseOrderLine,
+  PurchaseOrderQuotation,
   StockInward,
   Invoice,
   InvoiceItem,
@@ -251,6 +252,10 @@ export function readState(db: Database): WorkshopState {
   const purchase_order_lines = all<PurchaseOrderLine>(
     db,
     "select * from purchase_order_lines order by id",
+  );
+  const purchase_order_quotations = all<PurchaseOrderQuotation>(
+    db,
+    "select * from purchase_order_quotations order by purchase_order_line_id, quote_date desc, id desc",
   );
   const stock_inwards = all<StockInward>(
     db,
@@ -519,6 +524,7 @@ export function readState(db: Database): WorkshopState {
     inward_purchase_revisions,
     purchase_orders,
     purchase_order_lines,
+    purchase_order_quotations,
     stock_inwards,
   };
 }
@@ -3630,6 +3636,74 @@ export interface PurchaseRequestInput {
   lines: PurchaseRequestLineInput[];
 }
 
+export interface PurchaseOrderQuotationInput {
+  purchase_order_line_id: number;
+  supplier_name: string;
+  quote_date?: string;
+  quoted_qty: number;
+  unit_cost: number;
+  notes?: string;
+}
+
+export interface PreviousPurchaseRecord {
+  supplier_name: string;
+  purchase_date: string;
+  unit_cost: number;
+  quantity: number;
+}
+
+/** The most recent closed PO prices for one existing SKU, regardless of supplier. */
+export function previousPurchaseHistoryForItem(
+  db: Database,
+  itemId: number,
+  limit = 3,
+): PreviousPurchaseRecord[] {
+  if (!Number.isInteger(itemId) || itemId <= 0) return [];
+  const safeLimit = Math.max(1, Math.min(10, Math.floor(limit)));
+  return all<PreviousPurchaseRecord>(
+    db,
+    `select supplier.name as supplier_name, purchase_order.order_date as purchase_date,
+      line.unit_cost, line.ordered_qty as quantity
+      from purchase_order_lines line
+      join purchase_orders purchase_order on purchase_order.id=line.purchase_order_id
+      left join suppliers supplier on supplier.id=purchase_order.supplier_id
+      where line.item_id=? and purchase_order.status='Closed'
+      order by purchase_order.order_date desc, purchase_order.id desc, line.id desc limit ${safeLimit}`,
+    [itemId],
+  ).map((row) => ({ ...row, supplier_name: row.supplier_name || "Supplier unavailable" }));
+}
+
+export function savePurchaseOrderQuotationForActor(
+  db: Database,
+  purchaseOrderId: number,
+  actorId: number,
+  input: PurchaseOrderQuotationInput,
+) {
+  assertPurchaseActor(db, actorId, true);
+  const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [purchaseOrderId]);
+  if (order.status !== "PO Request")
+    throw new Error("Quotations can only be recorded while a Purchase Request is under review.");
+  const line = all<PurchaseOrderLine>(
+    db,
+    "select * from purchase_order_lines where id=? and purchase_order_id=?",
+    [input.purchase_order_line_id, purchaseOrderId],
+  )[0];
+  if (!line) throw new Error("Select a line from this Purchase Request.");
+  const supplierName = input.supplier_name?.trim();
+  if (!supplierName) throw new Error("Supplier name is required for a quotation.");
+  if (!Number.isFinite(input.quoted_qty) || input.quoted_qty <= 0)
+    throw new Error("Quoted quantity must be greater than zero.");
+  if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0)
+    throw new Error("Pre-GST unit price cannot be negative.");
+  const quoteDate = input.quote_date?.trim() || new Date().toISOString().slice(0, 10);
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(quoteDate)) throw new Error("A valid quotation date is required.");
+  return insert(
+    db,
+    "insert into purchase_order_quotations(purchase_order_id,purchase_order_line_id,supplier_name,quote_date,quoted_qty,unit_cost,notes,created_by,created_at,updated_at) values(?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))",
+    [purchaseOrderId, input.purchase_order_line_id, supplierName, quoteDate, input.quoted_qty, input.unit_cost, input.notes?.trim() ?? "", actorId],
+  );
+}
+
 export function purchaseRequestNumberForOrdinal(ordinal: number) {
   let value = Math.floor(ordinal / 99_999) + 1;
   let letters = "";
@@ -6527,6 +6601,7 @@ export function createSchema(db: Database) {
     create table if not exists purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null);
     create unique index if not exists purchase_orders_number_unique on purchase_orders(po_number);
     create table if not exists purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, item_name text not null default '', unit text not null default '', ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null);
+    create table if not exists purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null);
     create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
     create table if not exists followups(id integer primary key, job_card_id integer, note text, due_at text, done integer);
@@ -6611,6 +6686,9 @@ export function migrateSchema(db: Database) {
   );
   ensureColumn(db, "purchase_order_lines", "item_name", "text not null default ''");
   ensureColumn(db, "purchase_order_lines", "unit", "text not null default ''");
+  db.run(
+    "create table if not exists purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null)",
+  );
   db.run(
     "create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null)",
   );

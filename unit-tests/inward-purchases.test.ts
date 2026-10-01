@@ -14,6 +14,8 @@ import {
   migrateSchema,
   reviseInwardPurchaseForActor,
   recordStockInwardForActor,
+  previousPurchaseHistoryForItem,
+  savePurchaseOrderQuotationForActor,
   receiveAndPostInwardPurchaseForActor,
   sendInwardPurchaseForPoApprovalForActor,
   setPurchaseOrderStatusForActor,
@@ -95,6 +97,36 @@ test("PO request numbering rolls over after 99,999 and never reuses a cancelled 
   db.run("insert into purchase_orders(supplier_id,po_number,order_date,notes,status,created_by,created_at,updated_at) values(0,'PO-WOS-Z-99999','2026-10-01','','Cancelled',2,datetime('now'),datetime('now'))");
   const request = createPurchaseRequestForActor(db, 2, { order_date: "2026-10-01", lines: [{ item_id: 1, ordered_qty: 1 }] });
   assert.equal(db.exec("select po_number from purchase_orders where id=?", [request])[0].values[0][0], "PO-WOS-AA-00001");
+});
+
+test("Admin reviews only the three newest completed purchases for a requested SKU across suppliers", async () => {
+  const db = await database();
+  const suppliers = ["First supplier", "Second supplier", "Third supplier", "Latest supplier"].map((name) => createSupplierForActor(db, 1, { name }));
+  ["2026-03-01", "2026-06-01", "2026-09-01", "2026-10-01"].forEach((order_date, index) => {
+    const po = createPurchaseOrderForActor(db, 1, { supplier_id: suppliers[index], po_number: `HISTORY-${index}`, order_date, lines: [{ item_id: 1, ordered_qty: index + 1, unit_cost: 100 + index }] });
+    db.run("update purchase_orders set status='Closed' where id=?", [po]);
+  });
+  const draft = createPurchaseOrderForActor(db, 1, { supplier_id: suppliers[0], po_number: "OPEN-PRICE", order_date: "2026-10-02", lines: [{ item_id: 1, ordered_qty: 99, unit_cost: 1 }] });
+  db.run("update purchase_orders set status='Sent' where id=?", [draft]);
+
+  assert.deepEqual(previousPurchaseHistoryForItem(db, 1), [
+    { supplier_name: "Latest supplier", purchase_date: "2026-10-01", unit_cost: 103, quantity: 4 },
+    { supplier_name: "Third supplier", purchase_date: "2026-09-01", unit_cost: 102, quantity: 3 },
+    { supplier_name: "Second supplier", purchase_date: "2026-06-01", unit_cost: 101, quantity: 2 },
+  ]);
+  assert.deepEqual(previousPurchaseHistoryForItem(db, 0), []);
+});
+
+test("Admin can optionally save a manual quotation only for a requested PO line", async () => {
+  const db = await database();
+  const request = createPurchaseRequestForActor(db, 2, { order_date: "2026-10-01", lines: [{ item_id: 1, ordered_qty: 3 }, { item_name: "Never stocked", unit: "piece", ordered_qty: 1 }] });
+  const lines = db.exec("select id from purchase_order_lines where purchase_order_id=? order by id", [request])[0].values;
+  const quotation = savePurchaseOrderQuotationForActor(db, request, 1, { purchase_order_line_id: Number(lines[1][0]), supplier_name: "New item supplier", quote_date: "2026-10-02", quoted_qty: 1, unit_cost: 25, notes: "Phone quote" });
+  assert.deepEqual(db.exec("select supplier_name,quote_date,quoted_qty,unit_cost,notes from purchase_order_quotations where id=?", [quotation])[0].values, [["New item supplier", "2026-10-02", 1, 25, "Phone quote"]]);
+  assert.throws(() => savePurchaseOrderQuotationForActor(db, request, 2, { purchase_order_line_id: Number(lines[0][0]), supplier_name: "Store cannot quote", quoted_qty: 1, unit_cost: 20 }), /Only Admin/);
+  assert.throws(() => savePurchaseOrderQuotationForActor(db, request, 1, { purchase_order_line_id: 999, supplier_name: "Wrong line", quoted_qty: 1, unit_cost: 20 }), /line from this Purchase Request/);
+  db.run("update purchase_orders set status='Draft' where id=?", [request]);
+  assert.throws(() => savePurchaseOrderQuotationForActor(db, request, 1, { purchase_order_line_id: Number(lines[0][0]), supplier_name: "Late quote", quoted_qty: 1, unit_cost: 20 }), /while a Purchase Request is under review/);
 });
 
 test("migration preserves legacy submitted receipts as read-only received history", async () => {

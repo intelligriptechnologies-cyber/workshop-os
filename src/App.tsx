@@ -117,6 +117,7 @@ import {
   cancelPurchaseRequestForActor,
   setPurchaseOrderStatusForActor,
   recordStockInwardForActor,
+  savePurchaseOrderQuotationForActor,
   submitInwardPurchaseForActor,
   sendInwardPurchaseForPoApprovalForActor,
   approveInwardPurchaseForActor,
@@ -5444,6 +5445,7 @@ function PurchaseOrdersWorkspace({
                 </tbody>
               </table>
             </div>
+            {actor.role === "admin" && selected.status === "PO Request" && <PreviousPriceReview state={state} order={selected} lines={selectedLines} actor={actor} mutate={mutate} />}
             <h4>Linked stock inward history</h4>
             {state.stock_inwards.filter(
               (inward) => inward.purchase_order_id === selected.id,
@@ -5478,6 +5480,38 @@ function PurchaseOrdersWorkspace({
       )}
     </section>
   );
+}
+
+function PreviousPriceReview({ state, order, lines, actor, mutate }: { state: WorkshopState; order: PurchaseOrder; lines: PurchaseOrderLine[]; actor: User; mutate: Mutate }) {
+  const [quotationLineId, setQuotationLineId] = useState<number>();
+  const [supplierName, setSupplierName] = useState("");
+  const [quoteDate, setQuoteDate] = useState(new Date().toISOString().slice(0, 10));
+  const [quotedQty, setQuotedQty] = useState(1);
+  const [unitCost, setUnitCost] = useState(0);
+  const [notes, setNotes] = useState("");
+  const historyFor = (itemId: number) => state.purchase_order_lines.filter((line) => line.item_id === itemId).map((line) => ({ line, order: state.purchase_orders.find((candidate) => candidate.id === line.purchase_order_id) })).filter((entry): entry is { line: PurchaseOrderLine; order: PurchaseOrder } => entry.order?.status === "Closed").sort((left, right) => right.order.order_date.localeCompare(left.order.order_date) || right.order.id - left.order.id || right.line.id - left.line.id).slice(0, 3);
+  const quotesFor = (lineId: number) => state.purchase_order_quotations.filter((quote) => quote.purchase_order_line_id === lineId).sort((left, right) => right.quote_date.localeCompare(left.quote_date) || right.id - left.id);
+  const beginQuotation = (line: PurchaseOrderLine) => {
+    setQuotationLineId(line.id); setSupplierName(""); setQuoteDate(new Date().toISOString().slice(0, 10)); setQuotedQty(line.ordered_qty); setUnitCost(0); setNotes("");
+  };
+  return <section className="previous-price-review" aria-label="Previous Price Review">
+    <div className="receipt-lines-heading"><div><h4>Previous Price Review</h4><p className="muted">Completed purchases across all suppliers. Prices are pre-GST.</p></div></div>
+    <div className="previous-price-review-grid">
+      {lines.map((line) => {
+        const item = state.inventory.find((candidate) => candidate.id === line.item_id);
+        const history = line.item_id ? historyFor(line.item_id) : [];
+        const quotations = quotesFor(line.id);
+        return <article className={`price-review-card${line.item_id ? "" : " price-review-card-new"}`} key={line.id}>
+          <header><strong>{line.item_id ? `${item?.sku ?? "SKU"} · ${item?.name ?? line.item_name}` : line.item_name}</strong><span>{line.item_id ? `Stock: ${item?.stock_qty ?? 0} ${item?.unit ?? line.unit}` : "N/A"}</span></header>
+          {line.item_id ? history.length ? <div className="table-wrap"><table aria-label={`Previous purchases for ${item?.name ?? line.item_name}`}><thead><tr><th>Supplier</th><th>Date</th><th>Pre-GST price</th><th>Qty</th></tr></thead><tbody>{history.map(({ line: pastLine, order: pastOrder }) => <tr key={pastLine.id}><td>{state.suppliers.find((supplier) => supplier.id === pastOrder.supplier_id)?.name ?? "Supplier unavailable"}</td><td>{pastOrder.order_date}</td><td>{money(pastLine.unit_cost)}</td><td>{pastLine.ordered_qty}</td></tr>)}</tbody></table></div> : <p className="empty-state">No completed purchase history.</p> : <p className="empty-state">N/A — New Item Request; no purchase history.</p>}
+          <div className="quotation-review"><div className="receipt-lines-heading"><strong>Supplier quotations <span className="muted">(optional)</span></strong><button type="button" onClick={() => quotationLineId === line.id ? setQuotationLineId(undefined) : beginQuotation(line)}>{quotationLineId === line.id ? "Cancel quotation" : "Add quotation"}</button></div>
+            {quotationLineId === line.id && <div className="quotation-form"><label>Supplier name<input aria-label={`Quotation supplier for ${line.id}`} value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label><label>Quote date<input aria-label={`Quotation date for ${line.id}`} type="date" value={quoteDate} onChange={(event) => setQuoteDate(event.target.value)} /></label><label>Qty<input aria-label={`Quotation quantity for ${line.id}`} type="number" min="0.01" value={quotedQty} onChange={(event) => setQuotedQty(Number(event.target.value))} /></label><label>Pre-GST unit price<input aria-label={`Quotation price for ${line.id}`} type="number" min="0" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label><label className="quotation-notes">Notes<input aria-label={`Quotation notes for ${line.id}`} value={notes} onChange={(event) => setNotes(event.target.value)} /></label><button type="button" className="primary-action" onClick={() => mutate((db) => { savePurchaseOrderQuotationForActor(db, order.id, actor.id, { purchase_order_line_id: line.id, supplier_name: supplierName, quote_date: quoteDate, quoted_qty: quotedQty, unit_cost: unitCost, notes }); setQuotationLineId(undefined); })}>Save quotation</button></div>}
+            {quotations.length ? <ul className="quotation-list">{quotations.map((quote) => <li key={quote.id}><strong>{quote.supplier_name}</strong> · {quote.quote_date} · {money(quote.unit_cost)} pre-GST × {quote.quoted_qty}{quote.notes ? ` · ${quote.notes}` : ""}</li>)}</ul> : <p className="muted">No quotations recorded. This is optional.</p>}
+          </div>
+        </article>;
+      })}
+    </div>
+  </section>;
 }
 
 function LegacyInwardPurchasesWorkspace({

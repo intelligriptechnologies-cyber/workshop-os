@@ -2089,6 +2089,35 @@ test("Store Materials Requests keeps inward unavailable and hands a New Item Req
   await expect(request.getByLabel("PO supplier")).toBeDisabled();
   await expect(request.getByLabel("PO notes")).toHaveValue("From New Item Request");
 });
+
+test("Admin records optional quotations and sees an N/A Previous Price Review for a New Item Request", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
+  const request = page.getByRole("dialog", { name: "New Purchase Request" });
+  await request.getByLabel("Item type").selectOption("new");
+  await request.getByLabel("PO line 1 new item name").fill("Uncatalogued tool");
+  await request.getByLabel("PO line 1 unit").fill("piece");
+  await request.getByRole("button", { name: "Create request" }).click();
+  await page.getByRole("dialog", { name: "PO-WOS-A-00001" }).getByRole("button", { name: "Go Back" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "Process", exact: true }).click();
+  const process = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
+  const review = process.getByRole("region", { name: "Previous Price Review" });
+  await expect(review).toContainText("Uncatalogued tool");
+  await expect(review).toContainText(/N\/A.*New Item Request/i);
+  await expect(review).toContainText("No quotations recorded. This is optional.");
+  await review.getByRole("button", { name: "Add quotation" }).click();
+  await review.getByLabel(/Quotation supplier/).fill("Quote supplier");
+  await review.getByLabel(/Quotation price/).fill("42");
+  await review.getByRole("button", { name: "Save quotation" }).click();
+  await expect(review).toContainText("Quote supplier");
+  await expect(review).toContainText(/Rs\s*42(?:\.00)? pre-GST/);
+});
+
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {
   const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);

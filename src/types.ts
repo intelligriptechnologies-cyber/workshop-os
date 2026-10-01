@@ -556,6 +556,21 @@ export interface PurchaseOrderLine {
   total: number;
 }
 
+/** A manually captured supplier quote used only during Admin price review. */
+export interface PurchaseOrderQuotation {
+  id: number;
+  purchase_order_id: number;
+  purchase_order_line_id: number;
+  supplier_name: string;
+  quote_date: string;
+  quoted_qty: number;
+  unit_cost: number;
+  notes: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
 /** A physical receipt. Its linked ledger row is the sole inventory movement. */
 export interface StockInward {
   id: number;
@@ -820,6 +835,7 @@ export interface WorkshopState {
   inward_purchase_revisions: InwardPurchaseRevision[];
   purchase_orders: PurchaseOrder[];
   purchase_order_lines: PurchaseOrderLine[];
+  purchase_order_quotations: PurchaseOrderQuotation[];
   stock_inwards: StockInward[];
 }
 
