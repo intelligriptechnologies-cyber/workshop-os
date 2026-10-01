@@ -294,6 +294,9 @@ def issue_invoice(job_id: int, input: InvoiceIssue, scope: ScopedTenant, request
     existing = _active_invoice(session, job_id, lock=True)
     if existing:
         raise auth_error("ACTIVE_INVOICE_EXISTS", status.HTTP_409_CONFLICT)
+    has_prior_invoice = bool(session.execute(text("SELECT 1 FROM invoices WHERE job_card_id=:job_id"), {"job_id": job_id}).scalar())
+    if has_prior_invoice and input.replaces_invoice_id is None:
+        raise auth_error("INVOICE_REPLACEMENT_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
     predecessor_document_id = None
     if input.replaces_invoice_id is not None:
         replacement = _row_or_404(session, "invoices", input.replaces_invoice_id, "INVOICE_NOT_FOUND")

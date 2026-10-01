@@ -10,6 +10,10 @@ export function isActiveRemoteInvoice(invoice: Pick<RemoteInvoice, "status" | "v
   return !invoice.voided && invoice.status !== "CREDITED";
 }
 
+export function requiresInvoiceReplacement(invoices: readonly Pick<RemoteInvoice, "status" | "voided">[]): boolean {
+  return invoices.length > 0 && !invoices.some(isActiveRemoteInvoice);
+}
+
 /** A replacement must be tied to an existing void; it is never an edit. */
 export function canReplaceRemoteInvoice(invoice: Pick<RemoteInvoice, "status" | "voided">, hasActiveInvoice: boolean): boolean {
   return (invoice.voided && invoice.status === "VOID" || invoice.status === "CREDITED") && !hasActiveInvoice;
