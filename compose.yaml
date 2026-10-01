@@ -6,7 +6,7 @@ services:
       POSTGRES_USER: workshopos_admin
       POSTGRES_PASSWORD: workshopos_admin_local
     ports:
-      - "5432:5432"
+      - "127.0.0.1:5432:5432"
     volumes:
       - workshopos_postgres:/var/lib/postgresql/data
     healthcheck:
@@ -15,23 +15,20 @@ services:
       timeout: 5s
       retries: 20
 
-  app:
+  api:
     build:
       context: .
       dockerfile: Dockerfile.local
     environment:
-      HOST: 0.0.0.0
-      PORT: 4173
-      DATABASE_ADMIN_URL: postgresql://workshopos_admin:workshopos_admin_local@db:5432/workshopos
-      DATABASE_URL: postgresql://workshopos_app:workshopos_app_local@db:5432/workshopos
-      ALLOW_DEMO_LOGIN: "true"
+      WORKSHOPOS_DATABASE_URL: postgresql+psycopg://workshopos_admin:workshopos_admin_local@db:5432/workshopos
+      WORKSHOPOS_ENVIRONMENT: local
     ports:
-      - "4173:4173"
+      - "127.0.0.1:8000:8000"
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
       interval: 3s
       timeout: 5s
       retries: 30
