@@ -11,6 +11,8 @@ import {
   migrateSchema,
   confirmPurchaseOrderForActor,
   recordPurchaseOrderReceiptForActor,
+  closePurchaseOrderForActor,
+  readState,
 } from "../src/db";
 
 async function database() {
@@ -62,6 +64,19 @@ test("Admin records multiple partial PO deliveries without changing stock", asyn
     () => recordPurchaseOrderReceiptForActor(db, po, 2, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 1 }] }),
     /Only Admin/,
   );
+});
+
+test("closure posts accepted stock once and locks the confirmed Purchase Order", async () => {
+  const { db, po, lineId } = await issuedOrder();
+  recordPurchaseOrderReceiptForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, delivered_qty: 5 }] });
+  assert.throws(() => closePurchaseOrderForActor(db, po, 1), /fully confirmed/i);
+  confirmPurchaseOrderForActor(db, po, 1, { lines: [{ purchase_order_line_id: lineId, accepted_qty: 3, returned_qty: 1, damaged_qty: 1, wasted_qty: 0 }] });
+  assert.equal(readState(db).inventory.find((item) => item.id === 1)?.stock_qty, 10);
+  const first = closePurchaseOrderForActor(db, po, 1);
+  assert.deepEqual(closePurchaseOrderForActor(db, po, 1), first);
+  assert.equal(readState(db).inventory.find((item) => item.id === 1)?.stock_qty, 13);
+  assert.deepEqual(db.exec("select status from purchase_orders where id=?", [po])[0].values, [["Closed"]]);
+  assert.equal(db.exec("select count(*) from stock_inwards where purchase_order_id=?", [po])[0].values[0][0], 1);
 });
 
 test("Admin confirms a partial delivery when every delivered unit is accounted for", async () => {

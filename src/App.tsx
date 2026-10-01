@@ -119,6 +119,7 @@ import {
   issuePurchaseOrderForActor,
   recordPurchaseOrderReceiptForActor,
   confirmPurchaseOrderForActor,
+  closePurchaseOrderForActor,
   setPurchaseOrderStatusForActor,
   recordStockInwardForActor,
   savePurchaseOrderQuotationForActor,
@@ -4976,6 +4977,15 @@ function PurchaseOrdersWorkspace({
   };
   const confirmationFor = (line: PurchaseOrderLine) =>
     state.purchase_order_confirmations.find((confirmation) => confirmation.purchase_order_line_id === line.id);
+  const downloadClosedAudit = () => {
+    if (!selected) return;
+    const rows = selectedLines.map((line) => {
+      const confirmation = confirmationFor(line);
+      return [line.item_name || state.inventory.find((item) => item.id === line.item_id)?.name || "Item", line.ordered_qty, confirmation?.accepted_qty ?? 0, confirmation?.returned_qty ?? 0, confirmation?.damaged_qty ?? 0, confirmation?.wasted_qty ?? 0];
+    });
+    const blob = new Blob([["Item,Ordered,Accepted,Returned,Damaged,Wasted", ...rows.map((row) => row.map((value) => `\"${value}\"`).join(","))].join("\n")], { type: "text/csv;charset=utf-8" });
+    const url = URL.createObjectURL(blob); const link = document.createElement("a"); link.href = url; link.download = `${selected.po_number}-closed-audit.csv`; link.click(); URL.revokeObjectURL(url);
+  };
   const close = () => {
     setDialog(undefined);
     setSelectedId(undefined);
@@ -5474,6 +5484,9 @@ function PurchaseOrdersWorkspace({
                   Confirm quantities
                 </button>
               )}
+              {actor.role === "admin" && selected.status === "PO Confirmation" && (
+                <button type="button" className="primary-action" onClick={() => mutate((db) => closePurchaseOrderForActor(db, selected.id, actor.id))}>Close PO & post Stock Inward</button>
+              )}
               {actor.role === "admin" && [
                 "Draft",
                 "Sent",
@@ -5521,6 +5534,7 @@ function PurchaseOrdersWorkspace({
         >
           <div className="inward-dialog-content">
             <PurchaseOrderLifecycle status={selected.status} />
+            {selected.status === "Closed" && <section className="purchase-order-stage-context" aria-label="Closed Purchase Order audit"><strong>PO Closed — view only</strong><p>Accepted quantities were posted to Stock Inward at closure. This commercial record is locked for audit.</p><button type="button" className="workflow-action action-document" onClick={downloadClosedAudit}><Download size={15} /> Download closed PO audit</button></section>}
             {selected.status === "PO Request Approved" && (
               <p className="purchase-order-stage-context">
                 {actor.role === "admin"
