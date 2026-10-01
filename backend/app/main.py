@@ -17,6 +17,7 @@ from app.tenant_admin import router as tenant_admin_router
 from app.intake import router as intake_router
 from app.jobs import router as jobs_router
 from app.inventory import router as inventory_router
+from app.materials import router as materials_router
 
 
 app = FastAPI(title="WorkshopOS API", version="0.1.0")
@@ -25,6 +26,7 @@ app.include_router(tenant_admin_router)
 app.include_router(intake_router)
 app.include_router(jobs_router)
 app.include_router(inventory_router)
+app.include_router(materials_router)
 
 
 @app.exception_handler(HTTPException)
