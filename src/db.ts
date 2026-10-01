@@ -4088,6 +4088,22 @@ export function confirmPurchaseOrderForActor(db: Database, purchaseOrderId: numb
   try { for (const line of orderLines) { const confirmation = confirmations.get(line.id)!; insert(db, "insert into purchase_order_confirmations(purchase_order_id,purchase_order_line_id,accepted_qty,returned_qty,damaged_qty,wasted_qty,confirmed_by,confirmed_at) values(?,?,?,?,?,?,?,datetime('now'))", [purchaseOrderId, line.id, confirmation.accepted_qty, confirmation.returned_qty, confirmation.damaged_qty, confirmation.wasted_qty, actorId]); } db.run("update purchase_orders set status='PO Confirmation',updated_at=datetime('now') where id=?", [purchaseOrderId]); db.run("commit"); } catch (error) { db.run("rollback"); throw error; }
 }
 
+/** Posts accepted quantities once while moving a confirmed PO into its locked audit state. */
+export function closePurchaseOrderForActor(db: Database, purchaseOrderId: number, actorId: number) {
+  assertPurchaseActor(db, actorId, true); db.run("begin immediate transaction");
+  try {
+    const order = one<PurchaseOrder>(db, "select * from purchase_orders where id=?", [purchaseOrderId]);
+    if (order.status === "Closed") { const ids = all<{ id: number }>(db, "select id from stock_inwards where purchase_order_id=? order by id", [purchaseOrderId]).map((row) => row.id); db.run("commit"); return ids; }
+    if (order.status !== "PO Confirmation") throw new Error("Only a fully confirmed Purchase Order can be closed.");
+    const lines = all<PurchaseOrderLine>(db, "select * from purchase_order_lines where purchase_order_id=? order by id", [purchaseOrderId]);
+    const confirmations = new Map(all<PurchaseOrderConfirmation>(db, "select * from purchase_order_confirmations where purchase_order_id=?", [purchaseOrderId]).map((row) => [row.purchase_order_line_id, row]));
+    if (!lines.length || confirmations.size !== lines.length || lines.some((line) => !confirmations.has(line.id))) throw new Error("Every Purchase Order line must be confirmed before closure.");
+    const ids: number[] = [];
+    for (const line of lines) { const accepted = confirmations.get(line.id)!.accepted_qty; if (accepted <= 0) continue; const note = `Accepted on PO closure: ${order.po_number}`; const ledgerId = insert(db, "insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at,note) values(0,0,?,-?,'po-closure-inward',?,datetime('now'),?)", [line.item_id, accepted, actorId, note]); ids.push(insert(db, "insert into stock_inwards(item_id,qty,note,purchase_order_id,purchase_order_line_id,ledger_id,received_by,received_at) values(?,?,?,?,?,?,?,datetime('now'))", [line.item_id, accepted, note, purchaseOrderId, line.id, ledgerId, actorId])); movement(db, 0, line.item_id, "STOCK_IN", accepted, note); }
+    db.run("update purchase_orders set status='Closed',updated_at=datetime('now') where id=?", [purchaseOrderId]); db.run("commit"); return ids;
+  } catch (error) { db.run("rollback"); throw error; }
+}
+
 function assertPurchaseOrderLine(db: Database, line: PurchaseOrderLineInput) {
   return assertPurchaseLine(db, { ...line, received_qty: line.ordered_qty });
 }
@@ -4307,6 +4323,7 @@ export function recordStockInwardForActor(
       );
       if (["Draft", "Cancelled", "Closed"].includes(order.status))
         throw new Error("Select an open purchase order line.");
+      if (order.status.startsWith("PO ")) throw new Error("Purchase Order Stock Inward is posted automatically when the confirmed PO closes.");
       orderId = order.id;
     }
     const note = input.note?.trim() || "Stock inward";
