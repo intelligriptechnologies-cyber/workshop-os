@@ -236,7 +236,7 @@ test("unpaid invoice edits are audited, add late materials and lock them; removi
   assert.ok(timeline.some((event) => event.title === "Invoice edited" && event.detail.includes("Late paint") && event.detail.includes("late material")));
 
   const afterEdit = view(db).invoice_items;
-  saveInvoiceForActor(db, id, 4, { tallyInvoiceNo: "", discount: 0, notes: "", items: afterEdit.filter((item) => item.material_row_id !== late).map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? 18, material_row_id: item.material_row_id ?? undefined })), note: "Not needed" });
+  saveInvoiceForActor(db, id, 2, { tallyInvoiceNo: "", discount: 0, notes: "", items: afterEdit.filter((item) => item.material_row_id !== late).map((item) => ({ id: item.id, kind: item.kind, description: item.description, qty: item.qty, rate: item.rate, gst_rate: item.gst_rate ?? 18, material_row_id: item.material_row_id ?? undefined })), note: "Not needed" });
   assert.equal(view(db).material_requests.find((row) => row.id === late)?.invoiced_in, null);
 
   voidInvoiceForActor(db, id, 4, "Rebill");
@@ -270,7 +270,7 @@ async function completedWithInvoice() {
   return { db, id, item };
 }
 
-test("ticking Payment Received creates the payment and Receipt, clears the invoice, and does not close the job", async () => {
+test("ticking Payment Received creates the payment, receipt and gate pass, then closes the job", async () => {
   const { db, id, item } = await completedWithInvoice();
   assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 2, true), /Only Owner\/Admin and Accounts/);
   setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, true);
@@ -279,10 +279,10 @@ test("ticking Payment Received creates the payment and Receipt, clears the invoi
   assert.equal(v.payments.length, 1);
   assert.equal(v.payments[0].amount, 118);
   assert.equal(v.receipt?.invoice_id, id);
-  assert.equal(v.gate_pass, undefined);
-  assert.equal(v.job.main_status, "COMPLETED");
+  assert.equal(v.gate_pass?.invoice_id, id);
+  assert.equal(v.job.main_status, "CLOSED");
   assert.ok(item("Payment Received").checked_at);
-  assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, false), /Void the payment/);
+  assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, false), /read-only/);
 });
 
 test("ticking Payment Received requires a current invoice", async () => {

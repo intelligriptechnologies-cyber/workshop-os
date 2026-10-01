@@ -101,9 +101,9 @@ test("document actions reflect record availability, lifecycle, assignment and bi
 
   const completed = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: undefined, invoice_items: [] });
   assert.deepEqual(resolveJobDocumentActions("invoice", completed, accounts), ["create-invoice"]);
-  assert.deepEqual(resolveJobDocumentActions("invoice", completed, advisor), []);
+  assert.deepEqual(resolveJobDocumentActions("invoice", completed, advisor), ["create-invoice"]);
   const invoiced = job({ job: { ...job().job, main_status: "COMPLETED" }, invoice: { id: 1, job_card_id: 7, invoice_no: "INV-1", tally_invoice_no: "T-1", total: 1062, status: "Open", document_available: 1 } });
-  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, accounts), ["edit-invoice", "download"]);
+  assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, accounts), ["download"]);
   assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, advisor), ["edit-invoice", "download"]);
   assert.deepEqual(resolveJobDocumentActions("invoice", invoiced, otherAdvisor), ["download"]);
   const inProgress = job({ job: { ...job().job, main_status: "IN_PROGRESS" }, invoice: undefined, invoice_items: [] });

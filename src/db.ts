@@ -5841,7 +5841,7 @@ export function voidInvoiceForActor(
   actorId: number,
   reason: string,
 ) {
-  assertAdminBillingAccess(db, actorId);
+  assertBillingMutationAccess(db, actorId);
   voidInvoice(db, invoiceId, reason, actorId);
 }
 

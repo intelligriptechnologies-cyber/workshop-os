@@ -106,7 +106,7 @@ test("invoice fields and items recalculate subtotal, overall discount, GST, tota
 
   const view = readState(db).jobs[0];
   invoice = view.invoice!;
-  assert.deepEqual({ tally: invoice.tally_invoice_no, subtotal: invoice.subtotal, discount: invoice.discount, gstRate: invoice.gst_rate, gst: invoice.gst_amount, total: invoice.total, notes: invoice.notes, available: invoice.document_available }, { tally: "TLY-2", subtotal: 1450, discount: 50, gstRate: 0, gst: 252, total: 1652, notes: "Final notes", available: 0 });
+  assert.deepEqual({ tally: invoice.tally_invoice_no, subtotal: invoice.subtotal, discount: invoice.discount, gstRate: invoice.gst_rate, gst: invoice.gst_amount, total: invoice.total, notes: invoice.notes, available: invoice.document_available }, { tally: "TLY-2", subtotal: 1450, discount: 50, gstRate: 0, gst: 252, total: 1652, notes: "Final notes", available: 1 });
   assert.deepEqual(view.invoice_items.map((item) => item.description), ["Revised labour", "Oil"]);
 });
 
