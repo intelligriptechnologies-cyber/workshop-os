@@ -2075,6 +2075,20 @@ test("Store creates a Purchase Request without supplier access or later-stage ac
   await expect(process.getByRole("button", { name: "Edit request" })).toBeVisible();
 });
 
+test("Store Materials Requests keeps inward unavailable and hands a New Item Request to the controlled PO form", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Material Requests", exact: true }).click();
+  const triage = page.getByRole("region", { name: "Material procurement triage" });
+  await expect(triage.getByText("Available to issue")).toBeVisible();
+  await expect(triage.getByText("Existing-SKU procurement")).toBeVisible();
+  await expect(triage.getByRole("heading", { name: "New Item Requests" })).toBeVisible();
+  await expect(page.getByRole("button", { name: /Quick Add Stock|Record Inward|Purchase, Stock & Issue/ })).toHaveCount(0);
+  await triage.getByRole("button", { name: "Create New Item Request" }).click();
+  const request = page.getByRole("dialog", { name: "New Purchase Request" });
+  await expect(request.getByLabel("Item type")).toHaveValue("new");
+  await expect(request.getByLabel("PO supplier")).toBeDisabled();
+  await expect(request.getByLabel("PO notes")).toHaveValue("From New Item Request");
+});
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {
   const dimensions = await page.evaluate(() => ({ viewport: document.documentElement.clientWidth, document: document.documentElement.scrollWidth, body: document.body.scrollWidth }));
   expect(dimensions.document).toBeLessThanOrEqual(dimensions.viewport + 1);

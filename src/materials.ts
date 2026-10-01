@@ -39,6 +39,16 @@ export function overStockWarning(qty: number, onHand: number): string | undefine
 /** The Store-facing outcome for an existing-SKU material demand. */
 export type MaterialDemandTriage = "issuable" | "procurement";
 
+export type MaterialDemand = Pick<
+  MaterialRequest,
+  "id" | "item_id" | "requested_qty" | "issued_qty"
+>;
+
+export interface MaterialDemandAllocation {
+  outcome: MaterialDemandTriage;
+  procurementQty: number;
+}
+
 /**
  * Material demand is issuable only when the outstanding quantity is already
  * on hand. Any shortfall begins a controlled Purchase Request instead of a
@@ -47,9 +57,47 @@ export type MaterialDemandTriage = "issuable" | "procurement";
 export function triageMaterialDemand(
   row: Pick<MaterialRequest, "requested_qty" | "issued_qty">,
   item: Pick<InventoryItem, "stock_qty"> | undefined,
+  alreadyAllocated = 0,
 ): MaterialDemandTriage {
   const outstanding = Math.max(0, row.requested_qty - row.issued_qty);
-  return stockOnHand(item) >= outstanding ? "issuable" : "procurement";
+  return Math.max(0, stockOnHand(item) - alreadyAllocated) >= outstanding
+    ? "issuable"
+    : "procurement";
+}
+
+/**
+ * Allocates projected available stock across outstanding Material Requests in
+ * their displayed order. This prevents several requests for the same SKU from
+ * each being labelled issuable against the same on-hand quantity.
+ */
+export function triageMaterialDemands(
+  demands: readonly MaterialDemand[],
+  inventory: readonly Pick<InventoryItem, "id" | "stock_qty">[],
+) {
+  return allocateMaterialDemands(demands, inventory).map(({ outcome }) => outcome);
+}
+
+/**
+ * Allocates on-hand stock across displayed demand and exposes exactly the
+ * remaining quantity that procurement needs to cover for each request.
+ */
+export function allocateMaterialDemands(
+  demands: readonly MaterialDemand[],
+  inventory: readonly Pick<InventoryItem, "id" | "stock_qty">[],
+): MaterialDemandAllocation[] {
+  const allocatedByItem = new Map<number, number>();
+  const inventoryById = new Map(inventory.map((item) => [item.id, item]));
+  return demands.map((demand) => {
+    const allocated = allocatedByItem.get(demand.item_id) ?? 0;
+    const outstanding = Math.max(0, demand.requested_qty - demand.issued_qty);
+    const available = Math.max(
+      0,
+      stockOnHand(inventoryById.get(demand.item_id)) - allocated,
+    );
+    const procurementQty = Math.max(0, outstanding - available);
+    allocatedByItem.set(demand.item_id, allocated + Math.min(outstanding, available));
+    return { outcome: procurementQty ? "procurement" : "issuable", procurementQty };
+  });
 }
 
 export function filterInventory(items: readonly InventoryItem[], query: string) {

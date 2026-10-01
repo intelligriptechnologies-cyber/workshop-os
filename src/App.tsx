@@ -133,7 +133,6 @@ import {
   updateJobCard,
   updateJobCardForActor,
   saveJobDetailsForActor,
-  purchaseStockAndIssueForActor,
   updateMaterialRequest,
   updateLocalPurchase,
   updateJobPhotoForActor,
@@ -223,7 +222,7 @@ import {
   type DamageMark,
 } from "./job-sheet";
 import { InventoryPicker, JobMaterialsPanel } from "./materials-ui";
-import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor, triageMaterialDemand } from "./materials";
+import { allocateMaterialDemands, MATERIALS_CHECKLIST_LABELS, materialRowActionsFor } from "./materials";
 import {
   JOB_CARD_TABS,
   isStubTab,
@@ -1257,6 +1256,11 @@ function LoginScreen({
   );
 }
 
+type ProcurementDraft = {
+  lines: PurchaseRequestInput["lines"];
+  source: string;
+};
+
 function RoleWorkspace({
   activeMenuItem,
   jobs,
@@ -1333,6 +1337,7 @@ function RoleWorkspace({
   onThemeSaved: (theme: AppTheme) => void;
   onAdminStateSaved: () => void;
 }) {
+  const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
   if (activeMenuItem === "Search") {
     return (
       <SearchPortal
@@ -1440,7 +1445,7 @@ function RoleWorkspace({
     (user.role === "store" || user.role === "admin")
   )
     return (
-      <PurchaseOrdersWorkspace state={state} actor={user} mutate={mutate} />
+      <PurchaseOrdersWorkspace state={state} actor={user} mutate={mutate} procurementDraft={procurementDraft} onProcurementDraftConsumed={() => setProcurementDraft(undefined)} />
     );
 
   if (user.role === "reception")
@@ -1483,6 +1488,10 @@ function RoleWorkspace({
         mutate={mutate}
         setSelectedJobId={setSelectedJobId}
         onNavigate={onNavigate}
+        onCreatePurchaseRequest={(draft) => {
+          setProcurementDraft(draft);
+          onNavigate("Purchase Orders");
+        }}
         initialStockSearch={stockSearchNavigate}
         initialDrilldown={dashboardDrilldown}
       />
@@ -1496,6 +1505,10 @@ function RoleWorkspace({
         mutate={mutate}
         setSelectedJobId={setSelectedJobId}
         onNavigate={onNavigate}
+        onCreatePurchaseRequest={(draft) => {
+          setProcurementDraft(draft);
+          onNavigate("Purchase Orders");
+        }}
       />
     );
   if (user.role === "tech")
@@ -4325,30 +4338,38 @@ function ServiceFollowupDialog({
 
 function MaterialProcurementTriage({
   requests,
-  purchaseRequests,
+  purchaseOrders,
+  purchaseOrderLines,
   inventory,
   onOpenIssueMaterial,
-  onOpenPurchaseOrders,
+  onCreatePurchaseRequest,
 }: {
   requests: StoreRequestRow[];
-  purchaseRequests: Array<{ view: JobView; purchaseRequest: MaterialPurchaseRequest }>;
+  purchaseOrders: PurchaseOrder[];
+  purchaseOrderLines: PurchaseOrderLine[];
   inventory: InventoryItem[];
   onOpenIssueMaterial: () => void;
-  onOpenPurchaseOrders: () => void;
+  onCreatePurchaseRequest: (draft: ProcurementDraft) => void;
 }) {
   const activeRequests = requests.filter(({ request }) =>
     !["Issued", "Cancelled"].includes(request.status ?? "Requested") &&
     request.requested_qty > request.issued_qty,
   );
-  const issuable = activeRequests.filter(({ request, item }) =>
-    triageMaterialDemand(request, item) === "issuable",
+  const allocations = allocateMaterialDemands(
+    activeRequests.map(({ request }) => request),
+    inventory,
   );
-  const procurement = activeRequests.filter(({ request, item }) =>
-    triageMaterialDemand(request, item) === "procurement",
+  const issuable = activeRequests.filter((_, index) => allocations[index].outcome === "issuable");
+  const procurement = activeRequests.filter((_, index) => allocations[index].outcome === "procurement");
+  const newItems = purchaseOrderLines.filter((line) =>
+    line.item_id === 0 && purchaseOrders.some((order) =>
+      order.id === line.purchase_order_id && ["PO Request", "New Item Request"].includes(order.status),
+    ),
   );
-  const newItems = purchaseRequests.filter(({ purchaseRequest }) =>
-    purchaseRequest.status === "Pending",
-  );
+  const [selectedProcurementRequestId, setSelectedProcurementRequestId] = useState<number>();
+  const selectedProcurement = procurement.find(
+    ({ request }) => request.id === selectedProcurementRequestId,
+  ) ?? procurement[0];
   return (
     <section className="material-procurement-triage" aria-label="Material procurement triage">
       <div>
@@ -4367,13 +4388,31 @@ function MaterialProcurementTriage({
           <h3>Existing-SKU procurement</h3>
           <strong>{procurement.length}</strong>
           <p>Existing SKUs are short. Create a Purchase Request; do not add stock directly.</p>
-          <button type="button" className="primary-action" onClick={onOpenPurchaseOrders}>Create Purchase Request</button>
+          {procurement.length > 1 && (
+            <label>
+              Procurement demand
+              <select aria-label="Procurement material request" value={selectedProcurement?.request.id ?? ""} onChange={(event) => setSelectedProcurementRequestId(Number(event.target.value))}>
+                {procurement.map(({ view, request, item }) => <option key={request.id} value={request.id}>{view.job.job_no} · {item?.sku ?? "SKU"} · {Math.max(0, request.requested_qty - request.issued_qty)} {item?.unit ?? "units"}</option>)}
+              </select>
+            </label>
+          )}
+          <button type="button" className="primary-action" disabled={!procurement.length} onClick={() => {
+            const selectedIndex = activeRequests.findIndex(
+              ({ request }) => request.id === selectedProcurement?.request.id,
+            );
+            const selected = selectedProcurement?.request;
+            if (!selected) return;
+            onCreatePurchaseRequest({
+              source: `Material Request #${selected.id}`,
+              lines: [{ item_id: selected.item_id, ordered_qty: allocations[selectedIndex].procurementQty }],
+            });
+          }}>Create Purchase Request</button>
         </article>
         <article className="material-triage-card material-triage-card-new-item">
           <h3>New Item Requests</h3>
           <strong>{newItems.length}</strong>
-          <p>These requested items have no inventory SKU yet and require a New Item Request line.</p>
-          <button type="button" className="primary-action" onClick={onOpenPurchaseOrders}>Create New Item Request</button>
+          <p>New Item Requests are the uncatalogued lines already recorded on open Purchase Requests.</p>
+          <button type="button" className="primary-action" onClick={() => onCreatePurchaseRequest({ source: "New Item Request", lines: [{ item_name: "", unit: "piece", ordered_qty: 1 }] })}>Create New Item Request</button>
         </article>
       </div>
     </section>
@@ -4387,6 +4426,7 @@ function StoreDesk({
   mutate,
   setSelectedJobId,
   onNavigate,
+  onCreatePurchaseRequest,
   initialStockSearch,
   initialDrilldown,
 }: {
@@ -4396,6 +4436,7 @@ function StoreDesk({
   mutate: Mutate;
   setSelectedJobId: (id: number) => void;
   onNavigate?: (label: string) => void;
+  onCreatePurchaseRequest?: (draft: ProcurementDraft) => void;
   initialStockSearch?: string;
   initialDrilldown?: DashboardDrilldown;
 }) {
@@ -4547,10 +4588,11 @@ function StoreDesk({
       <section className="workspace single-panel store-list-first-workspace">
         <MaterialProcurementTriage
           requests={requests}
-          purchaseRequests={purchaseRequests}
+          purchaseOrders={state.purchase_orders}
+          purchaseOrderLines={state.purchase_order_lines}
           inventory={state.inventory}
           onOpenIssueMaterial={() => onNavigate?.("Issue Material")}
-          onOpenPurchaseOrders={() => onNavigate?.("Purchase Orders")}
+          onCreatePurchaseRequest={(draft) => onCreatePurchaseRequest?.(draft)}
         />
         <StoreList
           key={`requests-${initialDrilldown?.month ?? ""}`}
@@ -4700,16 +4742,9 @@ function PurchaseStockIssueEditor({
     setError("");
     if (
       mutate(
-        (db) =>
-          purchaseStockAndIssueForActor(db, requestId, actor.id, {
-            inventory_item_id: itemId || undefined,
-            sku,
-            category,
-            unit_cost: unitCost,
-            vendor,
-            bill_reference: billReference,
-            note,
-          }),
+        () => {
+          throw new Error("Direct purchase, stock and issue is unavailable. Create a Purchase Request instead.");
+        },
         setError,
       )
     ) {
@@ -4843,10 +4878,14 @@ function PurchaseOrdersWorkspace({
   state,
   actor,
   mutate,
+  procurementDraft,
+  onProcurementDraftConsumed,
 }: {
   state: WorkshopState;
   actor: User;
   mutate: Mutate;
+  procurementDraft?: ProcurementDraft;
+  onProcurementDraftConsumed: () => void;
 }) {
   const [selectedId, setSelectedId] = useState<number>();
   const [dialog, setDialog] = useState<"form" | "view">();
@@ -4857,6 +4896,19 @@ function PurchaseOrdersWorkspace({
   );
   const [notes, setNotes] = useState("");
   const [lines, setLines] = useState<PurchaseRequestFormLine[]>([]);
+  useEffect(() => {
+    if (!procurementDraft) return;
+    setSelectedId(undefined);
+    setOrderDate(new Date().toISOString().slice(0, 10));
+    setNotes(`From ${procurementDraft.source}`);
+    setLines(procurementDraft.lines.map((line) =>
+      "item_id" in line
+        ? { key: crypto.randomUUID(), item_id: line.item_id, new_item: false, ordered_qty: line.ordered_qty }
+        : { key: crypto.randomUUID(), item_name: line.item_name, unit: line.unit, new_item: true, ordered_qty: line.ordered_qty },
+    ));
+    setDialog("form");
+    onProcurementDraftConsumed();
+  }, [procurementDraft, onProcurementDraftConsumed]);
   const supplierName = (id: number) =>
     state.suppliers.find((supplier) => supplier.id === id)?.name ??
     id > 0 ? "Unknown supplier" : "Supplier pending";
@@ -5326,7 +5378,7 @@ function PurchaseOrdersWorkspace({
                   Cancel PO
                 </button>
               )}
-              {["Sent", "Partially Received", "Ready to Close"].includes(
+              {actor.role === "admin" && ["Sent", "Partially Received", "Ready to Close"].includes(
                 selected.status,
               ) && (
                 <button

@@ -2877,150 +2877,24 @@ export function createMaterialPurchaseRequestForActor(
   );
 }
 
-/** Store/Owner resolves a free-text request by recording the purchase, stocking it, and issuing it to the job atomically. */
+/**
+ * Retained as an explicit denial for stale callers while the legacy free-text
+ * request records are retired. Procurement must now travel through a Purchase
+ * Request and confirmed PO closure.
+ */
 export function purchaseStockAndIssueForActor(
   db: Database,
   requestId: number,
   actorId: number,
   input: PurchaseStockAndIssueInput,
 ) {
-  const request = one<MaterialPurchaseRequest>(
-    db,
-    "select * from material_purchase_requests where id=?",
-    [requestId],
+  void db;
+  void requestId;
+  void actorId;
+  void input;
+  throw new Error(
+    "Direct purchase, stock and issue is unavailable. Create a Purchase Request and wait for PO closure.",
   );
-  const actor = one<User>(
-    db,
-    "select * from users where id=? and archived_at is null",
-    [actorId],
-  );
-  const job = one<JobCard>(
-    db,
-    "select * from job_cards where id=? and archived_at is null",
-    [request.job_card_id],
-  );
-  if (approvalBlocksMaterialOperations(materialApprovalForJob(db, job.id)))
-    throw new Error(
-      "Material issue is blocked while job approval is pending or rejected.",
-    );
-  if (request.status !== "Pending")
-    throw new Error("Only pending purchase requests can be resolved.");
-  if (!(actor.role === "admin" || actor.role === "store"))
-    throw new Error(
-      "Only Store or the Owner can purchase, stock and issue an item.",
-    );
-  if (job.main_status !== "IN_PROGRESS")
-    throw new Error(
-      "Items can only be issued while the job card is IN_PROGRESS.",
-    );
-  if (!input.vendor.trim()) throw new Error("Vendor or shop is required.");
-  if (!input.bill_reference.trim())
-    throw new Error("Bill or reference is required.");
-  if (!Number.isFinite(input.unit_cost) || input.unit_cost < 0)
-    throw new Error("Unit cost cannot be negative.");
-  db.run("savepoint purchase_stock_issue");
-  try {
-    let itemId = input.inventory_item_id;
-    if (itemId) {
-      const item = one<InventoryItem>(
-        db,
-        "select * from inventory where id=? and archived_at is null",
-        [itemId],
-      );
-      if (item.unit !== request.unit)
-        throw new Error(
-          `Selected inventory unit (${item.unit}) does not match requested unit (${request.unit}).`,
-        );
-    } else {
-      const sku = input.sku?.trim() || `LOCAL-${request.id}`;
-      itemId = createInventoryItem(db, {
-        sku,
-        category: input.category?.trim() || "Local purchase",
-        name: request.item_name,
-        unit: request.unit,
-        stock_qty: 0,
-        low_stock_qty: 0,
-        selling_price: input.unit_cost,
-      });
-    }
-    const purchaseId = createLocalPurchase(db, {
-      job_card_id: request.job_card_id,
-      item_description: request.item_name,
-      quantity: request.quantity,
-      unit: request.unit,
-      unit_cost: input.unit_cost,
-      vendor: input.vendor,
-      bill_reference: input.bill_reference,
-      note: input.note ?? `Purchase request #${request.id}`,
-    });
-    ledger(
-      db,
-      0,
-      0,
-      itemId,
-      -request.quantity,
-      "adjustment",
-      actorId,
-      `Purchased for job ${job.job_no}: ${input.bill_reference.trim()}`,
-    );
-    movement(
-      db,
-      request.job_card_id,
-      itemId,
-      "STOCK_IN",
-      request.quantity,
-      `Purchased for job ${job.job_no}`,
-    );
-    const materialRowId = insert(
-      db,
-      "insert into material_requests(job_card_id,item_id,requested_qty,issued_qty,used_qty,returned_qty,wasted_qty,status,created_at,updated_at) values(?,?,?, ?,0,0,0,'Issued',datetime('now'),datetime('now'))",
-      [request.job_card_id, itemId, request.quantity, request.quantity],
-    );
-    ledger(
-      db,
-      request.job_card_id,
-      materialRowId,
-      itemId,
-      request.quantity,
-      "issue",
-      actorId,
-      `Purchased and issued from request #${request.id}`,
-    );
-    movement(
-      db,
-      request.job_card_id,
-      itemId,
-      "ISSUE",
-      request.quantity,
-      "Purchased and issued to job",
-    );
-    db.run(
-      "insert into material_events(job_card_id,material_row_id,kind,by_user,at,note,old_item_id,old_qty,new_item_id,new_qty) values(?,?,?,?,?,?,?,?,?,?)",
-      [
-        request.job_card_id,
-        materialRowId,
-        "release",
-        actorId,
-        new Date().toISOString(),
-        `Purchase request #${request.id} resolved`,
-        null,
-        null,
-        itemId,
-        request.quantity,
-      ],
-    );
-    db.run(
-      "update material_purchase_requests set status='Completed',mapped_inventory_item_id=?,material_request_id=?,local_purchase_id=?,completed_by=?,completed_at=datetime('now'),updated_at=datetime('now') where id=?",
-      [itemId, materialRowId, purchaseId, actorId, requestId],
-    );
-    reconcileArtifactChecklist(db, request.job_card_id, actorId);
-    db.run("release savepoint purchase_stock_issue");
-    return { itemId, materialRowId, purchaseId };
-  } catch (error) {
-    db.run("rollback to savepoint purchase_stock_issue");
-    db.run("release savepoint purchase_stock_issue");
-    throw error;
-  }
 }
 
 export interface SupplierInput {
