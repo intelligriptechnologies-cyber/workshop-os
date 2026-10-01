@@ -223,7 +223,7 @@ import {
   type DamageMark,
 } from "./job-sheet";
 import { InventoryPicker, JobMaterialsPanel } from "./materials-ui";
-import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor } from "./materials";
+import { MATERIALS_CHECKLIST_LABELS, materialRowActionsFor, triageMaterialDemand } from "./materials";
 import {
   JOB_CARD_TABS,
   isStubTab,
@@ -1482,6 +1482,7 @@ function RoleWorkspace({
         actor={user}
         mutate={mutate}
         setSelectedJobId={setSelectedJobId}
+        onNavigate={onNavigate}
         initialStockSearch={stockSearchNavigate}
         initialDrilldown={dashboardDrilldown}
       />
@@ -1494,6 +1495,7 @@ function RoleWorkspace({
         actor={user}
         mutate={mutate}
         setSelectedJobId={setSelectedJobId}
+        onNavigate={onNavigate}
       />
     );
   if (user.role === "tech")
@@ -4321,12 +4323,70 @@ function ServiceFollowupDialog({
   );
 }
 
+function MaterialProcurementTriage({
+  requests,
+  purchaseRequests,
+  inventory,
+  onOpenIssueMaterial,
+  onOpenPurchaseOrders,
+}: {
+  requests: StoreRequestRow[];
+  purchaseRequests: Array<{ view: JobView; purchaseRequest: MaterialPurchaseRequest }>;
+  inventory: InventoryItem[];
+  onOpenIssueMaterial: () => void;
+  onOpenPurchaseOrders: () => void;
+}) {
+  const activeRequests = requests.filter(({ request }) =>
+    !["Issued", "Cancelled"].includes(request.status ?? "Requested") &&
+    request.requested_qty > request.issued_qty,
+  );
+  const issuable = activeRequests.filter(({ request, item }) =>
+    triageMaterialDemand(request, item) === "issuable",
+  );
+  const procurement = activeRequests.filter(({ request, item }) =>
+    triageMaterialDemand(request, item) === "procurement",
+  );
+  const newItems = purchaseRequests.filter(({ purchaseRequest }) =>
+    purchaseRequest.status === "Pending",
+  );
+  return (
+    <section className="material-procurement-triage" aria-label="Material procurement triage">
+      <div>
+        <p className="section-kicker">Materials Request</p>
+        <h2>Material procurement triage</h2>
+        <p>Choose the next safe action for each demand. Procurement starts only as a Purchase Request.</p>
+      </div>
+      <div className="material-triage-grid">
+        <article className="material-triage-card material-triage-card-issuable">
+          <h3>Available to issue</h3>
+          <strong>{issuable.length}</strong>
+          <p>Existing SKUs have enough stock for their outstanding requested quantity.</p>
+          <button type="button" className="secondary-action" onClick={onOpenIssueMaterial}>Open Issue Material</button>
+        </article>
+        <article className="material-triage-card material-triage-card-procurement">
+          <h3>Existing-SKU procurement</h3>
+          <strong>{procurement.length}</strong>
+          <p>Existing SKUs are short. Create a Purchase Request; do not add stock directly.</p>
+          <button type="button" className="primary-action" onClick={onOpenPurchaseOrders}>Create Purchase Request</button>
+        </article>
+        <article className="material-triage-card material-triage-card-new-item">
+          <h3>New Item Requests</h3>
+          <strong>{newItems.length}</strong>
+          <p>These requested items have no inventory SKU yet and require a New Item Request line.</p>
+          <button type="button" className="primary-action" onClick={onOpenPurchaseOrders}>Create New Item Request</button>
+        </article>
+      </div>
+    </section>
+  );
+}
+
 function StoreDesk({
   activeMenuItem,
   state,
   actor,
   mutate,
   setSelectedJobId,
+  onNavigate,
   initialStockSearch,
   initialDrilldown,
 }: {
@@ -4335,6 +4395,7 @@ function StoreDesk({
   actor: User;
   mutate: Mutate;
   setSelectedJobId: (id: number) => void;
+  onNavigate?: (label: string) => void;
   initialStockSearch?: string;
   initialDrilldown?: DashboardDrilldown;
 }) {
@@ -4431,7 +4492,7 @@ function StoreDesk({
             onEditStock={setEditingStock}
             initialSearch={initialStockSearch}
             initialPrimary={initialDrilldown?.status}
-            headerAction={
+            headerAction={actor.role === "admin" ? (
               <button
                 type="button"
                 className="primary-action"
@@ -4440,7 +4501,7 @@ function StoreDesk({
               >
                 <Plus size={16} /> Quick Add Stock
               </button>
-            }
+            ) : undefined}
           />
         )}
         {stockTab === "Low Stock" && (
@@ -4455,7 +4516,7 @@ function StoreDesk({
         {stockTab === "Stock Movements" && (
           <StockMovementHistory state={state} />
         )}
-        {quickAddStockOpen && (
+        {actor.role === "admin" && quickAddStockOpen && (
           <Dialog
             title="Quick Add Stock"
             subtitle="Record an inward against an existing SKU or create a new SKU"
@@ -4484,6 +4545,13 @@ function StoreDesk({
   if (activeMenuItem === "Material Requests") {
     return (
       <section className="workspace single-panel store-list-first-workspace">
+        <MaterialProcurementTriage
+          requests={requests}
+          purchaseRequests={purchaseRequests}
+          inventory={state.inventory}
+          onOpenIssueMaterial={() => onNavigate?.("Issue Material")}
+          onOpenPurchaseOrders={() => onNavigate?.("Purchase Orders")}
+        />
         <StoreList
           key={`requests-${initialDrilldown?.month ?? ""}`}
           kind="requests"
@@ -4496,15 +4564,8 @@ function StoreDesk({
           initialMonth={initialDrilldown?.month}
         />
         <details className="workflow-disclosure">
-          <summary>Purchase, Stock &amp; Issue</summary>
-          <div className="store-request-actions">
-            <PurchaseStockIssueEditor
-              state={state}
-              actor={actor}
-              purchaseRequests={purchaseRequests}
-              mutate={mutate}
-            />
-          </div>
+          <summary>Procurement and issue workflow</summary>
+          <p className="permission-note">Available inventory can be issued from Issue Material. Shortages and New Item Requests must be created as Purchase Requests on the Purchase Orders page. Stock Inward is recorded only after Purchase Order closure.</p>
         </details>
         {approvalCandidate && (
           <MaterialApprovalSubmitDialog

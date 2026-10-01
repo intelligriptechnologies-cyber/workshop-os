@@ -27,7 +27,7 @@ import {
   resubmitMaterialApprovalForActor,
   reconcileMaterialQty,
 } from "../src/db";
-import { canManageMaterialRows, materialRowActions, overStockWarning } from "../src/materials";
+import { canManageMaterialRows, materialRowActions, overStockWarning, triageMaterialDemand } from "../src/materials";
 
 async function database(main = "IN_PROGRESS", sub = "Material Requested") {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
@@ -96,6 +96,12 @@ test("requesting over stock warns but succeeds; stock is seed minus ledger", asy
   db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at) values(1,1,2,3,'issue',1,'2026-01-01')");
   assert.equal(readState(db).inventory.find((item) => item.id === 2)?.stock_qty, 1);
   assert.equal(overStockWarning(1, 1), undefined);
+});
+
+test("material demand triage sends shortages to procurement and leaves available SKUs issuable", () => {
+  assert.equal(triageMaterialDemand({ requested_qty: 3, issued_qty: 1 }, { stock_qty: 2 }), "issuable");
+  assert.equal(triageMaterialDemand({ requested_qty: 3, issued_qty: 1 }, { stock_qty: 1 }), "procurement");
+  assert.equal(triageMaterialDemand({ requested_qty: 1, issued_qty: 0 }, undefined), "procurement");
 });
 
 test("Materials Requested auto-ticks on the first Requested row and stays ticked when cancelled", async () => {

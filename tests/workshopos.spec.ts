@@ -1353,77 +1353,28 @@ test("stock filter toolbars use no more than two rows above mobile", async ({ pa
   await expectNoPageOverflow(page);
 });
 
-test("stock list combines stock and unit, and quick add records inward in a dialog", async ({ page }) => {
+test("Store cannot bypass the Purchase Order workflow with direct Stock Inward", async ({ page }) => {
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Stock", exact: true }).click();
   const stockTable = page.getByRole("table", { name: "Stock results" });
   await expect(stockTable.getByRole("columnheader", { name: "Unit", exact: true })).toHaveCount(0);
   await expect(stockTable.locator("tbody tr").first().locator("td").nth(3)).toHaveText(/\S+\s+\S+/);
   await expect(page.locator(".stock-main-grid")).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Quick Add Stock", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("dialog", { name: "Quick Add Stock" })).toHaveCount(0);
+});
 
-  const stockList = page.locator(".store-list-page");
-  const quickAddButton = stockList.getByRole("button", { name: "Quick Add Stock", exact: true });
-  await expect(quickAddButton).toHaveCount(1);
-  await expect(page.locator(".stock-overview").getByRole("button", { name: "Quick Add Stock", exact: true })).toHaveCount(0);
-  await quickAddButton.click();
-  const quickAdd = page.getByRole("dialog", { name: "Quick Add Stock" });
-  await expect(quickAdd).toBeVisible();
-
-  await quickAdd.getByLabel("Existing SKU").click();
-  await quickAdd.getByRole("option").first().click();
-  await quickAdd.getByLabel("Inward quantity").fill("2");
-  await quickAdd.getByRole("button", { name: "Record Inward" }).click();
-  await expect(quickAdd).toHaveCount(0);
-  await page.getByRole("tab", { name: "Stock Movements" }).click();
-  await page.getByLabel("Search stock movements").fill("Quick inward");
-  const movements = page.getByRole("table", { name: "Stock movement results" });
-  await expect(movements).toContainText("STOCK_IN");
-  const movementDate = await movements.locator("tbody tr").first().locator("td").first().textContent();
-  expect(movementDate).toMatch(/^\d{4}-\d{2}-\d{2}/);
-  const exactDate = movementDate!.slice(0, 10);
-  const movementMonth = exactDate.slice(0, 7);
-  const monthFilter = page.getByLabel("Stock movement month");
-  await expect(monthFilter.locator('option[value=""]').first()).toHaveText("All months");
-  await monthFilter.selectOption(movementMonth);
-  await page.getByLabel("Stock movement direction").selectOption("STOCK_IN");
-  await page.getByLabel("Stock movement date").fill(exactDate);
-  await expect(movements.locator("tbody tr")).not.toHaveCount(0);
-  await page.getByRole("button", { name: "Clear", exact: true }).click();
-  await expect(page.getByLabel("Search stock movements")).toHaveValue("");
-  await expect(page.getByLabel("Stock movement date")).toHaveValue("");
-  await expect(monthFilter).toHaveValue("");
-  await expect(page.getByLabel("Stock movement direction")).toHaveValue("ALL");
-
-  await page.getByRole("tab", { name: "Inventory List" }).click();
-  await quickAddButton.click();
-  const newSkuDialog = page.getByRole("dialog", { name: "Quick Add Stock" });
-  await newSkuDialog.getByRole("button", { name: "Add new SKU" }).click();
-  await newSkuDialog.getByLabel("New SKU", { exact: true }).fill("QUICK-E2E");
-  await newSkuDialog.getByLabel("New material name").fill("Quick add film");
-  await newSkuDialog.getByLabel("New SKU category").fill("E2E");
-  await newSkuDialog.getByLabel("New SKU unit").fill("piece");
-  await newSkuDialog.getByLabel("New SKU low-stock threshold").fill("2");
-  await newSkuDialog.getByLabel("New SKU selling price").fill("325");
-  await newSkuDialog.getByLabel("Initial inward quantity").fill("4");
-  await newSkuDialog.getByRole("button", { name: "Create SKU & Record Inward" }).click();
-  await expect(newSkuDialog).toHaveCount(0);
-  await page.getByLabel("Search stock").fill("QUICK-E2E");
-  const stockRow = stockTable.locator("tbody tr").filter({ hasText: "QUICK-E2E" });
-  await expect(stockRow).toContainText("Quick add film");
-  await expect(stockRow.locator("td").nth(3)).toHaveText("4 piece");
-  await stockRow.getByRole("button", { name: "Edit" }).click();
-  const dialog = page.getByRole("dialog", { name: "Edit stock details" });
-  await dialog.getByLabel("Edit selling price").fill("400");
-  await dialog.getByRole("button", { name: "Save changes" }).click();
-  await stockRow.getByRole("button", { name: "Edit" }).click();
-  await expect(page.getByRole("dialog", { name: "Edit stock details" }).getByLabel("Edit selling price")).toHaveValue("400");
-
-  await page.setViewportSize({ width: 390, height: 844 });
-  await expectNoPageOverflow(page);
-  const footer = page.getByRole("dialog", { name: "Edit stock details" }).locator(".dialog-footer");
-  const box = await footer.boundingBox();
-  expect(box).not.toBeNull();
-  expect(box!.x + box!.width).toBeLessThanOrEqual(390);
+test("Materials Requests triage issueable, shortage, and New Item demand into Purchase Requests", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Material Requests", exact: true }).click();
+  const triage = page.getByRole("region", { name: "Material procurement triage" });
+  await expect(triage.getByRole("heading", { name: "Available to issue" })).toBeVisible();
+  await expect(triage.getByRole("heading", { name: "Existing-SKU procurement" })).toBeVisible();
+  await expect(triage.getByRole("heading", { name: "New Item Requests" })).toBeVisible();
+  await triage.getByRole("button", { name: "Create Purchase Request" }).click();
+  await expect(page.getByRole("heading", { name: "Purchase Orders", exact: true })).toBeVisible();
+  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "New Purchase Request" })).toBeVisible();
 });
 
 test("issue and reconcile lists filter by item and reconciliation state", async ({ page }) => {

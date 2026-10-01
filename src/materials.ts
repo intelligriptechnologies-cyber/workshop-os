@@ -36,6 +36,22 @@ export function overStockWarning(qty: number, onHand: number): string | undefine
   return qty > onHand ? `Requested ${qty} is more than the ${onHand} in stock.` : undefined;
 }
 
+/** The Store-facing outcome for an existing-SKU material demand. */
+export type MaterialDemandTriage = "issuable" | "procurement";
+
+/**
+ * Material demand is issuable only when the outstanding quantity is already
+ * on hand. Any shortfall begins a controlled Purchase Request instead of a
+ * direct Stock Inward.
+ */
+export function triageMaterialDemand(
+  row: Pick<MaterialRequest, "requested_qty" | "issued_qty">,
+  item: Pick<InventoryItem, "stock_qty"> | undefined,
+): MaterialDemandTriage {
+  const outstanding = Math.max(0, row.requested_qty - row.issued_qty);
+  return stockOnHand(item) >= outstanding ? "issuable" : "procurement";
+}
+
 export function filterInventory(items: readonly InventoryItem[], query: string) {
   const needle = query.trim().toLowerCase();
   return items.filter((item) => !needle || `${item.name} ${item.sku} ${item.category}`.toLowerCase().includes(needle));

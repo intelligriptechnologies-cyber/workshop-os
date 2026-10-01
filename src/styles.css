@@ -3272,6 +3272,20 @@ th {
 .purchase-request-list { margin: 12px 0; overflow: auto; }
 .purchase-request-list table { width: 100%; }
 .store-request-actions { display: grid; gap: 16px; align-content: start; }
+.material-procurement-triage { display: grid; gap: .85rem; padding: 1rem; border: 1px solid var(--line, #d0d5dd); border-radius: 12px; background: var(--panel, #fff); }
+.material-procurement-triage h2, .material-procurement-triage h3, .material-procurement-triage p { margin: 0; }
+.material-procurement-triage > div:first-child { display: grid; gap: .3rem; }
+.material-procurement-triage > div:first-child > p:last-child { color: #637083; }
+.section-kicker { color: #0f655f; font-size: .72rem; font-weight: 800; letter-spacing: .08em; text-transform: uppercase; }
+.material-triage-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: .75rem; }
+.material-triage-card { display: grid; gap: .55rem; align-content: start; min-width: 0; padding: .85rem; border: 1px solid #dbe3e8; border-radius: 10px; background: #fbfcfd; }
+.material-triage-card strong { color: #233646; font-size: 1.55rem; line-height: 1; }
+.material-triage-card p { min-height: 2.6rem; color: #637083; font-size: .82rem; line-height: 1.35; }
+.material-triage-card button { justify-self: start; }
+.material-triage-card-issuable { border-top: 3px solid #16826d; }
+.material-triage-card-procurement { border-top: 3px solid #ba7617; }
+.material-triage-card-new-item { border-top: 3px solid #6354a8; }
+@media (max-width: 800px) { .material-triage-grid { grid-template-columns: 1fr; } .material-triage-card p { min-height: 0; } }
 @media (max-width: 760px) { .material-new-item { grid-template-columns: 1fr; } }
 .material-rows { list-style: none; margin: 0; padding: 0; display: grid; gap: 8px; }
 .material-row { border: 1px solid var(--line, #d0d5dd); border-radius: 8px; padding: 10px; display: grid; gap: 6px; }
