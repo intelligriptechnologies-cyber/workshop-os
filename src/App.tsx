@@ -5304,6 +5304,7 @@ function PurchaseOrdersWorkspace({
       {dialog === "form" && (
         <Dialog
           wide
+          className="purchase-request-dialog"
           title={selectedId ? `Edit ${selected?.po_number ?? "Purchase Request"}` : "New Purchase Request"}
           subtitle="PO number is assigned automatically. Supplier and pricing are completed by Admin after review."
           onClose={close}
@@ -5378,7 +5379,10 @@ function PurchaseOrdersWorkspace({
                 </button>
               </div>
               {lines.map((line, index) => (
-                <div className="receipt-line-row" key={line.key}>
+                <div
+                  className={`receipt-line-row purchase-request-line-row${line.new_item ? " purchase-request-line-row--new" : ""}`}
+                  key={line.key}
+                >
                   <label>
                     Item type
                     <select value={line.new_item ? "new" : "inventory"} onChange={(event) => setLines((current) => current.map((candidate) => candidate.key === line.key ? { ...candidate, new_item: event.target.value === "new", item_id: event.target.value === "new" ? undefined : state.inventory[0]?.id, item_name: "", unit: "" } : candidate))}>

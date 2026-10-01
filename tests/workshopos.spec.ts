@@ -2152,6 +2152,7 @@ async function loginAs(page: import("@playwright/test").Page, email: string) {
 }
 
 test("Store creates a Purchase Request without supplier access or later-stage actions", async ({ page }) => {
+  await page.setViewportSize({ width: 1024, height: 900 });
   await loginAs(page, "store@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
   await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
@@ -2160,11 +2161,20 @@ test("Store creates a Purchase Request without supplier access or later-stage ac
   await expect(request.getByLabel("PO number")).toHaveValue("PO-WOS-A-00001");
   await expect(request.getByLabel("PO supplier")).toBeDisabled();
   await expect(request.getByText(/supplier and pricing are completed by Admin/i)).toBeVisible();
-  await request.getByLabel("Item type").selectOption("new");
-  await request.getByLabel("PO line 1 new item name").fill("Workshop label");
+  await request.getByRole("button", { name: "Add line", exact: true }).click();
+  await request.getByLabel("Item type").nth(1).selectOption("new");
+  await request.getByLabel("PO line 2 new item name").fill("Workshop label");
   await expect(request.getByRole("button", { name: "Create request" })).toBeDisabled();
-  await request.getByLabel("PO line 1 unit").fill("piece");
-  await request.getByLabel("PO line 1 quantity").fill("2");
+  await request.getByLabel("PO line 2 unit").fill("piece");
+  await request.getByLabel("PO line 2 quantity").fill("2");
+  await expect(request.locator(".purchase-request-line-row")).toHaveCount(2);
+  expect(await request.locator(".purchase-request-line-row").evaluateAll((rows) =>
+    rows.every((row) => row.scrollWidth <= row.clientWidth),
+  )).toBe(true);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await request.evaluate((dialog) => dialog.getBoundingClientRect().width)).toBe(390);
+  await page.setViewportSize({ width: 1024, height: 900 });
   await request.getByRole("button", { name: "Create request" }).click();
 
   const process = page.getByRole("dialog", { name: "PO-WOS-A-00001" });

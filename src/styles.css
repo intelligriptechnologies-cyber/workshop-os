@@ -3138,6 +3138,10 @@ th {
 }
 
 @media (min-width: 641px) {
+  .dialog-panel.purchase-request-dialog {
+    width: min(960px, 92vw);
+  }
+
   .dialog-panel.dialog-document-editor {
     width: min(1200px, 92vw);
   }
@@ -3313,10 +3317,20 @@ th {
 .receipt-lines-heading { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
 .receipt-line-grid { display: grid; gap: 8px; overflow-x: auto; }
 .receipt-line-row { display: grid; grid-template-columns: minmax(220px, 1.7fr) minmax(110px, .75fr) repeat(3, minmax(92px, .65fr)) minmax(90px, .55fr) auto; gap: 8px; align-items: end; min-width: 850px; padding: 10px; border: 1px solid var(--line, #d0d5dd); border-radius: 8px; background: #fff; }
+.purchase-request-line-row { grid-template-columns: minmax(128px, .85fr) minmax(180px, 2fr) minmax(72px, .55fr) auto; min-width: 0; }
+.purchase-request-line-row--new { grid-template-columns: minmax(128px, .85fr) minmax(180px, 2fr) minmax(76px, .55fr) minmax(72px, .5fr) auto; }
+.purchase-request-line-row > * { min-width: 0; }
+.purchase-request-line-row input, .purchase-request-line-row select { width: 100%; min-width: 0; }
+.receipt-line-row.purchase-request-line-row > .inventory-picker { grid-column: auto; grid-row: auto; min-width: 0; }
 .receipt-line-row > small { grid-column: 1; color: var(--muted, #667085); margin-top: -5px; }
 .receipt-line-row > .inventory-picker { grid-column: 1; grid-row: span 2; }
 .receipt-line-row > strong { align-self: center; white-space: nowrap; }
 .receipt-line-grid.readonly .receipt-line-row { grid-template-columns: minmax(180px, 1fr) repeat(3, auto); min-width: 0; align-items: center; }
+@media (max-width: 640px) {
+  .purchase-request-line-row,
+  .purchase-request-line-row--new { grid-template-columns: minmax(0, 1fr); }
+  .purchase-request-line-row > .danger-action { justify-self: start; }
+}
 .receipt-attachment { display: flex; align-items: center; gap: 10px; padding: 9px 10px; border: 1px solid var(--line, #d0d5dd); border-radius: 7px; }
 .receipt-attachment span { display: grid; gap: 2px; margin-right: auto; min-width: 0; }
 .receipt-attachment small { color: var(--muted, #667085); overflow-wrap: anywhere; }
