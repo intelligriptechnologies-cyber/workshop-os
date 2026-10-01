@@ -19,6 +19,7 @@ import {
   savePurchaseOrderQuotationForActor,
   receiveAndPostInwardPurchaseForActor,
   sendInwardPurchaseForPoApprovalForActor,
+  issuePurchaseOrderForActor,
   setPurchaseOrderStatusForActor,
   submitInwardPurchaseForActor,
   updateInwardPurchaseDraftForActor,
@@ -162,6 +163,28 @@ test("only Admin can commercially approve a request, enriching new items at zero
     [[1, 110]],
   );
   assert.throws(() => approvePurchaseRequestForActor(db, request, 1, approval), /Only Purchase Requests/);
+});
+
+test("only an Admin can issue a fully approved Purchase Order to its assigned supplier", async () => {
+  const db = await database();
+  const supplier = createSupplierForActor(db, 1, { name: "Issuing supplier", contact_name: "Nina Buyer", phone: "9000000000", email: "nina@example.com" });
+  const request = createPurchaseRequestForActor(db, 2, {
+    order_date: "2026-10-01",
+    lines: [{ item_id: 1, ordered_qty: 3 }],
+  });
+  const lineId = Number(db.exec("select id from purchase_order_lines where purchase_order_id=?", [request])[0].values[0][0]);
+
+  assert.throws(() => issuePurchaseOrderForActor(db, request, 1), /only be issued after it is fully approved/i);
+  approvePurchaseRequestForActor(db, request, 1, {
+    lines: [{ purchase_order_line_id: lineId, supplier_id: supplier, unit_cost: 125 }],
+  });
+  assert.throws(() => issuePurchaseOrderForActor(db, request, 2), /Only Admin/);
+
+  issuePurchaseOrderForActor(db, request, 1);
+  assert.deepEqual(
+    db.exec("select status,supplier_id from purchase_orders where id=?", [request])[0].values,
+    [["PO Issued", supplier]],
+  );
 });
 
 test("migration preserves legacy submitted receipts as read-only received history", async () => {

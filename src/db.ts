@@ -3987,6 +3987,47 @@ export function approvePurchaseRequestForActor(
   }
 }
 
+/**
+ * Commits an approved, supplier-specific Purchase Order to its supplier.
+ * Receipt, confirmation, and closure remain separate operational stages.
+ */
+export function issuePurchaseOrderForActor(
+  db: Database,
+  purchaseOrderId: number,
+  actorId: number,
+) {
+  assertPurchaseActor(db, actorId, true);
+  const order = one<PurchaseOrder>(
+    db,
+    "select * from purchase_orders where id=?",
+    [purchaseOrderId],
+  );
+  if (order.status !== "PO Request Approved")
+    throw new Error(
+      "A Purchase Order can only be issued after it is fully approved.",
+    );
+  const supplier = maybe<Supplier>(
+    db,
+    "select * from suppliers where id=?",
+    [order.supplier_id],
+  );
+  if (!supplier || supplier.status !== "Active")
+    throw new Error("Assign an active supplier before issuing this Purchase Order.");
+  const lines = all<PurchaseOrderLine>(
+    db,
+    "select * from purchase_order_lines where purchase_order_id=?",
+    [purchaseOrderId],
+  );
+  if (!lines.length || lines.some((line) => line.item_id <= 0 || line.ordered_qty <= 0 || line.unit_cost <= 0))
+    throw new Error(
+      "Complete every item, quantity, and pre-GST price before issuing this Purchase Order.",
+    );
+  db.run(
+    "update purchase_orders set status='PO Issued',updated_at=datetime('now') where id=?",
+    [purchaseOrderId],
+  );
+}
+
 function assertPurchaseOrderLine(db: Database, line: PurchaseOrderLineInput) {
   return assertPurchaseLine(db, { ...line, received_qty: line.ordered_qty });
 }

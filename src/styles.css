@@ -3204,6 +3204,18 @@ th {
 .register-filter-toolbar > label:not(.list-search) { flex: 0 0 12rem; }
 .register-filter-toolbar .list-search-actions { margin-left: auto; }
 .purchase-orders-workspace .register-filter-toolbar + .table-wrap { margin-top: 14px; }
+.purchase-order-lifecycle { display: grid; gap: .45rem; padding: .85rem; border: 1px solid #d8e0e8; border-radius: 10px; background: #f8fbfc; }
+.purchase-order-lifecycle ol { display: flex; flex-wrap: wrap; gap: .45rem; margin: 0; padding: 0; list-style: none; }
+.purchase-order-lifecycle li { padding: .35rem .6rem; border-radius: 999px; color: #637083; background: #e9eef2; font-size: .8rem; font-weight: 700; }
+.purchase-order-lifecycle li.complete { color: #1d6a49; background: #dcefe4; }
+.purchase-order-lifecycle li.current { color: #fff; background: #0f5c62; }
+.purchase-order-stage-context { margin: 0; padding: .75rem .85rem; border-left: 3px solid #0f5c62; background: #f2fbf8; color: #294957; }
+.supplier-basket { display: grid; grid-template-columns: minmax(12rem, .8fr) minmax(0, 1.2fr); gap: 1rem; padding: 1rem; border: 1px solid #b8d8cd; border-radius: 10px; background: #f5fcf8; }
+.supplier-basket h4, .supplier-basket p { margin: .2rem 0 0; }
+.supplier-basket dl { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .7rem; margin: 0; }
+.supplier-basket dl div { min-width: 0; }
+.supplier-basket dt { color: #637083; font-size: .75rem; font-weight: 700; text-transform: uppercase; }
+.supplier-basket dd { margin: .15rem 0 0; overflow-wrap: anywhere; }
 .register-export-actions { justify-content: flex-end; margin-top: 10px; }
 .inward-dialog-content { display: grid; gap: 16px; }
 .inward-dialog-content .receipt-status-bar { position: static; grid-template-columns: 1fr; }
@@ -3257,6 +3269,7 @@ th {
   .receipt-status-bar { grid-template-columns: 1fr; position: sticky; }
   .receipt-status-bar .action-row { display: grid; grid-template-columns: 1fr 1fr; }
   .submitted-receipt dl { grid-template-columns: 1fr; }
+  .supplier-basket, .supplier-basket dl { grid-template-columns: 1fr; }
 }
 .material-add { display: flex; flex-wrap: wrap; gap: 8px; align-items: flex-start; margin-bottom: 12px; }
 .material-add input[type="number"], .material-row-main input[type="number"] { width: 90px; }

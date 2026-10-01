@@ -116,6 +116,7 @@ import {
   nextPurchaseRequestNumberForOrders,
   updatePurchaseRequestForActor,
   cancelPurchaseRequestForActor,
+  issuePurchaseOrderForActor,
   setPurchaseOrderStatusForActor,
   recordStockInwardForActor,
   savePurchaseOrderQuotationForActor,
@@ -181,6 +182,7 @@ import type {
   Photo,
   PurchaseOrder,
   PurchaseOrderLine,
+  PurchaseOrderStatus,
   QcCheck,
   Role,
   SearchCriteria,
@@ -5120,6 +5122,7 @@ function PurchaseOrdersWorkspace({
               {[
                 "PO Request",
                 "PO Request Approved",
+                "PO Issued",
                 "Draft",
                 "Sent",
                 "Partially Received",
@@ -5414,6 +5417,19 @@ function PurchaseOrdersWorkspace({
                     </button>
                   </>
                 )}
+              {selected.status === "PO Request Approved" && actor.role === "admin" && (
+                <button
+                  type="button"
+                  className="primary-action"
+                  onClick={() =>
+                    mutate((db) =>
+                      issuePurchaseOrderForActor(db, selected.id, actor.id),
+                    )
+                  }
+                >
+                  Issue Purchase Order
+                </button>
+              )}
               {actor.role === "admin" && [
                 "Draft",
                 "Sent",
@@ -5460,6 +5476,26 @@ function PurchaseOrdersWorkspace({
           }
         >
           <div className="inward-dialog-content">
+            <PurchaseOrderLifecycle status={selected.status} />
+            {selected.status === "PO Request Approved" && (
+              <p className="purchase-order-stage-context">
+                {actor.role === "admin"
+                  ? "This Purchase Order is fully approved. Issue it to its assigned supplier when you are ready to request delivery."
+                  : "This Purchase Order is fully approved and awaiting Admin issue to its assigned supplier."}
+              </p>
+            )}
+            {[
+              "PO Issued",
+              "Partially Received",
+              "Ready to Close",
+            ].includes(selected.status) && (
+              <SupplierBasket
+                supplier={state.suppliers.find(
+                  (supplier) => supplier.id === selected.supplier_id,
+                )}
+                lines={selectedLines}
+              />
+            )}
             <p>
               <strong>Order vs received:</strong> {totalOrdered} ordered ·{" "}
               {totalReceived} received · {totalOrdered - totalReceived}{" "}
@@ -5562,6 +5598,70 @@ function PurchaseOrdersWorkspace({
             })}
           </div>
         </Dialog>
+      )}
+    </section>
+  );
+}
+
+function PurchaseOrderLifecycle({ status }: { status: PurchaseOrderStatus }) {
+  const stages = [
+    "PO Request",
+    "PO Request Approved",
+    "PO Issued",
+    "PO Received",
+    "PO Confirmation",
+    "PO Closed",
+  ];
+  const currentStage = status === "Closed"
+    ? "PO Closed"
+    : status === "Partially Received" || status === "Ready to Close"
+      ? "PO Received"
+      : status;
+  const currentIndex = stages.indexOf(currentStage);
+  return (
+    <section className="purchase-order-lifecycle" aria-label="Purchase Order lifecycle">
+      <span className="section-kicker">Lifecycle</span>
+      <ol>
+        {stages.map((stage, index) => (
+          <li
+            key={stage}
+            className={index < currentIndex ? "complete" : index === currentIndex ? "current" : "upcoming"}
+            aria-current={index === currentIndex ? "step" : undefined}
+          >
+            {stage}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
+function SupplierBasket({
+  supplier,
+  lines,
+}: {
+  supplier?: Supplier;
+  lines: PurchaseOrderLine[];
+}) {
+  const totalQuantity = lines.reduce((sum, line) => sum + line.ordered_qty, 0);
+  return (
+    <section className="supplier-basket" aria-label="Supplier Basket">
+      <div>
+        <span className="section-kicker">Supplier Basket</span>
+        <h4>{supplier?.name ?? "Assigned supplier unavailable"}</h4>
+        <p>
+          {totalQuantity} ordered units across {lines.length} item{lines.length === 1 ? "" : "s"}
+        </p>
+      </div>
+      {supplier ? (
+        <dl>
+          <div><dt>Contact</dt><dd>{supplier.contact_name || "Not recorded"}</dd></div>
+          <div><dt>Phone</dt><dd>{supplier.phone || "Not recorded"}</dd></div>
+          <div><dt>Email</dt><dd>{supplier.email || "Not recorded"}</dd></div>
+          <div><dt>GSTIN</dt><dd>{supplier.gstin || "Not recorded"}</dd></div>
+        </dl>
+      ) : (
+        <p className="error-text">The supplier record is unavailable. Contact an Admin before receiving this order.</p>
       )}
     </section>
   );

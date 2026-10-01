@@ -517,6 +517,7 @@ export interface InwardPurchaseRevision {
 export type PurchaseOrderStatus =
   | "PO Request"
   | "PO Request Approved"
+  | "PO Issued"
   | "Draft"
   | "Sent"
   | "Partially Received"

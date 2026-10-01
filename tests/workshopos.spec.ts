@@ -2121,10 +2121,10 @@ test("Admin approves a New Item Request with a supplier, price, and zero-stock S
   await page.getByRole("button", { name: "Logout" }).click();
 
   await loginAs(page, "admin@example.com");
-  await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
+  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
   await page.getByRole("tab", { name: "Suppliers", exact: true }).click();
   await page.getByRole("button", { name: "Add new supplier", exact: true }).click();
-  await page.getByRole("dialog", { name: "Add supplier" }).getByLabel("Name").fill("Approval Supplier");
+  await page.getByRole("dialog", { name: "Add supplier" }).getByLabel("Name", { exact: true }).fill("Approval Supplier");
   await page.getByRole("button", { name: "Save supplier", exact: true }).click();
 
   await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
@@ -2139,6 +2139,57 @@ test("Admin approves a New Item Request with a supplier, price, and zero-stock S
   await approval.getByLabel("Catalogue unit for PO line 1").fill("tube");
   await approval.getByRole("button", { name: "Approve Purchase Request", exact: true }).click();
   await expect(page.getByRole("dialog", { name: "PO-WOS-A-00001" })).toContainText("PO Request Approved");
+});
+
+test("Admin issues an approved Purchase Order and both roles can see its Supplier Basket context", async ({ page }) => {
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
+  const request = page.getByRole("dialog", { name: "New Purchase Request" });
+  await request.getByLabel("PO line 1 quantity").fill("3");
+  await request.getByRole("button", { name: "Create request" }).click();
+  await page.getByRole("dialog", { name: "PO-WOS-A-00001" }).getByRole("button", { name: "Go Back" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Manage", exact: true }).click();
+  await page.getByRole("tab", { name: "Suppliers", exact: true }).click();
+  await page.getByRole("button", { name: "Add new supplier", exact: true }).click();
+  const supplier = page.getByRole("dialog", { name: "Add supplier" });
+  await supplier.getByLabel("Name", { exact: true }).fill("Issued Order Supplies");
+  await supplier.getByLabel("Contact name").fill("Nina Buyer");
+  await supplier.getByLabel("Phone").fill("9000000000");
+  await supplier.getByLabel("Email").fill("nina@example.com");
+  await supplier.getByRole("button", { name: "Save supplier", exact: true }).click();
+
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "Process", exact: true }).click();
+  await page.getByRole("button", { name: "Review & approve request", exact: true }).click();
+  const approval = page.getByRole("dialog", { name: "Approve PO-WOS-A-00001" });
+  await approval.getByLabel("Supplier for PO line 1").selectOption({ label: "Issued Order Supplies" });
+  await approval.getByLabel("Pre-GST price for PO line 1").fill("320");
+  await approval.getByRole("button", { name: "Approve Purchase Request", exact: true }).click();
+
+  const issued = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
+  await expect(issued.getByText("This Purchase Order is fully approved.")).toBeVisible();
+  await issued.getByRole("button", { name: "Issue Purchase Order", exact: true }).click();
+  await expect(issued).toContainText("PO Issued");
+  const basket = issued.getByRole("region", { name: "Supplier Basket" });
+  await expect(basket).toContainText("Issued Order Supplies");
+  await expect(basket).toContainText("Nina Buyer");
+  await expect(basket).toContainText("9000000000");
+  await expect(basket).toContainText("nina@example.com");
+  await expect(basket).toContainText("3 ordered units across 1 item");
+  await issued.getByRole("button", { name: "Go Back" }).click();
+  await page.getByRole("button", { name: "Logout" }).click();
+
+  await loginAs(page, "store@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "Process", exact: true }).click();
+  const storeView = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
+  await expect(storeView).toContainText("PO Issued");
+  await expect(storeView.getByRole("button", { name: "Issue Purchase Order", exact: true })).toHaveCount(0);
+  await expect(storeView.getByRole("region", { name: "Supplier Basket" })).toContainText("Issued Order Supplies");
 });
 
 async function expectNoPageOverflow(page: import("@playwright/test").Page) {
