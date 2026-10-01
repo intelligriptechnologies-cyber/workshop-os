@@ -11,5 +11,6 @@ test("online finance exposes a void only for an unpaid immutable invoice", () =>
 test("replacement is a new document only after a void and without an active invoice", () => {
   assert.equal(canReplaceRemoteInvoice({ status: "VOID", voided: true }, false), true);
   assert.equal(canReplaceRemoteInvoice({ status: "VOID", voided: true }, true), false);
+  assert.equal(canReplaceRemoteInvoice({ status: "CREDITED", voided: false }, false), true);
   assert.equal(remoteDocumentFilename("INV-FY2026-27-00001"), "INV-FY2026-27-00001.html");
 });

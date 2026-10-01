@@ -12,3 +12,10 @@ def test_rendered_snapshot_is_deterministic_and_contains_document_identity() -> 
     rendered = _render_html("INV-FY2026-27-00001", "INVOICE", {"totalPaise": 11800, "currency": "INR"})
     assert "INV-FY2026-27-00001" in rendered
     assert '"totalPaise":11800' in rendered
+
+
+def test_issued_document_html_escapes_untrusted_snapshot_content() -> None:
+    rendered = _render_html('INV-<unsafe>', 'INVOICE', {'description': '<script>alert(1)</script>'})
+    assert '<script>' not in rendered
+    assert '&lt;script&gt;alert(1)&lt;/script&gt;' in rendered
+    assert 'INV-&lt;unsafe&gt;' in rendered

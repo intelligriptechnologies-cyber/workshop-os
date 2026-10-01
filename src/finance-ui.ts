@@ -7,7 +7,7 @@ export function canVoidRemoteInvoice(invoice: Pick<RemoteInvoice, "status" | "vo
 
 /** A replacement must be tied to an existing void; it is never an edit. */
 export function canReplaceRemoteInvoice(invoice: Pick<RemoteInvoice, "status" | "voided">, hasActiveInvoice: boolean): boolean {
-  return invoice.voided && invoice.status === "VOID" && !hasActiveInvoice;
+  return (invoice.voided && invoice.status === "VOID" || invoice.status === "CREDITED") && !hasActiveInvoice;
 }
 
 export function remoteDocumentFilename(number: string): string {
