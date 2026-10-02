@@ -7,13 +7,21 @@ import {
   shiftCalendarMonth,
 } from "../src/advance-booking-range";
 
-test("advance bookings cover the next two complete calendar months", () => {
+test("advance bookings run from tomorrow through the next three calendar months", () => {
   const range = advanceBookingRange(new Date(2026, 8, 22, 12));
-  assert.deepEqual(range, { min: "2026-10-01", max: "2026-11-30", firstMonth: "2026-10", lastMonth: "2026-11" });
-  assert.equal(isAdvanceBookingDate("2026-09-30", range), false);
-  assert.equal(isAdvanceBookingDate("2026-10-01", range), true);
-  assert.equal(isAdvanceBookingDate("2026-11-30", range), true);
-  assert.equal(isAdvanceBookingDate("2026-12-01", range), false);
+  assert.deepEqual(range, { min: "2026-09-23", max: "2026-12-31", firstMonth: "2026-09", lastMonth: "2026-12" });
+  assert.equal(isAdvanceBookingDate("2026-09-22", range), false);
+  assert.equal(isAdvanceBookingDate("2026-09-23", range), true);
+  assert.equal(isAdvanceBookingDate("2026-12-31", range), true);
+  assert.equal(isAdvanceBookingDate("2027-01-01", range), false);
+});
+
+test("advance bookings span a year boundary and begin tomorrow", () => {
+  const range = advanceBookingRange(new Date(2026, 11, 31, 12));
+  assert.deepEqual(range, { min: "2027-01-01", max: "2027-03-31", firstMonth: "2026-12", lastMonth: "2027-03" });
+  assert.equal(isAdvanceBookingDate("2026-12-31", range), false);
+  assert.equal(isAdvanceBookingDate("2027-01-01", range), true);
+  assert.equal(isAdvanceBookingDate("2027-03-31", range), true);
 });
 
 test("calendar month navigation is date-only and spans year boundaries", () => {

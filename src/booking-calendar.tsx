@@ -10,6 +10,7 @@ import type { Booking, BookingArrivalWindow, User, WorkshopState } from "./types
 import { Dialog } from "./ui-kit";
 import {
   advanceBookingRange,
+  clampAdvanceBookingDate,
   datesForCalendarMonth,
   isAdvanceBookingDate,
   shiftCalendarMonth,
@@ -74,7 +75,7 @@ export function BookingCalendar({ state, actor, mutate }: { state: WorkshopState
     const nextMonth = shiftCalendarMonth(month, amount);
     if (nextMonth < range.firstMonth || nextMonth > range.lastMonth) return;
     setMonth(nextMonth);
-    const nextDate = `${nextMonth}-01`;
+    const nextDate = clampAdvanceBookingDate(`${nextMonth}-01`, range);
     setSelectedDate(nextDate);
     setCapacityDraft(String(capacityFor(state, nextDate).limit));
   };

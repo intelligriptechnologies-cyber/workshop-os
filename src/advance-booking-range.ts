@@ -24,12 +24,17 @@ export function localDateOnly(now = new Date()) {
   return `${now.getFullYear()}-${pad(now.getMonth() + 1)}-${pad(now.getDate())}`;
 }
 
-/** The two complete calendar months immediately following the current month. */
+/**
+ * From tomorrow through the end of the third calendar month after this one.
+ * This is shared by the admin and reception booking flows.
+ */
 export function advanceBookingRange(now = new Date()): AdvanceBookingRange {
-  const currentMonth = localDateOnly(now).slice(0, 7);
-  const firstMonth = shiftCalendarMonth(currentMonth, 1);
-  const lastMonth = shiftCalendarMonth(currentMonth, 2);
-  return { min: `${firstMonth}-01`, max: `${lastMonth}-${daysInMonth(lastMonth)}`, firstMonth, lastMonth };
+  const today = localDateOnly(now);
+  const currentMonth = today.slice(0, 7);
+  const firstMonth = currentMonth;
+  const lastMonth = shiftCalendarMonth(currentMonth, 3);
+  const tomorrow = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1);
+  return { min: localDateOnly(tomorrow), max: `${lastMonth}-${daysInMonth(lastMonth)}`, firstMonth, lastMonth };
 }
 
 export function isAdvanceBookingDate(date: string, range: AdvanceBookingRange) {
