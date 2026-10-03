@@ -32,7 +32,7 @@ function rows<T>(db: Database, sql: string): T[] {
 
 test("lifecycle model exposes exactly six main statuses and ordered stage templates", () => {
   assert.deepEqual(Object.keys(MAIN_STATUS_TRANSITIONS), ["NEW", "IN_PROGRESS", "HOLD", "COMPLETED", "CANCELLED", "CLOSED"]);
-  assert.deepEqual(LIFECYCLE_CHECKLIST.COMPLETED, ["Customer Verification", "Invoice Ready", "Payment Received"]);
+  assert.deepEqual(LIFECYCLE_CHECKLIST.COMPLETED, ["Customer Verification", "Invoice Ready", "Remind Customer for Sharing Google Review/Feedback", "Payment Received"]);
   assert.equal(deriveChecklistSubStatus([
     { label: "Invoice Ready", sort_order: 2, checked_at: null },
     { label: "Customer Verification", sort_order: 1, checked_at: "2026-01-01T00:00:00.000Z" },
@@ -54,8 +54,28 @@ test("migration keeps HOLD as a real status, preserves audit evidence, and creat
   assert.deepEqual(rows(db, "select label,sort_order,checked_by,checked_at,started_at,completed_at from checklist_items order by sort_order"), [
     { label: "Customer Verification", sort_order: 1, checked_by: null, checked_at: "2026-01-02T03:04:05.000Z", started_at: "2026-01-02T03:04:05.000Z", completed_at: "2026-01-02T03:04:05.000Z" },
     { label: "Invoice Ready", sort_order: 2, checked_by: null, checked_at: null, started_at: "2026-01-02T03:04:05.000Z", completed_at: null },
-    { label: "Payment Received", sort_order: 3, checked_by: null, checked_at: null, started_at: null, completed_at: null },
+    { label: "Remind Customer for Sharing Google Review/Feedback", sort_order: 3, checked_by: null, checked_at: null, started_at: null, completed_at: null },
+    { label: "Payment Received", sort_order: 4, checked_by: null, checked_at: null, started_at: null, completed_at: null },
   ]);
+});
+
+test("migration backfills one required Google review reminder into active unpaid Completed cycles only", async () => {
+  const db = await database();
+  db.run("insert into job_cards(id,job_no,main_status,sub_status,created_at) values(1,'JC-ACTIVE','COMPLETED','Payment Received','2026-01-02T03:04:05.000Z'),(2,'JC-CLOSED','CLOSED','Delivered','2026-01-02T03:04:05.000Z')");
+  db.run("insert into checklist_cycles(id,job_card_id,stage,cycle_number,started_at,completed_at) values(1,1,'COMPLETED',1,'2026-01-02T03:04:05.000Z',null),(2,2,'COMPLETED',1,'2026-01-02T03:04:05.000Z','2026-01-02T03:04:05.000Z')");
+  db.run("insert into checklist_items(checklist_cycle_id,job_card_id,stage,cycle_number,item_key,label,sort_order,required,checked_at) values(1,1,'COMPLETED',1,'completed.1','Customer Verification',1,1,'2026-01-02T03:04:05.000Z'),(1,1,'COMPLETED',1,'completed.2','Invoice Ready',2,1,'2026-01-02T03:04:05.000Z'),(1,1,'COMPLETED',1,'completed.3','Payment Received',3,1,null),(2,2,'COMPLETED',1,'completed.1','Customer Verification',1,1,'2026-01-02T03:04:05.000Z'),(2,2,'COMPLETED',1,'completed.2','Invoice Ready',2,1,'2026-01-02T03:04:05.000Z'),(2,2,'COMPLETED',1,'completed.3','Payment Received',3,1,'2026-01-02T03:04:05.000Z')");
+
+  migrateLifecycleStorage(db);
+  migrateLifecycleStorage(db);
+
+  assert.deepEqual(rows(db, "select label,sort_order,required,checked_at from checklist_items where checklist_cycle_id=1 order by sort_order"), [
+    { label: "Customer Verification", sort_order: 1, required: 1, checked_at: "2026-01-02T03:04:05.000Z" },
+    { label: "Invoice Ready", sort_order: 2, required: 1, checked_at: "2026-01-02T03:04:05.000Z" },
+    { label: "Remind Customer for Sharing Google Review/Feedback", sort_order: 3, required: 1, checked_at: null },
+    { label: "Payment Received", sort_order: 4, required: 1, checked_at: null },
+  ]);
+  assert.equal(rows(db, "select count(*) as count from checklist_items where checklist_cycle_id=1 and label='Remind Customer for Sharing Google Review/Feedback'")[0].count, 1);
+  assert.equal(rows(db, "select count(*) as count from checklist_items where checklist_cycle_id=2 and label='Remind Customer for Sharing Google Review/Feedback'")[0].count, 0);
 });
 
 test("checklist changes derive the compatibility sub-status and actor timestamps", async () => {

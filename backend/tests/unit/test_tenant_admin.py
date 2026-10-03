@@ -9,6 +9,7 @@ from app.tenant_admin import (
     require_distinct_membership,
     require_manager_remaining,
     require_owner_permissions,
+    require_service_manager_permissions,
     validate_assignment,
     validate_permissions,
 )
@@ -47,7 +48,7 @@ def test_assignment_rejects_duplicate_ids() -> None:
 
 def test_bootstrap_roles_match_the_existing_operational_role_labels() -> None:
     assert set(DEFAULT_ROLE_PERMISSIONS) == {
-        "Owner/Admin", "Service Advisor", "Reception", "Accounts", "Store", "Technician",
+        "Owner/Admin", "Service Advisor", "Service Department Manager", "Reception", "Accounts", "Store", "Technician",
     }
     assert "tenant.users.manage" in DEFAULT_ROLE_PERMISSIONS["Owner/Admin"]
     assert "page.work-update.write" in DEFAULT_ROLE_PERMISSIONS["Technician"]
@@ -70,3 +71,9 @@ def test_owner_role_update_cannot_drop_tenant_admin_capabilities() -> None:
     require_owner_permissions(DEFAULT_ROLE_PERMISSIONS["Owner/Admin"])
     with pytest.raises(AssignmentError, match="SYSTEM_ROLE_PERMISSION_REQUIRED"):
         require_owner_permissions(("page.admin-console.read", "page.admin-console.write"))
+
+
+def test_service_manager_role_keeps_the_service_job_permissions() -> None:
+    require_service_manager_permissions(DEFAULT_ROLE_PERMISSIONS["Service Department Manager"])
+    with pytest.raises(AssignmentError, match="SYSTEM_ROLE_PERMISSION_REQUIRED"):
+        require_service_manager_permissions(("page.my-queue.read",))

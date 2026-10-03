@@ -51,7 +51,10 @@ import {
 } from "./job-picker";
 import { RemoteFinanceWorkspace } from "./remote-finance";
 import { RemoteFollowupsWorkspace } from "./remote-followups";
+import { RemoteSalesWorkspace } from "./remote-sales";
+import { LocalSalesWorkspace } from "./local-sales";
 import { dashboardFacts } from "./dashboard-metrics";
+import { supplierNameForPurchaseOrder } from "./purchase-order-supplier-display";
 import {
   canAddServiceFollowup,
   isServiceActiveJob,
@@ -254,6 +257,18 @@ import {
   usePickerDismissal,
 } from "./ui-kit";
 import { AdminConsole } from "./admin-console";
+import { DeveloperConsole } from "./developer-console";
+import {
+  DEVELOPER_EMAIL,
+  DEVELOPER_PASSWORD,
+  loadDeveloperControlPlane,
+  resetDeveloperControlPlane,
+  saveDeveloperControlPlane,
+  selectedTenant as selectedDeveloperTenant,
+  roleForEmulation,
+  type DeveloperControlPlaneState,
+  type EmulationRole,
+} from "./developer-control-plane";
 import { BookingCalendar } from "./booking-calendar";
 import {
   APP_THEME_FONTS,
@@ -263,6 +278,7 @@ import {
   resolvePermittedPages,
   resolveRoleMenuPageKeys,
   type AdminPageKey,
+  SALES_CRM_PAGES,
   type AppTheme,
 } from "./admin-demo-state";
 import {
@@ -275,6 +291,11 @@ import {
   type DocumentKind,
   type RenderedDocument,
 } from "./job-documents";
+import {
+  deliverJobCardNotificationStub,
+  renderJobCardNotification,
+  type JobCardNotificationPayload,
+} from "./job-card-notifications";
 import {
   clearDocumentSnapshots,
   loadDocumentSnapshots,
@@ -319,6 +340,7 @@ export { ResultPagination } from "./pagination-toolbar";
 export const roleLabels: Record<Role, string> = {
   admin: "Owner/Admin",
   service: "Service Advisor",
+  service_manager: "Service Department Manager",
   reception: "Reception",
   accounts: "Accounts",
   store: "Store",
@@ -362,15 +384,19 @@ const MENU_ICON_BY_PAGE_KEY: Partial<Record<AdminPageKey, React.ReactNode>> = {
   jobs: <FileText size={18} />,
   manage: <ShieldCheck size={18} />,
   "admin-console": <Settings size={18} />,
+  "sales-leads": <UsersRound size={18} />,
+  quotations: <ReceiptText size={18} />,
+  "quotation-settings": <Settings size={18} />,
 };
 
 export function menuItemsForRole(
   role: Role,
   permittedPages: readonly AdminPageKey[],
 ): MenuItem[] {
-  return resolveRoleMenuPageKeys(role, permittedPages).map((key) => ({
+  const keys = resolveRoleMenuPageKeys(role, permittedPages);
+  return keys.map((key) => ({
     key,
-    label: PAGE_LABEL_BY_KEY[key],
+    label: SALES_CRM_PAGES.find((page) => page.key === key)?.label ?? PAGE_LABEL_BY_KEY[key],
     icon: MENU_ICON_BY_PAGE_KEY[key],
   }));
 }
@@ -583,6 +609,18 @@ function App() {
     () => loadAdminDemoState().appTheme,
   );
   const [loginError, setLoginError] = useState("");
+  const [jobCardNotification, setJobCardNotification] = useState<{
+    payload: JobCardNotificationPayload;
+    deliveryMessage: string;
+  }>();
+  const [developerMode, setDeveloperMode] = useState(false);
+  const [developerEmulation, setDeveloperEmulation] = useState<{
+    tenantId: string;
+    role: EmulationRole;
+  }>();
+  const [developerState, setDeveloperState] = useState<DeveloperControlPlaneState>(
+    () => loadDeveloperControlPlane(),
+  );
   const [authConfig, setAuthConfig] = useState<AuthConfig>();
   const [authLoading, setAuthLoading] = useState(true);
   const currentAdminState = useMemo(
@@ -818,11 +856,51 @@ function App() {
     );
     setState(next);
     if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
+    if (action !== loadLargeDemoDataset) {
+      const previousJobs = state?.jobs ?? [];
+      const previousById = new Map(
+        previousJobs.map((view) => [view.job.id, view]),
+      );
+      const created = next.jobs.filter(
+        (view) => !previousById.has(view.job.id),
+      );
+      const closed = next.jobs.filter(
+        (view) =>
+          view.job.main_status === "CLOSED" &&
+          previousById.get(view.job.id)?.job.main_status !== "CLOSED",
+      );
+      const event =
+        created.length === 1
+          ? { type: "created" as const, view: created[0] }
+          : closed.length === 1
+            ? { type: "closed" as const, view: closed[0] }
+            : undefined;
+      if (event) {
+        const payload = renderJobCardNotification(
+          event.type,
+          event.view,
+          loadAdminDemoState().businessSettings,
+        );
+        deliverJobCardNotificationStub(payload, (deliveryMessage) =>
+          setJobCardNotification({ payload, deliveryMessage }),
+        );
+      }
+    }
     return true;
   };
 
   const handleLogin = (email: string, password: string) => {
     if (!state) return;
+    if (
+      authConfig?.mode === "local" &&
+      email.trim().toLowerCase() === DEVELOPER_EMAIL &&
+      password === DEVELOPER_PASSWORD
+    ) {
+      setDeveloperMode(true);
+      setDeveloperEmulation(undefined);
+      setLoginError("");
+      return;
+    }
     const found = login(state, email, password);
     if (!found) {
       setLoginError("Use one of the demo emails with password admin123.");
@@ -843,6 +921,8 @@ function App() {
       return;
     }
     setUser(undefined);
+    setDeveloperMode(false);
+    setDeveloperEmulation(undefined);
     setActiveMenuItem("");
     setQuery("");
     setSearchCategory("");
@@ -890,6 +970,39 @@ function App() {
 
   if (!state || authLoading)
     return <div className="loading">Loading WorkshopOS...</div>;
+  const returnToDeveloper = () => {
+    setUser(undefined);
+    setDeveloperEmulation(undefined);
+    setDeveloperMode(true);
+    setActiveMenuItem("");
+  };
+
+  if (developerMode) {
+    return (
+      <DeveloperConsole
+        state={developerState}
+        commit={(action) => {
+          const next = saveDeveloperControlPlane(action(developerState));
+          setDeveloperState(next);
+        }}
+        onEmulate={(role) => {
+          const tenant = selectedDeveloperTenant(developerState);
+          if (tenant.lifecycle !== "active") return;
+          setDeveloperEmulation({ tenantId: tenant.id, role });
+          setUser({
+            id: -100,
+            name: `Developer emulating ${tenant.profile.name}`,
+            email: `developer+${role}@demo.local`,
+            password: "",
+            role: roleForEmulation(role),
+          });
+          setDeveloperMode(false);
+        }}
+        onReset={() => setDeveloperState(resetDeveloperControlPlane())}
+      />
+    );
+  }
+
   if (!user)
     return (
       <LoginScreen
@@ -1035,7 +1148,8 @@ function App() {
           {menuItems.length === 0 ? (
             <p className="empty-state">No pages assigned.</p>
           ) : (
-            menuItems.map((item) => (
+            <>
+            {menuItems.filter((item) => !SALES_CRM_PAGES.some((page) => page.key === item.key)).map((item) => (
               <button
                 key={item.label}
                 className={activeMenuItem === item.label ? "active" : ""}
@@ -1059,12 +1173,14 @@ function App() {
                     : item.label}
                 </span>
               </button>
-            ))
+            ))}
+            {user.role === "admin" && <details className="sales-crm-nav"><summary>Sales CRM</summary>{menuItems.filter((item) => SALES_CRM_PAGES.some((page) => page.key === item.key)).map((item) => <button key={item.label} className={activeMenuItem === item.label ? "active" : ""} onClick={() => setActiveMenuItem(item.label)} title={item.label}>{item.icon}<span>{item.label}</span></button>)}</details>}
+            </>
           )}
         </nav>
-        <button className="logout" onClick={handleLogout}>
+        <button className="logout" onClick={developerEmulation ? returnToDeveloper : handleLogout}>
           <LogOut size={18} />
-          <span>Logout</span>
+          <span>{developerEmulation ? "Return to Developer" : "Logout"}</span>
         </button>
       </aside>
 
@@ -1116,13 +1232,18 @@ function App() {
             <UserRound size={18} />
             {user.email}
           </div>
+          {developerEmulation && (
+            <button className="secondary-action" onClick={returnToDeveloper}>
+              Return to Developer
+            </button>
+          )}
           <button
             className="mobile-logout"
-            onClick={handleLogout}
-            aria-label="Logout"
+            onClick={developerEmulation ? returnToDeveloper : handleLogout}
+            aria-label={developerEmulation ? "Return to Developer" : "Logout"}
           >
             <LogOut size={18} />
-            Logout
+            {developerEmulation ? "Return" : "Logout"}
           </button>
         </header>
 
@@ -1178,7 +1299,56 @@ function App() {
           />
         )}
       </main>
+      {jobCardNotification && (
+        <JobCardNotificationDialog
+          notification={jobCardNotification}
+          onClose={() => setJobCardNotification(undefined)}
+        />
+      )}
     </div>
+  );
+}
+
+function JobCardNotificationDialog({
+  notification,
+  onClose,
+}: {
+  notification: {
+    payload: JobCardNotificationPayload;
+    deliveryMessage: string;
+  };
+  onClose: () => void;
+}) {
+  const { payload, deliveryMessage } = notification;
+  const eventLabel = payload.event === "created" ? "created" : "completed";
+  return (
+    <Dialog
+      title={`Job card ${eventLabel}`}
+      subtitle={deliveryMessage}
+      onClose={onClose}
+      footer={
+        <button
+          type="button"
+          className="primary-action"
+          data-dialog-initial-focus
+          onClick={onClose}
+        >
+          Done
+        </button>
+      }
+    >
+      <p className="permission-note">
+        The customer notification details are shown below.
+      </p>
+      <section className="notification-message" aria-label="WhatsApp message">
+        <strong>WhatsApp</strong>
+        <p>{payload.whatsapp}</p>
+      </section>
+      <section className="notification-message" aria-label="Email message">
+        <strong>Email</strong>
+        <p>{payload.email}</p>
+      </section>
+    </Dialog>
   );
 }
 
@@ -1353,6 +1523,9 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
+  if (activeMenuItem === "Leads") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="leads" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="leads" />;
+  if (activeMenuItem === "Quotations") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="quotations" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="quotations" />;
+  if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" />;
   if (cognitoConfig && activeMenuItem === "Follow-ups")
     return <RemoteFollowupsWorkspace config={cognitoConfig} mode="followups" />;
   if (cognitoConfig && activeMenuItem === "Search")
@@ -1487,7 +1660,7 @@ function RoleWorkspace({
         setSelectedJobId={setSelectedJobId}
       />
     );
-  if (user.role === "service")
+  if (user.role === "service" || user.role === "service_manager")
     return (
       <ServiceAdvisor
         activeMenuItem={activeMenuItem}
@@ -4965,8 +5138,7 @@ function PurchaseOrdersWorkspace({
     onProcurementDraftConsumed();
   }, [procurementDraft, onProcurementDraftConsumed]);
   const supplierName = (id: number) =>
-    state.suppliers.find((supplier) => supplier.id === id)?.name ??
-    id > 0 ? "Unknown supplier" : "Supplier pending";
+    supplierNameForPurchaseOrder(state.suppliers, id);
   const legacyOrderIds = new Set(
     state.inward_purchases
       .map((purchase) => purchase.purchase_order_id)
@@ -5174,7 +5346,7 @@ function PurchaseOrdersWorkspace({
             title="Purchase Orders"
             subtitle="Ordering commitments; stock is recorded only through Stock Inward."
           />
-          {actor.role === "store" && (
+          {(actor.role === "admin" || actor.role === "store") && (
             <button className="primary-action" onClick={openNew}>
               <Plus size={16} /> New Purchase Request
             </button>
@@ -10721,11 +10893,13 @@ export function UserManager({
   mutate,
   actingUser,
   cognitoConfig,
+  managerDepartments = {},
 }: {
   users: User[];
   mutate: Mutate;
   actingUser: User;
   cognitoConfig?: CognitoConfig;
+  managerDepartments?: Record<number, string[]>;
 }) {
   if (cognitoConfig)
     return (
@@ -10958,7 +11132,16 @@ export function UserManager({
             <tbody>
               {paged.items.map((item) => (
                 <tr key={item.id}>
-                  <td>{item.name}</td>
+                  <td>
+                    <div className="user-name-with-appointments">
+                      <span>{item.name}</span>
+                      {managerDepartments[item.id]?.map((department) => (
+                        <span className="manager-appointment-badge" key={department}>
+                          Manager · {department}
+                        </span>
+                      ))}
+                    </div>
+                  </td>
                   <td>{item.email}</td>
                   <td>{roleLabels[item.role]}</td>
                   <td>Active</td>
@@ -11043,6 +11226,7 @@ function RemoteUserManager({
     users: [],
     roles: [],
     branches: [],
+    serviceDepartments: [],
   });
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -11068,6 +11252,9 @@ function RemoteUserManager({
       ).includes(needle),
   );
   const pagedUsers = paginate(filteredUsers, page, pageSize);
+  const managerDepartments = (membershipId: string) => directory.serviceDepartments
+    .filter((department) => department.managers.some((manager) => manager.membershipId === membershipId))
+    .map((department) => department.name);
   const clearSearch = () => {
     setSearch("");
     setPage(1);
@@ -11300,7 +11487,16 @@ function RemoteUserManager({
               <tbody>
                 {pagedUsers.items.map((item) => (
                   <tr key={item.id}>
-                    <td>{item.name}</td>
+                    <td>
+                      <div className="user-name-with-appointments">
+                        <span>{item.name}</span>
+                        {managerDepartments(item.id).map((department) => (
+                          <span className="manager-appointment-badge" key={department}>
+                            Manager · {department}
+                          </span>
+                        ))}
+                      </div>
+                    </td>
                     <td>{item.email}</td>
                     <td>
                       {item.roles.map((role) => role.name).join(", ") || "—"}
@@ -12190,6 +12386,8 @@ function JobLifecyclePanel({
               candidate.sort_order > item.sort_order && candidate.checked_at,
           );
           const isPayment = item.label === "Payment Received";
+          const isGoogleReviewReminder =
+            item.label === "Remind Customer for Sharing Google Review/Feedback";
           const artifactLocked =
             (item.label === "Create Estimate" && !view.estimate) ||
             ((item.label === "Invoice Ready" || isPayment) && !view.invoice);
@@ -12221,6 +12419,8 @@ function JobLifecyclePanel({
                 ? `Started ${formatTimestamp(item.started_at)}`
                 : artifactLocked
                   ? `Available after the ${item.label === "Invoice Ready" || isPayment ? "invoice" : "estimate"} is saved`
+                  : isPayment && blockedByEarlier
+                    ? "Waiting for Google review/feedback reminder confirmation"
                   : "Waiting for the previous step";
           return (
             <li
@@ -12251,6 +12451,7 @@ function JobLifecyclePanel({
                 </span>
               </label>
               {canMutate &&
+                !isGoogleReviewReminder &&
                 !artifactLocked &&
                 (notApplicable || !item.checked_at) &&
                 !(
@@ -12813,7 +13014,12 @@ function JobMediaPanel({
   mutate: Mutate;
   embedded?: boolean;
 }) {
-  const [category, setCategory] = useState<JobMediaCategory>("Before Work");
+  const [galleryFilter, setGalleryFilter] = useState<
+    "All Photos" | JobMediaCategory
+  >("All Photos");
+  const [uploadPhase, setUploadPhase] = useState<JobMediaCategory>(() =>
+    view.job.main_status === "NEW" ? "Before Work" : "After Work",
+  );
   const [label, setLabel] = useState("");
   const [prepared, setPrepared] = useState<PreparedJobMedia>();
   const [busy, setBusy] = useState(false);
@@ -12821,15 +13027,20 @@ function JobMediaPanel({
   const [editing, setEditing] = useState<Photo>();
   const [archiveTarget, setArchiveTarget] = useState<Photo>();
   const [archiveReason, setArchiveReason] = useState("");
-  const categoryStatusAllowed =
-    category === "Before Work"
+  const phaseStatusAllowed = (phase: JobMediaCategory) =>
+    phase === "Before Work"
       ? view.job.main_status === "NEW"
       : view.job.main_status === "IN_PROGRESS" ||
         view.job.main_status === "COMPLETED";
-  const canMutate =
-    canMutateJobLifecycle(actor, view.job) && categoryStatusAllowed;
-  const mediaLockMessage =
-    category === "Before Work"
+  const canUpload =
+    canMutateJobLifecycle(actor, view.job) && phaseStatusAllowed(uploadPhase);
+  const canMutatePhoto = (photo: Photo) =>
+    canMutateJobLifecycle(actor, view.job) &&
+    phaseStatusAllowed(
+      photo.category === "After Work" ? "After Work" : "Before Work",
+    );
+  const mediaLockMessage = (phase: JobMediaCategory) =>
+    phase === "Before Work"
       ? "Before Photos are locked after the job leaves NEW."
       : view.job.main_status === "HOLD" ||
           view.job.main_status === "CLOSED" ||
@@ -12837,8 +13048,16 @@ function JobMediaPanel({
         ? "After Photos are locked while this job is on hold, closed, or cancelled."
         : "After Photos can be added or changed only while the job is IN_PROGRESS or COMPLETED.";
   const rows = view.photos.filter(
-    (photo) => photo.category === category && photo.src,
+    (photo) =>
+      photo.src &&
+      (galleryFilter === "All Photos" || photo.category === galleryFilter),
   );
+  const galleryFilterId =
+    galleryFilter === "All Photos"
+      ? "all"
+      : galleryFilter === "Before Work"
+        ? "before"
+        : "after";
   const chooseFile = async (file?: File) => {
     setPrepared(undefined);
     setError("");
@@ -12870,7 +13089,7 @@ function JobMediaPanel({
         (db) =>
           saveJobPhotoForActor(db, view.job.id, actor.id, {
             label,
-            category,
+            category: uploadPhase,
             ...prepared,
           }),
         setError,
@@ -12899,81 +13118,104 @@ function JobMediaPanel({
       <div
         className="sub-tabs media-phase-tabs"
         role="tablist"
-        aria-label="Photo work phase"
+        aria-label="Photo gallery filter"
         onKeyDown={handleTabListKeyDown}
       >
-        {(["Before Work", "After Work"] as const).map((phase) => {
-          const id = phase === "Before Work" ? "before" : "after";
-          return (
-            <button
-              type="button"
-              id={`media-tab-${view.job.id}-${id}`}
-              role="tab"
-              aria-selected={category === phase}
-              aria-controls={`media-panel-${view.job.id}-${id}`}
-              tabIndex={category === phase ? 0 : -1}
-              className={category === phase ? "active" : ""}
-              key={phase}
-              onClick={() => setCategory(phase)}
-            >
-              {phase}
-            </button>
-          );
-        })}
+        {(["All Photos", "Before Work", "After Work"] as const).map(
+          (filter) => {
+            const id =
+              filter === "All Photos"
+                ? "all"
+                : filter === "Before Work"
+                  ? "before"
+                  : "after";
+            return (
+              <button
+                type="button"
+                id={`media-tab-${view.job.id}-${id}`}
+                role="tab"
+                aria-selected={galleryFilter === filter}
+                aria-controls={`media-panel-${view.job.id}-${id}`}
+                tabIndex={galleryFilter === filter ? 0 : -1}
+                className={galleryFilter === filter ? "active" : ""}
+                key={filter}
+                onClick={() => setGalleryFilter(filter)}
+              >
+                {filter}
+              </button>
+            );
+          },
+        )}
       </div>
       <div
-        id={`media-panel-${view.job.id}-${category === "Before Work" ? "before" : "after"}`}
+        id={`media-panel-${view.job.id}-${galleryFilterId}`}
         role="tabpanel"
-        aria-labelledby={`media-tab-${view.job.id}-${category === "Before Work" ? "before" : "after"}`}
+        aria-labelledby={`media-tab-${view.job.id}-${galleryFilterId}`}
       >
-        {canMutate ? (
-          <form className="media-upload" onSubmit={upload}>
-            <div className="form-grid">
-              <label>
-                Photo label
-                <input
-                  value={label}
-                  onChange={(event) => setLabel(event.target.value)}
-                  placeholder={`${category} photo`}
-                />
-              </label>
-              <label>
-                Image file
-                <input
-                  id={`job-media-file-${view.job.id}`}
-                  aria-describedby={`job-media-help-${view.job.id}`}
-                  type="file"
-                  accept="image/jpeg,image/png,image/webp"
-                  onChange={(event) => void chooseFile(event.target.files?.[0])}
-                />
-              </label>
-            </div>
-            <p className="field-help" id={`job-media-help-${view.job.id}`}>
-              JPEG, PNG, or WebP; maximum input 10 MB. Images are compressed
-              below 1 MB and are not stored outside this session.
+        <section className="media-upload" aria-label="Upload photo">
+          <label>
+            Upload phase
+            <select
+              value={uploadPhase}
+              onChange={(event) =>
+                setUploadPhase(event.target.value as JobMediaCategory)
+              }
+            >
+              <option>Before Work</option>
+              <option>After Work</option>
+            </select>
+          </label>
+          {canUpload ? (
+            <form onSubmit={upload}>
+              <div className="form-grid">
+                <label>
+                  Photo label
+                  <input
+                    value={label}
+                    onChange={(event) => setLabel(event.target.value)}
+                    placeholder={`${uploadPhase} photo`}
+                  />
+                </label>
+                <label>
+                  Image file
+                  <input
+                    id={`job-media-file-${view.job.id}`}
+                    aria-describedby={`job-media-help-${view.job.id}`}
+                    type="file"
+                    accept="image/jpeg,image/png,image/webp"
+                    onChange={(event) =>
+                      void chooseFile(event.target.files?.[0])
+                    }
+                  />
+                </label>
+              </div>
+              <p className="field-help" id={`job-media-help-${view.job.id}`}>
+                JPEG, PNG, or WebP; maximum input 10 MB. Images are compressed
+                below 1 MB and are not stored outside this session.
+              </p>
+              {prepared && (
+                <p className="media-ready" aria-live="polite">
+                  Ready: {prepared.width} × {prepared.height} ·{" "}
+                  {Math.ceil(prepared.byteSize / 1024)} KB
+                </p>
+              )}
+              {error && (
+                <p className="error-text" role="alert">
+                  {error}
+                </p>
+              )}
+              <button className="primary-action" disabled={busy}>
+                {busy ? "Compressing…" : `Upload to ${uploadPhase}`}
+              </button>
+            </form>
+          ) : (
+            <p className="permission-note">
+              {canMutateJobLifecycle(actor, view.job)
+                ? mediaLockMessage(uploadPhase)
+                : "Read only. Media changes are limited to the Owner and the linked Service Advisor."}
             </p>
-            {prepared && (
-              <p className="media-ready" aria-live="polite">
-                Ready: {prepared.width} × {prepared.height} ·{" "}
-                {Math.ceil(prepared.byteSize / 1024)} KB
-              </p>
-            )}
-            {error && (
-              <p className="error-text" role="alert">
-                {error}
-              </p>
-            )}
-            <button className="primary-action" disabled={busy}>
-              {busy ? "Compressing…" : `Upload to ${category}`}
-            </button>
-          </form>
-        ) : (
-          <p className="permission-note">
-            {canMutateJobLifecycle(actor, view.job)
-              ? mediaLockMessage
-              : "Read only. Media changes are limited to the Owner and the linked Service Advisor."}
-          </p>
-        )}
+          )}
+        </section>
         {rows.length ? (
           <div className="job-media-gallery" data-testid="job-media-gallery">
             {rows.map((photo) => (
@@ -12982,13 +13224,19 @@ function JobMediaPanel({
                 <div>
                   <strong>{photo.label}</strong>
                   <span>
+                    {photo.category === "Before Work" ||
+                    photo.category === "After Work"
+                      ? photo.category
+                      : "General"}
+                  </span>
+                  <span>
                     {photo.original_name || photo.mime_type || "Image"}
                     {photo.byte_size
                       ? ` · ${Math.ceil(photo.byte_size / 1024)} KB`
                       : ""}
                   </span>
                 </div>
-                {canMutate && (
+                {canMutatePhoto(photo) && (
                   <div className="record-actions">
                     <button type="button" onClick={() => setEditing(photo)}>
                       Edit
@@ -13010,7 +13258,9 @@ function JobMediaPanel({
           </div>
         ) : (
           <p className="empty-state">
-            No {category.toLocaleLowerCase()} images yet.
+            {galleryFilter === "All Photos"
+              ? "No images yet."
+              : `No ${galleryFilter.toLocaleLowerCase()} images yet.`}
           </p>
         )}
         {editing && (
@@ -19255,6 +19505,7 @@ function headlineFor(role: Role) {
   return {
     admin: "Control room for linked workflow, blockers and cash.",
     service: "Command queue for estimates, approvals and customer updates.",
+    service_manager: "Department queue for routing and advisor handoffs.",
     reception: "Intake desk for visits, customers and new job cards.",
     accounts: "Closure desk for invoice, payment, receipt and gate pass.",
     store: "Issue counter for accountable material movement.",

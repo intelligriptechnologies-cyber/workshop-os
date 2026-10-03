@@ -4,7 +4,7 @@ import type { JobView } from "./types";
 import { DAMAGE_SLOT } from "./job-sheet";
 import { invoiceTotals, normalizeGstLine } from "./invoice-math";
 
-export type ReportCategory = "estimate" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
+export type ReportCategory = "estimate" | "quotation" | "invoice" | "gate-pass" | "job-card" | "payment-receipt";
 
 export interface ReportTemplate {
   id: string;
@@ -26,6 +26,7 @@ export interface CompanyAssets {
 
 export const REPORT_CATEGORY_LABELS: Record<ReportCategory, string> = {
   estimate: "Estimate",
+  quotation: "Quotation",
   invoice: "Invoice",
   "gate-pass": "Gate Pass",
   "job-card": "Job Card",
@@ -50,6 +51,7 @@ export type ReportLine = Record<"kind" | "description" | "qty" | "rate" | "amoun
 
 const CATEGORY_PLACEHOLDERS: Record<ReportCategory, readonly string[]> = {
   estimate: ["estimate.total", "blocks.line_items", "blocks.company_stamp", "company.stamp"],
+  quotation: ["quotation.total", "quotation.valid_until", "quotation.notes", "blocks.line_items", "blocks.company_stamp", "company.stamp"],
   invoice: ["company.bank_account_holder", "company.bank_name", "company.bank_account_number", "company.bank_ifsc", "company.bank_branch", "company.upi_id", "invoice.total", "invoice.paid", "invoice.balance", "blocks.line_items", "blocks.payments", "blocks.payment_details", "blocks.company_stamp", "company.stamp"],
   "gate-pass": ["invoice.status", "blocks.tasks", "blocks.qc_rows", "blocks.company_stamp"],
   "job-card": ["blocks.line_items", "blocks.tasks", "blocks.qc_rows", "blocks.damage_diagram", "blocks.company_stamp"],
@@ -61,7 +63,7 @@ export const REPORT_PLACEHOLDERS: Record<ReportCategory, readonly string[]> = Ob
 ) as unknown as Record<ReportCategory, readonly string[]>;
 
 /** Bumped whenever the seeded default designs change; stale, unedited seeded defaults in a stored session are replaced. */
-export const DEFAULT_TEMPLATE_VERSION = 2;
+export const DEFAULT_TEMPLATE_VERSION = 3;
 
 const ACCENT = "#1f5f99";
 const INK = "#18222d";
@@ -94,6 +96,7 @@ function layout(title: string, meta: string, body: string) {
 
 const DEFAULT_TEMPLATE_HTML: Record<ReportCategory, string> = {
   estimate: layout("ESTIMATE", "{{report.number}} · {{report.date}}", `${parties("Prepared for")}${lineItems}${totals("estimate.total")}<p style="margin:12px 0;color:${MUTED}">Valid for 7 days from the date above. Estimate only; final charges are per the Tax Invoice.</p>${words}`),
+  quotation: layout("QUOTATION", "{{report.number}} · {{report.date}}", `${parties("Prepared for")}${lineItems}${totals("quotation.total")}<p style="margin:12px 0;color:${MUTED}">Valid until {{quotation.valid_until}}.</p><p>{{quotation.notes}}</p>${words}`),
   invoice: layout("TAX INVOICE", "{{report.number}} · {{report.date}}", `${parties("Bill to")}${lineItems}${totals("invoice.total")}${words}<p style="margin:4px 0;text-align:right">Paid: {{invoice.paid}} · Balance: <strong>{{invoice.balance}}</strong></p>{{blocks.payments}}{{blocks.payment_details}}`),
   "payment-receipt": layout("PAYMENT RECEIPT", "{{receipt.number}} · {{report.date}}", `${parties("Received from")}<div style="margin:6px 0 14px;padding:14px 16px;border:1.5px solid ${INK};border-radius:6px"><div style="color:${MUTED}">Amount received</div><div style="font-size:26px;font-weight:700">{{invoice.paid}}</div><div style="color:${MUTED}">{{report.amount_words}}</div></div>{{blocks.payments}}${cards(card("Invoice total", "{{invoice.total}}"), card("Balance", "<strong>{{invoice.balance}}</strong>"))}`),
   "gate-pass": layout("GATE PASS", "{{report.number}} · {{report.date}}", `${parties("Released to")}<div style="margin:6px 0 14px;padding:14px;border:1.5px solid ${INK};border-radius:6px;text-align:center"><div style="color:${MUTED};letter-spacing:.06em">AUTHORISED TO EXIT PREMISES</div><div style="font-size:22px;font-weight:700;letter-spacing:.08em;margin:4px 0">{{vehicle.registration}}</div><div>Released on {{report.date}} · Payment: <strong>{{invoice.status}}</strong></div></div>${cards(card("Completed work", "{{job.work_list}}"), card("Received by", `<div style="height:46px"></div><div style="border-top:1px solid ${INK};padding-top:4px;font-size:11px">Customer signature · {{customer.name}}</div>`))}${section("Tasks", "{{blocks.tasks}}")}${section("Quality checks", "{{blocks.qc_rows}}")}`),
@@ -199,7 +202,7 @@ export function buildReportValues(category: ReportCategory, view: JobView, setti
     "invoice.status": value(view.invoice?.status), "blocks.damage_diagram": DAMAGE_SLOT, "invoice.total": money(invoiceTotal), "invoice.paid": money(paid), "invoice.balance": money(Math.max(0, invoiceTotal - paid)), "receipt.number": value(view.receipt?.receipt_no),
     "blocks.company_logo": imageBlock(assets.logo, "Company logo"), "blocks.company_stamp": imageBlock(assets.stamp, "Company stamp"), "blocks.authorized_signature": imageBlock(assets.authorizedSignature, "Authorized signature"),
     "company.logo": imageBlock(assets.logo, "Company logo"), "company.stamp": imageBlock(assets.stamp, "Company stamp"), "company.signature": imageBlock(assets.authorizedSignature, "Authorized signature"),
-    "estimate.total": money(totals.total),
+    "estimate.total": money(totals.total), "quotation.total": money(totals.total), "quotation.valid_until": value(view.job.promised_at), "quotation.notes": "",
     "report.subtotal": money(subtotal), "report.discount": discount ? `- ${money(discount)}` : money(0), "report.gst": money(gst),
     "report.amount_words": rupeesInWords(category === "payment-receipt" ? paid : category === "estimate" ? totals.total : invoiceTotal),
     "blocks.line_items": table(["Type", "Description", "Qty", "Rate", "GST treatment", "GST %", "Amount"], reportItems.map((item) => [item.kind, item.description, item.qty, money(item.rate), item.gst_type ?? (item.gst_rate === 0 ? "No GST" : "CGST+SGST"), `${item.gst_rate ?? fallbackGst}%`, money(item.qty * item.rate)])),

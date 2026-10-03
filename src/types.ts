@@ -1,5 +1,15 @@
 export type Role =
-  "admin" | "service" | "reception" | "accounts" | "store" | "tech";
+  "admin" | "service" | "service_manager" | "reception" | "accounts" | "store" | "tech";
+
+export type LeadStage = "NEW" | "QUALIFIED" | "QUOTATION_SENT" | "WON" | "LOST";
+export type LeadTemperature = "HOT" | "WARM" | "COLD";
+export type QuotationStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+export interface SalesLead { id: number; display_name: string; phone: string; company: string; email: string; address: string; service_interest: string; notes: string; stage: LeadStage; temperature: LeadTemperature; follow_up_due: string | null; site_visit_completed: number; site_visit_date: string | null; created_at: string; updated_at: string; }
+export interface SalesQuotationLine { id: number; quotation_id: number; line_no: number; kind: string; description: string; quantity: number; rate: number; gst_rate: number; }
+export interface SalesQuotation { id: number; lead_id: number; quotation_no: string; status: QuotationStatus; valid_until: string | null; customer_notes: string; discount: number; subtotal: number; gst_amount: number; total: number; template_id: string; template_html: string; created_at: string; updated_at: string; lines: SalesQuotationLine[]; }
+export interface ServiceDepartmentAdvisorTeam { manager_id: number; advisor_id: number; }
+export interface ServiceDepartment { id: number; name: string; status: "ACTIVE" | "ARCHIVED"; created_at: string; updated_at: string; manager_ids: number[]; advisor_team_ids: number[]; advisor_teams: ServiceDepartmentAdvisorTeam[]; }
+export interface ServiceCatalogMaster { id: number; name: string; status: "ACTIVE" | "ARCHIVED"; created_at: string; updated_at: string; }
 
 export type MainStatus =
   "NEW" | "IN_PROGRESS" | "HOLD" | "COMPLETED" | "CLOSED" | "CANCELLED";
@@ -19,6 +29,7 @@ export type SubStatus =
   | "QC Pending"
   | "Customer Verification"
   | "Invoice Ready"
+  | "Remind Customer for Sharing Google Review/Feedback"
   | "Payment Received"
   | "Receipt Generated"
   | "Gate Pass Generated"
@@ -32,6 +43,7 @@ export type ViewMode = "grid" | "table";
 export type BookingStatus =
   "Booked" | "Confirmed" | "Arrived" | "Rescheduled" | "Cancelled" | "No-show";
 export type BookingArrivalWindow = "" | "Morning" | "Afternoon" | "Evening";
+export type BookingServiceType = "Service Work" | "General Checkup / Follow-up";
 
 export interface ListQuery {
   search: string;
@@ -187,6 +199,7 @@ export interface Booking {
   model: string;
   color: string;
   requested_work: string;
+  service_type: BookingServiceType;
   booking_date: string;
   arrival_window: BookingArrivalWindow;
   status: BookingStatus;
@@ -229,7 +242,8 @@ export interface BookingEvent {
 /** A per-day advance-booking ceiling. Missing rows use the workshop default. */
 export interface BookingCapacityLimit {
   booking_date: string;
-  capacity: number;
+  service_work_capacity: number;
+  general_checkup_followup_capacity: number;
   set_by: number;
   updated_at: string;
 }
@@ -310,6 +324,12 @@ export interface ServiceCatalogItem {
   name: string;
   base_rate: number;
   gst_rate: number;
+  service_department_id?: number | null;
+  brand_id?: number | null;
+  car_segment_id?: number | null;
+  department_name?: string | null;
+  brand_name?: string | null;
+  car_segment_name?: string | null;
   archived_at?: string | null;
   archived_reason?: string | null;
   created_at?: string;
@@ -877,6 +897,11 @@ export interface WorkshopState {
   purchase_order_receipt_lines: PurchaseOrderReceiptLine[];
   purchase_order_confirmations: PurchaseOrderConfirmation[];
   stock_inwards: StockInward[];
+  sales_leads: SalesLead[];
+  sales_quotations: SalesQuotation[];
+  service_departments: ServiceDepartment[];
+  service_brands: ServiceCatalogMaster[];
+  car_segments: ServiceCatalogMaster[];
 }
 
 export interface AdvisorAttendance {

@@ -3,12 +3,14 @@ import { DEFAULT_TEMPLATE_VERSION, findUnsupportedPlaceholders, seedReportTempla
 
 export type { CompanyAssets, ReportCategory, ReportTemplate } from "./report-templates";
 
-export const ADMIN_DEMO_STATE_VERSION = 1;
+export const ADMIN_DEMO_STATE_VERSION = 2;
 export const ADMIN_DEMO_STORAGE_KEY = `workshopos.admin-demo.v${ADMIN_DEMO_STATE_VERSION}`;
+const LEGACY_ADMIN_DEMO_STORAGE_KEY = "workshopos.admin-demo.v1";
 
 export const BUILT_IN_ROLE_LABELS: Record<Role, string> = {
   admin: "Owner/Admin",
   service: "Service Advisor",
+  service_manager: "Service Department Manager",
   reception: "Reception",
   accounts: "Accounts",
   store: "Store",
@@ -44,7 +46,10 @@ export type AdminPageKey =
   | "data-flow"
   | "jobs"
   | "manage"
-  | "admin-console";
+  | "admin-console"
+  | "sales-leads"
+  | "quotations"
+  | "quotation-settings";
 
 export interface AdminPageDefinition {
   key: AdminPageKey;
@@ -52,10 +57,16 @@ export interface AdminPageDefinition {
 }
 
 export interface AdminPageGroup {
-  key: "front-desk" | "workshop" | "inventory" | "finance" | "administration";
+  key: "front-desk" | "workshop" | "inventory" | "finance" | "sales" | "administration";
   label: string;
   pages: readonly AdminPageDefinition[];
 }
+
+export const SALES_CRM_PAGES = [
+  { key: "sales-leads" as const, label: "Leads" },
+  { key: "quotations" as const, label: "Quotations" },
+  { key: "quotation-settings" as const, label: "Quotation Settings" },
+] as const;
 
 export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
   {
@@ -107,6 +118,11 @@ export const ADMIN_PAGE_GROUPS: readonly AdminPageGroup[] = [
     ],
   },
   {
+    key: "sales",
+    label: "Sales CRM",
+    pages: SALES_CRM_PAGES,
+  },
+  {
     key: "administration",
     label: "Administration",
     pages: [
@@ -131,10 +147,11 @@ export const PAGE_LABEL_BY_KEY: Readonly<Record<AdminPageKey, string>> = Object.
 export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>> = {
   reception: ["today-queue", "advance-bookings", "customers", "vehicles", "search"],
   service: ["my-queue", "job-card", "estimate", "follow-ups", "media", "search"],
+  service_manager: ["my-queue", "job-card", "estimate", "follow-ups", "media", "search"],
   store: ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"],
   tech: ["my-tasks", "work-update", "qc-prep", "search"],
   accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "advance-bookings", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search", "admin-console"],
+  admin: ["dashboard", "advance-bookings", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search", "sales-leads", "quotations", "quotation-settings", "admin-console"],
 };
 
 /** Sidebar workflows are a role-owned subset of saved Page Access grants. */
@@ -235,6 +252,10 @@ export interface WorkshopBusinessSettings {
     documentHeader: string;
     estimateTemplate: string;
     invoiceTemplate: string;
+    jobCardCreatedWhatsAppTemplate: string;
+    jobCardCreatedEmailTemplate: string;
+    jobCardClosedWhatsAppTemplate: string;
+    jobCardClosedEmailTemplate: string;
   };
   logRetention: {
     operationalDays: number;
@@ -332,6 +353,7 @@ const PROTECTED_OWNER_PAGE: AdminPageKey = "admin-console";
 export const DEFAULT_ROLE_PAGE_ACCESS: Readonly<RolePageAccess> = {
   reception: [...ROLE_MENU_PAGE_KEYS.reception],
   service: [...ROLE_MENU_PAGE_KEYS.service],
+  service_manager: [...ROLE_MENU_PAGE_KEYS.service_manager],
   store: [...ROLE_MENU_PAGE_KEYS.store],
   tech: [...ROLE_MENU_PAGE_KEYS.tech],
   accounts: [...ROLE_MENU_PAGE_KEYS.accounts],
@@ -393,6 +415,14 @@ const DEFAULT_SETTINGS: WorkshopBusinessSettings = {
     documentHeader: "WorkshopOS Demo Studio",
     estimateTemplate: "Standard Estimate",
     invoiceTemplate: "GST Invoice",
+    jobCardCreatedWhatsAppTemplate:
+      "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been created at {{workshopName}}. Your service advisor is {{serviceAdvisorName}}.",
+    jobCardCreatedEmailTemplate:
+      "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been created at {{workshopName}}. Your service advisor is {{serviceAdvisorName}}.",
+    jobCardClosedWhatsAppTemplate:
+      "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been closed at {{workshopName}}.",
+    jobCardClosedEmailTemplate:
+      "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been closed at {{workshopName}}.",
   },
   logRetention: { operationalDays: 30, featureDays: 30 },
 };
@@ -481,11 +511,16 @@ function mergeSettings(
 function hydrateState(value: unknown): AdminDemoState | undefined {
   if (!value || typeof value !== "object") return undefined;
   const saved = value as Partial<AdminDemoState>;
-  if (saved.version !== ADMIN_DEMO_STATE_VERSION || !Array.isArray(saved.roles) || !saved.rolePageAccess || !Array.isArray(saved.logs)) return undefined;
+  if ((saved.version !== ADMIN_DEMO_STATE_VERSION && saved.version !== 1) || !Array.isArray(saved.roles) || !saved.rolePageAccess || !Array.isArray(saved.logs)) return undefined;
   const base = createDefaultAdminDemoState();
   const access = Object.fromEntries(Object.entries(saved.rolePageAccess).map(([roleId, pages]) => [roleId, sanitizePages(pages)]));
+  // Version 1 showed Sales CRM outside Page Access. Preserve that effective
+  // Owner/Admin access while moving it into the catalogue in version 2.
+  if (saved.version === 1) {
+    access[OWNER_ROLE_ID] = [...new Set([...(access[OWNER_ROLE_ID] ?? []), ...SALES_CRM_PAGES.map((page) => page.key)])];
+  }
   access[OWNER_ROLE_ID] = protectOwnerAccess(access[OWNER_ROLE_ID] ?? []);
-  const categories: ReportCategory[] = ["estimate", "invoice", "gate-pass", "job-card", "payment-receipt"];
+  const categories: ReportCategory[] = ["estimate", "quotation", "invoice", "gate-pass", "job-card", "payment-receipt"];
   const storedTemplates = Array.isArray(saved.reportTemplates) ? saved.reportTemplates : [];
   const reportTemplates = categories.flatMap((category) => {
     const candidates = storedTemplates.filter((template): template is ReportTemplate => Boolean(template && typeof template === "object" && template.category === category && template.id && template.name && template.html));
@@ -517,7 +552,7 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
 export function loadAdminDemoState(storage: SessionStorageLike | undefined = browserSessionStorage(), now: Date | string = new Date()): AdminDemoState {
   if (!storage) return createDefaultAdminDemoState(now);
   try {
-    const raw = storage.getItem(ADMIN_DEMO_STORAGE_KEY);
+    const raw = storage.getItem(ADMIN_DEMO_STORAGE_KEY) ?? storage.getItem(LEGACY_ADMIN_DEMO_STORAGE_KEY);
     if (!raw) return createDefaultAdminDemoState(now);
     const hydrated = hydrateState(JSON.parse(raw));
     return hydrated ? enforceLogRetention(hydrated, now) : createDefaultAdminDemoState(now);
@@ -675,6 +710,18 @@ export function normalizeBusinessSettings(settings: WorkshopBusinessSettings): W
       documentHeader: trim(settings.notifications.documentHeader),
       estimateTemplate: trim(settings.notifications.estimateTemplate),
       invoiceTemplate: trim(settings.notifications.invoiceTemplate),
+      jobCardCreatedWhatsAppTemplate: trim(
+        settings.notifications.jobCardCreatedWhatsAppTemplate,
+      ),
+      jobCardCreatedEmailTemplate: trim(
+        settings.notifications.jobCardCreatedEmailTemplate,
+      ),
+      jobCardClosedWhatsAppTemplate: trim(
+        settings.notifications.jobCardClosedWhatsAppTemplate,
+      ),
+      jobCardClosedEmailTemplate: trim(
+        settings.notifications.jobCardClosedEmailTemplate,
+      ),
     },
     logRetention: { ...settings.logRetention },
   };
@@ -692,6 +739,14 @@ export function validateBusinessSettings(settings: WorkshopBusinessSettings): st
   if (settings.billing.gstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(settings.billing.gstin)) errors.push("GSTIN must be a valid 15-character Indian GSTIN.");
   if (settings.billing.bankIfsc && !/^[A-Z]{4}0[A-Z0-9]{6}$/.test(settings.billing.bankIfsc)) errors.push("IFSC must contain four letters, 0, then six letters or digits.");
   if (settings.billing.upiId && !/^[A-Za-z0-9._-]+@[A-Za-z0-9.-]+$/.test(settings.billing.upiId)) errors.push("UPI ID must use a valid handle@provider format.");
+  if (!settings.notifications.jobCardCreatedWhatsAppTemplate)
+    errors.push("Job-card creation WhatsApp template is required.");
+  if (!settings.notifications.jobCardCreatedEmailTemplate)
+    errors.push("Job-card creation email template is required.");
+  if (!settings.notifications.jobCardClosedWhatsAppTemplate)
+    errors.push("Job-card closure WhatsApp template is required.");
+  if (!settings.notifications.jobCardClosedEmailTemplate)
+    errors.push("Job-card closure email template is required.");
   return errors;
 }
 

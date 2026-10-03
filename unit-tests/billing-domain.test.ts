@@ -30,6 +30,11 @@ function insertCompletedJob(db: Database) {
   db.run("insert into estimates(id,job_card_id,status,discount,gst_rate,approval_note) values(1,1,'Approved',100,18,'Approved')");
   db.run("insert into estimate_items(id,estimate_id,kind,description,qty,rate) values(1,1,'Service','Labour',2,500),(2,1,'Material','Oil',1,250)");
   migrateSchema(db);
+  db.run("update checklist_items set checked_by=1,checked_at='2026-09-20T00:00:00.000Z',completed_at='2026-09-20T00:00:00.000Z' where job_card_id=1 and label='Remind Customer for Sharing Google Review/Feedback'");
+}
+
+function clearGoogleReviewReminder(db: Database) {
+  db.run("update checklist_items set checked_by=null,checked_at=null,completed_at=null where job_card_id=1 and label='Remind Customer for Sharing Google Review/Feedback'");
 }
 
 test("invoice copies estimate items exactly once and then remains independent", async () => {
@@ -126,6 +131,20 @@ test("Record Payment validates mode, is a single full payment, and needs an acti
   assert.throws(() => recordPayment(db, invoiceId, { mode: "Card", otherDetail: "", reference: "CARD-X" }), /completed job card/);
 });
 
+test("payment requires the Google review/feedback reminder and the reminder cannot be N/A", async () => {
+  const db = await database();
+  insertCompletedJob(db);
+  const invoiceId = createInvoiceFromEstimate(db, 1, { tallyInvoiceNo: "TLY-REVIEW", notes: "", documentAvailable: true });
+  clearGoogleReviewReminder(db);
+  const reminderId = rows<{ id: number }>(db, "select id from checklist_items where job_card_id=1 and label='Remind Customer for Sharing Google Review/Feedback'")[0].id;
+
+  assert.throws(() => recordPayment(db, invoiceId, { mode: "Cash", otherDetail: "", reference: "" }), /Google review\/feedback reminder/);
+  const { setChecklistItemNotApplicable } = await import("../src/db");
+  assert.throws(() => setChecklistItemNotApplicable(db, reminderId, 1, true), /cannot be marked N\/A/);
+  db.run("update checklist_items set checked_by=1,checked_at='2026-09-20T01:00:00.000Z',completed_at='2026-09-20T01:00:00.000Z' where id=?", [reminderId]);
+  assert.ok(recordPayment(db, invoiceId, { mode: "Cash", otherDetail: "", reference: "" }) > 0);
+});
+
 test("Record Payment atomically creates payment, receipt, gate pass and delivery acknowledgement, then closes", async () => {
   const db = await database();
   insertCompletedJob(db);
@@ -166,6 +185,7 @@ test("payment is rejected during rework and closes only after the job is complet
   db.run("update checklist_items set checked_at='2026-09-25T10:00:00.000Z',completed_at='2026-09-25T10:00:00.000Z' where checklist_cycle_id=(select id from checklist_cycles where job_card_id=1 order by id desc limit 1) and checked_at is null");
   db.run("update checklist_cycles set completed_at='2026-09-25T10:00:00.000Z' where id=(select id from checklist_cycles where job_card_id=1 order by id desc limit 1)");
   transitionJobStatus(db, 1, "COMPLETED", "Rework verified", "2026-09-25T10:05:00.000Z");
+  db.run("update checklist_items set checked_by=1,checked_at='2026-09-25T10:06:00.000Z',completed_at='2026-09-25T10:06:00.000Z' where checklist_cycle_id=(select max(id) from checklist_cycles where job_card_id=1) and label='Remind Customer for Sharing Google Review/Feedback'");
 
   recordPayment(db, invoiceId, { mode: "UPI", otherDetail: "", reference: "REWORK-FULL" });
   const view = readState(db).jobs[0];

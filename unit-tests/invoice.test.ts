@@ -273,6 +273,8 @@ async function completedWithInvoice() {
 test("ticking Payment Received creates the payment, receipt and gate pass, then closes the job", async () => {
   const { db, id, item } = await completedWithInvoice();
   assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 2, true), /Only Owner\/Admin and Accounts/);
+  assert.throws(() => setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, true), /Google review\/feedback reminder/);
+  setChecklistItemCheckedForActor(db, item("Remind Customer for Sharing Google Review/Feedback").id, 1, true);
   setChecklistItemCheckedForActor(db, item("Payment Received").id, 4, true);
   const v = view(db);
   assert.equal(v.invoice?.status, "Cleared");
@@ -293,13 +295,14 @@ test("ticking Payment Received requires a current invoice", async () => {
 });
 
 test("voiding needs Owner/Accounts and a reason; a paid invoice cannot be voided; a re-created invoice gets a new number", async () => {
-  const { db, id } = await completedWithInvoice();
+  const { db, id, item } = await completedWithInvoice();
   assert.throws(() => voidInvoiceForActor(db, id, 2, "Advisor"), /Only Owner\/Admin and Accounts/);
   assert.throws(() => voidInvoiceForActor(db, id, 4, " "), /reason/);
   const first = view(db).invoice!.invoice_no;
   voidInvoiceForActor(db, id, 4, "Wrong customer");
   const again = createInvoiceForActor(db, 1, 1, invoiceInput([{ kind: "Service", description: "Labour", qty: 1, rate: 100, gst_rate: 18 }]));
   assert.notEqual(view(db).invoice!.invoice_no, first);
+  setChecklistItemCheckedForActor(db, item("Remind Customer for Sharing Google Review/Feedback").id, 1, true);
   recordPaymentForActor(db, again, 4, { mode: "UPI", otherDetail: "", reference: "R" });
   assert.throws(() => voidInvoiceForActor(db, again, 4, "Too late"), /active payments/);
   assert.equal(rows<{ n: number }>(db, "select count(*)-count(distinct invoice_no) n from invoices")[0].n, 0);

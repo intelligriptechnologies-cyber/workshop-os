@@ -48,21 +48,24 @@ class MemorySessionStorage implements SessionStorageLike {
 
 const NOW = "2026-09-22T12:00:00.000Z";
 
-test("defaults represent all six WorkshopOS roles and current menu pages", () => {
+test("defaults represent all seven WorkshopOS roles and current menu pages", () => {
   const state = createDefaultAdminDemoState(NOW);
-  assert.deepEqual(state.roles.map((role) => role.id), ["admin", "service", "reception", "accounts", "store", "tech"]);
+  assert.deepEqual(state.roles.map((role) => role.id), ["admin", "service", "service_manager", "reception", "accounts", "store", "tech"]);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Admin Console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).find((page) => page.key === "jobs")?.label, "Job Cards");
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "front-desk")?.pages.find((page) => page.key === "advance-bookings")?.label, "Advance Bookings");
   assert.deepEqual(resolvePermittedPages(state, "store"), ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"]);
   assert.equal(resolvePermittedPages(state, "admin").includes("admin-console"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.key === "inward-purchases"), true);
+  assert.deepEqual(ADMIN_PAGE_GROUPS.find((group) => group.key === "sales")?.pages.map((page) => page.key), ["sales-leads", "quotations", "quotation-settings"]);
+  assert.equal(resolvePermittedPages(state, "admin").includes("sales-leads"), true);
   assert.equal(ADMIN_PAGE_GROUPS.find((group) => group.key === "inventory")?.pages.some((page) => page.label === "Suppliers"), false);
   assert.deepEqual(resolvePermittedPages(state, "admin"), [...ROLE_MENU_PAGE_KEYS.admin, ...ADMIN_SEARCH_OPERATIONAL_PAGE_KEYS]);
   assert.equal(resolveRoleMenuPageKeys("reception", resolvePermittedPages(state, "reception")).includes("advance-bookings"), true);
   assert.deepEqual(resolveRoleMenuPageKeys("reception", resolvePermittedPages(state, "reception")), ["today-queue", "advance-bookings", "customers", "vehicles", "search"]);
   assert.equal(resolveRoleMenuPageKeys("admin", resolvePermittedPages(state, "admin")).includes("advance-bookings"), true);
   assert.equal(ROLE_MENU_PAGE_KEYS.admin.includes("stock"), false);
+  assert.deepEqual(resolveRoleMenuPageKeys("admin", resolvePermittedPages(state, "admin")).slice(-4), ["sales-leads", "quotations", "quotation-settings", "admin-console"]);
   assert.equal(ADMIN_PAGE_GROUPS.flatMap((group) => group.pages).some((page) => page.label === "Masters"), false);
 });
 
@@ -126,7 +129,7 @@ test("session persistence is versioned, recoverable and resettable", () => {
   assert.equal(loadAdminDemoState(storage, NOW).businessSettings.profile.businessName, "Saved demo workshop");
 
   storage.setItem(ADMIN_DEMO_STORAGE_KEY, "not JSON");
-  assert.equal(loadAdminDemoState(storage, NOW).roles.length, 6);
+  assert.equal(loadAdminDemoState(storage, NOW).roles.length, 7);
   resetAdminDemoState(storage, NOW);
   assert.equal(storage.values.has(ADMIN_DEMO_STORAGE_KEY), false);
 });
@@ -183,7 +186,7 @@ test("billing validation reports GSTIN, IFSC and UPI errors independently", () =
 test("custom role helpers are immutable and preserve role mappings", () => {
   const original = createDefaultAdminDemoState(NOW);
   const added = addDemoRole(original, { label: "  Workshop Supervisor  ", pageAccess: ["dashboard", "jobs"] }, NOW);
-  assert.equal(original.roles.length, 6);
+  assert.equal(original.roles.length, 7);
   assert.equal(added.roles.at(-1)?.id, "custom-1");
   assert.deepEqual(resolvePermittedPages(added, "custom-1"), ["dashboard", "jobs"]);
 
@@ -202,6 +205,18 @@ test("Owner/Admin always keeps Admin Console access", () => {
   const updated = updateRolePageAccess(original, "admin", ["dashboard", "made-up" as never]);
   assert.deepEqual(resolvePermittedPages(updated, "admin"), ["dashboard", "admin-console"]);
   assert.deepEqual(resolvePermittedPages(original, "admin"), original.rolePageAccess.admin);
+});
+
+test("version 1 sessions migrate Sales CRM into Owner/Admin page access", () => {
+  const storage = new MemorySessionStorage();
+  const legacy = createDefaultAdminDemoState(NOW);
+  legacy.version = 1;
+  legacy.rolePageAccess.admin = ["dashboard", "admin-console"];
+  storage.setItem("workshopos.admin-demo.v1", JSON.stringify(legacy));
+
+  const migrated = loadAdminDemoState(storage, NOW);
+  assert.equal(migrated.version, 2);
+  assert.deepEqual(resolveRoleMenuPageKeys("admin", resolvePermittedPages(migrated, "admin")).filter((key) => key.startsWith("sales-") || key === "quotations" || key === "quotation-settings"), ["sales-leads", "quotations", "quotation-settings"]);
 });
 
 test("business settings deep updates retain sibling values", () => {

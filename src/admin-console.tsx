@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { FileSpreadsheet, ShieldCheck, Sliders } from "lucide-react";
+import { Archive, FileSpreadsheet, Pencil, Plus, RefreshCw, ShieldCheck, Sliders, UserMinus, UserPlus, UsersRound } from "lucide-react";
 import type { User, WorkshopState } from "./types";
 import {
   Dialog,
@@ -82,11 +82,21 @@ import {
   archiveServiceCatalogItemForActor,
   createServiceCatalogItemForActor,
   updateServiceCatalogItemForActor,
+  createServiceCatalogMaster,
+  updateServiceCatalogMaster,
+  createServiceDepartment,
+  updateServiceDepartment,
+  appointServiceDepartmentManager,
+  removeServiceDepartmentManager,
+  assignServiceAdvisorTeam,
+  removeServiceAdvisorTeam,
 } from "./db";
+import { adminUsersApi, type AdminDirectory } from "./admin-users-api";
 import { GST_RATES } from "./invoice-math";
 
 const ADMIN_TABS = [
   "Users",
+  "Team Structure",
   "Service Task Catalog",
   "Roles & Page Access",
   "Business Settings",
@@ -110,6 +120,7 @@ export function AdminConsole({
   cognitoConfig,
   onThemeSaved,
   onStateSaved,
+  initialTab,
 }: {
   state: WorkshopState;
   mutate: Mutate;
@@ -117,8 +128,9 @@ export function AdminConsole({
   cognitoConfig?: CognitoConfig;
   onThemeSaved?: (theme: AppTheme) => void;
   onStateSaved?: () => void;
+  initialTab?: AdminTab;
 }) {
-  const [tab, setTab] = useState<AdminTab>("Users");
+  const [tab, setTab] = useState<AdminTab>(initialTab ?? "Users");
   const [adminState, setAdminState] = useState<AdminDemoState>(() =>
     loadAdminDemoState(),
   );
@@ -149,6 +161,10 @@ export function AdminConsole({
   };
 
   const refresh = () => setAdminState(loadAdminDemoState());
+  const managerDepartments = state.service_departments.reduce<Record<number, string[]>>((result, department) => {
+    department.manager_ids.forEach((managerId) => { (result[managerId] ??= []).push(department.name); });
+    return result;
+  }, {});
 
   return (
     <section className="workspace single-panel admin-console">
@@ -196,11 +212,16 @@ export function AdminConsole({
             mutate={mutate}
             actingUser={actingUser}
             cognitoConfig={cognitoConfig}
+            managerDepartments={managerDepartments}
           />
         )}
+        {tab === "Team Structure" && <TeamStructureTab state={state} mutate={mutate} cognitoConfig={cognitoConfig} />}
         {tab === "Service Task Catalog" && (
           <ServiceTaskCatalog
             items={state.service_catalog}
+            departments={state.service_departments}
+            brands={state.service_brands}
+            segments={state.car_segments}
             mutate={mutate}
             actor={actingUser}
           />
@@ -263,39 +284,158 @@ export function AdminConsole({
   );
 }
 
+function TeamStructureTab({ state, mutate, cognitoConfig }: { state: WorkshopState; mutate: Mutate; cognitoConfig?: CognitoConfig }) {
+  const [remote, setRemote] = useState<AdminDirectory>();
+  const [error, setError] = useState("");
+  const refreshRemote = async () => {
+    if (!cognitoConfig) return;
+    try { setRemote(await adminUsersApi.list(cognitoConfig)); setError(""); }
+    catch (caught) { setError(caught instanceof Error ? caught.message : "TEAM_STRUCTURE_API_FAILED"); }
+  };
+  useEffect(() => { void refreshRemote(); }, [cognitoConfig]);
+  if (cognitoConfig) return <section className="admin-tab team-structure"><TeamStructureHeader refresh={refreshRemote} /><p className="team-structure-intro">Departments, appointed service managers, and branch-qualified advisor teams.</p>{error && <p className="api-error" role="alert">{error}</p>}<RemoteTeamStructure directory={remote} config={cognitoConfig} onChanged={refreshRemote} /></section>;
+  return <LocalTeamStructure state={state} mutate={mutate} />;
+}
+
+function TeamStructureHeader({ refresh }: { refresh?: () => void }) {
+  return <div className="panel-actions"><div><h2>Team Structure</h2><p>Create departments, appoint managers, then build each manager's advisor team.</p></div>{refresh && <button type="button" className="secondary-action team-icon-action" onClick={refresh}><RefreshCw size={16} />Refresh</button>}</div>;
+}
+
+function LocalTeamStructure({ state, mutate }: { state: WorkshopState; mutate: Mutate }) {
+  const [name, setName] = useState("");
+  const [selectedId, setSelectedId] = useState<number>();
+  const [appointmentManagerId, setAppointmentManagerId] = useState(0);
+  const [teamManagerId, setTeamManagerId] = useState(0);
+  const [advisorId, setAdvisorId] = useState(0);
+  const [renameDepartment, setRenameDepartment] = useState<WorkshopState["service_departments"][number]>();
+  const selected = state.service_departments.find((department) => department.id === selectedId);
+  const managers = state.users.filter((user) => user.role === "service_manager" && !user.archived_at);
+  const advisors = state.users.filter((user) => user.role === "service" && !user.archived_at);
+
+  useEffect(() => { setAppointmentManagerId(0); setTeamManagerId(0); setAdvisorId(0); }, [selectedId]);
+  useEffect(() => { if (teamManagerId && !selected?.manager_ids.includes(teamManagerId)) setTeamManagerId(0); }, [selected, teamManagerId]);
+  useEffect(() => { if (selectedId && !selected) setSelectedId(undefined); }, [selected, selectedId]);
+
+  const create = (event: React.FormEvent) => {
+    event.preventDefault();
+    let departmentId = 0;
+    if (mutate((db) => { departmentId = createServiceDepartment(db, name); })) {
+      setName("");
+      setSelectedId(departmentId);
+    }
+  };
+  return <section className="admin-tab team-structure"><TeamStructureHeader /><p className="team-structure-intro">Demo branch departments, manager appointments, and advisor teams.</p>
+    <form className="team-create-form" onSubmit={create}><label>New department<input aria-label="New department" required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. General Service" /></label><button className="primary-action" type="submit"><Plus size={17} />Create department</button></form>
+    <DepartmentTable departments={state.service_departments} selectedId={selectedId} users={state.users} onManage={setSelectedId} onRename={setRenameDepartment} onArchive={(department) => mutate((db) => updateServiceDepartment(db, department.id, department.name, "ARCHIVED"))} />
+    {selected && <DepartmentTeamPanel departmentName={selected.name} managers={selected.manager_ids.map((id) => state.users.find((user) => user.id === id)).filter((user): user is User => Boolean(user))} advisorTeams={selected.advisor_teams.map((team) => ({ managerId: team.manager_id, advisor: state.users.find((user) => user.id === team.advisor_id) })).filter((team): team is { managerId: number; advisor: User } => Boolean(team.advisor))} appointmentManagerId={appointmentManagerId} teamManagerId={teamManagerId} advisorId={advisorId} eligibleManagers={managers.filter((user) => !selected.manager_ids.includes(user.id))} eligibleAdvisors={advisors} onAppointmentManagerChange={setAppointmentManagerId} onTeamManagerChange={setTeamManagerId} onAdvisorChange={setAdvisorId} onAppoint={() => { if (mutate((db) => appointServiceDepartmentManager(db, selected.id, appointmentManagerId))) { setTeamManagerId(appointmentManagerId); setAppointmentManagerId(0); } }} onRemoveManager={(managerId) => { if (mutate((db) => removeServiceDepartmentManager(db, selected.id, managerId)) && teamManagerId === managerId) setTeamManagerId(0); }} onAssignAdvisor={() => { if (mutate((db) => assignServiceAdvisorTeam(db, selected.id, teamManagerId, advisorId))) setAdvisorId(0); }} onRemoveAdvisor={(managerId, nextAdvisorId) => mutate((db) => removeServiceAdvisorTeam(db, selected.id, managerId, nextAdvisorId))} />}
+    {renameDepartment && <DepartmentRenameDialog key={renameDepartment.id} departmentName={renameDepartment.name} onClose={() => setRenameDepartment(undefined)} onSave={(name) => { if (mutate((db) => updateServiceDepartment(db, renameDepartment.id, name, renameDepartment.status))) setRenameDepartment(undefined); }} />}
+  </section>;
+}
+
+function DepartmentRenameDialog({ departmentName, onSave, onClose }: { departmentName: string; onSave: (name: string) => void; onClose: () => void }) {
+  const [name, setName] = useState(departmentName);
+  return <Dialog title="Rename department" onClose={onClose}><form onSubmit={(event) => { event.preventDefault(); onSave(name); }}><label>Department name<input aria-label="Department name" required value={name} onChange={(event) => setName(event.target.value)} /></label><div className="action-row"><button className="primary-action" type="submit"><Pencil size={17} />Save department</button><button type="button" onClick={onClose}>Cancel</button></div></form></Dialog>;
+}
+
+function DepartmentTable({ departments, selectedId, users, onManage, onRename, onArchive }: { departments: WorkshopState["service_departments"]; selectedId?: number; users: User[]; onManage: (id: number) => void; onRename: (department: WorkshopState["service_departments"][number]) => void; onArchive: (department: WorkshopState["service_departments"][number]) => void }) {
+  const names = (ids: number[]) => ids.map((id) => users.find((user) => user.id === id)?.name).filter(Boolean).join(", ");
+  return <div className="table-wrap team-department-table"><table aria-label="Service departments"><thead><tr><th>Department</th><th>Status</th><th>Managers</th><th>Advisor team</th><th>Actions</th></tr></thead><tbody>{departments.map((department) => <tr key={department.id} className={selectedId === department.id ? "team-department-selected" : undefined}><td>{department.name}</td><td>{department.status}</td><td>{names(department.manager_ids) || "Unappointed"}</td><td>{names(department.advisor_team_ids) || "—"}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => onManage(department.id)}><UsersRound size={15} />Manage team</button><button type="button" className="grid-action" onClick={() => onRename(department)}><Pencil size={15} />Rename</button><button type="button" className="grid-action grid-action-danger" onClick={() => onArchive(department)} disabled={department.status === "ARCHIVED"}><Archive size={15} />Archive</button></div></td></tr>)}</tbody></table></div>;
+}
+
+type TeamAdvisor = { managerId: number; advisor: User };
+function DepartmentTeamPanel({ departmentName, managers, advisorTeams, appointmentManagerId, teamManagerId, advisorId, eligibleManagers, eligibleAdvisors, onAppointmentManagerChange, onTeamManagerChange, onAdvisorChange, onAppoint, onRemoveManager, onAssignAdvisor, onRemoveAdvisor }: { departmentName: string; managers: User[]; advisorTeams: TeamAdvisor[]; appointmentManagerId: number; teamManagerId: number; advisorId: number; eligibleManagers: User[]; eligibleAdvisors: User[]; onAppointmentManagerChange: (id: number) => void; onTeamManagerChange: (id: number) => void; onAdvisorChange: (id: number) => void; onAppoint: () => void; onRemoveManager: (id: number) => void; onAssignAdvisor: () => void; onRemoveAdvisor: (managerId: number, advisorId: number) => void }) {
+  const selectedManager = managers.find((manager) => manager.id === teamManagerId);
+  return <section className="team-details" aria-label={`${departmentName} team management`}><div className="team-details-heading"><UsersRound size={20} /><div><h3>{departmentName}</h3><p>Eligible managers have the Service Department Manager role; eligible advisors have the Service Advisor role.</p></div></div><div className="team-details-grid"><section className="team-section"><h4>Managers</h4><div className="team-control-grid"><label>Eligible manager<select aria-label="Eligible manager" value={appointmentManagerId} onChange={(event) => onAppointmentManagerChange(Number(event.target.value))}><option value={0}>Select eligible manager</option>{eligibleManagers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><button type="button" className="primary-action" disabled={!appointmentManagerId} onClick={onAppoint}><UserPlus size={17} />Appoint manager</button></div><div className="team-member-list">{managers.length ? managers.map((manager) => <div className="team-member" key={manager.id}><span>{manager.name}</span><button type="button" className="secondary-action" onClick={() => onRemoveManager(manager.id)}><UserMinus size={16} />Remove</button></div>) : <p className="empty-state">No managers appointed yet.</p>}</div></section><section className="team-section"><h4>Advisor team</h4><div className="team-control-grid"><label>Appointed manager<select aria-label="Appointed manager" value={teamManagerId} onChange={(event) => onTeamManagerChange(Number(event.target.value))}><option value={0}>Select appointed manager</option>{managers.map((manager) => <option key={manager.id} value={manager.id}>{manager.name}</option>)}</select></label><label>Eligible advisor<select aria-label="Eligible advisor" value={advisorId} disabled={!selectedManager} onChange={(event) => onAdvisorChange(Number(event.target.value))}><option value={0}>{selectedManager ? "Select eligible advisor" : "Choose a manager first"}</option>{eligibleAdvisors.map((advisor) => <option key={advisor.id} value={advisor.id}>{advisor.name}</option>)}</select></label><button type="button" className="primary-action team-assign-action" disabled={!selectedManager || !advisorId} onClick={onAssignAdvisor}><UserPlus size={17} />Assign advisor</button></div>{!selectedManager ? <p className="permission-note team-disabled-note">Choose an appointed manager to add or view that advisor team.</p> : <div className="team-member-list"><p className="team-manager-label">{selectedManager.name}'s advisors</p>{advisorTeams.filter((team) => team.managerId === selectedManager.id).map((team) => <div className="team-member" key={team.advisor.id}><span>{team.advisor.name}</span><button type="button" className="secondary-action" onClick={() => onRemoveAdvisor(team.managerId, team.advisor.id)}><UserMinus size={16} />Remove</button></div>)}{!advisorTeams.some((team) => team.managerId === selectedManager.id) && <p className="empty-state">No advisors assigned to this manager.</p>}</div>}</section></div></section>;
+}
+
+function RemoteTeamStructure({ directory, config, onChanged }: { directory?: AdminDirectory; config: CognitoConfig; onChanged: () => Promise<void> }) {
+  const [name, setName] = useState(""); const [departmentId, setDepartmentId] = useState(""); const [appointmentManagerId, setAppointmentManagerId] = useState(""); const [teamManagerId, setTeamManagerId] = useState(""); const [advisorId, setAdvisorId] = useState(""); const [error, setError] = useState(""); const [renameDepartment, setRenameDepartment] = useState<AdminDirectory["serviceDepartments"][number]>();
+  const department = directory?.serviceDepartments.find((item) => item.id === departmentId);
+  const branchId = department?.branchId ?? directory?.branches[0]?.id ?? "";
+  const managerUsers = directory?.users.filter((user) => user.status === "ACTIVE" && user.roles.some((role) => role.name === "Service Department Manager") && user.branchIds.includes(branchId)) ?? [];
+  const advisorUsers = directory?.users.filter((user) => user.status === "ACTIVE" && user.roles.some((role) => role.name === "Service Advisor") && user.branchIds.includes(branchId)) ?? [];
+  useEffect(() => { setAppointmentManagerId(""); setTeamManagerId(""); setAdvisorId(""); }, [departmentId]);
+  useEffect(() => { if (teamManagerId && !department?.managers.some((manager) => manager.membershipId === teamManagerId)) setTeamManagerId(""); }, [department, teamManagerId]);
+  const run = async (action: () => Promise<unknown>) => { try { setError(""); await action(); await onChanged(); } catch (caught) { setError(caught instanceof Error ? caught.message : "TEAM_STRUCTURE_API_FAILED"); } };
+  return <><form className="team-create-form" onSubmit={(event) => { event.preventDefault(); if (branchId) void run(async () => { const result = await adminUsersApi.createServiceDepartment(config, { branchId, name }); setName(""); setDepartmentId(result.serviceDepartment.id); }); }}><label>New department<input aria-label="New department" required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. General Service" /></label><button className="primary-action" type="submit"><Plus size={17} />Create department</button></form>{error && <p className="api-error" role="alert">{error}</p>}<div className="table-wrap team-department-table"><table aria-label="Connected service departments"><thead><tr><th>Department</th><th>Branch</th><th>Managers</th><th>Advisor team</th><th>Actions</th></tr></thead><tbody>{directory?.serviceDepartments.map((item) => <tr key={item.id} className={departmentId === item.id ? "team-department-selected" : undefined}><td>{item.name}</td><td>{item.branchName}</td><td>{item.managers.map((manager) => manager.name).join(", ") || "Unappointed"}</td><td>{item.advisorTeams.map((advisor) => advisor.advisorName).join(", ") || "—"}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => setDepartmentId(item.id)}><UsersRound size={15} />Manage team</button><button type="button" className="grid-action" onClick={() => setRenameDepartment(item)}><Pencil size={15} />Rename</button><button type="button" className="grid-action grid-action-danger" disabled={item.status === "ARCHIVED"} onClick={() => void run(() => adminUsersApi.updateServiceDepartment(config, item.id, { name: item.name, status: "ARCHIVED" }))}><Archive size={15} />Archive</button></div></td></tr>)}</tbody></table></div>{department && <RemoteDepartmentTeamPanel department={department} appointmentManagerId={appointmentManagerId} teamManagerId={teamManagerId} advisorId={advisorId} managerUsers={managerUsers} advisorUsers={advisorUsers} onAppointmentManagerChange={setAppointmentManagerId} onTeamManagerChange={setTeamManagerId} onAdvisorChange={setAdvisorId} onAppoint={() => void run(async () => { await adminUsersApi.appointManager(config, department.id, appointmentManagerId); setTeamManagerId(appointmentManagerId); setAppointmentManagerId(""); })} onRemoveManager={(managerId) => void run(() => adminUsersApi.removeManager(config, department.id, managerId))} onAssignAdvisor={() => void run(async () => { await adminUsersApi.assignAdvisorTeam(config, department.id, teamManagerId, advisorId); setAdvisorId(""); })} onRemoveAdvisor={(managerId, nextAdvisorId) => void run(() => adminUsersApi.removeAdvisorTeam(config, department.id, managerId, nextAdvisorId))} />}{renameDepartment && <DepartmentRenameDialog key={renameDepartment.id} departmentName={renameDepartment.name} onClose={() => setRenameDepartment(undefined)} onSave={(nextName) => void run(async () => { await adminUsersApi.updateServiceDepartment(config, renameDepartment.id, { name: nextName, status: renameDepartment.status }); setRenameDepartment(undefined); })} />}</>;
+}
+
+function RemoteDepartmentTeamPanel({ department, appointmentManagerId, teamManagerId, advisorId, managerUsers, advisorUsers, onAppointmentManagerChange, onTeamManagerChange, onAdvisorChange, onAppoint, onRemoveManager, onAssignAdvisor, onRemoveAdvisor }: { department: NonNullable<AdminDirectory["serviceDepartments"][number]>; appointmentManagerId: string; teamManagerId: string; advisorId: string; managerUsers: AdminDirectory["users"]; advisorUsers: AdminDirectory["users"]; onAppointmentManagerChange: (id: string) => void; onTeamManagerChange: (id: string) => void; onAdvisorChange: (id: string) => void; onAppoint: () => void; onRemoveManager: (id: string) => void; onAssignAdvisor: () => void; onRemoveAdvisor: (managerId: string, advisorId: string) => void }) {
+  const managers = department.managers;
+  const selectedManager = managers.find((manager) => manager.membershipId === teamManagerId);
+  return <section className="team-details" aria-label={`${department.name} team management`}><div className="team-details-heading"><UsersRound size={20} /><div><h3>{department.name}</h3><p>Only active users with the matching role in this branch are shown.</p></div></div><div className="team-details-grid"><section className="team-section"><h4>Managers</h4><div className="team-control-grid"><label>Eligible manager<select aria-label="Eligible manager" value={appointmentManagerId} onChange={(event) => onAppointmentManagerChange(event.target.value)}><option value="">Select eligible manager</option>{managerUsers.filter((user) => !managers.some((manager) => manager.membershipId === user.id)).map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><button type="button" className="primary-action" disabled={!appointmentManagerId} onClick={onAppoint}><UserPlus size={17} />Appoint manager</button></div><div className="team-member-list">{managers.length ? managers.map((manager) => <div className="team-member" key={manager.membershipId}><span>{manager.name}</span><button type="button" className="secondary-action" onClick={() => onRemoveManager(manager.membershipId)}><UserMinus size={16} />Remove</button></div>) : <p className="empty-state">No managers appointed yet.</p>}</div></section><section className="team-section"><h4>Advisor team</h4><div className="team-control-grid"><label>Appointed manager<select aria-label="Appointed manager" value={teamManagerId} onChange={(event) => onTeamManagerChange(event.target.value)}><option value="">Select appointed manager</option>{managers.map((manager) => <option key={manager.membershipId} value={manager.membershipId}>{manager.name}</option>)}</select></label><label>Eligible advisor<select aria-label="Eligible advisor" value={advisorId} disabled={!selectedManager} onChange={(event) => onAdvisorChange(event.target.value)}><option value="">{selectedManager ? "Select eligible advisor" : "Choose a manager first"}</option>{advisorUsers.map((user) => <option key={user.id} value={user.id}>{user.name}</option>)}</select></label><button type="button" className="primary-action team-assign-action" disabled={!selectedManager || !advisorId} onClick={onAssignAdvisor}><UserPlus size={17} />Assign advisor</button></div>{!selectedManager ? <p className="permission-note team-disabled-note">Choose an appointed manager to add or view that advisor team.</p> : <div className="team-member-list"><p className="team-manager-label">{selectedManager.name}'s advisors</p>{department.advisorTeams.filter((team) => team.managerMembershipId === selectedManager.membershipId).map((team) => <div className="team-member" key={team.advisorMembershipId}><span>{team.advisorName}</span><button type="button" className="secondary-action" onClick={() => onRemoveAdvisor(team.managerMembershipId, team.advisorMembershipId)}><UserMinus size={16} />Remove</button></div>)}{!department.advisorTeams.some((team) => team.managerMembershipId === selectedManager.membershipId) && <p className="empty-state">No advisors assigned to this manager.</p>}</div>}</section></div></section>;
+}
+
 /* ------------------------------------------------------------------ Roles & Page Access ---- */
 
 const ALL_PAGE_KEYS: AdminPageKey[] = ADMIN_PAGE_GROUPS.flatMap((group) =>
   group.pages.map((page) => page.key),
 );
 
+type ServiceTaskSubTab = "tasks" | "catalogs";
+
 function ServiceTaskCatalog({
   items,
+  departments,
+  brands,
+  segments,
   mutate,
   actor,
 }: {
   items: WorkshopState["service_catalog"];
+  departments: WorkshopState["service_departments"];
+  brands: WorkshopState["service_brands"];
+  segments: WorkshopState["car_segments"];
   mutate: Mutate;
   actor: User;
 }) {
+  const [subTab, setSubTab] = useState<ServiceTaskSubTab>("tasks");
   const [query, setQuery] = useState("");
+  const [departmentId, setDepartmentId] = useState(0);
+  const [brandId, setBrandId] = useState(0);
+  const [segmentId, setSegmentId] = useState(0);
   const [error, setError] = useState("");
   const [dialog, setDialog] = useState<
     { item?: WorkshopState["service_catalog"][number] } | undefined
   >();
   const visible = items.filter((item) =>
-    normalizeSearch(item.name).includes(normalizeSearch(query)),
+    normalizeSearch(item.name).includes(normalizeSearch(query)) &&
+    (!departmentId || item.service_department_id === departmentId) &&
+    (!brandId || item.brand_id === brandId) &&
+    (!segmentId || item.car_segment_id === segmentId),
   );
+  const clearFilters = () => { setQuery(""); setDepartmentId(0); setBrandId(0); setSegmentId(0); };
   return (
-    <section
-      className="manager-panel"
-      role="tabpanel"
-      aria-label="Service Task Catalog"
-    >
+    <section className="manager-panel" aria-label="Service task management">
+      <div className="sub-tabs" role="tablist" aria-label="Service task sections">
+        <button
+          id="service-tasks-tab"
+          type="button"
+          role="tab"
+          aria-selected={subTab === "tasks"}
+          aria-controls="service-tasks-panel"
+          className={subTab === "tasks" ? "active" : ""}
+          onClick={() => setSubTab("tasks")}
+        >
+          Service Tasks
+        </button>
+        <button
+          id="catalogs-tab"
+          type="button"
+          role="tab"
+          aria-selected={subTab === "catalogs"}
+          aria-controls="catalogs-panel"
+          className={subTab === "catalogs" ? "active" : ""}
+          onClick={() => setSubTab("catalogs")}
+        >
+          Catalogs
+        </button>
+      </div>
+      {subTab === "tasks" && <div id="service-tasks-panel" role="tabpanel" aria-labelledby="service-tasks-tab" aria-label="Service Tasks">
       <div className="panel-actions">
         <div>
-          <h3>Service Task Catalog</h3>
-          <p>Active services with pre-GST base rates and applicable GST.</p>
+          <h3>Service Tasks</h3>
+          <p>Service tasks by department, brand, and car segment.</p>
         </div>
         <button
           type="button"
@@ -316,7 +456,10 @@ function ServiceTaskCatalog({
             placeholder="Search service tasks"
           />
         </label>
-        <ListSearchActions onClear={() => setQuery("")} />
+        <label>Department<select aria-label="Filter department" value={departmentId} onChange={(event) => setDepartmentId(Number(event.target.value))}><option value={0}>All departments</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
+        <label>Brand name<select aria-label="Filter brand name" value={brandId} onChange={(event) => setBrandId(Number(event.target.value))}><option value={0}>All brands</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>
+        <label>Car segment<select aria-label="Filter car segment" value={segmentId} onChange={(event) => setSegmentId(Number(event.target.value))}><option value={0}>All segments</option>{segments.map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}</select></label>
+        <ListSearchActions onClear={clearFilters} />
       </div>
       {error && (
         <p className="error-text" role="alert">
@@ -327,6 +470,9 @@ function ServiceTaskCatalog({
         <table aria-label="Service task catalog">
           <thead>
             <tr>
+              <th>Department</th>
+              <th>Brand name</th>
+              <th>Car Segment</th>
               <th>Service task</th>
               <th>Pre-GST base rate</th>
               <th>Applicable GST</th>
@@ -350,10 +496,20 @@ function ServiceTaskCatalog({
       {!visible.length && (
         <p className="empty-state">No active catalog services.</p>
       )}
+      </div>}
+      {subTab === "catalogs" && <div id="catalogs-panel" role="tabpanel" aria-labelledby="catalogs-tab" aria-label="Catalogs">
+      <div className="team-details-grid">
+        <CatalogMasterList title="Brand names" table="service_brands" items={brands} mutate={mutate} />
+        <CatalogMasterList title="Car segments" table="car_segments" items={segments} mutate={mutate} />
+      </div>
+      </div>}
       {dialog && (
         <CatalogServiceTaskDialog
           key={dialog.item?.id ?? "new"}
           item={dialog.item}
+          departments={departments}
+          brands={brands}
+          segments={segments}
           actor={actor}
           mutate={mutate}
           onClose={() => setDialog(undefined)}
@@ -378,6 +534,9 @@ function CatalogRow({
 }) {
   return (
     <tr>
+      <td>{item.department_name ?? "—"}</td>
+      <td>{item.brand_name ?? "—"}</td>
+      <td>{item.car_segment_name ?? "—"}</td>
       <td>{item.name}</td>
       <td>{money(item.base_rate)}</td>
       <td>{item.gst_rate === 0 ? "No GST (0%)" : `${item.gst_rate}%`}</td>
@@ -416,11 +575,17 @@ const CATALOG_GST_OPTIONS = [
 
 function CatalogServiceTaskDialog({
   item,
+  departments,
+  brands,
+  segments,
   actor,
   mutate,
   onClose,
 }: {
   item?: WorkshopState["service_catalog"][number];
+  departments: WorkshopState["service_departments"];
+  brands: WorkshopState["service_brands"];
+  segments: WorkshopState["car_segments"];
   actor: User;
   mutate: Mutate;
   onClose: () => void;
@@ -428,6 +593,10 @@ function CatalogServiceTaskDialog({
   const [name, setName] = useState(item?.name ?? "");
   const [rate, setRate] = useState(item?.base_rate ?? 0);
   const [gstRate, setGstRate] = useState(item?.gst_rate ?? 18);
+  const [departmentId, setDepartmentId] = useState(item?.service_department_id ?? 0);
+  const [brandId, setBrandId] = useState(item?.brand_id ?? 0);
+  const [segmentId, setSegmentId] = useState(item?.car_segment_id ?? 0);
+  const [quickAdd, setQuickAdd] = useState<"service_brands" | "car_segments">();
   const [error, setError] = useState("");
   const save = (event: React.FormEvent) => {
     event.preventDefault();
@@ -439,11 +608,17 @@ function CatalogServiceTaskDialog({
               name,
               base_rate: rate,
               gst_rate: gstRate,
+              service_department_id: departmentId,
+              brand_id: brandId,
+              car_segment_id: segmentId,
             })
           : createServiceCatalogItemForActor(db, actor.id, {
               name,
               base_rate: rate,
               gst_rate: gstRate,
+              service_department_id: departmentId,
+              brand_id: brandId,
+              car_segment_id: segmentId,
             }),
       setError,
     );
@@ -451,6 +626,7 @@ function CatalogServiceTaskDialog({
   };
   return (
     <Dialog
+      wide
       title={item ? "Edit Service Task" : "Add Service Task"}
       subtitle="Changes apply to future task-list selections only."
       onClose={onClose}
@@ -465,15 +641,39 @@ function CatalogServiceTaskDialog({
         className="service-task-dialog-form"
         onSubmit={save}
       >
-        <label>
-          Service name
-          <input
-            data-dialog-initial-focus
-            aria-label="Catalog service name"
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-          />
-        </label>
+        <div className="service-task-form-row">
+          <label>
+            Department
+            <select data-dialog-initial-focus aria-label="Service department" value={departmentId} onChange={(event) => setDepartmentId(Number(event.target.value))}>
+              <option value={0}>Select department</option>
+              {departments.filter((department) => department.status === "ACTIVE").map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
+            </select>
+          </label>
+          <label>
+            Brand name <button type="button" className="link-action" onClick={() => setQuickAdd("service_brands")}>Quick Add</button>
+            <select aria-label="Brand name" value={brandId} onChange={(event) => setBrandId(Number(event.target.value))}>
+              <option value={0}>Select brand</option>
+              {brands.filter((brand) => brand.status === "ACTIVE").map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
+            </select>
+          </label>
+        </div>
+        <div className="service-task-form-row">
+          <label>
+            Car segment <button type="button" className="link-action" onClick={() => setQuickAdd("car_segments")}>Quick Add</button>
+            <select aria-label="Car segment" value={segmentId} onChange={(event) => setSegmentId(Number(event.target.value))}>
+              <option value={0}>Select car segment</option>
+              {segments.filter((segment) => segment.status === "ACTIVE").map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}
+            </select>
+          </label>
+          <label>
+            Service name
+            <input
+              aria-label="Catalog service name"
+              value={name}
+              onChange={(event) => setName(event.target.value)}
+            />
+          </label>
+        </div>
         <div className="service-task-rate-grid">
           <label>
             Pre-GST base rate
@@ -496,8 +696,21 @@ function CatalogServiceTaskDialog({
         </div>
         {error && <p className="error-text" role="alert">{error}</p>}
       </form>
+      {quickAdd && <CatalogMasterDialog table={quickAdd} title={quickAdd === "service_brands" ? "Add Brand name" : "Add Car Segment"} mutate={mutate} onClose={() => setQuickAdd(undefined)} onCreated={(id) => { if (quickAdd === "service_brands") setBrandId(id); else setSegmentId(id); setQuickAdd(undefined); }} />}
     </Dialog>
   );
+}
+
+function CatalogMasterList({ title, table, items, mutate }: { title: string; table: "service_brands" | "car_segments"; items: WorkshopState["service_brands"]; mutate: Mutate }) {
+  const [dialog, setDialog] = useState<WorkshopState["service_brands"][number]>();
+  return <section className="team-section"><div className="panel-actions"><h4>{title}</h4><button type="button" className="secondary-action" onClick={() => setDialog({ id: 0, name: "", status: "ACTIVE", created_at: "", updated_at: "" })}><Plus size={16} />Add</button></div><div className="table-wrap"><table aria-label={title}><thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.status}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => setDialog(item)}>Rename</button><button type="button" className="grid-action grid-action-danger" disabled={item.status === "ARCHIVED"} onClick={() => mutate((db) => updateServiceCatalogMaster(db, table, item.id, item.name, "ARCHIVED"))}>Archive</button></div></td></tr>)}</tbody></table></div>{dialog && <CatalogMasterDialog table={table} title={dialog.id ? `Rename ${title.slice(0, -1)}` : `Add ${title.slice(0, -1)}`} item={dialog.id ? dialog : undefined} mutate={mutate} onClose={() => setDialog(undefined)} />}</section>;
+}
+
+function CatalogMasterDialog({ table, title, item, mutate, onClose, onCreated }: { table: "service_brands" | "car_segments"; title: string; item?: WorkshopState["service_brands"][number]; mutate: Mutate; onClose: () => void; onCreated?: (id: number) => void }) {
+  const [name, setName] = useState(item?.name ?? "");
+  const [error, setError] = useState("");
+  const save = (event: React.FormEvent) => { event.preventDefault(); let id = item?.id ?? 0; const ok = mutate((db) => { id = item ? (updateServiceCatalogMaster(db, table, item.id, name, item.status), item.id) : createServiceCatalogMaster(db, table, name); }, setError); if (ok) { onCreated?.(id); if (!onCreated) onClose(); } };
+  return <Dialog title={title} onClose={onClose} footer={<button className="primary-action" type="submit" form="catalog-master-dialog-form">Save</button>}><form id="catalog-master-dialog-form" onSubmit={save}><label>Name<input data-dialog-initial-focus aria-label={`${title} name`} required value={name} onChange={(event) => setName(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>;
 }
 
 function RolesPageAccessTab({
@@ -1865,6 +2078,68 @@ function BusinessSettingsTab({
                   setField(
                     "notifications",
                     "invoiceTemplate",
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+          </div>
+          <p className="field-help">
+            Available placeholders: {"{{jobCardNo}}"}, {"{{vehicleRegistrationNo}}"},
+            {"{{serviceAdvisorName}}"}, and {"{{workshopName}}"}.
+          </p>
+          <div className="form-grid">
+            <label>
+              Job-card creation WhatsApp template
+              <textarea
+                rows={3}
+                value={draft.notifications.jobCardCreatedWhatsAppTemplate}
+                onChange={(event) =>
+                  setField(
+                    "notifications",
+                    "jobCardCreatedWhatsAppTemplate",
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Job-card creation email template
+              <textarea
+                rows={3}
+                value={draft.notifications.jobCardCreatedEmailTemplate}
+                onChange={(event) =>
+                  setField(
+                    "notifications",
+                    "jobCardCreatedEmailTemplate",
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Job-card closure WhatsApp template
+              <textarea
+                rows={3}
+                value={draft.notifications.jobCardClosedWhatsAppTemplate}
+                onChange={(event) =>
+                  setField(
+                    "notifications",
+                    "jobCardClosedWhatsAppTemplate",
+                    event.target.value,
+                  )
+                }
+              />
+            </label>
+            <label>
+              Job-card closure email template
+              <textarea
+                rows={3}
+                value={draft.notifications.jobCardClosedEmailTemplate}
+                onChange={(event) =>
+                  setField(
+                    "notifications",
+                    "jobCardClosedEmailTemplate",
                     event.target.value,
                   )
                 }

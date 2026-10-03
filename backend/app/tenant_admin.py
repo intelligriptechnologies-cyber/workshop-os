@@ -32,6 +32,9 @@ UI_ROLE_PAGES: dict[str, tuple[PageKey, ...]] = {
         "admin-console", "material-requests", "issue-material", "reconcile", "stock", "estimate", "follow-ups",
     ),
     "Service Advisor": ("my-queue", "job-card", "estimate", "follow-ups", "media", "search"),
+    # Managers use the same operational surfaces as advisors, but job routing
+    # additionally grants them the manager queue on the server.
+    "Service Department Manager": ("my-queue", "job-card", "estimate", "follow-ups", "media", "search"),
     "Reception": ("today-queue", "customers", "vehicles", "follow-ups", "search"),
     "Accounts": ("ready-to-invoice", "invoice", "payment", "delivery", "search"),
     "Store": ("material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"),
@@ -41,6 +44,7 @@ UI_ROLE_PAGES: dict[str, tuple[PageKey, ...]] = {
 SYSTEM_ROLE_KEYS = {
     "Owner/Admin": "admin",
     "Service Advisor": "service",
+    "Service Department Manager": "service_manager",
     "Reception": "reception",
     "Accounts": "accounts",
     "Store": "store",
@@ -111,6 +115,11 @@ def require_owner_permissions(permissions: tuple[str, ...]) -> None:
         raise AssignmentError("SYSTEM_ROLE_PERMISSION_REQUIRED")
 
 
+def require_service_manager_permissions(permissions: tuple[str, ...]) -> None:
+    if not set(DEFAULT_ROLE_PERMISSIONS["Service Department Manager"]) <= set(permissions):
+        raise AssignmentError("SYSTEM_ROLE_PERMISSION_REQUIRED")
+
+
 class ApiModel(BaseModel):
     model_config = ConfigDict(populate_by_name=True)
 
@@ -141,6 +150,16 @@ class RoleCreate(ApiModel):
 
 class RoleUpdate(RoleCreate):
     version: Annotated[int, Field(ge=1)]
+
+
+class ServiceDepartmentCreate(ApiModel):
+    branch_id: UUID = Field(alias="branchId")
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+
+
+class ServiceDepartmentUpdate(ApiModel):
+    name: Annotated[str, Field(min_length=1, max_length=200)]
+    status: Literal["ACTIVE", "ARCHIVED"]
 
 
 def _clean(value: str) -> str:
@@ -249,7 +268,60 @@ def _directory(session, tenant_id: UUID) -> dict[str, object]:
         LEFT JOIN tenant_admin_invitations AS i ON i.membership_id = m.id
         WHERE m.tenant_id = :tenant_id ORDER BY u.display_name, m.id
     """, {"tenant_id": str(tenant_id)})
-    return {"users": [_user_payload(session, tenant_id, row) for row in memberships], "roles": _roles(session, tenant_id), "branches": _branches(session, tenant_id)}
+    return {
+        "users": [_user_payload(session, tenant_id, row) for row in memberships],
+        "roles": _roles(session, tenant_id), "branches": _branches(session, tenant_id),
+        "serviceDepartments": _service_departments(session, tenant_id),
+    }
+
+
+def _service_departments(session, tenant_id: UUID) -> list[dict[str, object]]:
+    """Return the branch-local routing graph, including human-readable teams."""
+    departments = _rows(session, """
+        SELECT d.id, d.branch_id, b.name AS branch_name, d.name, d.status, d.created_at, d.updated_at
+        FROM service_departments d JOIN branches b ON b.id=d.branch_id
+        WHERE d.tenant_id=:tenant_id ORDER BY b.name, d.name, d.id
+    """, {"tenant_id": str(tenant_id)})
+    result = []
+    for department in departments:
+        managers = _rows(session, """
+            SELECT m.id AS membership_id, u.id AS user_id, u.display_name
+            FROM service_department_managers dm
+            JOIN tenant_memberships m ON m.id=dm.manager_membership_id
+            JOIN platform_users u ON u.id=m.user_id
+            WHERE dm.department_id=:department_id ORDER BY u.display_name, m.id
+        """, {"department_id": str(department["id"])})
+        teams = _rows(session, """
+            SELECT t.manager_membership_id, t.advisor_membership_id,
+                   manager_user.id AS manager_user_id, manager_user.display_name AS manager_name,
+                   advisor_user.id AS advisor_user_id, advisor_user.display_name AS advisor_name
+            FROM service_advisor_teams t
+            JOIN tenant_memberships manager ON manager.id=t.manager_membership_id
+            JOIN platform_users manager_user ON manager_user.id=manager.user_id
+            JOIN tenant_memberships advisor ON advisor.id=t.advisor_membership_id
+            JOIN platform_users advisor_user ON advisor_user.id=advisor.user_id
+            WHERE t.department_id=:department_id ORDER BY manager_user.display_name, advisor_user.display_name
+        """, {"department_id": str(department["id"])})
+        result.append({
+            "id": str(department["id"]), "branchId": str(department["branch_id"]),
+            "branchName": department["branch_name"], "name": department["name"],
+            "status": department["status"], "createdAt": department["created_at"], "updatedAt": department["updated_at"],
+            "managers": [{"membershipId": str(row["membership_id"]), "userId": str(row["user_id"]), "name": row["display_name"]} for row in managers],
+            "advisorTeams": [{"managerMembershipId": str(row["manager_membership_id"]), "managerUserId": str(row["manager_user_id"]), "managerName": row["manager_name"], "advisorMembershipId": str(row["advisor_membership_id"]), "advisorUserId": str(row["advisor_user_id"]), "advisorName": row["advisor_name"]} for row in teams],
+        })
+    return result
+
+
+def _active_branch_member(session, tenant_id: UUID, membership_id: UUID, branch_id: UUID, system_key: str) -> None:
+    valid = session.execute(text("""
+        SELECT 1 FROM tenant_memberships m
+        JOIN membership_branches mb ON mb.membership_id=m.id AND mb.branch_id=:branch_id
+        JOIN membership_roles mr ON mr.membership_id=m.id AND mr.tenant_id=m.tenant_id
+        JOIN tenant_roles r ON r.id=mr.role_id AND r.system_key=:system_key AND r.status='ACTIVE'
+        WHERE m.id=:membership_id AND m.tenant_id=:tenant_id AND m.status='ACTIVE'
+    """), {"tenant_id": str(tenant_id), "membership_id": str(membership_id), "branch_id": str(branch_id), "system_key": system_key}).scalar()
+    if not valid:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "MEMBER_NOT_ELIGIBLE"})
 
 
 def _assert_assignments_belong_to_tenant(session, tenant_id: UUID, role_ids: tuple[UUID, ...], branch_ids: tuple[UUID, ...]) -> None:
@@ -288,6 +360,130 @@ def list_users(scope: ScopedTenant) -> dict[str, object]:
     session, current = scope
     _require(scope, "tenant.users.read")
     return _directory(session, current.tenant_id)
+
+
+@router.get("/service-departments")
+def list_service_departments(scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.read")
+    return {"serviceDepartments": _service_departments(session, current.tenant_id)}
+
+
+@router.post("/service-departments", status_code=status.HTTP_201_CREATED)
+def create_service_department(input: ServiceDepartmentCreate, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.manage", mutation=True)
+    if not _rows(session, "SELECT id FROM branches WHERE id=:branch_id AND tenant_id=:tenant_id", {"branch_id": str(input.branch_id), "tenant_id": str(current.tenant_id)}):
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "BRANCH_NOT_IN_TENANT"})
+    try:
+        name = _clean(input.name)
+    except AssignmentError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": str(error)}) from error
+    exists = session.execute(text("SELECT 1 FROM service_departments WHERE tenant_id=:tenant_id AND branch_id=:branch_id AND lower(name)=lower(:name)"), {"tenant_id": str(current.tenant_id), "branch_id": str(input.branch_id), "name": name}).scalar()
+    if exists:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "DEPARTMENT_NAME_CONFLICT"})
+    department_id = uuid4()
+    session.execute(text("INSERT INTO service_departments (id,tenant_id,branch_id,name,created_by,updated_by) VALUES (:id,:tenant_id,:branch_id,:name,:actor_id,:actor_id)"), {"id": str(department_id), "tenant_id": str(current.tenant_id), "branch_id": str(input.branch_id), "name": name, "actor_id": str(current.actor_id)})
+    payload = next(item for item in _service_departments(session, current.tenant_id) if item["id"] == str(department_id))
+    _audit(session, current, "SERVICE_DEPARTMENT_CREATED", name, {}, payload)
+    return {"serviceDepartment": payload}
+
+
+@router.patch("/service-departments/{department_id}")
+def update_service_department(department_id: UUID, input: ServiceDepartmentUpdate, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.manage", mutation=True)
+    rows = _rows(session, "SELECT * FROM service_departments WHERE id=:id AND tenant_id=:tenant_id", {"id": str(department_id), "tenant_id": str(current.tenant_id)})
+    if len(rows) != 1:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SERVICE_DEPARTMENT_NOT_FOUND"})
+    try:
+        name = _clean(input.name)
+    except AssignmentError as error:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": str(error)}) from error
+    duplicate = session.execute(text("""
+        SELECT 1 FROM service_departments WHERE tenant_id=:tenant_id AND branch_id=:branch_id
+          AND lower(name)=lower(:name) AND id<>:id
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(rows[0]["branch_id"]), "name": name, "id": str(department_id)}).scalar()
+    if duplicate:
+        raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "DEPARTMENT_NAME_CONFLICT"})
+    session.execute(text("""
+        UPDATE service_departments SET name=:name, status=:status, updated_by=:actor_id, updated_at=now() WHERE id=:id
+    """), {"name": name, "status": input.status, "actor_id": str(current.actor_id), "id": str(department_id)})
+    payload = next(item for item in _service_departments(session, current.tenant_id) if item["id"] == str(department_id))
+    _audit(session, current, "SERVICE_DEPARTMENT_UPDATED", "Service department updated", {"name": rows[0]["name"], "status": rows[0]["status"]}, payload)
+    return {"serviceDepartment": payload}
+
+
+@router.put("/service-departments/{department_id}/managers/{membership_id}")
+def appoint_service_department_manager(department_id: UUID, membership_id: UUID, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.manage", mutation=True)
+    department = _rows(session, "SELECT * FROM service_departments WHERE id=:id AND tenant_id=:tenant_id AND status='ACTIVE'", {"id": str(department_id), "tenant_id": str(current.tenant_id)})
+    if len(department) != 1:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SERVICE_DEPARTMENT_NOT_FOUND"})
+    _active_branch_member(session, current.tenant_id, membership_id, UUID(str(department[0]["branch_id"])), "service_manager")
+    session.execute(text("""
+        INSERT INTO service_department_managers (tenant_id,branch_id,department_id,manager_membership_id,appointed_by)
+        VALUES (:tenant_id,:branch_id,:department_id,:membership_id,:actor_id) ON CONFLICT DO NOTHING
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(department[0]["branch_id"]), "department_id": str(department_id), "membership_id": str(membership_id), "actor_id": str(current.actor_id)})
+    payload = next(item for item in _service_departments(session, current.tenant_id) if item["id"] == str(department_id))
+    _audit(session, current, "SERVICE_MANAGER_APPOINTED", "Service department manager appointed", {}, {"departmentId": str(department_id), "membershipId": str(membership_id)})
+    return {"serviceDepartment": payload}
+
+
+@router.delete("/service-departments/{department_id}/managers/{membership_id}")
+def remove_service_department_manager(department_id: UUID, membership_id: UUID, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.manage", mutation=True)
+    department = _rows(session, "SELECT * FROM service_departments WHERE id=:id AND tenant_id=:tenant_id", {"id": str(department_id), "tenant_id": str(current.tenant_id)})
+    if len(department) != 1:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SERVICE_DEPARTMENT_NOT_FOUND"})
+    removed = session.execute(text("DELETE FROM service_department_managers WHERE tenant_id=:tenant_id AND department_id=:department_id AND manager_membership_id=:membership_id"), {"tenant_id": str(current.tenant_id), "department_id": str(department_id), "membership_id": str(membership_id)}).rowcount
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "MANAGER_NOT_APPOINTED"})
+    session.execute(text("DELETE FROM service_advisor_teams WHERE tenant_id=:tenant_id AND department_id=:department_id AND manager_membership_id=:membership_id"), {"tenant_id": str(current.tenant_id), "department_id": str(department_id), "membership_id": str(membership_id)})
+    payload = next(item for item in _service_departments(session, current.tenant_id) if item["id"] == str(department_id))
+    _audit(session, current, "SERVICE_MANAGER_REMOVED", "Service department manager removed", {}, {"departmentId": str(department_id), "membershipId": str(membership_id)})
+    return {"serviceDepartment": payload}
+
+
+@router.put("/service-departments/{department_id}/managers/{manager_membership_id}/advisors/{advisor_membership_id}")
+def assign_service_advisor_team(department_id: UUID, manager_membership_id: UUID, advisor_membership_id: UUID, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.manage", mutation=True)
+    department = _rows(session, "SELECT * FROM service_departments WHERE id=:id AND tenant_id=:tenant_id AND status='ACTIVE'", {"id": str(department_id), "tenant_id": str(current.tenant_id)})
+    if len(department) != 1:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SERVICE_DEPARTMENT_NOT_FOUND"})
+    branch_id = UUID(str(department[0]["branch_id"]))
+    appointed = session.execute(text("SELECT 1 FROM service_department_managers WHERE department_id=:department_id AND manager_membership_id=:membership_id"), {"department_id": str(department_id), "membership_id": str(manager_membership_id)}).scalar()
+    if not appointed:
+        raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": "MANAGER_NOT_APPOINTED"})
+    _active_branch_member(session, current.tenant_id, advisor_membership_id, branch_id, "service")
+    session.execute(text("""
+        INSERT INTO service_advisor_teams (tenant_id,branch_id,department_id,manager_membership_id,advisor_membership_id,assigned_by)
+        VALUES (:tenant_id,:branch_id,:department_id,:manager_membership_id,:advisor_membership_id,:actor_id)
+        ON CONFLICT (tenant_id,branch_id,advisor_membership_id) DO UPDATE
+        SET department_id=EXCLUDED.department_id, manager_membership_id=EXCLUDED.manager_membership_id,
+            assigned_by=EXCLUDED.assigned_by, assigned_at=now()
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "department_id": str(department_id), "manager_membership_id": str(manager_membership_id), "advisor_membership_id": str(advisor_membership_id), "actor_id": str(current.actor_id)})
+    payload = next(item for item in _service_departments(session, current.tenant_id) if item["id"] == str(department_id))
+    _audit(session, current, "SERVICE_ADVISOR_TEAM_ASSIGNED", "Advisor assigned to manager team", {}, {"departmentId": str(department_id), "managerMembershipId": str(manager_membership_id), "advisorMembershipId": str(advisor_membership_id)})
+    return {"serviceDepartment": payload}
+
+
+@router.delete("/service-departments/{department_id}/managers/{manager_membership_id}/advisors/{advisor_membership_id}")
+def remove_service_advisor_team(department_id: UUID, manager_membership_id: UUID, advisor_membership_id: UUID, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require(scope, "tenant.users.manage", mutation=True)
+    department = _rows(session, "SELECT id FROM service_departments WHERE id=:id AND tenant_id=:tenant_id", {"id": str(department_id), "tenant_id": str(current.tenant_id)})
+    if len(department) != 1:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "SERVICE_DEPARTMENT_NOT_FOUND"})
+    removed = session.execute(text("DELETE FROM service_advisor_teams WHERE tenant_id=:tenant_id AND department_id=:department_id AND manager_membership_id=:manager_membership_id AND advisor_membership_id=:advisor_membership_id"), {"tenant_id": str(current.tenant_id), "department_id": str(department_id), "manager_membership_id": str(manager_membership_id), "advisor_membership_id": str(advisor_membership_id)}).rowcount
+    if not removed:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "ADVISOR_TEAM_NOT_FOUND"})
+    payload = next(item for item in _service_departments(session, current.tenant_id) if item["id"] == str(department_id))
+    _audit(session, current, "SERVICE_ADVISOR_TEAM_REMOVED", "Advisor removed from manager team", {}, {"departmentId": str(department_id), "managerMembershipId": str(manager_membership_id), "advisorMembershipId": str(advisor_membership_id)})
+    return {"serviceDepartment": payload}
 
 
 @router.post("/users", status_code=status.HTTP_201_CREATED)
@@ -418,6 +614,11 @@ def update_role(role_id: UUID, input: RoleUpdate, scope: ScopedTenant) -> dict[s
             require_owner_permissions(permissions)
         except AssignmentError as error:
             raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": str(error)}) from error
+    if rows[0]["system_key"] == "service_manager":
+        try:
+            require_service_manager_permissions(permissions)
+        except AssignmentError as error:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_ENTITY, detail={"code": str(error)}) from error
     changed = session.execute(text("""
         UPDATE tenant_roles SET name = :name, description = :description, version = version + 1, updated_at = now()
         WHERE id = :role_id AND tenant_id = :tenant_id AND version = :version
@@ -441,7 +642,7 @@ def archive_role(role_id: UUID, input: ArchiveUser, scope: ScopedTenant) -> dict
     if len(rows) != 1:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail={"code": "ROLE_NOT_FOUND"})
     role = rows[0]
-    if role["system_key"] == "admin":
+    if role["system_key"] in ("admin", "service_manager"):
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "SYSTEM_ROLE_PROTECTED"})
     if role["status"] == "ARCHIVED":
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "ROLE_ALREADY_ARCHIVED"})

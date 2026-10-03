@@ -462,15 +462,42 @@ test("Management Hub filters use compact Month-Year toolbars and remain keyboard
   await expectNoPageOverflow(page);
 });
 
-test("admin catalogue and role filters stay compact on desktop and stack on mobile", async ({ page }) => {
+test("admin service task subtabs and role filters stay compact on desktop and stack on mobile", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
 
   await page.getByRole("tab", { name: "Service Task", exact: true }).click();
-  const catalog = page.getByRole("tabpanel", { name: "Service Task Catalog" });
-  await expect(catalog.getByLabel("Search catalog services")).toBeVisible();
-  await expectManagementToolbarHasOneRow(catalog, ".compact-management-toolbar");
+  const serviceTasks = page.getByRole("tabpanel", { name: "Service Tasks" });
+  await expect(serviceTasks.getByLabel("Search catalog services")).toBeVisible();
+  await expectManagementToolbarHasOneRow(serviceTasks, ".compact-management-toolbar");
+  await page.getByRole("tab", { name: "Catalogs", exact: true }).click();
+  const catalogs = page.getByRole("tabpanel", { name: "Catalogs" });
+  const brandNames = catalogs.locator(".team-section").filter({ has: page.getByRole("heading", { name: "Brand names" }) });
+  await expect(catalogs.getByRole("table", { name: "Brand names" })).toBeVisible();
+  await expect(catalogs.getByRole("table", { name: "Car segments" })).toBeVisible();
+  await brandNames.getByRole("button", { name: "Add", exact: true }).click();
+  const addBrand = page.getByRole("dialog", { name: "Add Brand name" });
+  await addBrand.getByLabel("Add Brand name name").fill("E2E Brand");
+  await addBrand.getByRole("button", { name: "Save", exact: true }).click();
+  const brandRow = catalogs.getByRole("table", { name: "Brand names" }).getByRole("row", { name: /E2E Brand/ });
+  await brandRow.getByRole("button", { name: "Rename", exact: true }).click();
+  const renameBrand = page.getByRole("dialog", { name: "Rename Brand name" });
+  await renameBrand.getByLabel("Rename Brand name name").fill("E2E Renamed Brand");
+  await renameBrand.getByRole("button", { name: "Save", exact: true }).click();
+  const renamedBrandRow = catalogs.getByRole("table", { name: "Brand names" }).getByRole("row", { name: /E2E Renamed Brand/ });
+  await expect(renamedBrandRow).toContainText("E2E Renamed Brand");
+  await renamedBrandRow.getByRole("button", { name: "Archive", exact: true }).click();
+  await expect(renamedBrandRow).toContainText("ARCHIVED");
+
+  await page.getByRole("tab", { name: "Service Tasks", exact: true }).click();
+  await serviceTasks.getByRole("button", { name: "Add Service Task", exact: true }).click();
+  const serviceTaskDialog = page.getByRole("dialog", { name: "Add Service Task" });
+  await expect(serviceTaskDialog).toHaveClass(/dialog-wide/);
+  await expect(serviceTaskDialog.locator(".service-task-form-row")).toHaveCount(2);
+  const desktopFieldRows = await serviceTaskDialog.locator(".service-task-form-row").evaluateAll((rows) => rows.map((row) => new Set(Array.from(row.children).map((field) => Math.round(field.getBoundingClientRect().top))).size));
+  expect(desktopFieldRows).toEqual([1, 1]);
+  await serviceTaskDialog.getByRole("button", { name: "Go Back", exact: true }).click();
 
   await page.getByRole("tab", { name: "Roles & Page Access", exact: true }).click();
   const roles = page.getByRole("tabpanel").filter({ has: page.getByRole("heading", { name: "Roles & Page Access" }) });
@@ -481,8 +508,13 @@ test("admin catalogue and role filters stay compact on desktop and stack on mobi
   await expectManagementToolbarStacks(roles, ".compact-management-toolbar");
   await expectNoPageOverflow(page);
   await page.getByRole("tab", { name: "Service Task", exact: true }).click();
-  await expectManagementToolbarStacks(catalog, ".compact-management-toolbar");
+  await expectManagementToolbarStacks(serviceTasks, ".compact-management-toolbar");
+  await serviceTasks.getByRole("button", { name: "Add Service Task", exact: true }).click();
+  const mobileServiceTaskDialog = page.getByRole("dialog", { name: "Add Service Task" });
+  const mobileFieldRows = await mobileServiceTaskDialog.locator(".service-task-form-row").evaluateAll((rows) => rows.map((row) => new Set(Array.from(row.children).map((field) => Math.round(field.getBoundingClientRect().top))).size));
+  expect(mobileFieldRows).toEqual([2, 2]);
   await expectNoPageOverflow(page);
+  await mobileServiceTaskDialog.getByRole("button", { name: "Go Back", exact: true }).click();
 });
 
 test("Management Hub Job Cards filters estimated delivery dates, months, archived records, and clears", async ({ page }) => {
@@ -1645,6 +1677,64 @@ test("admin user CRUD persists and protects the signed-in admin", async ({ page 
   await expect(self.getByRole("button", { name: "Archive" })).toBeDisabled();
 });
 
+test("Team Structure creates departments and manages appointed manager advisor teams responsively", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
+
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("User name").fill("Team Manager");
+  await page.getByLabel("User email").fill("team.manager@example.com");
+  await page.getByLabel("User role").selectOption("service_manager");
+  await page.getByLabel("User password").fill("secure123");
+  await page.getByRole("button", { name: "Save User" }).click();
+
+  await page.getByRole("button", { name: "Add User" }).click();
+  await page.getByLabel("User name").fill("Team Advisor");
+  await page.getByLabel("User email").fill("team.advisor@example.com");
+  await page.getByLabel("User role").selectOption("service");
+  await page.getByLabel("User password").fill("secure123");
+  await page.getByRole("button", { name: "Save User" }).click();
+
+  await page.getByRole("tab", { name: "Team Structure", exact: true }).click();
+  await page.getByLabel("New department").fill("Collision Repair");
+  await page.getByRole("button", { name: "Create department", exact: true }).click();
+
+  const table = page.getByRole("table", { name: "Service departments" });
+  const departmentRow = table.locator("tbody tr").filter({ hasText: "Collision Repair" });
+  await expect(departmentRow).toHaveClass(/team-department-selected/);
+  await expect(page.getByRole("region", { name: "Collision Repair team management" })).toBeVisible();
+  await departmentRow.getByRole("button", { name: "Rename", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Rename department" })).toBeVisible();
+  await page.getByLabel("Department name").fill("Collision Repair East");
+  await page.getByRole("button", { name: "Save department", exact: true }).click();
+  await expect(departmentRow).toContainText("Collision Repair East");
+  await page.getByLabel("Eligible manager").selectOption({ label: "Team Manager" });
+  await page.getByRole("button", { name: "Appoint manager", exact: true }).click();
+  await expect(departmentRow).toContainText("Team Manager");
+  await expect(page.getByLabel("Appointed manager")).toHaveValue(/.+/);
+
+  await page.getByLabel("Eligible advisor").selectOption({ label: "Team Advisor" });
+  await page.getByRole("button", { name: "Assign advisor", exact: true }).click();
+  await expect(departmentRow).toContainText("Team Advisor");
+  await page.getByRole("region", { name: "Collision Repair East team management" }).getByRole("button", { name: "Remove", exact: true }).last().click();
+  await expect(departmentRow).toContainText("—");
+  await page.getByRole("tab", { name: "Users", exact: true }).click();
+  await expect(page.locator(".management-table tbody tr").filter({ hasText: "team.manager@example.com" })).toContainText("Manager · Collision Repair East");
+  await page.getByRole("tab", { name: "Team Structure", exact: true }).click();
+  const layout = await page.locator(".team-create-form, .team-department-table").evaluateAll((elements) => elements.map((element) => {
+    const rect = element.getBoundingClientRect();
+    return { top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right, width: rect.width };
+  }));
+  expect(layout[1].top).toBeGreaterThanOrEqual(layout[0].bottom);
+
+  await page.setViewportSize({ width: 390, height: 844 });
+  const createForm = await page.locator(".team-create-form").evaluate((element) => element.getBoundingClientRect().right);
+  expect(createForm).toBeLessThanOrEqual(391);
+  const controlRows = await page.locator(".team-create-form > label, .team-create-form > button").evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().top))).size);
+  expect(controlRows).toBeGreaterThan(1);
+  await expectNoPageOverflow(page);
+});
+
 test("company settings validate, preview, reset and persist report assets", async ({ page }) => {
   await loginAs(page, "admin@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "Admin Console", exact: true }).click();
@@ -2059,9 +2149,14 @@ test("job card media validates, compresses, edits, archives, stays session-only,
   const job = page.getByRole("dialog", { name: /Edit Job/ });
   await job.getByRole("tab", { name: "Photos / Media" }).click();
   const media = job.getByRole("region", { name: "Job card photos and media" });
-  await expect(media.getByRole("tab", { name: "Before Work" })).toHaveAttribute("aria-selected", "true");
+  await expect(media.getByRole("tab", { name: "All Photos" })).toHaveAttribute("aria-selected", "true");
+  await expect(media.getByLabel("Upload phase")).toHaveValue("After Work");
+  await expect(media.getByRole("tab", { name: "Before Work" })).toBeVisible();
   await expect(media.getByRole("tab", { name: "After Work" })).toBeVisible();
-  await media.getByRole("tab", { name: "After Work" }).click();
+  await media.getByLabel("Upload phase").selectOption("Before Work");
+  await expect(media.getByText("Before Photos are locked after the job leaves NEW.")).toBeVisible();
+  await expect(media.getByLabel("Image file")).toHaveCount(0);
+  await media.getByLabel("Upload phase").selectOption("After Work");
 
   await media.getByLabel("Image file").setInputFiles({ name: "unsafe.svg", mimeType: "image/svg+xml", buffer: Buffer.from("<svg></svg>") });
   await expect(media.getByRole("alert")).toContainText("JPEG, PNG, or WebP");
@@ -2077,6 +2172,15 @@ test("job card media validates, compresses, edits, archives, stays session-only,
   await expect(uploadedImage).toHaveAttribute("src", /^data:image\/jpeg;base64,/);
   const compressedBytes = await uploadedImage.evaluate((image) => Math.floor(((image.getAttribute("src")?.split(",")[1].length ?? 0) * 3) / 4));
   expect(compressedBytes).toBeLessThanOrEqual(1_000_000);
+
+  await job.getByRole("tab", { name: "Details" }).click();
+  await job.getByRole("tab", { name: "Photos / Media" }).click();
+  await expect(media.getByRole("tab", { name: "All Photos" })).toHaveAttribute("aria-selected", "true");
+  await expect(media.getByRole("img", { name: "Arrival inspection" })).toBeVisible();
+  await media.getByRole("tab", { name: "Before Work" }).click();
+  await expect(media.getByText("No before work images yet.")).toBeVisible();
+  await media.getByRole("tab", { name: "After Work" }).click();
+  await expect(media.getByRole("img", { name: "Arrival inspection" })).toBeVisible();
 
   await uploaded.getByRole("button", { name: "Edit" }).click();
   const edit = page.getByRole("dialog", { name: "Edit photo metadata" });
@@ -2122,6 +2226,43 @@ test("job card media validates, compresses, edits, archives, stays session-only,
   await expect(page.getByText("Completed inspection")).toHaveCount(0);
 });
 
+test("Developer Console manages demo tenants, messages, billing and writable role emulation", async ({ page }) => {
+  await page.getByLabel("Email").fill("developer@admin.com");
+  await page.getByLabel("Password").fill("admin123");
+  await page.getByRole("button", { name: "Login" }).click();
+  await expect(page.getByRole("heading", { name: "Developer Console" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Apex Auto Studio" })).toBeVisible();
+
+  await page.getByLabel("New tenant name").fill("North Star Garage");
+  await page.getByRole("button", { name: "Create tenant" }).click();
+  await expect(page.getByRole("heading", { name: "North Star Garage" })).toBeVisible();
+  await page.getByRole("button", { name: "Disable tenant" }).click();
+  await expect(page.getByText("Disabled tenants cannot be emulated or used operationally.")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Emulate tenant" })).toBeDisabled();
+  await page.getByRole("button", { name: "Restore tenant" }).click();
+
+  await page.getByRole("tab", { name: "Communications" }).click();
+  await page.getByRole("button", { name: "Send simulated test" }).first().click();
+  await expect(page.getByText(/email to .* — simulated/)).toBeVisible();
+
+  await page.getByRole("tab", { name: "Billing" }).click();
+  await page.getByLabel("Description").fill("Demo platform plan");
+  await page.getByLabel("Amount").fill("1000");
+  await page.getByLabel("Due date").fill("2026-10-31");
+  await page.getByRole("button", { name: "Create charge" }).click();
+  await expect(page.getByText(/Demo platform plan/)).toBeVisible();
+  await page.getByLabel("Payment for Demo platform plan").fill("400");
+  await page.getByRole("button", { name: "Record payment" }).click();
+  await expect(page.getByText(/Partial/)).toBeVisible();
+
+  await page.getByRole("tab", { name: "Tenants" }).click();
+  await page.getByLabel("Emulate role").selectOption("reception");
+  await page.getByRole("button", { name: "Emulate tenant" }).click();
+  await expect(page.locator(".rail-role")).toHaveText("Reception");
+  await page.getByRole("button", { name: "Return to Developer" }).first().click();
+  await expect(page.getByRole("heading", { name: "Developer Console" })).toBeVisible();
+});
+
 test("linked advisor can change job media while other authorized job viewers are read only", async ({ page }) => {
   await loginAs(page, "service@example.com");
   await page.locator(".role-nav").getByRole("button", { name: "My Queue", exact: true }).click();
@@ -2150,6 +2291,26 @@ async function loginAs(page: import("@playwright/test").Page, email: string) {
   await page.getByLabel("Emulate User:").selectOption(email);
   await page.getByRole("button", { name: "Login" }).click();
 }
+
+test("fresh demo data provides a multi-supplier price review before PO approval", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByLabel("Search purchase orders").fill("DEMO-PR-0001");
+  const row = page.getByRole("table", { name: "Purchase order register" }).getByRole("row", { name: /DEMO-PR-0001/ });
+  await expect(row).toContainText("PO Request");
+  await row.getByRole("button", { name: "Process", exact: true }).click();
+
+  const request = page.getByRole("dialog", { name: "DEMO-PR-0001" });
+  const review = request.getByRole("region", { name: "Previous Price Review" });
+  await expect(review).toContainText("Apex Protection Films");
+  await expect(review).toContainText("Detail Supply Co.");
+  await expect(review).toContainText("Prime Auto Materials");
+  await expect(review.getByRole("table", { name: /Previous purchases for TPU Gloss PPF/ }).locator("tbody tr")).toHaveCount(3);
+  await expect(review).toContainText("No completed purchase history.");
+
+  await request.getByRole("button", { name: "Review & approve request", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Approve DEMO-PR-0001" })).toBeVisible();
+});
 
 test("Store creates a Purchase Request without supplier access or later-stage actions", async ({ page }) => {
   await page.setViewportSize({ width: 1024, height: 900 });
@@ -2180,6 +2341,19 @@ test("Store creates a Purchase Request without supplier access or later-stage ac
   const process = page.getByRole("dialog", { name: "PO-WOS-A-00001" });
   await expect(process.getByRole("button", { name: /Send saved PO|Close PO|Cancel PO/ })).toHaveCount(0);
   await expect(process.getByRole("button", { name: "Edit request" })).toBeVisible();
+});
+
+test("Admin can create a Purchase Request", async ({ page }) => {
+  await loginAs(page, "admin@example.com");
+  await page.locator(".role-nav").getByRole("button", { name: "Purchase Orders", exact: true }).click();
+  await page.getByRole("button", { name: "New Purchase Request", exact: true }).click();
+
+  const request = page.getByRole("dialog", { name: "New Purchase Request" });
+  await expect(request.getByLabel("PO number")).toHaveValue("PO-WOS-A-00001");
+  await expect(request.getByRole("button", { name: "Create request", exact: true })).toBeEnabled();
+  await request.getByRole("button", { name: "Create request", exact: true }).click();
+
+  await expect(page.getByRole("dialog", { name: "PO-WOS-A-00001" })).toBeVisible();
 });
 
 test("Store Materials Requests keeps inward unavailable and hands a New Item Request to the controlled PO form", async ({ page }) => {

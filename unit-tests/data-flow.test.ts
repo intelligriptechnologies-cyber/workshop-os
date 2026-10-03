@@ -89,10 +89,11 @@ test("lifecycle summary reports the active cycle and ordered remaining steps", (
     checklist_items: [
       { id: 1, checklist_cycle_id: 2, label: "Customer Verification", sort_order: 1, checked_at: "2026-09-01T10:00:00Z" },
       { id: 2, checklist_cycle_id: 2, label: "Invoice Ready", sort_order: 2, checked_at: null },
-      { id: 3, checklist_cycle_id: 2, label: "Payment Received", sort_order: 3, checked_at: null },
+      { id: 3, checklist_cycle_id: 2, label: "Remind Customer for Sharing Google Review/Feedback", sort_order: 3, checked_at: null },
+      { id: 4, checklist_cycle_id: 2, label: "Payment Received", sort_order: 4, checked_at: null },
     ],
   } as JobView;
-  assert.deepEqual(summarizeJobLifecycle(view), { stage: "COMPLETED", cycle: 2, activeStep: "Invoice Ready", remainingSteps: ["Invoice Ready", "Payment Received"], completed: false });
+  assert.deepEqual(summarizeJobLifecycle(view), { stage: "COMPLETED", cycle: 2, activeStep: "Invoice Ready", remainingSteps: ["Invoice Ready", "Remind Customer for Sharing Google Review/Feedback", "Payment Received"], completed: false });
 });
 
 test("ghost steps list remaining checklist items then uncreated documents with reasons", () => {

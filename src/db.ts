@@ -81,16 +81,26 @@ import type {
   AdvisorAttendance,
   Booking,
   BookingArrivalWindow,
+  BookingServiceType,
   BookingCallLog,
   BookingEvent,
   BookingCapacityLimit,
   BookingCapacityOverride,
   BookingStatus,
+  SalesLead,
+  SalesQuotation,
+  SalesQuotationLine,
+  LeadStage,
+  LeadTemperature,
+  QuotationStatus,
+  ServiceDepartment,
+  ServiceCatalogMaster,
 } from "./types";
 import { validateMediaDataUrl, type JobMediaCategory } from "./job-media";
 
 const STORAGE_KEY = "workshopos.sqlite.v2";
-export const DEFAULT_DAILY_BOOKING_CAPACITY = 8;
+export const DEFAULT_SERVICE_WORK_BOOKING_CAPACITY = 8;
+export const DEFAULT_GENERAL_CHECKUP_FOLLOWUP_BOOKING_CAPACITY = 4;
 const wasmUrl = new URL(
   "../node_modules/sql.js/dist/sql-wasm.wasm",
   import.meta.url,
@@ -109,7 +119,12 @@ export const LIFECYCLE_CHECKLIST: Record<ChecklistStage, readonly SubStatus[]> =
       "Photos Shared",
       "QC Pending",
     ],
-    COMPLETED: ["Customer Verification", "Invoice Ready", "Payment Received"],
+    COMPLETED: [
+      "Customer Verification",
+      "Invoice Ready",
+      "Remind Customer for Sharing Google Review/Feedback",
+      "Payment Received",
+    ],
     CLOSED: ["Receipt Generated", "Gate Pass Generated", "Delivered"],
   };
 
@@ -228,7 +243,12 @@ export function readState(db: Database): WorkshopState {
   );
   const service_catalog = all<ServiceCatalogItem>(
     db,
-    "select * from service_catalog_items where archived_at is null order by name, id",
+    `select catalog.*, department.name as department_name, brand.name as brand_name, segment.name as car_segment_name
+     from service_catalog_items catalog
+     left join service_departments department on department.id=catalog.service_department_id
+     left join service_brands brand on brand.id=catalog.brand_id
+     left join car_segments segment on segment.id=catalog.car_segment_id
+     where catalog.archived_at is null order by catalog.name, catalog.id`,
   );
   // Keep archived suppliers in the read model so historical receipts never lose their supplier identity.
   const suppliers = all<Supplier>(db, "select * from suppliers order by name");
@@ -515,6 +535,20 @@ export function readState(db: Database): WorkshopState {
     db,
     "select user_id, date, present from advisor_attendance order by date, user_id",
   );
+  const sales_leads = all<SalesLead>(db, "select * from sales_leads order by created_at desc, id desc");
+  const salesLines = all<SalesQuotationLine>(db, "select * from sales_quotation_lines order by quotation_id, line_no");
+  const sales_quotations = all<Omit<SalesQuotation, "lines">>(db, "select * from sales_quotations order by created_at desc, id desc").map((quotation) => ({ ...quotation, lines: salesLines.filter((line) => line.quotation_id === quotation.id) }));
+  const service_departments = all<Omit<ServiceDepartment, "manager_ids" | "advisor_team_ids" | "advisor_teams">>(db, "select * from service_departments order by status, name").map((department) => {
+    const advisor_teams = all<{ manager_id: number; advisor_id: number }>(db, "select manager_id, advisor_id from service_advisor_teams where department_id=? order by manager_id, advisor_id", [department.id]);
+    return {
+      ...department,
+      manager_ids: all<{ manager_id: number }>(db, "select manager_id from service_department_managers where department_id=? order by manager_id", [department.id]).map((row) => row.manager_id),
+      advisor_team_ids: advisor_teams.map((row) => row.advisor_id),
+      advisor_teams,
+    };
+  });
+  const service_brands = all<ServiceCatalogMaster>(db, "select * from service_brands order by status, name");
+  const car_segments = all<ServiceCatalogMaster>(db, "select * from car_segments order by status, name");
   return {
     users,
     customers,
@@ -544,6 +578,11 @@ export function readState(db: Database): WorkshopState {
     purchase_order_receipt_lines,
     purchase_order_confirmations,
     stock_inwards,
+    sales_leads,
+    sales_quotations,
+    service_departments,
+    service_brands,
+    car_segments,
   };
 }
 
@@ -1043,6 +1082,7 @@ export function login(state: WorkshopState, email: string, password: string) {
 const roles: Role[] = [
   "admin",
   "service",
+  "service_manager",
   "reception",
   "accounts",
   "store",
@@ -1253,6 +1293,7 @@ export interface BookingInput {
   model: string;
   color?: string;
   requestedWork: string;
+  serviceType: BookingServiceType;
   bookingDate: string;
   arrivalWindow?: BookingArrivalWindow;
   /** Required only when an Admin deliberately books over the selected date's capacity. */
@@ -1293,16 +1334,21 @@ export function bookingCapacityForDate(db: Database, bookingDate: string) {
     "select * from booking_capacity_limits where booking_date=?",
     [bookingDate],
   )[0];
-  const count = scalar<number>(
-    db,
-    "select count(*) from bookings where booking_date=? and status in ('Booked','Confirmed','Rescheduled')",
-    [bookingDate],
-  );
+  const quota = (serviceType: BookingServiceType) => {
+    const limit = serviceType === "Service Work"
+      ? configured?.service_work_capacity ?? DEFAULT_SERVICE_WORK_BOOKING_CAPACITY
+      : configured?.general_checkup_followup_capacity ?? DEFAULT_GENERAL_CHECKUP_FOLLOWUP_BOOKING_CAPACITY;
+    const count = scalar<number>(
+      db,
+      "select count(*) from bookings where booking_date=? and service_type=? and status in ('Booked','Confirmed','Rescheduled')",
+      [bookingDate, serviceType],
+    );
+    return { limit, count, remaining: Math.max(0, limit - count) };
+  };
   return {
     bookingDate,
-    capacity: configured?.capacity ?? DEFAULT_DAILY_BOOKING_CAPACITY,
-    count,
-    remaining: Math.max(0, (configured?.capacity ?? DEFAULT_DAILY_BOOKING_CAPACITY) - count),
+    serviceWork: quota("Service Work"),
+    generalCheckupFollowup: quota("General Checkup / Follow-up"),
     configured: Boolean(configured),
   };
 }
@@ -1312,19 +1358,19 @@ export function setBookingCapacityForDate(
   db: Database,
   actorId: number,
   bookingDate: string,
-  capacity: number,
+  capacities: { serviceWork: number; generalCheckupFollowup: number },
   timestamp = new Date().toISOString(),
 ) {
   assertBookingInput({
-    customerName: "capacity", mobile: "capacity", vehicleNo: "capacity", make: "capacity", model: "capacity", requestedWork: "capacity", bookingDate,
+    customerName: "capacity", mobile: "capacity", vehicleNo: "capacity", make: "capacity", model: "capacity", requestedWork: "capacity", serviceType: "Service Work", bookingDate,
   });
   const actor = one<User>(db, "select * from users where id=?", [actorId]);
   if (actor.role !== "admin") throw new Error("Only Admin can change daily booking capacity.");
-  if (!Number.isInteger(capacity) || capacity < 0)
-    throw new Error("Daily booking capacity must be a whole number of zero or more.");
+  if (!Number.isInteger(capacities.serviceWork) || capacities.serviceWork < 0 || !Number.isInteger(capacities.generalCheckupFollowup) || capacities.generalCheckupFollowup < 0)
+    throw new Error("Booking capacities must be whole numbers of zero or more.");
   db.run(
-    "insert into booking_capacity_limits(booking_date,capacity,set_by,updated_at) values(?,?,?,?) on conflict(booking_date) do update set capacity=excluded.capacity,set_by=excluded.set_by,updated_at=excluded.updated_at",
-    [bookingDate, capacity, actorId, timestamp],
+    "insert into booking_capacity_limits(booking_date,service_work_capacity,general_checkup_followup_capacity,set_by,updated_at) values(?,?,?,?,?) on conflict(booking_date) do update set service_work_capacity=excluded.service_work_capacity,general_checkup_followup_capacity=excluded.general_checkup_followup_capacity,set_by=excluded.set_by,updated_at=excluded.updated_at",
+    [bookingDate, capacities.serviceWork, capacities.generalCheckupFollowup, actorId, timestamp],
   );
 }
 
@@ -1332,22 +1378,25 @@ function assertBookingCapacity(
   db: Database,
   actorId: number,
   bookingDate: string,
+  serviceType: BookingServiceType,
   overrideReason: string | undefined,
   excludingBookingId?: number,
 ) {
   const configured = all<BookingCapacityLimit>(db, "select * from booking_capacity_limits where booking_date=?", [bookingDate])[0];
-  const capacity = configured?.capacity ?? DEFAULT_DAILY_BOOKING_CAPACITY;
+  const capacity = serviceType === "Service Work"
+    ? configured?.service_work_capacity ?? DEFAULT_SERVICE_WORK_BOOKING_CAPACITY
+    : configured?.general_checkup_followup_capacity ?? DEFAULT_GENERAL_CHECKUP_FOLLOWUP_BOOKING_CAPACITY;
   const count = scalar<number>(
     db,
-    `select count(*) from bookings where booking_date=? and status in ('Booked','Confirmed','Rescheduled')${excludingBookingId ? " and id<>?" : ""}`,
-    excludingBookingId ? [bookingDate, excludingBookingId] : [bookingDate],
+    `select count(*) from bookings where booking_date=? and service_type=? and status in ('Booked','Confirmed','Rescheduled')${excludingBookingId ? " and id<>?" : ""}`,
+    excludingBookingId ? [bookingDate, serviceType, excludingBookingId] : [bookingDate, serviceType],
   );
   if (count < capacity) return false;
   const actor = one<User>(db, "select * from users where id=?", [actorId]);
   if (actor.role !== "admin")
-    throw new Error(`This date is fully booked (${capacity} advance bookings).`);
+    throw new Error(`${serviceType} is fully booked (${capacity} advance bookings).`);
   if (!overrideReason?.trim())
-    throw new Error("An Admin override reason is required for a full booking date.");
+    throw new Error("An Admin override reason is required for a full booking service type.");
   return true;
 }
 
@@ -1393,6 +1442,8 @@ function assertBookingInput(input: BookingInput, earliestDate?: string) {
     throw new Error("A booking date cannot be in the past.");
   if (!BOOKING_WINDOWS.includes(input.arrivalWindow ?? ""))
     throw new Error("Choose a valid arrival window.");
+  if (!["Service Work", "General Checkup / Follow-up"].includes(input.serviceType))
+    throw new Error("Choose a valid booking service type.");
 }
 
 function bookingEvent(
@@ -1441,11 +1492,12 @@ export function createBooking(
     db,
     actorId,
     input.bookingDate,
+    input.serviceType,
     input.capacityOverrideReason,
   );
   const id = insert(
     db,
-    "insert into bookings(customer_id,vehicle_id,customer_name,mobile,customer_type,vehicle_no,make,model,color,requested_work,booking_date,arrival_window,status,created_by,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+    "insert into bookings(customer_id,vehicle_id,customer_name,mobile,customer_type,vehicle_no,make,model,color,requested_work,service_type,booking_date,arrival_window,status,created_by,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
     [
       input.customerId ?? null,
       input.vehicleId ?? null,
@@ -1457,6 +1509,7 @@ export function createBooking(
       input.model.trim(),
       input.color?.trim() ?? "",
       input.requestedWork.trim(),
+      input.serviceType,
       input.bookingDate,
       input.arrivalWindow ?? "",
       "Booked",
@@ -1499,11 +1552,12 @@ export function updateBooking(
     db,
     actorId,
     input.bookingDate,
+    input.serviceType,
     input.capacityOverrideReason,
     bookingId,
   );
   db.run(
-    "update bookings set customer_id=?,vehicle_id=?,customer_name=?,mobile=?,customer_type=?,vehicle_no=?,make=?,model=?,color=?,requested_work=?,booking_date=?,arrival_window=?,updated_at=? where id=?",
+    "update bookings set customer_id=?,vehicle_id=?,customer_name=?,mobile=?,customer_type=?,vehicle_no=?,make=?,model=?,color=?,requested_work=?,service_type=?,booking_date=?,arrival_window=?,updated_at=? where id=?",
     [
       input.customerId ?? booking.customer_id ?? null,
       input.vehicleId ?? booking.vehicle_id ?? null,
@@ -1515,6 +1569,7 @@ export function updateBooking(
       input.model.trim(),
       input.color?.trim() ?? "",
       input.requestedWork.trim(),
+      input.serviceType,
       input.bookingDate,
       input.arrivalWindow ?? "",
       timestamp,
@@ -1567,6 +1622,7 @@ export function rescheduleBooking(
       make: booking.make,
       model: booking.model,
       requestedWork: booking.requested_work,
+      serviceType: booking.service_type,
       bookingDate,
       arrivalWindow,
     },
@@ -1584,6 +1640,7 @@ export function rescheduleBooking(
     db,
     actorId,
     bookingDate,
+    booking.service_type,
     capacityOverrideReason,
     bookingId,
   );
@@ -1712,6 +1769,7 @@ export function checkInBooking(
       keys: input.keys.trim(),
       accessories: input.accessories.trim(),
       requestedWork: input.requestedWork.trim(),
+      serviceType: booking.service_type,
       receptionId,
       damageMarks: input.damageMarks,
     });
@@ -2004,13 +2062,14 @@ function assertTaskListMutationAccess(
 export function createServiceCatalogItemForActor(
   db: Database,
   actorId: number,
-  input: Pick<ServiceCatalogItem, "name" | "base_rate"> & {
+  input: Pick<ServiceCatalogItem, "name" | "base_rate" | "service_department_id" | "brand_id" | "car_segment_id"> & {
     gst_rate?: number;
   },
 ) {
   assertAdminAccess(db, actorId);
   const name = input.name.trim();
   if (!name) throw new Error("Service name is required.");
+  assertCatalogAssignments(db, input);
   if (!Number.isFinite(input.base_rate) || input.base_rate < 0)
     throw new Error("Base rate must be zero or greater.");
   const gstRate = input.gst_rate ?? 18;
@@ -2021,8 +2080,8 @@ export function createServiceCatalogItemForActor(
     throw new Error("GST rate must be No GST (0%) or 5%, 9%, 12%, 18%, or 28%.");
   return insert(
     db,
-    "insert into service_catalog_items(name,base_rate,gst_rate,created_at,updated_at) values(?,?,?,datetime('now'),datetime('now'))",
-    [name, input.base_rate, gstRate],
+    "insert into service_catalog_items(name,base_rate,gst_rate,service_department_id,brand_id,car_segment_id,created_at,updated_at) values(?,?,?,?,?,?,datetime('now'),datetime('now'))",
+    [name, input.base_rate, gstRate, input.service_department_id!, input.brand_id!, input.car_segment_id!],
   );
 }
 
@@ -2030,13 +2089,14 @@ export function updateServiceCatalogItemForActor(
   db: Database,
   actorId: number,
   id: number,
-  input: Pick<ServiceCatalogItem, "name" | "base_rate"> & {
+  input: Pick<ServiceCatalogItem, "name" | "base_rate" | "service_department_id" | "brand_id" | "car_segment_id"> & {
     gst_rate?: number;
   },
 ) {
   assertAdminAccess(db, actorId);
   const name = input.name.trim();
   if (!name) throw new Error("Service name is required.");
+  assertCatalogAssignments(db, input);
   if (!Number.isFinite(input.base_rate) || input.base_rate < 0)
     throw new Error("Base rate must be zero or greater.");
   const gstRate = input.gst_rate ?? 18;
@@ -2046,9 +2106,18 @@ export function updateServiceCatalogItemForActor(
   )
     throw new Error("GST rate must be No GST (0%) or 5%, 9%, 12%, 18%, or 28%.");
   db.run(
-    "update service_catalog_items set name=?,base_rate=?,gst_rate=?,updated_at=datetime('now') where id=?",
-    [name, input.base_rate, gstRate, id],
+    "update service_catalog_items set name=?,base_rate=?,gst_rate=?,service_department_id=?,brand_id=?,car_segment_id=?,updated_at=datetime('now') where id=?",
+    [name, input.base_rate, gstRate, input.service_department_id!, input.brand_id!, input.car_segment_id!, id],
   );
+}
+
+function assertCatalogAssignments(db: Database, input: Pick<ServiceCatalogItem, "service_department_id" | "brand_id" | "car_segment_id">) {
+  if (!input.service_department_id) throw new Error("Service department is required.");
+  if (!input.brand_id) throw new Error("Brand name is required.");
+  if (!input.car_segment_id) throw new Error("Car segment is required.");
+  if (!scalar<number>(db, "select count(*) from service_departments where id=? and status='ACTIVE'", [input.service_department_id])) throw new Error("Choose an active service department.");
+  if (!scalar<number>(db, "select count(*) from service_brands where id=? and status='ACTIVE'", [input.brand_id])) throw new Error("Choose an active brand name.");
+  if (!scalar<number>(db, "select count(*) from car_segments where id=? and status='ACTIVE'", [input.car_segment_id])) throw new Error("Choose an active car segment.");
 }
 
 export function archiveServiceCatalogItemForActor(
@@ -6246,6 +6315,17 @@ export function recordPayment(
     throw new Error("A CANCELLED job card is read-only.");
   if (job.main_status !== "COMPLETED")
     throw new Error("Only a completed job card can be paid and handed over.");
+  if (
+    scalar<number>(
+      db,
+      "select count(*) from checklist_items where job_card_id=? and stage='COMPLETED' and label='Remind Customer for Sharing Google Review/Feedback' and checked_at is not null and checklist_cycle_id=(select max(id) from checklist_cycles where job_card_id=?)",
+      [invoice.job_card_id, invoice.job_card_id],
+    ) === 0
+  ) {
+    throw new Error(
+      "Confirm the Google review/feedback reminder before recording payment.",
+    );
+  }
   if (activePaidAmount(db, invoiceId) > 0)
     throw new Error(
       "This invoice already has a payment. Void it before recording another.",
@@ -6993,24 +7073,37 @@ export function createSchema(db: Database) {
     create table if not exists stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null);
     create table if not exists photos(id integer primary key, job_card_id integer, label text, src text);
     create table if not exists followups(id integer primary key, job_card_id integer, note text, due_at text, done integer);
-    create table if not exists service_catalog_items(id integer primary key, name text not null, base_rate real not null, gst_rate real not null default 18, archived_at text, archived_reason text, created_at text, updated_at text);
+    create table if not exists service_catalog_items(id integer primary key, name text not null, base_rate real not null, gst_rate real not null default 18, service_department_id integer, brand_id integer, car_segment_id integer, archived_at text, archived_reason text, created_at text, updated_at text);
+    create table if not exists service_brands(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null);
+    create table if not exists car_segments(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null);
     create table if not exists job_task_list_items(id integer primary key, job_card_id integer not null, service_catalog_item_id integer, name text not null, base_rate real not null, gst_rate real not null default 18, done integer not null default 0, archived_at text, archived_reason text, created_at text, updated_at text);
-    create table if not exists bookings(id integer primary key, customer_id integer, vehicle_id integer, customer_name text not null, mobile text not null, customer_type text not null default 'Individual', vehicle_no text not null, make text not null, model text not null, color text not null default '', requested_work text not null, booking_date text not null, arrival_window text not null default '', status text not null default 'Booked', created_by integer not null, confirmed_at text, arrived_at text, rescheduled_at text, cancelled_at text, no_show_at text, reschedule_reason text, cancellation_reason text, no_show_reason text, visit_id integer, job_card_id integer, created_at text not null, updated_at text not null);
+    create table if not exists bookings(id integer primary key, customer_id integer, vehicle_id integer, customer_name text not null, mobile text not null, customer_type text not null default 'Individual', vehicle_no text not null, make text not null, model text not null, color text not null default '', requested_work text not null, service_type text not null default 'Service Work', booking_date text not null, arrival_window text not null default '', status text not null default 'Booked', created_by integer not null, confirmed_at text, arrived_at text, rescheduled_at text, cancelled_at text, no_show_at text, reschedule_reason text, cancellation_reason text, no_show_reason text, visit_id integer, job_card_id integer, created_at text not null, updated_at text not null);
     create table if not exists booking_call_logs(id integer primary key, booking_id integer not null, note text not null, called_by integer not null, called_at text not null);
     create table if not exists booking_events(id integer primary key, booking_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null default '', previous_booking_date text, booking_date text not null);
-    create table if not exists booking_capacity_limits(booking_date text primary key, capacity integer not null, set_by integer not null, updated_at text not null);
+    create table if not exists booking_capacity_limits(booking_date text primary key, service_work_capacity integer not null default 8, general_checkup_followup_capacity integer not null default 4, set_by integer not null, updated_at text not null);
     create table if not exists booking_capacity_overrides(id integer primary key, booking_id integer not null, booking_date text not null, reason text not null, approved_by integer not null, approved_at text not null);
   `);
 }
 
 export function migrateSchema(db: Database) {
+  db.run("create table if not exists service_departments(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)");
+  db.run("create table if not exists service_brands(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)");
+  db.run("create table if not exists car_segments(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)");
+  db.run("create table if not exists service_department_managers(department_id integer not null, manager_id integer not null, primary key(department_id, manager_id))");
+  db.run("create table if not exists service_advisor_teams(department_id integer not null, manager_id integer not null, advisor_id integer not null unique, primary key(department_id, advisor_id))");
+  db.run("create table if not exists sales_leads(id integer primary key, display_name text not null, phone text not null, company text not null default '', email text not null default '', address text not null default '', service_interest text not null default '', notes text not null default '', stage text not null default 'NEW', temperature text not null default 'WARM', follow_up_due text, site_visit_completed integer not null default 0, site_visit_date text, created_at text not null, updated_at text not null)");
+  db.run("create table if not exists sales_quotations(id integer primary key, lead_id integer not null, quotation_no text not null unique, status text not null default 'DRAFT', valid_until text, customer_notes text not null default '', discount real not null default 0, subtotal real not null default 0, gst_amount real not null default 0, total real not null default 0, template_id text not null, template_html text not null, created_at text not null, updated_at text not null)");
+  db.run("create table if not exists sales_quotation_lines(id integer primary key, quotation_id integer not null, line_no integer not null, kind text not null, description text not null, quantity real not null, rate real not null, gst_rate real not null)");
   db.run(
-    "create table if not exists service_catalog_items(id integer primary key, name text not null, base_rate real not null, gst_rate real not null default 18, archived_at text, archived_reason text, created_at text, updated_at text)",
+    "create table if not exists service_catalog_items(id integer primary key, name text not null, base_rate real not null, gst_rate real not null default 18, service_department_id integer, brand_id integer, car_segment_id integer, archived_at text, archived_reason text, created_at text, updated_at text)",
   );
   db.run(
     "create table if not exists job_task_list_items(id integer primary key, job_card_id integer not null, service_catalog_item_id integer, name text not null, base_rate real not null, gst_rate real not null default 18, done integer not null default 0, archived_at text, archived_reason text, created_at text, updated_at text)",
   );
   ensureColumn(db, "service_catalog_items", "gst_rate", "real not null default 18");
+  ensureColumn(db, "service_catalog_items", "service_department_id", "integer");
+  ensureColumn(db, "service_catalog_items", "brand_id", "integer");
+  ensureColumn(db, "service_catalog_items", "car_segment_id", "integer");
   ensureColumn(db, "job_task_list_items", "gst_rate", "real not null default 18");
   db.run("update service_catalog_items set gst_rate=18 where gst_rate is null");
   db.run("update job_task_list_items set gst_rate=18 where gst_rate is null");
@@ -7020,6 +7113,8 @@ export function migrateSchema(db: Database) {
   );
   ensureColumn(db, "bookings", "visit_id", "integer");
   ensureColumn(db, "bookings", "job_card_id", "integer");
+  ensureColumn(db, "bookings", "service_type", "text not null default 'Service Work'");
+  db.run("update bookings set service_type='Service Work' where service_type is null or service_type='' ");
   db.run(
     "create table if not exists booking_call_logs(id integer primary key, booking_id integer not null, note text not null, called_by integer not null, called_at text not null)",
   );
@@ -7027,8 +7122,14 @@ export function migrateSchema(db: Database) {
     "create table if not exists booking_events(id integer primary key, booking_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null default '', previous_booking_date text, booking_date text not null default '')",
   );
   db.run(
-    "create table if not exists booking_capacity_limits(booking_date text primary key, capacity integer not null, set_by integer not null, updated_at text not null)",
+    "create table if not exists booking_capacity_limits(booking_date text primary key, service_work_capacity integer not null default 8, general_checkup_followup_capacity integer not null default 4, set_by integer not null, updated_at text not null)",
   );
+  ensureColumn(db, "booking_capacity_limits", "service_work_capacity", "integer");
+  ensureColumn(db, "booking_capacity_limits", "general_checkup_followup_capacity", "integer");
+  const hasLegacyBookingCapacity = all<{ name: string }>(db, "pragma table_info(booking_capacity_limits)").some((column) => column.name === "capacity");
+  db.run(hasLegacyBookingCapacity
+    ? "update booking_capacity_limits set service_work_capacity=coalesce(service_work_capacity,capacity,8),general_checkup_followup_capacity=coalesce(general_checkup_followup_capacity,4)"
+    : "update booking_capacity_limits set service_work_capacity=coalesce(service_work_capacity,8),general_checkup_followup_capacity=coalesce(general_checkup_followup_capacity,4)");
   db.run(
     "create table if not exists booking_capacity_overrides(id integer primary key, booking_id integer not null, booking_date text not null, reason text not null, approved_by integer not null, approved_at text not null)",
   );
@@ -7306,6 +7407,7 @@ export function migrateLifecycleStorage(db: Database) {
   db.run(
     `update checklist_items set required=case when label in (${OPTIONAL_CHECKLIST_ITEMS.map((label) => `'${label}'`).join(",")}) then 0 else 1 end`,
   );
+  backfillGoogleReviewReminder(db);
   all<{
     id: number;
     main_status: MainStatus;
@@ -7324,6 +7426,54 @@ export function migrateLifecycleStorage(db: Database) {
     );
     syncSubStatusFromChecklist(db, job.id);
   });
+}
+
+function backfillGoogleReviewReminder(db: Database) {
+  const reminder = "Remind Customer for Sharing Google Review/Feedback";
+  const cycles = all<{ id: number; job_card_id: number; cycle_number: number }>(
+    db,
+    `select c.id,c.job_card_id,c.cycle_number
+       from checklist_cycles c join job_cards j on j.id=c.job_card_id
+      where c.stage='COMPLETED' and j.main_status='COMPLETED'
+        and not exists(select 1 from checklist_items i where i.checklist_cycle_id=c.id and i.label=?)`,
+    [reminder],
+  );
+  for (const cycle of cycles) {
+    const payment = maybe<ChecklistItem>(
+      db,
+      "select * from checklist_items where checklist_cycle_id=? and label='Payment Received'",
+      [cycle.id],
+    );
+    if (!payment) continue;
+    db.run(
+      "update checklist_items set sort_order=sort_order+1 where checklist_cycle_id=? and sort_order>=?",
+      [cycle.id, payment.sort_order],
+    );
+    db.run(
+      "update checklist_items set item_key=? where id=?",
+      [`completed.${payment.sort_order + 1}`, payment.id],
+    );
+    insert(
+      db,
+      "insert into checklist_items(checklist_cycle_id,job_card_id,stage,cycle_number,item_key,label,sort_order,checked_by,checked_at,started_at,completed_at,required) values(?,?,?,?,?,?,?,?,?,?,?,?)",
+      [
+        cycle.id,
+        cycle.job_card_id,
+        "COMPLETED",
+        cycle.cycle_number,
+        `completed.${payment.sort_order}`,
+        reminder,
+        payment.sort_order,
+        null,
+        null,
+        payment.checked_at ? payment.checked_at : null,
+        null,
+        1,
+      ],
+    );
+    db.run("update checklist_cycles set completed_at=null where id=?", [cycle.id]);
+    syncSubStatusFromChecklist(db, cycle.job_card_id);
+  }
 }
 
 export function ensureLifecycleChecklist(
@@ -7490,6 +7640,10 @@ export function setChecklistItemNotApplicable(
     "select * from checklist_items where id=?",
     [itemId],
   );
+  if (item.label === "Remind Customer for Sharing Google Review/Feedback")
+    throw new Error(
+      "The Google review/feedback reminder is required and cannot be marked N/A.",
+    );
   if (notApplicable) {
     if (
       (MATERIALS_CHECKLIST_LABELS as readonly string[]).includes(item.label) &&
@@ -7693,6 +7847,10 @@ export function setChecklistItemNotApplicableForActor(
     "select * from checklist_items where id=?",
     [itemId],
   );
+  if (item.label === "Remind Customer for Sharing Google Review/Feedback")
+    throw new Error(
+      "The Google review/feedback reminder is required and cannot be marked N/A.",
+    );
   assertJobLifecycleMutationAccess(db, item.job_card_id, actorId);
   assertChecklistItemEditable(db, item, notApplicable);
   setChecklistItemNotApplicable(db, itemId, actorId, notApplicable, timestamp);
@@ -7738,6 +7896,7 @@ function seed(db: Database) {
       [...row],
     ),
   );
+  seedProcurementHistoryDemo(db);
 
   makeSeedJob(
     db,
@@ -7772,6 +7931,78 @@ function seed(db: Database) {
     12000,
     0,
   );
+}
+
+/** A ready-to-review purchasing comparison for a fresh local demo database. */
+function seedProcurementHistoryDemo(db: Database) {
+  const supplierIds = [
+    ["Apex Protection Films", "Karan Mehta"],
+    ["Detail Supply Co.", "Riya Shah"],
+    ["Prime Auto Materials", "Arjun Nair"],
+  ].map(([name, contact]) =>
+    insert(
+      db,
+      "insert into suppliers(name,contact_name,phone,email,gstin,status,created_by,created_at,updated_at) values(?,?,?,?,?,'Active',1,datetime('now'),datetime('now'))",
+      [name, contact, "9000000000", `${name.toLowerCase().replaceAll(/[^a-z]+/g, ".")}@example.test`, ""],
+    ),
+  );
+  const items = new Map(
+    all<Pick<InventoryItem, "id" | "sku" | "name" | "unit">>(
+      db,
+      "select id,sku,name,unit from inventory where sku in ('PPF-001','PPF-002','PPF-003')",
+    ).map((item) => [item.sku, item]),
+  );
+  const item = (sku: string) => {
+    const found = items.get(sku);
+    if (!found) throw new Error(`Missing seeded inventory item: ${sku}`);
+    return found;
+  };
+  const addClosedOrder = (
+    poNumber: string,
+    supplierId: number,
+    orderDate: string,
+    sku: string,
+    quantity: number,
+    unitCost: number,
+  ) => {
+    const inventory = item(sku);
+    const subtotal = quantity * unitCost;
+    const orderId = insert(
+      db,
+      "insert into purchase_orders(supplier_id,po_number,order_date,notes,status,subtotal,discount_total,gst_total,total,created_by,created_at,updated_at) values(?,?,?,?, 'Closed',?,0,0,?,1,datetime('now'),datetime('now'))",
+      [supplierId, poNumber, orderDate, "Seeded completed purchase for price comparison.", subtotal, subtotal],
+    );
+    insert(
+      db,
+      "insert into purchase_order_lines(purchase_order_id,item_id,item_name,unit,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,?,0,0,?,0,?)",
+      [orderId, inventory.id, inventory.name, inventory.unit, quantity, unitCost, subtotal, subtotal],
+    );
+  };
+
+  addClosedOrder("DEMO-HIST-001", supplierIds[0], "2026-04-12", "PPF-001", 4, 15800);
+  addClosedOrder("DEMO-HIST-002", supplierIds[1], "2026-06-24", "PPF-001", 6, 15150);
+  addClosedOrder("DEMO-HIST-003", supplierIds[2], "2026-09-08", "PPF-001", 3, 16200);
+  addClosedOrder("DEMO-HIST-004", supplierIds[1], "2026-05-17", "PPF-002", 5, 14400);
+  addClosedOrder("DEMO-HIST-005", supplierIds[0], "2026-08-29", "PPF-002", 2, 14750);
+
+  const requestId = insert(
+    db,
+    "insert into purchase_orders(supplier_id,po_number,order_date,notes,status,subtotal,discount_total,gst_total,total,created_by,created_at,updated_at) values(0,'DEMO-PR-0001','2026-10-01','Demo request: compare recent supplier prices before approval.','PO Request',0,0,0,0,5,datetime('now'),datetime('now'))",
+    [],
+  );
+  const requestLines: Array<[string, number]> = [
+    ["PPF-001", 2],
+    ["PPF-002", 3],
+    ["PPF-003", 1],
+  ];
+  requestLines.forEach(([sku, quantity]) => {
+    const inventory = item(sku);
+    insert(
+      db,
+      "insert into purchase_order_lines(purchase_order_id,item_id,item_name,unit,ordered_qty,unit_cost,discount,gst_rate,subtotal,gst_amount,total) values(?,?,?,?,?,0,0,0,0,0,0)",
+      [requestId, inventory.id, inventory.name, inventory.unit, quantity],
+    );
+  });
 }
 
 function makeSeedJob(
@@ -8229,6 +8460,103 @@ function invoiceTotal(db: Database, jobId: number) {
       )
     : [];
   return invoiceItemsTotal(items, estimate);
+}
+
+export type LocalLeadInput = Omit<SalesLead, "id" | "created_at" | "updated_at" | "site_visit_completed"> & { site_visit_completed?: number };
+export type LocalQuotationInput = { lead_id: number; valid_until?: string | null; customer_notes?: string; discount?: number; template_id: string; template_html: string; lines: Array<Omit<SalesQuotationLine, "id" | "quotation_id" | "line_no">> };
+
+export function createSalesLead(db: Database, input: LocalLeadInput) {
+  const name = input.display_name.trim();
+  const phone = input.phone.trim();
+  if (!name || !phone) throw new Error("Lead name and phone are required.");
+  return insert(db, "insert into sales_leads(display_name,phone,company,email,address,service_interest,notes,stage,temperature,follow_up_due,site_visit_completed,site_visit_date,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [name, phone, input.company?.trim() ?? "", input.email?.trim() ?? "", input.address?.trim() ?? "", input.service_interest?.trim() ?? "", input.notes?.trim() ?? "", input.stage ?? "NEW", input.temperature ?? "WARM", input.follow_up_due ?? null, input.site_visit_completed ?? 0, input.site_visit_date ?? null]);
+}
+
+export function updateSalesLead(db: Database, leadId: number, input: LocalLeadInput) {
+  const name = input.display_name.trim();
+  const phone = input.phone.trim();
+  if (!name || !phone) throw new Error("Lead name and phone are required.");
+  db.run("update sales_leads set display_name=?,phone=?,company=?,email=?,address=?,service_interest=?,notes=?,stage=?,temperature=?,follow_up_due=?,site_visit_completed=?,site_visit_date=?,updated_at=datetime('now') where id=?", [name, phone, input.company?.trim() ?? "", input.email?.trim() ?? "", input.address?.trim() ?? "", input.service_interest?.trim() ?? "", input.notes?.trim() ?? "", input.stage ?? "NEW", input.temperature ?? "WARM", input.follow_up_due ?? null, input.site_visit_completed ?? 0, input.site_visit_date ?? null, leadId]);
+}
+
+export function createSalesQuotation(db: Database, input: LocalQuotationInput) {
+  const lead = maybe<SalesLead>(db, "select * from sales_leads where id=?", [input.lead_id]);
+  if (!lead) throw new Error("Select an existing lead.");
+  if (!input.template_id || !input.template_html) throw new Error("Select a quotation template.");
+  if (!input.lines.length) throw new Error("Add at least one quotation line.");
+  const lines = input.lines.map((line) => ({ ...line, quantity: Number(line.quantity), rate: Number(line.rate), gst_rate: Number(line.gst_rate) }));
+  if (lines.some((line) => !line.description.trim() || line.quantity <= 0 || line.rate < 0 || line.gst_rate < 0 || line.gst_rate > 100)) throw new Error("Quotation lines need a description, positive quantity, and valid rates.");
+  const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.rate, 0);
+  const discount = Math.max(0, Number(input.discount) || 0);
+  const taxable = Math.max(0, subtotal - discount);
+  const gst_amount = lines.reduce((sum, line) => sum + (line.quantity * line.rate * line.gst_rate) / 100, 0);
+  const quotation_no = `QT-${String((scalar<number>(db, "select coalesce(max(id),0)+1 from sales_quotations") ?? 1)).padStart(6, "0")}`;
+  const quotationId = insert(db, "insert into sales_quotations(lead_id,quotation_no,status,valid_until,customer_notes,discount,subtotal,gst_amount,total,template_id,template_html,created_at,updated_at) values(?,?, 'DRAFT',?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [input.lead_id, quotation_no, input.valid_until ?? null, input.customer_notes?.trim() ?? "", discount, subtotal, gst_amount, taxable + gst_amount, input.template_id, input.template_html]);
+  lines.forEach((line, index) => insert(db, "insert into sales_quotation_lines(quotation_id,line_no,kind,description,quantity,rate,gst_rate) values(?,?,?,?,?,?,?)", [quotationId, index + 1, line.kind || "Service", line.description.trim(), line.quantity, line.rate, line.gst_rate]));
+  db.run("update sales_leads set stage='QUOTATION_SENT', updated_at=datetime('now') where id=?", [input.lead_id]);
+  return quotationId;
+}
+
+export function setSalesQuotationStatus(db: Database, quotationId: number, status: QuotationStatus) {
+  const quotation = one<SalesQuotation>(db, "select * from sales_quotations where id=?", [quotationId]);
+  if (["ACCEPTED", "REJECTED", "EXPIRED"].includes(quotation.status)) throw new Error("Terminal quotations cannot be changed.");
+  db.run("update sales_quotations set status=?, updated_at=datetime('now') where id=?", [status, quotationId]);
+  if (status === "ACCEPTED") db.run("update sales_leads set stage='WON',updated_at=datetime('now') where id=?", [quotation.lead_id]);
+  if (status === "REJECTED") db.run("update sales_leads set stage='LOST',updated_at=datetime('now') where id=?", [quotation.lead_id]);
+}
+
+export function createServiceDepartment(db: Database, name: string) {
+  const cleaned = name.trim();
+  if (!cleaned) throw new Error("Department name is required.");
+  if (scalar<number>(db, "select count(*) from service_departments where lower(name)=lower(?)", [cleaned])) throw new Error("A department with this name already exists.");
+  return insert(db, "insert into service_departments(name,status,created_at,updated_at) values(?,'ACTIVE',datetime('now'),datetime('now'))", [cleaned]);
+}
+
+export function updateServiceDepartment(db: Database, departmentId: number, name: string, status: "ACTIVE" | "ARCHIVED") {
+  const cleaned = name.trim();
+  if (!cleaned) throw new Error("Department name is required.");
+  db.run("update service_departments set name=?, status=?, updated_at=datetime('now') where id=?", [cleaned, status, departmentId]);
+}
+
+export function createServiceCatalogMaster(db: Database, table: "service_brands" | "car_segments", name: string) {
+  const cleaned = name.trim();
+  const label = table === "service_brands" ? "Brand name" : "Car segment";
+  if (!cleaned) throw new Error(`${label} is required.`);
+  if (scalar<number>(db, `select count(*) from ${table} where lower(name)=lower(?)`, [cleaned])) throw new Error(`A ${label.toLowerCase()} with this name already exists.`);
+  return insert(db, `insert into ${table}(name,status,created_at,updated_at) values(?,'ACTIVE',datetime('now'),datetime('now'))`, [cleaned]);
+}
+
+export function updateServiceCatalogMaster(db: Database, table: "service_brands" | "car_segments", id: number, name: string, status: "ACTIVE" | "ARCHIVED") {
+  const cleaned = name.trim();
+  const label = table === "service_brands" ? "Brand name" : "Car segment";
+  if (!cleaned) throw new Error(`${label} is required.`);
+  if (scalar<number>(db, `select count(*) from ${table} where lower(name)=lower(?) and id<>?`, [cleaned, id])) throw new Error(`A ${label.toLowerCase()} with this name already exists.`);
+  db.run(`update ${table} set name=?,status=?,updated_at=datetime('now') where id=?`, [cleaned, status, id]);
+}
+
+export function appointServiceDepartmentManager(db: Database, departmentId: number, managerId: number) {
+  const manager = one<User>(db, "select * from users where id=? and archived_at is null", [managerId]);
+  if (manager.role !== "service_manager") throw new Error("Managers must have the Service Department Manager role.");
+  const department = one<{ status: string }>(db, "select status from service_departments where id=?", [departmentId]);
+  if (department.status !== "ACTIVE") throw new Error("Archived departments cannot receive managers.");
+  db.run("insert or ignore into service_department_managers(department_id,manager_id) values(?,?)", [departmentId, managerId]);
+}
+
+export function removeServiceDepartmentManager(db: Database, departmentId: number, managerId: number) {
+  db.run("delete from service_advisor_teams where department_id=? and manager_id=?", [departmentId, managerId]);
+  db.run("delete from service_department_managers where department_id=? and manager_id=?", [departmentId, managerId]);
+}
+
+export function assignServiceAdvisorTeam(db: Database, departmentId: number, managerId: number, advisorId: number) {
+  const advisor = one<User>(db, "select * from users where id=? and archived_at is null", [advisorId]);
+  if (advisor.role !== "service") throw new Error("Advisors must have the Service Advisor role.");
+  if (!scalar<number>(db, "select count(*) from service_department_managers where department_id=? and manager_id=?", [departmentId, managerId])) throw new Error("Appoint the department manager before assigning advisors.");
+  db.run("insert into service_advisor_teams(department_id,manager_id,advisor_id) values(?,?,?) on conflict(advisor_id) do update set department_id=excluded.department_id, manager_id=excluded.manager_id", [departmentId, managerId, advisorId]);
+}
+
+export function removeServiceAdvisorTeam(db: Database, departmentId: number, managerId: number, advisorId: number) {
+  void managerId;
+  db.run("delete from service_advisor_teams where department_id=? and advisor_id=?", [departmentId, advisorId]);
 }
 
 function insert(db: Database, sql: string, params: DbValue[]) {

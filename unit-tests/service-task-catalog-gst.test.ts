@@ -28,6 +28,7 @@ async function database() {
     "insert into job_cards(id,job_no,visit_id,advisor_id,technician_id,main_status,sub_status,qc_status,washing_needed,closed_at) values(1,'JC-1',1,2,2,'NEW','Gather Requirements','Pending',0,'')",
   );
   migrateSchema(db);
+  db.run("insert into service_departments(id,name,status,created_at,updated_at) values(1,'General','ACTIVE',datetime('now'),datetime('now')); insert into service_brands(id,name,status,created_at,updated_at) values(1,'Toyota','ACTIVE',datetime('now'),datetime('now')); insert into car_segments(id,name,status,created_at,updated_at) values(1,'SUV','ACTIVE',datetime('now'),datetime('now'))");
   return db;
 }
 
@@ -37,15 +38,15 @@ const row = (db: any, sql: string, values: unknown[] = []) =>
 test("catalog GST is validated and snapshots through tasks into estimate lines", async () => {
   const db = await database();
   assert.throws(
-    () => createServiceCatalogItemForActor(db, 1, { name: "", base_rate: 0, gst_rate: 18 }),
+    () => createServiceCatalogItemForActor(db, 1, { name: "", base_rate: 0, gst_rate: 18, service_department_id: 1, brand_id: 1, car_segment_id: 1 }),
     /Service name is required/,
   );
   assert.throws(
-    () => createServiceCatalogItemForActor(db, 1, { name: "Wash", base_rate: -1, gst_rate: 18 }),
+    () => createServiceCatalogItemForActor(db, 1, { name: "Wash", base_rate: -1, gst_rate: 18, service_department_id: 1, brand_id: 1, car_segment_id: 1 }),
     /Base rate must be zero or greater/,
   );
   assert.throws(
-    () => createServiceCatalogItemForActor(db, 1, { name: "Wash", base_rate: 100, gst_rate: 7 }),
+    () => createServiceCatalogItemForActor(db, 1, { name: "Wash", base_rate: 100, gst_rate: 7, service_department_id: 1, brand_id: 1, car_segment_id: 1 }),
     /GST rate must be No GST/,
   );
 
@@ -53,6 +54,9 @@ test("catalog GST is validated and snapshots through tasks into estimate lines",
     name: "Exterior wash",
     base_rate: 600,
     gst_rate: 0,
+    service_department_id: 1,
+    brand_id: 1,
+    car_segment_id: 1,
   });
   const taskId = addJobTaskListItemForActor(db, 1, 2, {
     service_catalog_item_id: catalogId,
@@ -71,6 +75,9 @@ test("catalog GST is validated and snapshots through tasks into estimate lines",
     name: "Premium exterior wash",
     base_rate: 900,
     gst_rate: 18,
+    service_department_id: 1,
+    brand_id: 1,
+    car_segment_id: 1,
   });
   assert.deepEqual(
     row(db, "select name,base_rate,gst_rate from job_task_list_items where id=?", [taskId]),

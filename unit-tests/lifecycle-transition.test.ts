@@ -196,6 +196,7 @@ test("non-billing artifacts never advance main status; valid payment closes and 
   generateInvoice(db, 1, "TLY-1");
   const total = rows<{ total: number }>(db, "select total from invoices where job_card_id=1")[0].total;
   assert.ok(total > 0);
+  db.run("update checklist_items set checked_by=1,checked_at='2026-03-01T00:00:00.000Z',completed_at='2026-03-01T00:00:00.000Z' where checklist_cycle_id=(select max(id) from checklist_cycles where job_card_id=1) and label='Remind Customer for Sharing Google Review/Feedback'");
   recordPayment(db, rows<{ id: number }>(db, "select id from invoices where job_card_id=1")[0].id, { mode: "UPI", otherDetail: "", reference: "PAY-1" });
   assert.equal(rows<{ main_status: string }>(db, "select main_status from job_cards")[0].main_status, "CLOSED");
   assert.deepEqual(rows(db, "select label,checked_at is not null as checked from checklist_items where checklist_cycle_id=(select max(id) from checklist_cycles) order by sort_order"), [

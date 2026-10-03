@@ -37,7 +37,7 @@ export function BookingCheckInDialog({ booking, actor, mutate, onClose, onCreate
       <p className="permission-note">Booking details are prefilled below. Capture actual arrival condition; advisor assignment happens after check-in.</p>
       <div className="form-grid">
         <label>Customer name<input value={booking.customer_name} readOnly /></label><label>Mobile<input value={booking.mobile} readOnly /></label>
-        <label>Vehicle number<input value={booking.vehicle_no} readOnly /></label><label>Vehicle<input value={`${booking.make} ${booking.model}${booking.color ? ` · ${booking.color}` : ""}`} readOnly /></label>
+        <label>Vehicle number<input value={booking.vehicle_no} readOnly /></label><label>Vehicle<input value={`${booking.make} ${booking.model}${booking.color ? ` · ${booking.color}` : ""}`} readOnly /></label><label>Booked service type<input value={booking.service_type} readOnly /></label>
         <label>ODO meter reading (km)<input data-dialog-initial-focus required type="number" min="0" value={odoReading} onChange={(event) => setOdoReading(event.target.value)} /></label>
         <label>Fuel / battery level<div className="field-pair"><input required value={fuelLevelValue} onChange={(event) => setFuelLevelValue(event.target.value)} /><select value={fuelLevelUnit} onChange={(event) => setFuelLevelUnit(event.target.value as FuelUnit)}><option value="bars">bars</option><option value="%">%</option><option value="litres">litres</option><option value="Other">Other</option></select></div></label>
         <label>Keys<input value={keys} onChange={(event) => setKeys(event.target.value)} /></label><label>Accessories<input value={accessories} onChange={(event) => setAccessories(event.target.value)} /></label>

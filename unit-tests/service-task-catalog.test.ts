@@ -10,12 +10,12 @@ async function database(status = "NEW") {
   db.run("insert into users(id,email,name,role,password) values(1,'owner@test','Owner','admin','x'),(2,'advisor@test','Advisor','service','x'),(3,'other@test','Other','service','x')");
   db.run("insert into visits(id,advisor_id,requested_work) values(1,2,'Repair')");
   db.run(`insert into job_cards(id,job_no,visit_id,advisor_id,technician_id,main_status,sub_status,qc_status,washing_needed,closed_at) values(1,'JC-1',1,2,2,'${status}','Gather Requirements','Pending',0,'')`);
-  migrateSchema(db); return db;
+  migrateSchema(db); db.run("insert into service_departments(id,name,status,created_at,updated_at) values(1,'General','ACTIVE',datetime('now'),datetime('now')); insert into service_brands(id,name,status,created_at,updated_at) values(1,'Toyota','ACTIVE',datetime('now'),datetime('now')); insert into car_segments(id,name,status,created_at,updated_at) values(1,'SUV','ACTIVE',datetime('now'),datetime('now'))"); return db;
 }
 const value = (db: any, sql: string) => db.exec(sql)[0]?.values[0]?.[0];
 
 test("catalog snapshots active services into repeatable task-list rows and preserves the snapshot after archive", async () => {
-  const db = await database(); const catalogId = createServiceCatalogItemForActor(db, 1, { name: "Wheel alignment", base_rate: 850 });
+  const db = await database(); const catalogId = createServiceCatalogItemForActor(db, 1, { name: "Wheel alignment", base_rate: 850, service_department_id: 1, brand_id: 1, car_segment_id: 1 });
   const first = addJobTaskListItemForActor(db, 1, 2, { service_catalog_item_id: catalogId });
   addJobTaskListItemForActor(db, 1, 2, { service_catalog_item_id: catalogId });
   archiveServiceCatalogItemForActor(db, 1, catalogId);
