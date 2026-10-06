@@ -3,6 +3,8 @@ import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
 import { createSalesLead, createSalesQuotation, createSchema, migrateSchema, readState, setSalesQuotationStatus, updateSalesLead, updateSalesQuotation } from "../src/db";
+import { filterSalesLeads, leadDraft, leadFilterQuery } from "../src/sales-lead-register";
+import type { Lead } from "../src/sales-api";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
@@ -41,6 +43,24 @@ test("sales lead not-entered flags default to false and round-trip through updat
   lead = readState(db).sales_leads.find((item) => item.id === id)!;
   assert.equal(lead.company_not_entered, 1);
   assert.equal(lead.email_not_entered, 1);
+});
+
+test("lead register filters locally and resets to all statuses", () => {
+  const leads: Lead[] = [
+    { id: 1, branchId: "local", displayName: "Asha Motors", phone: "9000000001", company: "Asha Auto", companyNotEntered: false, email: "asha@example.test", emailNotEntered: false, address: "", serviceInterest: "", notes: "", stage: "NEW", temperature: "HOT", followUpDue: null, siteVisitCompleted: false, siteVisitDate: null, createdAt: "", updatedAt: "" },
+    { id: 2, branchId: "local", displayName: "Bharat", phone: "9000000002", company: "", companyNotEntered: false, email: "", emailNotEntered: false, address: "", serviceInterest: "", notes: "", stage: "QUALIFIED", temperature: "COLD", followUpDue: null, siteVisitCompleted: false, siteVisitDate: null, createdAt: "", updatedAt: "" },
+  ];
+  assert.deepEqual(filterSalesLeads(leads, "asha", "NEW").map((lead) => lead.id), [1]);
+  assert.deepEqual(filterSalesLeads(leads, "", "QUALIFIED").map((lead) => lead.id), [2]);
+  assert.deepEqual(filterSalesLeads(leads, "", "").map((lead) => lead.id), [1, 2]);
+});
+
+test("inline lead saves preserve the complete draft and live filters include query and stage", () => {
+  const lead: Lead = { id: 1, branchId: "branch", displayName: "Asha", phone: "9000000001", company: "Asha Auto", companyNotEntered: false, email: "asha@example.test", emailNotEntered: false, address: "Workshop Road", serviceInterest: "Coating", notes: "Call after lunch", stage: "NEW", temperature: "WARM", followUpDue: null, siteVisitCompleted: false, siteVisitDate: null, createdAt: "", updatedAt: "" };
+  const draft = { ...leadDraft(lead), stage: "QUALIFIED" as const, temperature: "HOT" as const, followUpDue: "2026-11-10", siteVisitCompleted: true };
+  assert.deepEqual(draft, { ...leadDraft(lead), stage: "QUALIFIED", temperature: "HOT", followUpDue: "2026-11-10", siteVisitCompleted: true });
+  assert.equal(leadFilterQuery(" Asha & Co ", "QUALIFIED"), "?q=Asha+%26+Co&stage=QUALIFIED");
+  assert.equal(leadFilterQuery("", ""), "");
 });
 
 test("draft quotations replace their saved lines and template snapshot without changing terminal documents", async () => {
