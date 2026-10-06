@@ -28,6 +28,9 @@ test("authenticated material requests retain retry identity and show authoritati
   await workspace.getByLabel("Approved job").selectOption("51");
   await workspace.getByLabel("Branch item").selectOption("11");
   await workspace.getByLabel("Reserve qty").fill("3");
+  await expect(workspace.getByLabel("Approved job")).toHaveValue("51");
+  await expect(workspace.getByLabel("Branch item")).toHaveValue("11");
+  await page.waitForTimeout(0);
   const firstReservation = page.waitForRequest((request) => request.method() === "POST" && new URL(request.url()).pathname === "/api/v1/material-reservations");
   await workspace.getByRole("button", { name: "Reserve stock" }).click();
   await firstReservation;

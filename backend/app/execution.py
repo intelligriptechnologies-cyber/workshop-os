@@ -275,6 +275,7 @@ def create_remote_work_update(job_id: int, input: WorkUpdateCreate, scope: Scope
     status_value = "PAUSED" if input.kind == "blocker" else "IN_PROGRESS"
     row = session.execute(text("""INSERT INTO work_updates (tenant_id,branch_id,job_card_id,task_id,body,status,actor_id)
         VALUES (:tenant,:branch,:job,:task,:body,:status,:actor) RETURNING *"""), {"tenant": str(current.tenant_id), "branch": str(task["branch_id"]), "job": job_id, "task": input.task_id, "body": input.body.strip(), "status": status_value, "actor": str(current.actor_id)}).mappings().one()
+    _audit(session, current, "WORK_UPDATE_RECORDED", input.body.strip(), {}, {"id": row["id"], "jobId": job_id, "taskId": input.task_id, "kind": input.kind})
     return {"id": row["id"], "jobId": row["job_card_id"], "taskId": row["task_id"], "body": row["body"], "kind": input.kind, "actorId": str(row["actor_id"]), "createdAt": row["created_at"]}
 
 
@@ -286,6 +287,7 @@ def create_remote_attachment(job_id: int, input: AttachmentCreate, scope: Scoped
     content = _decode_attachment(input.data_base64, input.content_type)
     row = session.execute(text("""INSERT INTO evidence_attachments (tenant_id,branch_id,job_card_id,filename,content_type,size_bytes,sha256,content,uploaded_by,category,caption)
         VALUES (:tenant,:branch,:job,:filename,:content_type,:size,:sha256,:content,:actor,:category,:caption) RETURNING *"""), {"tenant": str(current.tenant_id), "branch": str(job["branch_id"]), "job": job_id, "filename": input.filename.strip(), "content_type": input.content_type, "size": len(content), "sha256": hashlib.sha256(content).hexdigest(), "content": content, "actor": str(current.actor_id), "category": input.category, "caption": input.caption.strip()}).mappings().one()
+    _audit(session, current, "EVIDENCE_ATTACHED", input.caption.strip() or input.filename.strip(), {}, {"id": row["id"], "jobId": job_id, "category": input.category})
     return {"id": row["id"], "jobId": row["job_card_id"], "category": row["category"], "filename": row["filename"], "contentType": row["content_type"], "byteSize": row["size_bytes"], "caption": row["caption"], "createdBy": str(row["uploaded_by"]), "createdAt": row["created_at"], "contentPath": f"/api/v1/attachments/{row['id']}/content"}
 
 
@@ -315,6 +317,7 @@ def create_remote_qc_check(job_id: int, input: JobQcCheckCreate, scope: ScopedTe
         raise auth_error("QC_NOT_AVAILABLE_FOR_JOB_STATUS", status.HTTP_422_UNPROCESSABLE_ENTITY)
     row = session.execute(text("""INSERT INTO qc_checks (tenant_id,branch_id,job_card_id,label,required,created_by)
         VALUES (:tenant,:branch,:job,:label,:required,:actor) RETURNING *"""), {"tenant": str(current.tenant_id), "branch": str(job["branch_id"]), "job": job_id, "label": input.label.strip(), "required": input.required, "actor": str(current.actor_id)}).mappings().one()
+    _audit(session, current, "QC_CHECK_CREATED", input.label.strip(), {}, {"id": row["id"], "jobId": job_id, "required": input.required})
     return _remote_qc_check(session, dict(row))
 
 
@@ -323,6 +326,9 @@ def record_remote_qc_result(check_id: int, input: JobQcResult, scope: ScopedTena
     session, current = scope
     _permission(scope, True)
     check = _row_or_404(session, "qc_checks", check_id, "QC_CHECK_NOT_FOUND")
+    job = _row_or_404(session, "job_cards", int(check["job_card_id"]), "JOB_NOT_FOUND")
+    if job["status"] not in {"IN_PROGRESS", "HOLD"}:
+        raise auth_error("QC_NOT_AVAILABLE_FOR_JOB_STATUS", status.HTTP_422_UNPROCESSABLE_ENTITY)
     if input.outcome == "pass":
         outstanding = session.execute(text("SELECT 1 FROM technician_tasks WHERE job_card_id=:job AND title LIKE 'Rework:%' AND status <> 'COMPLETED'"), {"job": check["job_card_id"]}).scalar()
         if outstanding:
@@ -335,4 +341,5 @@ def record_remote_qc_result(check_id: int, input: JobQcResult, scope: ScopedTena
         rework = session.execute(text("""INSERT INTO technician_tasks (tenant_id,branch_id,job_card_id,assigned_to,title,notes,status,created_by,updated_by)
             VALUES (:tenant,:branch,:job,:actor,:title,:note,'PENDING',:actor,:actor) RETURNING *"""), {"tenant": str(current.tenant_id), "branch": str(check["branch_id"]), "job": check["job_card_id"], "actor": str(current.actor_id), "title": f"Rework: {check['label']}", "note": input.note.strip()}).mappings().one()
     row = session.execute(text("UPDATE qc_checks SET status=:status WHERE id=:id RETURNING *"), {"status": outcome, "id": check_id}).mappings().one()
+    _audit(session, current, "QC_RESULT_RECORDED", input.note.strip() or input.outcome, {"checkId": check_id, "status": check["status"]}, {"checkId": check_id, "status": outcome, "reworkTaskId": rework["id"] if rework else None})
     return {"check": _remote_qc_check(session, dict(row)), "reworkTask": _remote_task(dict(rework)) if rework else None}

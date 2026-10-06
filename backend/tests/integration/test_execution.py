@@ -91,6 +91,13 @@ def test_technician_evidence_qc_rework_and_media_are_routed_through_rls() -> Non
         assert client.get(attachment.json()["contentPath"], headers={"x-workshopos-identity": "south-tech"}).status_code == 404
         check = client.post(f"/api/v1/jobs/{job_id}/qc-checks", headers=tech_headers, json={"label": "Road test"})
         assert check.status_code == 201, check.text
+        with get_engine().begin() as connection:
+            connection.execute(text("UPDATE job_cards SET status='COMPLETED' WHERE id=:id"), {"id": job_id})
+        rejected_qc = client.post(f"/api/v1/qc-checks/{check.json()['id']}/result", headers=tech_headers, json={"outcome": "fail", "note": "must not alter a completed Job Card"})
+        assert rejected_qc.status_code == 422
+        assert rejected_qc.json()["code"] == "QC_NOT_AVAILABLE_FOR_JOB_STATUS"
+        with get_engine().begin() as connection:
+            connection.execute(text("UPDATE job_cards SET status='IN_PROGRESS' WHERE id=:id"), {"id": job_id})
         assert client.post(f"/api/v1/technician-tasks/{task.json()['id']}/commands/complete", headers=tech_headers, json={}).status_code == 200
         failed = client.post(f"/api/v1/qc-checks/{check.json()['id']}/result", headers=tech_headers, json={"outcome": "fail", "note": "Noise remains"})
         assert failed.status_code == 200 and failed.json()["reworkTask"], failed.text
@@ -99,4 +106,16 @@ def test_technician_evidence_qc_rework_and_media_are_routed_through_rls() -> Non
         assert client.post(f"/api/v1/technician-tasks/{rework_id}/commands/start", headers=tech_headers, json={}).status_code == 200
         assert client.post(f"/api/v1/technician-tasks/{rework_id}/commands/complete", headers=tech_headers, json={}).status_code == 200
         assert client.post(f"/api/v1/qc-checks/{check.json()['id']}/result", headers=tech_headers, json={"outcome": "pass", "note": "Road test passed"}).status_code == 200
+        execution = client.get(f"/api/v1/jobs/{job_id}/execution", headers=tech_headers)
+        assert execution.status_code == 200, execution.text
+        payload = execution.json()
+        assert payload["updates"][0]["actorId"] == str(tech_id)
+        assert payload["updates"][0]["createdAt"]
+        assert payload["attachments"][0]["createdBy"] == str(tech_id)
+        assert payload["attachments"][0]["createdAt"]
+        assert payload["qcChecks"][0]["results"][-1]["actorId"] == str(tech_id)
+        assert payload["qcChecks"][0]["results"][-1]["createdAt"]
+        with get_engine().begin() as connection:
+            actions = set(connection.execute(text("SELECT action FROM tenant_audit_events")).scalars())
+        assert {"WORK_UPDATE_RECORDED", "EVIDENCE_ATTACHED", "QC_CHECK_CREATED", "QC_RESULT_RECORDED"} <= actions
         assert client.get(f"/api/v1/jobs/{job_id}/execution", headers={"x-workshopos-identity": "south-tech"}).status_code == 404
