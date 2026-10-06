@@ -346,6 +346,32 @@ form {
 .sales-crm-table input { min-width: 7.5rem; background: rgba(255, 255, 255, .88); color: #1e293b; }
 .sales-crm-table :is(select, input, button):focus-visible,
 .sales-lead-filter-row :is(select, input, button):focus-visible { outline: 3px solid #2563eb; outline-offset: 2px; }
+.sales-crm-table .sales-lead-actions { gap: 10px; }
+.sales-crm-table .sales-lead-action {
+  box-sizing: border-box;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  height: 46px;
+  min-height: 46px;
+  border-radius: 8px;
+  padding: 0 15px;
+  font: inherit;
+  font-weight: 400;
+  line-height: 1;
+  white-space: nowrap;
+}
+.sales-crm-table .sales-lead-action-secondary {
+  border: 1px solid var(--app-theme-accent, #15616d);
+  background: #fff;
+  color: var(--app-theme-accent, #15616d);
+}
+.sales-crm-table .sales-lead-action-secondary:hover:not(:disabled) { background: var(--app-theme-active, #e8f5f3); }
+.sales-crm-table .sales-lead-action:focus-visible {
+  outline: 3px solid var(--app-theme-focus, rgba(21, 97, 109, .35));
+  outline-offset: 2px;
+}
+.sales-crm-table .sales-lead-action:disabled { cursor: not-allowed; opacity: .6; }
 
 @media (max-width: 720px) {
   .sales-lead-filter-row { grid-template-columns: 1fr 1fr; }
