@@ -50,8 +50,10 @@ import {
   type JobPeriod,
 } from "./job-picker";
 import { RemoteFinanceWorkspace } from "./remote-finance";
+import { RemoteTechnicianWorkspace } from "./remote-execution";
 import { RemoteFollowupsWorkspace } from "./remote-followups";
 import { RemoteSalesWorkspace } from "./remote-sales";
+import { RemoteMaterialsWorkspace } from "./remote-materials";
 import { LocalSalesWorkspace } from "./local-sales";
 import { dashboardFacts } from "./dashboard-metrics";
 import { supplierNameForPurchaseOrder } from "./purchase-order-supplier-display";
@@ -1524,7 +1526,11 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
+  if (cognitoConfig && activeMenuItem === "My Tasks") return <RemoteTechnicianWorkspace config={cognitoConfig} />;
   if (cognitoConfig && activeMenuItem === "Advance Bookings") return <RemoteBookingDesk config={cognitoConfig} />;
+  if (cognitoConfig && activeMenuItem === "Material Requests") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="requests" />;
+  if (cognitoConfig && activeMenuItem === "Issue Material") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="issue" />;
+  if (cognitoConfig && activeMenuItem === "Reconcile") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="reconcile" />;
   if (activeMenuItem === "Leads") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="leads" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="leads" />;
   if (activeMenuItem === "Quotations") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="quotations" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="quotations" />;
   if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" initialReportCategory="quotation" />;

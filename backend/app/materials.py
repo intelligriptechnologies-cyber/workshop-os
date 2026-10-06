@@ -10,7 +10,7 @@ from __future__ import annotations
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Header, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
@@ -60,7 +60,7 @@ def _store_permission(scope: ScopedTenant, *, mutation: bool) -> TenantScope:
     ), mutation=mutation)
 
 
-def _reservation(row: dict[str, object], totals: dict[str, float]) -> dict[str, object]:
+def _reservation(row: dict[str, object], totals: dict[str, float], available_to_reserve: float) -> dict[str, object]:
     reserved = float(row["reserved_qty"])
     issued = totals["issued"]
     released = totals["released"]
@@ -70,6 +70,7 @@ def _reservation(row: dict[str, object], totals: dict[str, float]) -> dict[str, 
         "issuedQty": issued, "returnedQty": totals["returned"], "wastedQty": totals["wasted"],
         "releasedQty": released, "reversedQty": totals["reversed"],
         "availableToIssue": max(0.0, reserved - issued - released),
+        "availableToReserve": max(0.0, available_to_reserve),
         "onJobQty": max(0.0, issued - totals["returned"] - totals["wasted"] - totals["reversed"]),
         "createdAt": row["created_at"], "updatedAt": row["updated_at"],
     }
@@ -89,7 +90,7 @@ def _totals(session, reservation_id: int) -> dict[str, float]:
 
 def _reservation_with_totals(session, reservation_id: int) -> dict[str, object]:
     row = _row_or_404(session, "material_reservations", reservation_id, "MATERIAL_RESERVATION_NOT_FOUND")
-    return _reservation(row, _totals(session, reservation_id))
+    return _reservation(row, _totals(session, reservation_id), _available_to_reserve(session, int(row["item_id"]), row["branch_id"]))
 
 
 def _event(row: dict[str, object]) -> dict[str, object]:
@@ -156,9 +157,13 @@ def list_reservations(scope: ScopedTenant, job_id: int | None = Query(default=No
     _request_permission(scope, mutation=False)
     if branch_id is not None:
         _branch(current, branch_id)
-    rows = session.execute(text("""SELECT id FROM material_reservations
-        WHERE (:job_id IS NULL OR job_card_id=:job_id) AND (:branch_id IS NULL OR branch_id=:branch_id)
-        ORDER BY created_at DESC,id DESC"""), {"job_id": job_id, "branch_id": str(branch_id) if branch_id else None}).mappings().all()
+    filters, values = [], {}
+    if job_id is not None:
+        filters.append("job_card_id=:job_id"); values["job_id"] = job_id
+    if branch_id is not None:
+        filters.append("branch_id=:branch_id"); values["branch_id"] = str(branch_id)
+    where = f" WHERE {' AND '.join(filters)}" if filters else ""
+    rows = session.execute(text(f"SELECT id FROM material_reservations{where} ORDER BY created_at DESC,id DESC"), values).mappings().all()
     return [_reservation_with_totals(session, int(row["id"])) for row in rows]
 
 
@@ -173,28 +178,35 @@ def list_material_ledger(scope: ScopedTenant, reservation_id: int | None = Query
     _store_permission(scope, mutation=False)
     if branch_id is not None:
         _branch(current, branch_id)
-    rows = session.execute(text("""SELECT * FROM material_ledger WHERE (:reservation_id IS NULL OR reservation_id=:reservation_id)
-        AND (:job_id IS NULL OR job_card_id=:job_id) AND (:branch_id IS NULL OR branch_id=:branch_id)
-        ORDER BY created_at DESC,id DESC"""), {"reservation_id": reservation_id, "job_id": job_id, "branch_id": str(branch_id) if branch_id else None}).mappings().all()
+    filters, values = [], {}
+    for column, value in (("reservation_id", reservation_id), ("job_card_id", job_id), ("branch_id", str(branch_id) if branch_id else None)):
+        if value is not None:
+            filters.append(f"{column}=:{column}"); values[column] = value
+    where = f" WHERE {' AND '.join(filters)}" if filters else ""
+    rows = session.execute(text(f"SELECT * FROM material_ledger{where} ORDER BY created_at DESC,id DESC"), values).mappings().all()
     return [_event(dict(row)) for row in rows]
 
 
 @router.post("/material-reservations", status_code=status.HTTP_201_CREATED)
-def create_reservation(input: MaterialReservationInput, scope: ScopedTenant) -> dict[str, object]:
+def create_reservation(input: MaterialReservationInput, scope: ScopedTenant, request_key: Annotated[str | None, Header(alias="Idempotency-Key")] = None) -> dict[str, object]:
     session, current = scope
     branch_id = _branch(_request_permission(scope, mutation=True), input.branch_id)
     job = _approved_job(session, input.job_id)
     if job["branch_id"] != branch_id:
         raise auth_error("JOB_BRANCH_MISMATCH", status.HTTP_422_UNPROCESSABLE_ENTITY)
     _item_for_update(session, input.item_id, branch_id)
+    if request_key and (replay := session.execute(text("""SELECT id FROM material_reservations
+        WHERE tenant_id=:tenant_id AND job_card_id=:job_id AND request_key=:request_key"""),
+        {"tenant_id": str(current.tenant_id), "job_id": input.job_id, "request_key": request_key.strip()}).scalar()):
+        return _reservation_with_totals(session, int(replay))
     available = _available_to_reserve(session, input.item_id, branch_id)
     if input.quantity > available:
         raise auth_error("INSUFFICIENT_AVAILABLE_STOCK_TO_RESERVE", status.HTTP_409_CONFLICT)
     reservation = session.execute(text("""INSERT INTO material_reservations
-        (tenant_id,branch_id,job_card_id,item_id,reserved_qty,status,note,created_by,updated_by)
-        VALUES (:tenant_id,:branch_id,:job_id,:item_id,:quantity,'RESERVED',:note,:actor_id,:actor_id) RETURNING *"""),
+        (tenant_id,branch_id,job_card_id,item_id,reserved_qty,status,note,request_key,created_by,updated_by)
+        VALUES (:tenant_id,:branch_id,:job_id,:item_id,:quantity,'RESERVED',:note,:request_key,:actor_id,:actor_id) RETURNING *"""),
         {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "job_id": input.job_id, "item_id": input.item_id,
-         "quantity": input.quantity, "note": input.note.strip(), "actor_id": str(current.actor_id)}).mappings().one()
+         "quantity": input.quantity, "note": input.note.strip(), "request_key": request_key.strip() if request_key else None, "actor_id": str(current.actor_id)}).mappings().one()
     session.execute(text("""INSERT INTO material_ledger (tenant_id,branch_id,reservation_id,job_card_id,item_id,entry_type,quantity,reason,actor_id)
         VALUES (:tenant_id,:branch_id,:reservation_id,:job_id,:item_id,'RESERVE',:quantity,:reason,:actor_id)"""),
         {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "reservation_id": reservation["id"], "job_id": input.job_id,
