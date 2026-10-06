@@ -3,14 +3,20 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from uuid import uuid4
 
 
 def _reset_database() -> None:
     from app.database import get_engine
 
     with get_engine().begin() as connection:
+        # The operational schema grows new tenant-scoped dependants over time.
+        # Cascade from both roots so this CRM fixture remains isolated from
+        # preceding integration scenarios without duplicating that full graph.
+        connection.execute(text("TRUNCATE TABLE tenants, platform_users RESTART IDENTITY CASCADE"))
         for table in (
-            "quotation_lines", "quotations", "sales_leads", "tenant_audit_events", "support_emulations",
+            "quotation_lines", "quotations", "sales_leads", "job_assignment_history", "service_advisor_teams",
+            "service_department_managers", "service_departments", "tenant_audit_events", "support_emulations",
             "tenant_admin_invitations", "platform_billing", "branch_settings", "tenant_settings",
             "membership_roles", "role_permissions", "tenant_roles", "membership_branches",
             "tenant_memberships", "superadmins", "branches", "platform_users", "tenants",
@@ -131,3 +137,35 @@ def test_lead_follow_up_and_quotation_terminal_outcomes_follow_the_persisted_pip
         terminal_edit = client.post(f"/api/v1/sales/quotations/{quotation_id}/status", headers=headers, json={"status": "SENT"})
         assert terminal_edit.status_code == 422
         assert terminal_edit.json()["code"] == "QUOTATION_FINAL"
+
+
+@pytest.mark.integration
+def test_sales_crm_rejects_cross_tenant_branch_and_non_admin_access() -> None:
+    _reset_database()
+    from app.main import app
+
+    with TestClient(app) as client:
+        north = _provision(client)
+        south = _provision(client)
+        _activate(str(north["id"]), "north-owner")
+        _activate(str(south["id"]), "south-owner")
+        north_headers = {"x-workshopos-identity": "north-owner"}
+        lead = client.post("/api/v1/sales/leads", headers=north_headers, json={"displayName": "Asha", "phone": "9000000000"})
+        assert lead.status_code == 201, lead.text
+
+        assert client.get("/api/v1/sales/leads", headers={"x-workshopos-identity": "south-owner"}).json() == []
+        cross_tenant_update = client.put(f"/api/v1/sales/leads/{lead.json()['id']}", headers={"x-workshopos-identity": "south-owner"}, json={"displayName": "Asha", "phone": "9000000000"})
+        assert cross_tenant_update.status_code == 404 and cross_tenant_update.json()["code"] == "LEAD_NOT_FOUND"
+        branch_denied = client.get(f"/api/v1/sales/leads?branchId={south['primaryBranch']['id']}", headers=north_headers)
+        assert branch_denied.status_code == 403 and branch_denied.json()["code"] == "BRANCH_ACCESS_DENIED"
+
+        from app.database import get_engine
+        user_id, membership_id = uuid4(), uuid4()
+        with get_engine().begin() as connection:
+            connection.execute(text("INSERT INTO platform_users (id, cognito_subject, display_name, email) VALUES (:id, 'sales-viewer', 'Sales Viewer', 'viewer@example.test')"), {"id": str(user_id)})
+            connection.execute(text("INSERT INTO tenant_memberships (id, tenant_id, user_id, status) VALUES (:id, :tenant, :user, 'ACTIVE')"), {"id": str(membership_id), "tenant": str(north["id"]), "user": str(user_id)})
+            connection.execute(text("UPDATE platform_users SET active_membership_id=:membership WHERE id=:id"), {"membership": str(membership_id), "id": str(user_id)})
+            connection.execute(text("INSERT INTO membership_roles (membership_id, role_id, tenant_id) SELECT :membership, id, :tenant FROM tenant_roles WHERE tenant_id=:tenant AND name='Service Advisor'"), {"membership": str(membership_id), "tenant": str(north["id"])})
+            connection.execute(text("INSERT INTO membership_branches (membership_id, branch_id, tenant_id) VALUES (:membership, :branch, :tenant)"), {"membership": str(membership_id), "branch": str(north["primaryBranch"]["id"]), "tenant": str(north["id"])})
+        role_denied = client.get("/api/v1/sales/leads", headers={"x-workshopos-identity": "sales-viewer"})
+        assert role_denied.status_code == 403 and role_denied.json()["code"] == "SALES_CRM_ADMIN_REQUIRED"
