@@ -140,10 +140,17 @@ def update_quotation(quotation_id:int,input:QuotationInput,scope:ScopedTenant):
 def change_status(quotation_id:int,input:StatusInput,scope:ScopedTenant):
     session,current=scope; _admin(scope,True); row=session.execute(text("SELECT * FROM quotations WHERE id=:id"),{"id":quotation_id}).mappings().one_or_none()
     if not row: raise auth_error("QUOTATION_NOT_FOUND",404)
-    if row["status"] in ("ACCEPTED","REJECTED","EXPIRED") and row["status"] != input.status: raise auth_error("QUOTATION_FINAL",422)
+    if row["status"] in ("ACCEPTED", "REJECTED", "EXPIRED"):
+        raise auth_error("QUOTATION_FINAL", 422)
+    transitions = {"DRAFT": {"SENT"}, "SENT": {"ACCEPTED", "REJECTED", "EXPIRED"}}
+    if input.status not in transitions[row["status"]]:
+        raise auth_error("QUOTATION_TRANSITION_INVALID", 422)
     changed=session.execute(text("UPDATE quotations SET status=:status,updated_by=:actor,updated_at=now() WHERE id=:id RETURNING *"),{"id":quotation_id,"status":input.status,"actor":str(current.actor_id)}).mappings().one()
     if input.status=="ACCEPTED": session.execute(text("UPDATE sales_leads SET stage='WON',updated_by=:actor,updated_at=now() WHERE id=:id"),{"id":row["lead_id"],"actor":str(current.actor_id)})
-    return _quotation(session,changed)
+    if input.status=="REJECTED": session.execute(text("UPDATE sales_leads SET stage='LOST',updated_by=:actor,updated_at=now() WHERE id=:id"),{"id":row["lead_id"],"actor":str(current.actor_id)})
+    payload = _quotation(session,changed)
+    _audit(session,current,"QUOTATION_STATUS_CHANGED",f"Quotation {row['quotation_no']} marked {input.status}",_quotation(session,row),payload)
+    return payload
 @router.get("/quotations/{quotation_id}/document")
 def quotation_document(quotation_id:int,scope:ScopedTenant):
     session, _ = scope; _admin(scope); row=session.execute(text("SELECT document_snapshot,quotation_no,template_html,created_at FROM quotations WHERE id=:id"),{"id":quotation_id}).mappings().one_or_none()

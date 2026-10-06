@@ -99,3 +99,35 @@ def test_quotation_created_date_filters_ignore_valid_until() -> None:
         monthly = client.get("/api/v1/sales/quotations?month=2026-09", headers=headers)
         assert monthly.status_code == 200, monthly.text
         assert [item["id"] for item in monthly.json()] == [second.json()["id"]]
+
+
+@pytest.mark.integration
+def test_lead_follow_up_and_quotation_terminal_outcomes_follow_the_persisted_pipeline() -> None:
+    _reset_database()
+    from app.main import app
+
+    with TestClient(app) as client:
+        tenant = _provision(client)
+        _activate(str(tenant["id"]), "sales-owner")
+        headers = {"x-workshopos-identity": "sales-owner"}
+        lead = client.post("/api/v1/sales/leads", headers=headers, json={
+            "displayName": "Asha", "phone": "9000000000", "followUpDue": "2026-10-20",
+        })
+        assert lead.status_code == 201, lead.text
+        assert [item["id"] for item in client.get("/api/v1/sales/leads?exactDate=2026-10-20", headers=headers).json()] == [lead.json()["id"]]
+
+        quotation = client.post("/api/v1/sales/quotations", headers=headers, json={
+            "leadId": lead.json()["id"], "templateId": "quotation-default", "templateHtml": "<main>Quotation</main>",
+            "lines": [{"kind": "Service", "description": "Wheel alignment", "quantity": 1, "rate": 1000, "gstRate": 18}],
+        })
+        assert quotation.status_code == 201, quotation.text
+        quotation_id = quotation.json()["id"]
+        assert client.post(f"/api/v1/sales/quotations/{quotation_id}/status", headers=headers, json={"status": "ACCEPTED"}).json()["code"] == "QUOTATION_TRANSITION_INVALID"
+        sent = client.post(f"/api/v1/sales/quotations/{quotation_id}/status", headers=headers, json={"status": "SENT"})
+        assert sent.status_code == 200, sent.text
+        rejected = client.post(f"/api/v1/sales/quotations/{quotation_id}/status", headers=headers, json={"status": "REJECTED"})
+        assert rejected.status_code == 200, rejected.text
+        assert client.get("/api/v1/sales/leads", headers=headers).json()[0]["stage"] == "LOST"
+        terminal_edit = client.post(f"/api/v1/sales/quotations/{quotation_id}/status", headers=headers, json={"status": "SENT"})
+        assert terminal_edit.status_code == 422
+        assert terminal_edit.json()["code"] == "QUOTATION_FINAL"
