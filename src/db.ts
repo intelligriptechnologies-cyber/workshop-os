@@ -2081,7 +2081,14 @@ export function createServiceCatalogItemForActor(
   return insert(
     db,
     "insert into service_catalog_items(name,base_rate,gst_rate,service_department_id,brand_id,car_segment_id,created_at,updated_at) values(?,?,?,?,?,?,datetime('now'),datetime('now'))",
-    [name, input.base_rate, gstRate, input.service_department_id!, input.brand_id!, input.car_segment_id!],
+    [
+      name,
+      input.base_rate,
+      gstRate,
+      input.service_department_id!,
+      input.brand_id ?? null,
+      input.car_segment_id ?? null,
+    ],
   );
 }
 
@@ -2107,17 +2114,23 @@ export function updateServiceCatalogItemForActor(
     throw new Error("GST rate must be No GST (0%) or 5%, 9%, 12%, 18%, or 28%.");
   db.run(
     "update service_catalog_items set name=?,base_rate=?,gst_rate=?,service_department_id=?,brand_id=?,car_segment_id=?,updated_at=datetime('now') where id=?",
-    [name, input.base_rate, gstRate, input.service_department_id!, input.brand_id!, input.car_segment_id!, id],
+    [
+      name,
+      input.base_rate,
+      gstRate,
+      input.service_department_id!,
+      input.brand_id ?? null,
+      input.car_segment_id ?? null,
+      id,
+    ],
   );
 }
 
 function assertCatalogAssignments(db: Database, input: Pick<ServiceCatalogItem, "service_department_id" | "brand_id" | "car_segment_id">) {
   if (!input.service_department_id) throw new Error("Service department is required.");
-  if (!input.brand_id) throw new Error("Brand name is required.");
-  if (!input.car_segment_id) throw new Error("Car segment is required.");
   if (!scalar<number>(db, "select count(*) from service_departments where id=? and status='ACTIVE'", [input.service_department_id])) throw new Error("Choose an active service department.");
-  if (!scalar<number>(db, "select count(*) from service_brands where id=? and status='ACTIVE'", [input.brand_id])) throw new Error("Choose an active brand name.");
-  if (!scalar<number>(db, "select count(*) from car_segments where id=? and status='ACTIVE'", [input.car_segment_id])) throw new Error("Choose an active car segment.");
+  if (input.brand_id != null && !scalar<number>(db, "select count(*) from service_brands where id=? and status='ACTIVE'", [input.brand_id])) throw new Error("Choose an active brand name.");
+  if (input.car_segment_id != null && !scalar<number>(db, "select count(*) from car_segments where id=? and status='ACTIVE'", [input.car_segment_id])) throw new Error("Choose an active car segment.");
 }
 
 export function archiveServiceCatalogItemForActor(
@@ -7091,7 +7104,7 @@ export function migrateSchema(db: Database) {
   db.run("create table if not exists car_segments(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)");
   db.run("create table if not exists service_department_managers(department_id integer not null, manager_id integer not null, primary key(department_id, manager_id))");
   db.run("create table if not exists service_advisor_teams(department_id integer not null, manager_id integer not null, advisor_id integer not null unique, primary key(department_id, advisor_id))");
-  db.run("create table if not exists sales_leads(id integer primary key, display_name text not null, phone text not null, company text not null default '', email text not null default '', address text not null default '', service_interest text not null default '', notes text not null default '', stage text not null default 'NEW', temperature text not null default 'WARM', follow_up_due text, site_visit_completed integer not null default 0, site_visit_date text, created_at text not null, updated_at text not null)");
+  db.run("create table if not exists sales_leads(id integer primary key, display_name text not null, phone text not null, company text not null default '', company_not_entered integer not null default 0, email text not null default '', email_not_entered integer not null default 0, address text not null default '', service_interest text not null default '', notes text not null default '', stage text not null default 'NEW', temperature text not null default 'WARM', follow_up_due text, site_visit_completed integer not null default 0, site_visit_date text, created_at text not null, updated_at text not null)");
   db.run("create table if not exists sales_quotations(id integer primary key, lead_id integer not null, quotation_no text not null unique, status text not null default 'DRAFT', valid_until text, customer_notes text not null default '', discount real not null default 0, subtotal real not null default 0, gst_amount real not null default 0, total real not null default 0, template_id text not null, template_html text not null, created_at text not null, updated_at text not null)");
   db.run("create table if not exists sales_quotation_lines(id integer primary key, quotation_id integer not null, line_no integer not null, kind text not null, description text not null, quantity real not null, rate real not null, gst_rate real not null)");
   db.run(
@@ -7105,6 +7118,8 @@ export function migrateSchema(db: Database) {
   ensureColumn(db, "service_catalog_items", "brand_id", "integer");
   ensureColumn(db, "service_catalog_items", "car_segment_id", "integer");
   ensureColumn(db, "job_task_list_items", "gst_rate", "real not null default 18");
+  ensureColumn(db, "sales_leads", "company_not_entered", "integer not null default 0");
+  ensureColumn(db, "sales_leads", "email_not_entered", "integer not null default 0");
   db.run("update service_catalog_items set gst_rate=18 where gst_rate is null");
   db.run("update job_task_list_items set gst_rate=18 where gst_rate is null");
   ensureColumn(db, "estimate_items", "task_list_item_id", "integer");
@@ -8462,21 +8477,21 @@ function invoiceTotal(db: Database, jobId: number) {
   return invoiceItemsTotal(items, estimate);
 }
 
-export type LocalLeadInput = Omit<SalesLead, "id" | "created_at" | "updated_at" | "site_visit_completed"> & { site_visit_completed?: number };
+export type LocalLeadInput = Omit<SalesLead, "id" | "created_at" | "updated_at" | "company_not_entered" | "email_not_entered" | "site_visit_completed"> & { company_not_entered?: number; email_not_entered?: number; site_visit_completed?: number };
 export type LocalQuotationInput = { lead_id: number; valid_until?: string | null; customer_notes?: string; discount?: number; template_id: string; template_html: string; lines: Array<Omit<SalesQuotationLine, "id" | "quotation_id" | "line_no">> };
 
 export function createSalesLead(db: Database, input: LocalLeadInput) {
   const name = input.display_name.trim();
   const phone = input.phone.trim();
   if (!name || !phone) throw new Error("Lead name and phone are required.");
-  return insert(db, "insert into sales_leads(display_name,phone,company,email,address,service_interest,notes,stage,temperature,follow_up_due,site_visit_completed,site_visit_date,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [name, phone, input.company?.trim() ?? "", input.email?.trim() ?? "", input.address?.trim() ?? "", input.service_interest?.trim() ?? "", input.notes?.trim() ?? "", input.stage ?? "NEW", input.temperature ?? "WARM", input.follow_up_due ?? null, input.site_visit_completed ?? 0, input.site_visit_date ?? null]);
+  return insert(db, "insert into sales_leads(display_name,phone,company,company_not_entered,email,email_not_entered,address,service_interest,notes,stage,temperature,follow_up_due,site_visit_completed,site_visit_date,created_at,updated_at) values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))", [name, phone, input.company?.trim() ?? "", input.company_not_entered ?? 0, input.email?.trim() ?? "", input.email_not_entered ?? 0, input.address?.trim() ?? "", input.service_interest?.trim() ?? "", input.notes?.trim() ?? "", input.stage ?? "NEW", input.temperature ?? "WARM", input.follow_up_due ?? null, input.site_visit_completed ?? 0, input.site_visit_date ?? null]);
 }
 
 export function updateSalesLead(db: Database, leadId: number, input: LocalLeadInput) {
   const name = input.display_name.trim();
   const phone = input.phone.trim();
   if (!name || !phone) throw new Error("Lead name and phone are required.");
-  db.run("update sales_leads set display_name=?,phone=?,company=?,email=?,address=?,service_interest=?,notes=?,stage=?,temperature=?,follow_up_due=?,site_visit_completed=?,site_visit_date=?,updated_at=datetime('now') where id=?", [name, phone, input.company?.trim() ?? "", input.email?.trim() ?? "", input.address?.trim() ?? "", input.service_interest?.trim() ?? "", input.notes?.trim() ?? "", input.stage ?? "NEW", input.temperature ?? "WARM", input.follow_up_due ?? null, input.site_visit_completed ?? 0, input.site_visit_date ?? null, leadId]);
+  db.run("update sales_leads set display_name=?,phone=?,company=?,company_not_entered=?,email=?,email_not_entered=?,address=?,service_interest=?,notes=?,stage=?,temperature=?,follow_up_due=?,site_visit_completed=?,site_visit_date=?,updated_at=datetime('now') where id=?", [name, phone, input.company?.trim() ?? "", input.company_not_entered ?? 0, input.email?.trim() ?? "", input.email_not_entered ?? 0, input.address?.trim() ?? "", input.service_interest?.trim() ?? "", input.notes?.trim() ?? "", input.stage ?? "NEW", input.temperature ?? "WARM", input.follow_up_due ?? null, input.site_visit_completed ?? 0, input.site_visit_date ?? null, leadId]);
 }
 
 export function createSalesQuotation(db: Database, input: LocalQuotationInput) {
@@ -8495,6 +8510,26 @@ export function createSalesQuotation(db: Database, input: LocalQuotationInput) {
   lines.forEach((line, index) => insert(db, "insert into sales_quotation_lines(quotation_id,line_no,kind,description,quantity,rate,gst_rate) values(?,?,?,?,?,?,?)", [quotationId, index + 1, line.kind || "Service", line.description.trim(), line.quantity, line.rate, line.gst_rate]));
   db.run("update sales_leads set stage='QUOTATION_SENT', updated_at=datetime('now') where id=?", [input.lead_id]);
   return quotationId;
+}
+
+/** Replaces a draft's complete frozen document snapshot without touching master templates. */
+export function updateSalesQuotation(db: Database, quotationId: number, input: LocalQuotationInput) {
+  const quotation = one<SalesQuotation>(db, "select * from sales_quotations where id=?", [quotationId]);
+  if (quotation.status !== "DRAFT") throw new Error("Only draft quotations can be edited.");
+  const lead = maybe<SalesLead>(db, "select * from sales_leads where id=?", [input.lead_id]);
+  if (!lead) throw new Error("Select an existing lead.");
+  if (!input.template_id || !input.template_html) throw new Error("Select a quotation template.");
+  if (!input.lines.length) throw new Error("Add at least one quotation line.");
+  const lines = input.lines.map((line) => ({ ...line, quantity: Number(line.quantity), rate: Number(line.rate), gst_rate: Number(line.gst_rate) }));
+  if (lines.some((line) => !line.description.trim() || line.quantity <= 0 || line.rate < 0 || line.gst_rate < 0 || line.gst_rate > 100)) throw new Error("Quotation lines need a description, positive quantity, and valid rates.");
+  const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.rate, 0);
+  const discount = Math.max(0, Number(input.discount) || 0);
+  const taxable = Math.max(0, subtotal - discount);
+  const gst_amount = lines.reduce((sum, line) => sum + Math.max(0, line.quantity * line.rate - (subtotal ? discount * (line.quantity * line.rate / subtotal) : 0)) * line.gst_rate / 100, 0);
+  db.run("update sales_quotations set lead_id=?,valid_until=?,customer_notes=?,discount=?,subtotal=?,gst_amount=?,total=?,template_id=?,template_html=?,updated_at=datetime('now') where id=?", [input.lead_id, input.valid_until ?? null, input.customer_notes?.trim() ?? "", discount, subtotal, gst_amount, taxable + gst_amount, input.template_id, input.template_html, quotationId]);
+  db.run("delete from sales_quotation_lines where quotation_id=?", [quotationId]);
+  lines.forEach((line, index) => insert(db, "insert into sales_quotation_lines(quotation_id,line_no,kind,description,quantity,rate,gst_rate) values(?,?,?,?,?,?,?)", [quotationId, index + 1, line.kind || "Service", line.description.trim(), line.quantity, line.rate, line.gst_rate]));
+  db.run("update sales_leads set stage='QUOTATION_SENT', updated_at=datetime('now') where id=?", [input.lead_id]);
 }
 
 export function setSalesQuotationStatus(db: Database, quotationId: number, status: QuotationStatus) {

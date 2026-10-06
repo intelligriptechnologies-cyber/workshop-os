@@ -209,14 +209,27 @@ test("Owner/Admin always keeps Admin Console access", () => {
 
 test("version 1 sessions migrate Sales CRM into Owner/Admin page access", () => {
   const storage = new MemorySessionStorage();
-  const legacy = createDefaultAdminDemoState(NOW);
-  legacy.version = 1;
-  legacy.rolePageAccess.admin = ["dashboard", "admin-console"];
+  const current = createDefaultAdminDemoState(NOW);
+  const legacy = {
+    ...current,
+    version: 1,
+    rolePageAccess: { ...current.rolePageAccess, admin: ["dashboard", "admin-console"] },
+  };
   storage.setItem("workshopos.admin-demo.v1", JSON.stringify(legacy));
 
   const migrated = loadAdminDemoState(storage, NOW);
   assert.equal(migrated.version, 2);
   assert.deepEqual(resolveRoleMenuPageKeys("admin", resolvePermittedPages(migrated, "admin")).filter((key) => key.startsWith("sales-") || key === "quotations" || key === "quotation-settings"), ["sales-leads", "quotations", "quotation-settings"]);
+});
+
+test("unsupported persisted session versions reset to defaults", () => {
+  const storage = new MemorySessionStorage();
+  const unsupported = { ...createDefaultAdminDemoState(NOW), version: 3, roles: [] };
+  storage.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(unsupported));
+
+  const hydrated = loadAdminDemoState(storage, NOW);
+  assert.equal(hydrated.version, 2);
+  assert.equal(hydrated.roles.length, 7);
 });
 
 test("business settings deep updates retain sibling values", () => {

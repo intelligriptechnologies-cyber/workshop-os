@@ -471,11 +471,22 @@ test("admin service task subtabs and role filters stay compact on desktop and st
   const serviceTasks = page.getByRole("tabpanel", { name: "Service Tasks" });
   await expect(serviceTasks.getByLabel("Search catalog services")).toBeVisible();
   await expectManagementToolbarHasOneRow(serviceTasks, ".compact-management-toolbar");
+  await expectMinimumVerticalGap(
+    serviceTasks.locator(".compact-management-toolbar"),
+    serviceTasks.getByRole("table", { name: "Service task catalog" }),
+  );
   await page.getByRole("tab", { name: "Catalogs", exact: true }).click();
   const catalogs = page.getByRole("tabpanel", { name: "Catalogs" });
   const brandNames = catalogs.locator(".team-section").filter({ has: page.getByRole("heading", { name: "Brand names" }) });
   await expect(catalogs.getByRole("table", { name: "Brand names" })).toBeVisible();
   await expect(catalogs.getByRole("table", { name: "Car segments" })).toBeVisible();
+  for (const title of ["Brand names", "Car segments"]) {
+    const catalog = catalogs.locator(".team-section").filter({ has: page.getByRole("heading", { name: title }) });
+    await expectMinimumVerticalGap(
+      catalog.locator(".panel-actions"),
+      catalog.getByRole("table", { name: title }),
+    );
+  }
   await brandNames.getByRole("button", { name: "Add", exact: true }).click();
   const addBrand = page.getByRole("dialog", { name: "Add Brand name" });
   await addBrand.getByLabel("Add Brand name name").fill("E2E Brand");
@@ -497,6 +508,10 @@ test("admin service task subtabs and role filters stay compact on desktop and st
   await expect(serviceTaskDialog.locator(".service-task-form-row")).toHaveCount(2);
   const desktopFieldRows = await serviceTaskDialog.locator(".service-task-form-row").evaluateAll((rows) => rows.map((row) => new Set(Array.from(row.children).map((field) => Math.round(field.getBoundingClientRect().top))).size));
   expect(desktopFieldRows).toEqual([1, 1]);
+  await expect(serviceTaskDialog.getByRole("button", { name: "Quick add new Brand", exact: true })).toBeVisible();
+  await expect(serviceTaskDialog.getByRole("button", { name: "Quick add new Car Segment", exact: true })).toBeVisible();
+  await serviceTaskDialog.getByText("Brand name", { exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Add Brand name" })).toHaveCount(0);
   await serviceTaskDialog.getByRole("button", { name: "Go Back", exact: true }).click();
 
   await page.getByRole("tab", { name: "Roles & Page Access", exact: true }).click();
@@ -515,6 +530,8 @@ test("admin service task subtabs and role filters stay compact on desktop and st
   expect(mobileFieldRows).toEqual([2, 2]);
   await expectNoPageOverflow(page);
   await mobileServiceTaskDialog.getByRole("button", { name: "Go Back", exact: true }).click();
+  await page.getByRole("tab", { name: "Catalogs", exact: true }).click();
+  await expectNoPageOverflow(page);
 });
 
 test("Management Hub Job Cards filters estimated delivery dates, months, archived records, and clears", async ({ page }) => {
@@ -2550,6 +2567,12 @@ async function expectManagementToolbarHasOneRow(scope: import("@playwright/test"
 async function expectManagementToolbarStacks(scope: import("@playwright/test").Locator, selector: string) {
   const rows = await scope.locator(`${selector} > label, ${selector} > .list-search-actions, ${selector} > .filter-clear-action`).evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().bottom))).size);
   expect(rows).toBeGreaterThan(1);
+}
+
+async function expectMinimumVerticalGap(upper: import("@playwright/test").Locator, lower: import("@playwright/test").Locator, minimum = 14) {
+  const [upperBox, lowerBox] = await Promise.all([upper.boundingBox(), lower.boundingBox()]);
+  if (!upperBox || !lowerBox) throw new Error("Expected both layout elements to have bounding boxes.");
+  expect(lowerBox.y - (upperBox.y + upperBox.height)).toBeGreaterThanOrEqual(minimum - 0.5);
 }
 
 async function readWorksheet(download: import("@playwright/test").Download) {

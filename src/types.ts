@@ -4,7 +4,7 @@ export type Role =
 export type LeadStage = "NEW" | "QUALIFIED" | "QUOTATION_SENT" | "WON" | "LOST";
 export type LeadTemperature = "HOT" | "WARM" | "COLD";
 export type QuotationStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
-export interface SalesLead { id: number; display_name: string; phone: string; company: string; email: string; address: string; service_interest: string; notes: string; stage: LeadStage; temperature: LeadTemperature; follow_up_due: string | null; site_visit_completed: number; site_visit_date: string | null; created_at: string; updated_at: string; }
+export interface SalesLead { id: number; display_name: string; phone: string; company: string; company_not_entered: number; email: string; email_not_entered: number; address: string; service_interest: string; notes: string; stage: LeadStage; temperature: LeadTemperature; follow_up_due: string | null; site_visit_completed: number; site_visit_date: string | null; created_at: string; updated_at: string; }
 export interface SalesQuotationLine { id: number; quotation_id: number; line_no: number; kind: string; description: string; quantity: number; rate: number; gst_rate: number; }
 export interface SalesQuotation { id: number; lead_id: number; quotation_no: string; status: QuotationStatus; valid_until: string | null; customer_notes: string; discount: number; subtotal: number; gst_amount: number; total: number; template_id: string; template_html: string; created_at: string; updated_at: string; lines: SalesQuotationLine[]; }
 export interface ServiceDepartmentAdvisorTeam { manager_id: number; advisor_id: number; }

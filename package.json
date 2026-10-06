@@ -10,7 +10,7 @@
     "start": "vite preview --host 0.0.0.0",
     "test:harness": "node scripts/verify-harness.mjs",
     "test:e2e": "playwright test",
-    "test:unit": "tsx --test unit-tests/*.test.ts"
+    "test:unit": "tsc --noEmit && tsx --test unit-tests/*.test.ts"
   },
   "dependencies": {
     "@aws-sdk/client-cognito-identity-provider": "^3.1131.0",

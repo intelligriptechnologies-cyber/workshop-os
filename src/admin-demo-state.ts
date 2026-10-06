@@ -336,6 +336,14 @@ export interface AdminDemoState {
   companyAssets: CompanyAssets;
 }
 
+/**
+ * Session storage is untrusted and may contain an older schema. Keep that
+ * boundary distinct from the runtime state, whose version is always literal 2.
+ */
+type PersistedAdminDemoState = Omit<Partial<AdminDemoState>, "version"> & {
+  version?: number;
+};
+
 export interface SessionStorageLike {
   getItem(key: string): string | null;
   setItem(key: string, value: string): void;
@@ -510,7 +518,7 @@ function mergeSettings(
 
 function hydrateState(value: unknown): AdminDemoState | undefined {
   if (!value || typeof value !== "object") return undefined;
-  const saved = value as Partial<AdminDemoState>;
+  const saved = value as PersistedAdminDemoState;
   if ((saved.version !== ADMIN_DEMO_STATE_VERSION && saved.version !== 1) || !Array.isArray(saved.roles) || !saved.rolePageAccess || !Array.isArray(saved.logs)) return undefined;
   const base = createDefaultAdminDemoState();
   const access = Object.fromEntries(Object.entries(saved.rolePageAccess).map(([roleId, pages]) => [roleId, sanitizePages(pages)]));

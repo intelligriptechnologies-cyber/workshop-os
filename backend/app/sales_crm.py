@@ -27,7 +27,9 @@ class LeadInput(ApiModel):
     display_name: Annotated[str, Field(min_length=1, max_length=300)] = Field(alias="displayName")
     phone: Annotated[str, Field(min_length=1, max_length=80)]
     company: Annotated[str, Field(max_length=300)] = ""
+    company_not_entered: bool = Field(default=False, alias="companyNotEntered")
     email: Annotated[str, Field(max_length=320)] = ""
+    email_not_entered: bool = Field(default=False, alias="emailNotEntered")
     address: Annotated[str, Field(max_length=2000)] = ""
     service_interest: Annotated[str, Field(max_length=1000)] = Field(default="", alias="serviceInterest")
     notes: Annotated[str, Field(max_length=4000)] = ""
@@ -66,10 +68,10 @@ def _admin(scope: ScopedTenant, mutation: bool = False):
     return current
 
 def _lead(row):
-    return {"id": row["id"], "branchId": str(row["branch_id"]), "displayName": row["display_name"], "phone": row["phone"], "company": row["company"], "email": row["email"], "address": row["address"], "serviceInterest": row["service_interest"], "notes": row["notes"], "stage": row["stage"], "temperature": row["temperature"], "followUpDue": row["follow_up_due"], "siteVisitCompleted": row["site_visit_completed"], "siteVisitDate": row["site_visit_date"], "createdAt": row["created_at"], "updatedAt": row["updated_at"]}
+    return {"id": row["id"], "branchId": str(row["branch_id"]), "displayName": row["display_name"], "phone": row["phone"], "company": row["company"], "companyNotEntered": row["company_not_entered"], "email": row["email"], "emailNotEntered": row["email_not_entered"], "address": row["address"], "serviceInterest": row["service_interest"], "notes": row["notes"], "stage": row["stage"], "temperature": row["temperature"], "followUpDue": row["follow_up_due"], "siteVisitCompleted": row["site_visit_completed"], "siteVisitDate": row["site_visit_date"], "createdAt": row["created_at"], "updatedAt": row["updated_at"]}
 def _quotation(session, row):
     lines = [{"id": x["id"], "kind": x["kind"], "description": x["description"], "quantity": float(x["quantity"]), "rate": float(x["rate"]), "gstRate": float(x["gst_rate"])} for x in session.execute(text("SELECT * FROM quotation_lines WHERE quotation_id=:id ORDER BY line_no"), {"id": row["id"]}).mappings()]
-    return {"id": row["id"], "branchId": str(row["branch_id"]), "leadId": row["lead_id"], "quotationNo": row["quotation_no"], "status": row["status"], "validUntil": row["valid_until"], "customerNotes": row["customer_notes"], "discount": float(row["discount"]), "subtotal": float(row["subtotal"]), "gstAmount": float(row["gst_amount"]), "total": float(row["total"]), "templateId": row["template_id"], "createdAt": row["created_at"], "updatedAt": row["updated_at"], "lines": lines}
+    return {"id": row["id"], "branchId": str(row["branch_id"]), "leadId": row["lead_id"], "quotationNo": row["quotation_no"], "status": row["status"], "validUntil": row["valid_until"], "customerNotes": row["customer_notes"], "discount": float(row["discount"]), "subtotal": float(row["subtotal"]), "gstAmount": float(row["gst_amount"]), "total": float(row["total"]), "templateId": row["template_id"], "templateHtml": row["template_html"], "createdAt": row["created_at"], "updatedAt": row["updated_at"], "lines": lines}
 def _totals(lines, discount):
     subtotal = sum(line.quantity * line.rate for line in lines); net = max(0, subtotal - discount)
     gst = sum(max(0, line.quantity * line.rate - (discount * (line.quantity * line.rate / subtotal) if subtotal else 0)) * line.gst_rate / 100 for line in lines)
@@ -85,18 +87,31 @@ def list_leads(scope: ScopedTenant, q: str = "", stage: LeadStage | None = None,
 @router.post("/leads", status_code=status.HTTP_201_CREATED)
 def create_lead(input: LeadInput, scope: ScopedTenant):
     session,current=scope; branch=_branch(_admin(scope, True), input.branch_id)
-    row=session.execute(text("""INSERT INTO sales_leads(tenant_id,branch_id,display_name,phone,company,email,address,service_interest,notes,stage,temperature,follow_up_due,site_visit_completed,site_visit_date,created_by,updated_by) VALUES (:tenant,:branch,:name,:phone,:company,:email,:address,:interest,:notes,:stage,:temperature,:due,:visited,:visit_date,:actor,:actor) RETURNING *"""), {"tenant":str(current.tenant_id),"branch":str(branch),"name":input.display_name.strip(),"phone":input.phone.strip(),"company":input.company.strip(),"email":input.email.strip(),"address":input.address.strip(),"interest":input.service_interest.strip(),"notes":input.notes.strip(),"stage":input.stage,"temperature":input.temperature,"due":input.follow_up_due,"visited":input.site_visit_completed,"visit_date":input.site_visit_date,"actor":str(current.actor_id)}).mappings().one()
+    row=session.execute(text("""INSERT INTO sales_leads(tenant_id,branch_id,display_name,phone,company,company_not_entered,email,email_not_entered,address,service_interest,notes,stage,temperature,follow_up_due,site_visit_completed,site_visit_date,created_by,updated_by) VALUES (:tenant,:branch,:name,:phone,:company,:company_not_entered,:email,:email_not_entered,:address,:interest,:notes,:stage,:temperature,:due,:visited,:visit_date,:actor,:actor) RETURNING *"""), {"tenant":str(current.tenant_id),"branch":str(branch),"name":input.display_name.strip(),"phone":input.phone.strip(),"company":input.company.strip(),"company_not_entered":input.company_not_entered,"email":input.email.strip(),"email_not_entered":input.email_not_entered,"address":input.address.strip(),"interest":input.service_interest.strip(),"notes":input.notes.strip(),"stage":input.stage,"temperature":input.temperature,"due":input.follow_up_due,"visited":input.site_visit_completed,"visit_date":input.site_visit_date,"actor":str(current.actor_id)}).mappings().one()
     payload=_lead(row); _audit(session,current,"SALES_LEAD_CREATED","Sales lead created",{},payload); return payload
 @router.put("/leads/{lead_id}")
 def update_lead(lead_id:int,input:LeadInput,scope:ScopedTenant):
     session,current=scope; branch=_branch(_admin(scope, True),input.branch_id); before=session.execute(text("SELECT * FROM sales_leads WHERE id=:id"),{"id":lead_id}).mappings().one_or_none()
     if not before: raise auth_error("LEAD_NOT_FOUND",404)
-    row=session.execute(text("""UPDATE sales_leads SET branch_id=:branch,display_name=:name,phone=:phone,company=:company,email=:email,address=:address,service_interest=:interest,notes=:notes,stage=:stage,temperature=:temperature,follow_up_due=:due,site_visit_completed=:visited,site_visit_date=:visit_date,updated_by=:actor,updated_at=now() WHERE id=:id RETURNING *"""), {"id":lead_id,"branch":str(branch),"name":input.display_name.strip(),"phone":input.phone.strip(),"company":input.company.strip(),"email":input.email.strip(),"address":input.address.strip(),"interest":input.service_interest.strip(),"notes":input.notes.strip(),"stage":input.stage,"temperature":input.temperature,"due":input.follow_up_due,"visited":input.site_visit_completed,"visit_date":input.site_visit_date,"actor":str(current.actor_id)}).mappings().one(); payload=_lead(row); _audit(session,current,"SALES_LEAD_UPDATED","Sales lead updated",_lead(before),payload); return payload
+    row=session.execute(text("""UPDATE sales_leads SET branch_id=:branch,display_name=:name,phone=:phone,company=:company,company_not_entered=:company_not_entered,email=:email,email_not_entered=:email_not_entered,address=:address,service_interest=:interest,notes=:notes,stage=:stage,temperature=:temperature,follow_up_due=:due,site_visit_completed=:visited,site_visit_date=:visit_date,updated_by=:actor,updated_at=now() WHERE id=:id RETURNING *"""), {"id":lead_id,"branch":str(branch),"name":input.display_name.strip(),"phone":input.phone.strip(),"company":input.company.strip(),"company_not_entered":input.company_not_entered,"email":input.email.strip(),"email_not_entered":input.email_not_entered,"address":input.address.strip(),"interest":input.service_interest.strip(),"notes":input.notes.strip(),"stage":input.stage,"temperature":input.temperature,"due":input.follow_up_due,"visited":input.site_visit_completed,"visit_date":input.site_visit_date,"actor":str(current.actor_id)}).mappings().one(); payload=_lead(row); _audit(session,current,"SALES_LEAD_UPDATED","Sales lead updated",_lead(before),payload); return payload
 
 @router.get("/quotations")
 def list_quotations(scope:ScopedTenant,q:str="",quotation_status:QuotationStatus|None=Query(None,alias="status"),exact_date:date|None=Query(None,alias="exactDate"),month:str|None=None,branch_id:UUID|None=Query(None,alias="branchId")):
     current=_admin(scope); branch=_branch(current,branch_id) if branch_id else None
-    rows=scope[0].execute(text("""SELECT q.* FROM quotations q JOIN sales_leads l ON l.id=q.lead_id WHERE (:branch IS NULL OR q.branch_id=:branch) AND (:status IS NULL OR q.status=:status) AND (:exact IS NULL OR q.valid_until=:exact) AND (:exact IS NOT NULL OR :month IS NULL OR to_char(q.valid_until,'YYYY-MM')=:month) AND (:q='' OR q.quotation_no ILIKE :like OR l.display_name ILIKE :like OR l.company ILIKE :like) ORDER BY q.created_at DESC"""),{"branch":str(branch) if branch else None,"status":quotation_status,"exact":exact_date,"month":month,"q":q.strip(),"like":f"%{q.strip()}%"}).mappings(); return [_quotation(scope[0],row) for row in rows]
+    rows=scope[0].execute(text("""SELECT q.* FROM quotations q JOIN sales_leads l ON l.id=q.lead_id WHERE (:branch IS NULL OR q.branch_id=:branch) AND (:status IS NULL OR q.status=:status) AND (:exact IS NULL OR q.created_at::date=:exact) AND (:exact IS NOT NULL OR :month IS NULL OR to_char(q.created_at,'YYYY-MM')=:month) AND (:q='' OR q.quotation_no ILIKE :like OR l.display_name ILIKE :like OR l.company ILIKE :like) ORDER BY q.created_at DESC"""),{"branch":str(branch) if branch else None,"status":quotation_status,"exact":exact_date,"month":month,"q":q.strip(),"like":f"%{q.strip()}%"}).mappings(); return [_quotation(scope[0],row) for row in rows]
+
+@router.get("/service-tasks")
+def list_service_tasks(scope: ScopedTenant, q: str = "", branch_id: UUID | None = Query(None, alias="branchId")):
+    """The quotation picker only exposes active tasks in the selected branch."""
+    session, current = scope
+    branch = _branch(_admin(scope), branch_id)
+    rows = session.execute(text("""
+        SELECT id, name, description, rate, gst_rate FROM service_task_catalog
+        WHERE branch_id=:branch AND status='ACTIVE'
+          AND (:q='' OR name ILIKE :like OR description ILIKE :like)
+        ORDER BY name, id
+    """), {"branch": str(branch), "q": q.strip(), "like": f"%{q.strip()}%"}).mappings()
+    return [{"id": row["id"], "name": row["name"], "description": row["description"], "rate": float(row["rate"]), "gstRate": float(row["gst_rate"])} for row in rows]
 @router.post("/quotations",status_code=status.HTTP_201_CREATED)
 def create_quotation(input:QuotationInput,scope:ScopedTenant):
     session,current=scope; branch=_branch(_admin(scope,True),input.branch_id); lead=session.execute(text("SELECT * FROM sales_leads WHERE id=:id"),{"id":input.lead_id}).mappings().one_or_none()
@@ -131,6 +146,7 @@ def change_status(quotation_id:int,input:StatusInput,scope:ScopedTenant):
     return _quotation(session,changed)
 @router.get("/quotations/{quotation_id}/document")
 def quotation_document(quotation_id:int,scope:ScopedTenant):
-    session, _ = scope; _admin(scope); row=session.execute(text("SELECT document_snapshot,quotation_no FROM quotations WHERE id=:id"),{"id":quotation_id}).mappings().one_or_none()
+    session, _ = scope; _admin(scope); row=session.execute(text("SELECT document_snapshot,quotation_no,template_html,created_at FROM quotations WHERE id=:id"),{"id":quotation_id}).mappings().one_or_none()
     if not row: raise auth_error("QUOTATION_NOT_FOUND",404)
-    return {"quotationNo":row["quotation_no"],"snapshot":dict(row["document_snapshot"])}
+    # The template is the saved copy, never the mutable template definition.
+    return {"quotationNo":row["quotation_no"],"createdAt":row["created_at"],"templateHtml":row["template_html"],"snapshot":dict(row["document_snapshot"])}

@@ -401,8 +401,12 @@ function ServiceTaskCatalog({
   const visible = items.filter((item) =>
     normalizeSearch(item.name).includes(normalizeSearch(query)) &&
     (!departmentId || item.service_department_id === departmentId) &&
-    (!brandId || item.brand_id === brandId) &&
-    (!segmentId || item.car_segment_id === segmentId),
+    (brandId === 0 ||
+      (brandId === -1 ? item.brand_id == null : item.brand_id === brandId)) &&
+    (segmentId === 0 ||
+      (segmentId === -1
+        ? item.car_segment_id == null
+        : item.car_segment_id === segmentId)),
   );
   const clearFilters = () => { setQuery(""); setDepartmentId(0); setBrandId(0); setSegmentId(0); };
   return (
@@ -431,7 +435,7 @@ function ServiceTaskCatalog({
           Catalogs
         </button>
       </div>
-      {subTab === "tasks" && <div id="service-tasks-panel" role="tabpanel" aria-labelledby="service-tasks-tab" aria-label="Service Tasks">
+      {subTab === "tasks" && <div id="service-tasks-panel" className="service-task-panel" role="tabpanel" aria-labelledby="service-tasks-tab" aria-label="Service Tasks">
       <div className="panel-actions">
         <div>
           <h3>Service Tasks</h3>
@@ -457,8 +461,8 @@ function ServiceTaskCatalog({
           />
         </label>
         <label>Department<select aria-label="Filter department" value={departmentId} onChange={(event) => setDepartmentId(Number(event.target.value))}><option value={0}>All departments</option>{departments.map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}</select></label>
-        <label>Brand name<select aria-label="Filter brand name" value={brandId} onChange={(event) => setBrandId(Number(event.target.value))}><option value={0}>All brands</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>
-        <label>Car segment<select aria-label="Filter car segment" value={segmentId} onChange={(event) => setSegmentId(Number(event.target.value))}><option value={0}>All segments</option>{segments.map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}</select></label>
+        <label>Brand name<select aria-label="Filter brand name" value={brandId} onChange={(event) => setBrandId(Number(event.target.value))}><option value={0}>All brands</option><option value={-1}>- NA -</option>{brands.map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}</select></label>
+        <label>Car segment<select aria-label="Filter car segment" value={segmentId} onChange={(event) => setSegmentId(Number(event.target.value))}><option value={0}>All segments</option><option value={-1}>- NA -</option>{segments.map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}</select></label>
         <ListSearchActions onClear={clearFilters} />
       </div>
       {error && (
@@ -497,7 +501,7 @@ function ServiceTaskCatalog({
         <p className="empty-state">No active catalog services.</p>
       )}
       </div>}
-      {subTab === "catalogs" && <div id="catalogs-panel" role="tabpanel" aria-labelledby="catalogs-tab" aria-label="Catalogs">
+      {subTab === "catalogs" && <div id="catalogs-panel" className="service-task-catalogs-panel" role="tabpanel" aria-labelledby="catalogs-tab" aria-label="Catalogs">
       <div className="team-details-grid">
         <CatalogMasterList title="Brand names" table="service_brands" items={brands} mutate={mutate} />
         <CatalogMasterList title="Car segments" table="car_segments" items={segments} mutate={mutate} />
@@ -609,16 +613,16 @@ function CatalogServiceTaskDialog({
               base_rate: rate,
               gst_rate: gstRate,
               service_department_id: departmentId,
-              brand_id: brandId,
-              car_segment_id: segmentId,
+              brand_id: brandId || null,
+              car_segment_id: segmentId || null,
             })
           : createServiceCatalogItemForActor(db, actor.id, {
               name,
               base_rate: rate,
               gst_rate: gstRate,
               service_department_id: departmentId,
-              brand_id: brandId,
-              car_segment_id: segmentId,
+              brand_id: brandId || null,
+              car_segment_id: segmentId || null,
             }),
       setError,
     );
@@ -649,22 +653,28 @@ function CatalogServiceTaskDialog({
               {departments.filter((department) => department.status === "ACTIVE").map((department) => <option key={department.id} value={department.id}>{department.name}</option>)}
             </select>
           </label>
-          <label>
-            Brand name <button type="button" className="link-action" onClick={() => setQuickAdd("service_brands")}>Quick Add</button>
-            <select aria-label="Brand name" value={brandId} onChange={(event) => setBrandId(Number(event.target.value))}>
-              <option value={0}>Select brand</option>
+          <div className="service-task-field">
+            <div className="service-task-field-header">
+              <label htmlFor="service-task-brand">Brand name</label>
+              <button type="button" className="link-action" onClick={() => setQuickAdd("service_brands")}>Quick add new Brand</button>
+            </div>
+            <select id="service-task-brand" value={brandId} onChange={(event) => setBrandId(Number(event.target.value))}>
+              <option value={0}>- NA -</option>
               {brands.filter((brand) => brand.status === "ACTIVE").map((brand) => <option key={brand.id} value={brand.id}>{brand.name}</option>)}
             </select>
-          </label>
+          </div>
         </div>
         <div className="service-task-form-row">
-          <label>
-            Car segment <button type="button" className="link-action" onClick={() => setQuickAdd("car_segments")}>Quick Add</button>
-            <select aria-label="Car segment" value={segmentId} onChange={(event) => setSegmentId(Number(event.target.value))}>
-              <option value={0}>Select car segment</option>
+          <div className="service-task-field">
+            <div className="service-task-field-header">
+              <label htmlFor="service-task-car-segment">Car segment</label>
+              <button type="button" className="link-action" onClick={() => setQuickAdd("car_segments")}>Quick add new Car Segment</button>
+            </div>
+            <select id="service-task-car-segment" value={segmentId} onChange={(event) => setSegmentId(Number(event.target.value))}>
+              <option value={0}>- NA -</option>
               {segments.filter((segment) => segment.status === "ACTIVE").map((segment) => <option key={segment.id} value={segment.id}>{segment.name}</option>)}
             </select>
-          </label>
+          </div>
           <label>
             Service name
             <input

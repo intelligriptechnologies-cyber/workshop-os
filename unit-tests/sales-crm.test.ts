@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
-import { createSalesLead, createSchema, migrateSchema, readState, updateSalesLead } from "../src/db";
+import { createSalesLead, createSalesQuotation, createSchema, migrateSchema, readState, setSalesQuotationStatus, updateSalesLead, updateSalesQuotation } from "../src/db";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
@@ -28,4 +28,33 @@ test("updating a sales lead requires a name and phone", async () => {
   const input = { display_name: " ", phone: "9000000000", company: "", email: "", address: "", service_interest: "", notes: "", stage: "NEW" as const, temperature: "WARM" as const, follow_up_due: null, site_visit_completed: 0, site_visit_date: null };
   assert.throws(() => updateSalesLead(db, id, input), /Lead name and phone are required/);
   assert.throws(() => updateSalesLead(db, id, { ...input, display_name: "Lead", phone: " " }), /Lead name and phone are required/);
+});
+
+test("sales lead not-entered flags default to false and round-trip through updates", async () => {
+  const db = await database();
+  const id = createSalesLead(db, { display_name: "Lead", phone: "9000000000", company: "", email: "", address: "", service_interest: "", notes: "", stage: "NEW", temperature: "WARM", follow_up_due: null, site_visit_completed: 0, site_visit_date: null });
+  let lead = readState(db).sales_leads.find((item) => item.id === id)!;
+  assert.equal(lead.company_not_entered, 0);
+  assert.equal(lead.email_not_entered, 0);
+
+  updateSalesLead(db, id, { display_name: "Lead", phone: "9000000000", company: "", company_not_entered: 1, email: "", email_not_entered: 1, address: "", service_interest: "", notes: "", stage: "NEW", temperature: "WARM", follow_up_due: null, site_visit_completed: 0, site_visit_date: null });
+  lead = readState(db).sales_leads.find((item) => item.id === id)!;
+  assert.equal(lead.company_not_entered, 1);
+  assert.equal(lead.email_not_entered, 1);
+});
+
+test("draft quotations replace their saved lines and template snapshot without changing terminal documents", async () => {
+  const db = await database();
+  const lead = createSalesLead(db, { display_name: "Quotation lead", phone: "9000000000", company: "", email: "", address: "", service_interest: "", notes: "", stage: "NEW", temperature: "WARM", follow_up_due: null, site_visit_completed: 0, site_visit_date: null });
+  const input = { lead_id: lead, template_id: "quotation-default", template_html: "<main>first</main>", discount: 0, lines: [{ kind: "Service", description: "Initial line", quantity: 1, rate: 100, gst_rate: 18 }] };
+  const draft = createSalesQuotation(db, input);
+  updateSalesQuotation(db, draft, { ...input, template_html: "<main>draft override</main>", discount: 10, lines: [{ kind: "Service", description: "Replacement line", quantity: 2, rate: 200, gst_rate: 5 }] });
+  let quotation = readState(db).sales_quotations.find((item) => item.id === draft)!;
+  assert.equal(quotation.template_html, "<main>draft override</main>");
+  assert.equal(quotation.lines.length, 1);
+  assert.equal(quotation.lines[0].description, "Replacement line");
+  setSalesQuotationStatus(db, draft, "SENT");
+  assert.throws(() => updateSalesQuotation(db, draft, input), /Only draft quotations can be edited/);
+  quotation = readState(db).sales_quotations.find((item) => item.id === draft)!;
+  assert.equal(quotation.template_html, "<main>draft override</main>");
 });

@@ -11,23 +11,32 @@ validate Cognito tokens and fetch JWKS; it does not create public host ports.
 ## One-time operator setup
 
 The operator must create the external proxy network (if it is not already
-present) and two root-readable secret files **outside this repository**:
+present), grant the deployment SSH user permission to create and atomically
+replace files in `/opt/workshop/staging/secrets`, and create the protected
+GitHub **Environment** named `staging`. Restrict that Environment to the
+`Prem-dev-fbb` branch.
 
 ```sh
 docker network inspect workshopos-staging-proxy >/dev/null
 install -d -m 700 /opt/workshop/staging/secrets
-install -m 600 deploy/staging.api.env.example /opt/workshop/staging/secrets/workshopos-api.env
-install -m 600 deploy/staging.db.env.example /opt/workshop/staging/secrets/workshopos-db.env
-editor /opt/workshop/staging/secrets/workshopos-api.env
-editor /opt/workshop/staging/secrets/workshopos-db.env
 ```
+
+Create these two Environment secrets from populated copies of the templates;
+never commit those populated files:
+
+- `WORKSHOPOS_STAGING_API_ENV`: the full content of `deploy/staging.api.env.example`.
+- `WORKSHOPOS_STAGING_DB_ENV`: the full content of `deploy/staging.db.env.example`.
 
 Replace every `REPLACE_WITH_*` value. `POSTGRES_PASSWORD` and the password in
 `WORKSHOPOS_DATABASE_URL` must be identical. Use a Cognito app client without a
-client secret and configure its callback/logout URLs exactly as in the file.
+client secret and configure its callback/logout URLs exactly as in the template.
+The workflows reject missing, empty, placeholder, and mismatched database
+credentials before opening SSH. They write the Environment secrets to the VM
+with mode `0600` and atomically replace the Compose files. Rotate either secret
+by updating both Environment values together and running the deploy workflow.
 `WORKSHOPOS_ENVIRONMENT=staging`, `WORKSHOPOS_AUTH_MODE=cognito`, and
 `WORKSHOPOS_ALLOW_DEMO_AUTH=false` are forced by Compose and cannot be weakened
-by this file.
+by these files.
 
 ## Validate and deploy
 
@@ -43,8 +52,16 @@ docker compose -f deploy/compose.staging.yaml --project-name workshopos-staging 
 
 The first API startup applies Alembic migrations before it becomes healthy. Do
 not use `down -v`: `workshopos-staging-postgres-data` is the persistent staging
-database volume. The GitHub deploy workflow uses this same Compose definition;
-the secured file must already exist on the host.
+database volume. The GitHub deploy and start workflows provision and validate
+these files automatically.
+
+## Break-glass recovery
+
+If GitHub Actions is unavailable, an authorized VM operator may create the two
+files manually from the templates with mode `0600`, replace all placeholders,
+validate the matching database passwords, then run the commands above. Remove
+or rotate those manually supplied credentials after restoring normal workflow
+deployments.
 
 ## Required deployment verification
 
