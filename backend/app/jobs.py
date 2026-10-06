@@ -178,14 +178,13 @@ def _assert_active_advisor(session, current: TenantScope, branch_id: UUID, advis
 def _routing(session, current: TenantScope, branch_id: UUID, department_id: UUID, manager_id: UUID) -> dict[str, object]:
     """Resolve an active appointed manager; never trust IDs supplied by the browser."""
     row = session.execute(text("""
-        SELECT d.id, d.name, manager.id AS manager_membership_id, manager.user_id AS manager_id, user_row.display_name AS manager_name
+        SELECT d.id, d.name, manager.id AS manager_membership_id, manager.user_id AS manager_id
         FROM service_departments d
         JOIN service_department_managers dm ON dm.department_id=d.id
         JOIN tenant_memberships manager ON manager.id=dm.manager_membership_id AND manager.status='ACTIVE'
         JOIN membership_branches mb ON mb.membership_id=manager.id AND mb.branch_id=d.branch_id
         JOIN membership_roles mr ON mr.membership_id=manager.id AND mr.tenant_id=manager.tenant_id
         JOIN tenant_roles role ON role.id=mr.role_id AND role.system_key='service_manager' AND role.status='ACTIVE'
-        JOIN platform_users user_row ON user_row.id=manager.user_id
         WHERE d.id=:department_id AND d.tenant_id=:tenant_id AND d.branch_id=:branch_id AND d.status='ACTIVE'
           AND manager.user_id=:manager_id
     """), {"department_id": str(department_id), "tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "manager_id": str(manager_id)}).mappings().one_or_none()
