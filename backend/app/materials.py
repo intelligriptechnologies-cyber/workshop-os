@@ -41,6 +41,12 @@ class MaterialCommand(ApiModel):
     reason: Annotated[str, Field(max_length=2000)] = ""
 
 
+class MaterialShortageInput(ApiModel):
+    item_id: Annotated[int, Field(gt=0)] = Field(alias="itemId")
+    requested_qty: Annotated[float, Field(gt=0, le=100000)] = Field(alias="requestedQty")
+    branch_id: UUID | None = Field(default=None, alias="branchId")
+
+
 MaterialCommandName = Literal["issue", "return", "waste", "release", "reverse-issue"]
 
 
@@ -213,6 +219,22 @@ def create_reservation(input: MaterialReservationInput, scope: ScopedTenant, req
          "item_id": input.item_id, "quantity": input.quantity, "reason": input.note.strip() or "Reserved for approved job", "actor_id": str(current.actor_id)})
     payload = _reservation_with_totals(session, int(reservation["id"]))
     _audit(session, current, "MATERIAL_RESERVED", input.note.strip() or "Material reserved", {}, payload)
+    return payload
+
+
+@router.post("/material-shortages", status_code=status.HTTP_201_CREATED)
+def create_material_shortage(input: MaterialShortageInput, scope: ScopedTenant) -> dict[str, object]:
+    """Record a procurement demand only when authoritative branch availability is insufficient."""
+    session, current = scope
+    branch_id = _branch(_request_permission(scope, mutation=True), input.branch_id)
+    _item_for_update(session, input.item_id, branch_id)
+    available = _available_to_reserve(session, input.item_id, branch_id)
+    if input.requested_qty <= available:
+        raise auth_error("MATERIAL_SHORTAGE_NOT_PRESENT", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    row = session.execute(text("""INSERT INTO material_shortages(tenant_id,branch_id,item_id,requested_qty,available_qty,shortage_qty,status,created_by)
+        VALUES(:tenant,:branch,:item,:requested,:available,:shortage,'OPEN',:actor) RETURNING *"""), {"tenant": str(current.tenant_id), "branch": str(branch_id), "item": input.item_id, "requested": input.requested_qty, "available": available, "shortage": input.requested_qty - available, "actor": str(current.actor_id)}).mappings().one()
+    payload = {"id": row["id"], "itemId": row["item_id"], "requestedQty": float(row["requested_qty"]), "availableQty": float(row["available_qty"]), "shortageQty": float(row["shortage_qty"]), "status": row["status"]}
+    _audit(session, current, "MATERIAL_SHORTAGE_RECORDED", "Authoritative branch material shortage", {}, payload)
     return payload
 
 

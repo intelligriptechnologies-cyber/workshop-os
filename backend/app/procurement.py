@@ -23,6 +23,7 @@ class RequestLine(ApiModel):
     new_item_name: str | None = Field(default=None, alias="newItemName", max_length=500)
     unit: str | None = Field(default=None, max_length=80)
     ordered_qty: Annotated[float, Field(gt=0, le=100000000)] = Field(alias="orderedQty")
+    material_shortage_id: int | None = Field(default=None, alias="materialShortageId", gt=0)
     @model_validator(mode="after")
     def exactly_one_item(self):
         if (self.item_id is None) == (not bool((self.new_item_name or "").strip())): raise ValueError("exactly one of itemId or newItemName is required")
@@ -63,7 +64,7 @@ def _row(session, table: str, ident: int, code: str) -> dict[str, object]:
     value = session.execute(text(f"SELECT * FROM {table} WHERE id=:id"), {"id": ident}).mappings().one_or_none()
     if value is None: raise auth_error(code, status.HTTP_404_NOT_FOUND)
     return dict(value)
-def _line(row: dict[str, object]) -> dict[str, object]: return {"id": row["id"], "itemId": row["item_id"], "newItemName": row["new_item_name"], "unit": row["unit"], "orderedQty": float(row["ordered_qty"]), "lineNo": row["line_no"]}
+def _line(row: dict[str, object]) -> dict[str, object]: return {"id": row["id"], "itemId": row["item_id"], "newItemName": row["new_item_name"], "unit": row["unit"], "orderedQty": float(row["ordered_qty"]), "lineNo": row["line_no"], "materialShortageId": row.get("material_shortage_id")}
 def _request(session, request_id: int) -> dict[str, object]:
     row = _row(session, "purchase_requests", request_id, "PURCHASE_REQUEST_NOT_FOUND")
     lines = [_line(dict(line)) for line in session.execute(text("SELECT * FROM purchase_request_lines WHERE purchase_request_id=:id ORDER BY line_no"), {"id": request_id}).mappings()]
@@ -91,9 +92,12 @@ def create_request(input: PurchaseRequestInput, scope: ScopedTenant) -> dict[str
         if line.item_id:
             item = session.execute(text("SELECT name,unit FROM catalogue_items WHERE id=:id AND branch_id=:branch AND archived_at IS NULL"), {"id": line.item_id, "branch": str(branch)}).mappings().one_or_none()
             if item is None: raise auth_error("CATALOGUE_ITEM_NOT_AVAILABLE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if line.material_shortage_id:
+            shortage = session.execute(text("SELECT * FROM material_shortages WHERE id=:id AND status='OPEN'"), {"id": line.material_shortage_id}).mappings().one_or_none()
+            if shortage is None or int(shortage["item_id"]) != line.item_id or line.ordered_qty > float(shortage["shortage_qty"]): raise auth_error("MATERIAL_SHORTAGE_NOT_AUTHORIZED", status.HTTP_422_UNPROCESSABLE_ENTITY)
         unit = (line.unit or (str(item["unit"]) if item else "")).strip()
         if not unit: raise auth_error("NEW_ITEM_UNIT_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
-        session.execute(text("INSERT INTO purchase_request_lines(tenant_id,branch_id,purchase_request_id,line_no,item_id,new_item_name,unit,ordered_qty) VALUES(:tenant,:branch,:request,:number,:item,:name,:unit,:qty)"), {"tenant": str(current.tenant_id), "branch": str(branch), "request": request_id, "number": number, "item": line.item_id, "name": line.new_item_name.strip() if line.new_item_name else None, "unit": unit, "qty": line.ordered_qty})
+        session.execute(text("INSERT INTO purchase_request_lines(tenant_id,branch_id,purchase_request_id,line_no,item_id,new_item_name,unit,ordered_qty,material_shortage_id) VALUES(:tenant,:branch,:request,:number,:item,:name,:unit,:qty,:shortage)"), {"tenant": str(current.tenant_id), "branch": str(branch), "request": request_id, "number": number, "item": line.item_id, "name": line.new_item_name.strip() if line.new_item_name else None, "unit": unit, "qty": line.ordered_qty, "shortage": line.material_shortage_id})
     _event(session, current, request_id, "REQUESTED", input.source_reference.strip() or "Purchase Request created")
     payload = _request(session, request_id); _audit(session, current, "PURCHASE_REQUEST_CREATED", "Purchase Request created", {}, payload); return payload
 @router.post("/purchase-requests/{request_id}/supplier-quotes", status_code=status.HTTP_201_CREATED)
@@ -138,6 +142,7 @@ def approve(request_id: int, input: ApprovalInput, scope: ScopedTenant) -> dict[
         for seq,(line,choice,item_id) in enumerate(entries,1): session.execute(text("INSERT INTO purchase_order_lines(tenant_id,branch_id,purchase_order_id,item_id,line_no,ordered_qty,unit_cost,discount,gst_rate) VALUES(:tenant,:branch,:po,:item,:seq,:qty,:cost,0,0)"), {"tenant": str(current.tenant_id), "branch": str(request["branch_id"]), "po": po, "item": item_id, "seq": seq, "qty": line["ordered_qty"], "cost": choice.unit_cost})
         session.execute(text("INSERT INTO purchase_request_purchase_orders(tenant_id,branch_id,purchase_request_id,purchase_order_id) VALUES(:tenant,:branch,:request,:po)"), {"tenant": str(current.tenant_id), "branch": str(request["branch_id"]), "request": request_id, "po": po})
     session.execute(text("UPDATE purchase_requests SET status='APPROVED',approved_by=:actor,updated_at=now() WHERE id=:id"), {"actor": str(current.actor_id), "id": request_id}); _event(session,current,request_id,"APPROVED","Supplier selections approved")
+    session.execute(text("UPDATE material_shortages SET status='PROCURED',updated_at=now() WHERE id IN (SELECT material_shortage_id FROM purchase_request_lines WHERE purchase_request_id=:id AND material_shortage_id IS NOT NULL)"), {"id": request_id})
     payload=_request(session,request_id); _audit(session,current,"PURCHASE_REQUEST_APPROVED","Purchase Request approved",{},payload); return payload
 @router.post("/purchase-requests/{request_id}/commands/{command}")
 def command(request_id: int, command: Literal["issue"], input: EmptyCommand, scope: ScopedTenant) -> dict[str, object]:

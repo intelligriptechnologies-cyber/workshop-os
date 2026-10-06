@@ -86,9 +86,11 @@ def test_store_purchase_request_is_approved_and_issued_by_admin_with_durable_sup
     with TestClient(app) as client:
         admin, store = {"x-workshopos-identity": "procurement-admin"}, {"x-workshopos-identity": "procurement-store"}
         item = client.post("/api/v1/catalogue-items", headers=admin, json={"sku": "FILTER", "name": "Oil filter", "unit": "each"}).json()
+        shortage = client.post("/api/v1/material-shortages", headers=store, json={"itemId": item["id"], "requestedQty": 3})
+        assert shortage.status_code == 201, shortage.text
         supplier_a = client.post("/api/v1/suppliers", headers=admin, json={"name": "Budget Parts"}).json()
         supplier_b = client.post("/api/v1/suppliers", headers=admin, json={"name": "Reliable Parts"}).json()
-        request = client.post("/api/v1/purchase-requests", headers=store, json={"requestNumber": "PR-100", "sourceReference": "shortage:reservation-7", "lines": [{"itemId": item["id"], "orderedQty": 3}, {"newItemName": "Brake cleaner", "unit": "can", "orderedQty": 2}]})
+        request = client.post("/api/v1/purchase-requests", headers=store, json={"requestNumber": "PR-100", "sourceReference": "shortage:reservation-7", "lines": [{"itemId": item["id"], "materialShortageId": shortage.json()["id"], "orderedQty": 3}, {"newItemName": "Brake cleaner", "unit": "can", "orderedQty": 2}]})
         assert request.status_code == 201, request.text
         request_id = request.json()["id"]
         assert request.json()["status"] == "REQUESTED"
@@ -103,6 +105,7 @@ def test_store_purchase_request_is_approved_and_issued_by_admin_with_durable_sup
         approval = client.post(f"/api/v1/purchase-requests/{request_id}/approve", headers=admin, json={"lines": [{"lineId": first_line["id"], "supplierId": supplier_a["id"], "unitCost": 100}, {"lineId": new_line["id"], "supplierId": supplier_b["id"], "unitCost": 50, "inventoryItem": {"sku": "BRAKE-CLEAN", "category": "Chemicals", "name": "Brake cleaner", "unit": "can", "lowStockQty": 1, "sellingPrice": 90}}]})
         assert approval.status_code == 200, approval.text
         assert approval.json()["status"] == "APPROVED"
+        assert client.post("/api/v1/purchase-requests", headers=store, json={"requestNumber": "PR-101", "lines": [{"itemId": item["id"], "materialShortageId": shortage.json()["id"], "orderedQty": 3}]}).status_code == 422
         assert len(approval.json()["purchaseOrders"]) == 2
         issued = client.post(f"/api/v1/purchase-requests/{request_id}/commands/issue", headers=admin, json={})
         assert issued.status_code == 200, issued.text
