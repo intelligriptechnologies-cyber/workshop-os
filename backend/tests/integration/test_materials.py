@@ -100,15 +100,16 @@ def test_material_reservation_retry_is_idempotent_and_exposes_authoritative_avai
         tenant = _provision(client, "reservation-retry")
     route = _activate(str(tenant["id"]), "reservation-retry-user")
     with TestClient(app) as client:
-        headers = {"x-workshopos-identity": "reservation-retry-user", "Idempotency-Key": "reserve-oil-1"}
+        headers = {"x-workshopos-identity": "reservation-retry-user"}
+        reservation_headers = {**headers, "Idempotency-Key": "reserve-oil-1"}
         job_id = _approved_job(client, headers, route)
         item = client.post("/api/v1/catalogue-items", headers=headers, json={"sku": "OIL", "name": "Engine oil", "unit": "L"}).json()
         assert client.post("/api/v1/stock-inwards", headers=headers, json={"itemId": item["id"], "qty": 5, "note": "GRN-1"}).status_code == 201
 
-        first = client.post("/api/v1/material-reservations", headers=headers, json={"jobId": job_id, "itemId": item["id"], "quantity": 3, "note": "Approved service"})
+        first = client.post("/api/v1/material-reservations", headers=reservation_headers, json={"jobId": job_id, "itemId": item["id"], "quantity": 3, "note": "Approved service"})
         assert first.status_code == 201, first.text
         assert first.json()["availableToReserve"] == 2
-        retry = client.post("/api/v1/material-reservations", headers=headers, json={"jobId": job_id, "itemId": item["id"], "quantity": 3, "note": "Approved service"})
+        retry = client.post("/api/v1/material-reservations", headers=reservation_headers, json={"jobId": job_id, "itemId": item["id"], "quantity": 3, "note": "Approved service"})
         assert retry.status_code == 201, retry.text
         assert retry.json()["id"] == first.json()["id"]
         assert client.get("/api/v1/material-reservations", headers=headers).json() == [retry.json()]

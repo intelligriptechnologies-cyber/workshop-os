@@ -177,10 +177,17 @@ def _reconcile_purchase(session, purchase_id: int) -> None:
 def list_catalogue(scope: ScopedTenant, q: str = "", archived: bool = False, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _permission(scope, mutation=False)
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("""SELECT item.*, COALESCE(SUM(ledger.quantity),0) on_hand FROM catalogue_items item
-        LEFT JOIN stock_ledger ledger ON ledger.item_id=item.id WHERE (:archived=(item.archived_at IS NOT NULL))
-        AND (:branch_id IS NULL OR item.branch_id=:branch_id) AND (:q='' OR item.sku ILIKE :needle OR item.name ILIKE :needle OR item.category ILIKE :needle)
-        GROUP BY item.id ORDER BY item.name,item.id"""), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
+    clauses = ["item.archived_at IS NOT NULL" if archived else "item.archived_at IS NULL"]
+    params: dict[str, object] = {}
+    if branch_id is not None:
+        clauses.append("item.branch_id=:branch_id")
+        params["branch_id"] = str(branch_id)
+    if needle := q.strip():
+        clauses.append("(item.sku ILIKE :needle OR item.name ILIKE :needle OR item.category ILIKE :needle)")
+        params["needle"] = f"%{needle}%"
+    rows = session.execute(text(f"""SELECT item.*, COALESCE(SUM(ledger.quantity),0) on_hand FROM catalogue_items item
+        LEFT JOIN stock_ledger ledger ON ledger.item_id=item.id WHERE {' AND '.join(clauses)}
+        GROUP BY item.id ORDER BY item.name,item.id"""), params).mappings().all()
     return [_catalogue(dict(row)) for row in rows]
 
 
@@ -318,5 +325,11 @@ def adjust_stock(input: StockAdjustmentInput, scope: ScopedTenant) -> dict[str, 
 def list_stock_ledger(scope: ScopedTenant, item_id: int | None = Query(default=None, alias="itemId"), branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _permission(scope, mutation=False)
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("SELECT * FROM stock_ledger WHERE (:branch_id IS NULL OR branch_id=:branch_id) AND (:item_id IS NULL OR item_id=:item_id) ORDER BY created_at DESC,id DESC"), {"branch_id": str(branch_id) if branch_id else None, "item_id": item_id}).mappings().all()
+    filters, values = [], {}
+    if branch_id is not None:
+        filters.append("branch_id=:branch_id"); values["branch_id"] = str(branch_id)
+    if item_id is not None:
+        filters.append("item_id=:item_id"); values["item_id"] = item_id
+    where = f" WHERE {' AND '.join(filters)}" if filters else ""
+    rows = session.execute(text(f"SELECT * FROM stock_ledger{where} ORDER BY created_at DESC,id DESC"), values).mappings().all()
     return [{"id": row["id"], "branchId": str(row["branch_id"]), "itemId": row["item_id"], "inwardId": row["inward_id"], "entryType": row["entry_type"], "quantity": float(row["quantity"]), "unitCost": float(row["unit_cost"]), "reason": row["reason"], "actorId": str(row["actor_id"]), "createdAt": row["created_at"]} for row in rows]
