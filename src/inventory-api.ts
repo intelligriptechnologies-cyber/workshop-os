@@ -7,6 +7,9 @@ export type RemotePurchaseOrder = { id: number; branchId: string; supplierId: nu
 export type RemoteStockInward = { id: number; branchId: string; itemId: number; purchaseOrderId: number | null; purchaseOrderLineId: number | null; qty: number; unitCost: number; note: string; receivedAt: string };
 export type RemotePurchaseRequestLine = { id: number; itemId: number | null; newItemName: string | null; unit: string; orderedQty: number; lineNo: number };
 export type RemotePurchaseRequest = { id: number; requestNumber: string; sourceReference: string; notes: string; status: "REQUESTED" | "APPROVED" | "ISSUED" | "CANCELLED"; lines: RemotePurchaseRequestLine[]; purchaseOrders: RemotePurchaseOrder[]; events: Array<{ command: string; at: string }> };
+export type RemoteSupplierQuote = { supplierId: number; supplierName: string; unitCost: number; note: string };
+export type RemotePurchaseRequestComparison = { requestId: number; lines: Array<RemotePurchaseRequestLine & { quotes: RemoteSupplierQuote[] }> };
+export type RemoteNewCatalogueItem = { sku: string; category: string; name: string; unit: string; lowStockQty: number; sellingPrice: number };
 
 export class InventoryApiError extends Error { constructor(readonly code: string) { super(code); } }
 
@@ -38,7 +41,8 @@ export const inventoryApi = {
     list: (config: CognitoConfig) => request<RemotePurchaseRequest[]>(config, "/api/v1/purchase-requests"),
     create: (config: CognitoConfig, input: { requestNumber: string; sourceReference?: string; notes?: string; lines: Array<{ itemId?: number; newItemName?: string; unit?: string; orderedQty: number }> }) => request<RemotePurchaseRequest>(config, "/api/v1/purchase-requests", json(input)),
     quote: (config: CognitoConfig, id: number, input: { lineId: number; supplierId: number; unitCost: number; note?: string }) => request<unknown>(config, `/api/v1/purchase-requests/${id}/supplier-quotes`, json(input)),
-    approve: (config: CognitoConfig, id: number, lines: Array<{ lineId: number; supplierId: number; unitCost: number }>) => request<RemotePurchaseRequest>(config, `/api/v1/purchase-requests/${id}/approve`, json({ lines })),
+    comparison: (config: CognitoConfig, id: number) => request<RemotePurchaseRequestComparison>(config, `/api/v1/purchase-requests/${id}/supplier-comparison`),
+    approve: (config: CognitoConfig, id: number, lines: Array<{ lineId: number; supplierId: number; unitCost: number; inventoryItem?: RemoteNewCatalogueItem }>) => request<RemotePurchaseRequest>(config, `/api/v1/purchase-requests/${id}/approve`, json({ lines })),
     issue: (config: CognitoConfig, id: number) => request<RemotePurchaseRequest>(config, `/api/v1/purchase-requests/${id}/commands/issue`, json({})),
   },
   stock: {
