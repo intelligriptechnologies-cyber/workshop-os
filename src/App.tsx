@@ -54,6 +54,7 @@ import { RemoteTechnicianWorkspace } from "./remote-execution";
 import { RemoteFollowupsWorkspace } from "./remote-followups";
 import { RemoteSalesWorkspace } from "./remote-sales";
 import { RemoteMaterialsWorkspace } from "./remote-materials";
+import { RemoteInventoryWorkspace } from "./remote-inventory";
 import { LocalSalesWorkspace } from "./local-sales";
 import { dashboardFacts } from "./dashboard-metrics";
 import { supplierNameForPurchaseOrder } from "./purchase-order-supplier-display";
@@ -1531,6 +1532,8 @@ function RoleWorkspace({
   if (cognitoConfig && activeMenuItem === "Material Requests") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="requests" />;
   if (cognitoConfig && activeMenuItem === "Issue Material") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="issue" />;
   if (cognitoConfig && activeMenuItem === "Reconcile") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="reconcile" />;
+  if (cognitoConfig && activeMenuItem === "Purchase Orders") return <RemoteInventoryWorkspace config={cognitoConfig} mode="purchasing" />;
+  if (cognitoConfig && activeMenuItem === "Stock") return <RemoteInventoryWorkspace config={cognitoConfig} mode="stock" />;
   if (activeMenuItem === "Leads") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="leads" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="leads" />;
   if (activeMenuItem === "Quotations") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="quotations" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="quotations" />;
   if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" initialReportCategory="quotation" />;

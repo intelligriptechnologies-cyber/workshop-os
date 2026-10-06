@@ -22,6 +22,7 @@ from app.execution import router as execution_router
 from app.finance import router as finance_router
 from app.followups import router as followups_router
 from app.sales_crm import router as sales_crm_router
+from app.procurement import router as procurement_router
 
 
 app = FastAPI(title="WorkshopOS API", version="0.1.0")
@@ -35,6 +36,7 @@ app.include_router(execution_router)
 app.include_router(finance_router)
 app.include_router(followups_router)
 app.include_router(sales_crm_router)
+app.include_router(procurement_router)
 
 
 @app.exception_handler(HTTPException)
