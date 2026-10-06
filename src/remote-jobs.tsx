@@ -10,6 +10,8 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
   const [jobs, setJobs] = useState<RemoteJob[]>([]);
   const [selectedId, setSelectedId] = useState<number>();
   const [visitId, setVisitId] = useState("");
+  const [departmentId, setDepartmentId] = useState("");
+  const [responsibleManagerId, setResponsibleManagerId] = useState("");
   const [workList, setWorkList] = useState("");
   const [description, setDescription] = useState("");
   const [quantity, setQuantity] = useState("1");
@@ -42,8 +44,10 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
   return <section className="manager-panel" aria-label="Online job workflow">
     <div className="panel-actions"><div><h3>{mode === "jobs" ? "Job Cards" : "Estimates"}</h3><span>Live tenant and branch records. Demo data stays available when signed out.</span></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}
-    {mode === "jobs" && <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void run(async () => { await jobsApi.create(config, { visitId: Number(visitId), workList }); setVisitId(""); setWorkList(""); }); }}>
+    {mode === "jobs" && <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void run(async () => { await jobsApi.create(config, { visitId: Number(visitId), departmentId, responsibleManagerId, workList }); setVisitId(""); setDepartmentId(""); setResponsibleManagerId(""); setWorkList(""); }); }}>
       <label>Visit ID<input required min="1" type="number" value={visitId} onChange={(event) => setVisitId(event.target.value)} /></label>
+      <label>Service department ID<input required value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} /></label>
+      <label>Responsible manager ID<input required value={responsibleManagerId} onChange={(event) => setResponsibleManagerId(event.target.value)} /></label>
       <label>Initial work list<input value={workList} onChange={(event) => setWorkList(event.target.value)} /></label>
       <div className="action-row"><button className="primary-action" disabled={busy}>Create Job Card</button></div>
     </form>}
