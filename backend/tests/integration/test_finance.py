@@ -103,7 +103,8 @@ def test_issued_invoice_payment_receipt_void_and_handover_are_scoped_and_immutab
         invoice = invoice.json()
         assert invoice["totalPaise"] == 118000 and invoice["status"] == "UNPAID"
         assert client.post(f"/api/v1/jobs/{job_id}/invoices", headers={**headers, "Idempotency-Key": "issue-1"}, json={}).json()["id"] == invoice["id"]
-        assert client.get(f"/api/v1/jobs/{job_id}/invoices", headers={"x-workshopos-identity": "south-finance-user"}).json() == []
+        hidden_invoices = client.get(f"/api/v1/jobs/{job_id}/invoices", headers={"x-workshopos-identity": "south-finance-user"})
+        assert hidden_invoices.status_code == 404 and hidden_invoices.json()["code"] == "JOB_NOT_FOUND"
         partial = client.post(f"/api/v1/invoices/{invoice['id']}/payments", headers={**headers, "Idempotency-Key": "pay-1"}, json={"amountPaise": 18000, "method": "upi", "reference": "UPI-1"})
         assert partial.status_code == 201, partial.text
         assert client.post(f"/api/v1/invoices/{invoice['id']}/payments", headers=headers, json={"amountPaise": 100001, "method": "cash"}).status_code == 409

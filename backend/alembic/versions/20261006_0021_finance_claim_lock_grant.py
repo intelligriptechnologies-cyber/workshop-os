@@ -19,8 +19,10 @@ def upgrade() -> None:
     op.execute("GRANT SELECT, INSERT, UPDATE, DELETE ON active_invoice_claims TO workshopos_runtime")
     # `_active_invoice` locks both relations in its join to serialize issuance.
     op.execute("GRANT UPDATE ON invoices TO workshopos_runtime")
+    op.execute("GRANT UPDATE ON credit_notes TO workshopos_runtime")
 
 
 def downgrade() -> None:
     op.execute("REVOKE UPDATE ON active_invoice_claims FROM workshopos_runtime")
     op.execute("REVOKE UPDATE ON invoices FROM workshopos_runtime")
+    op.execute("REVOKE UPDATE ON credit_notes FROM workshopos_runtime")

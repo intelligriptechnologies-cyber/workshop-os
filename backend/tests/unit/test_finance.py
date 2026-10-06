@@ -27,3 +27,4 @@ def test_runtime_role_can_lock_the_active_invoice_claim_before_issuing() -> None
     sql = migration.read_text(encoding="utf-8")
     assert "GRANT SELECT, INSERT, UPDATE, DELETE ON active_invoice_claims TO workshopos_runtime" in sql
     assert "GRANT UPDATE ON invoices TO workshopos_runtime" in sql
+    assert "GRANT UPDATE ON credit_notes TO workshopos_runtime" in sql
