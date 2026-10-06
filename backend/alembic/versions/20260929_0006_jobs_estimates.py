@@ -41,7 +41,7 @@ def upgrade() -> None:
             updated_by uuid NOT NULL REFERENCES platform_users(id) ON DELETE RESTRICT,
             created_at timestamptz NOT NULL DEFAULT now(),
             updated_at timestamptz NOT NULL DEFAULT now(),
-            UNIQUE (tenant_id, job_no), UNIQUE (visit_id),
+            UNIQUE (tenant_id, job_no), UNIQUE (visit_id), UNIQUE (tenant_id, branch_id, id),
             FOREIGN KEY (tenant_id, branch_id) REFERENCES branches(tenant_id, id) ON DELETE RESTRICT
         );
         CREATE INDEX job_cards_scope_idx ON job_cards (tenant_id, branch_id, status, created_at DESC);

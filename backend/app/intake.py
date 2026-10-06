@@ -6,7 +6,8 @@ record operation is additionally guarded in Python for a clear client error
 and in PostgreSQL by RLS for a fail-closed database boundary.
 """
 
-from typing import Annotated
+from datetime import date
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Query, status
@@ -73,6 +74,32 @@ class VisitUpdate(ApiModel):
 
 class ArchiveInput(ApiModel):
     reason: Annotated[str, Field(min_length=1, max_length=1000)]
+
+
+BookingServiceType = Literal["Service Work", "General Checkup / Follow-up"]
+
+
+class BookingCreate(ApiModel):
+    branch_id: UUID | None = Field(default=None, alias="branchId")
+    customer_id: Annotated[int, Field(gt=0)] = Field(alias="customerId")
+    vehicle_id: Annotated[int, Field(gt=0)] = Field(alias="vehicleId")
+    booking_date: date = Field(alias="bookingDate")
+    service_type: BookingServiceType = Field(alias="serviceType")
+    arrival_window: Annotated[str, Field(max_length=80)] = Field(default="", alias="arrivalWindow")
+    requested_work: Annotated[str, Field(min_length=1, max_length=8000)] = Field(alias="requestedWork")
+
+
+class BookingCheckIn(ApiModel):
+    department_id: UUID | None = Field(default=None, alias="departmentId")
+    responsible_manager_id: UUID | None = Field(default=None, alias="responsibleManagerId")
+    fuel: Annotated[str, Field(min_length=1, max_length=200)]
+    odo_reading: Annotated[int, Field(ge=0)] = Field(alias="odoReading")
+    fuel_level_value: Annotated[str, Field(max_length=100)] = Field(default="", alias="fuelLevelValue")
+    fuel_level_unit: Annotated[str, Field(max_length=50)] = Field(default="", alias="fuelLevelUnit")
+    keys: Annotated[str, Field(max_length=1000)] = ""
+    accessories: Annotated[str, Field(max_length=4000)] = ""
+    requested_work: Annotated[str, Field(min_length=1, max_length=8000)] = Field(alias="requestedWork")
+    photos_note: Annotated[str, Field(max_length=4000)] = Field(default="", alias="photosNote")
 
 
 def _clean(value: str) -> str:
@@ -151,6 +178,17 @@ def _visit(row: dict[str, object]) -> dict[str, object]:
     return {"id": row["id"], "branchId": str(row["branch_id"]), "customerId": row["customer_id"], "vehicleId": row["vehicle_id"], "advisorId": str(row["advisor_id"]) if row["advisor_id"] else None, "receivedBy": str(row["received_by"]), "receivedAt": row["received_at"], "fuel": row["fuel"], "odoReading": row["odo_reading"], "fuelLevelValue": row["fuel_level_value"], "fuelLevelUnit": row["fuel_level_unit"], "keys": row["keys"], "accessories": row["accessories"], "requestedWork": row["requested_work"], "photosNote": row["photos_note"], "archivedAt": row["archived_at"], "createdAt": row["created_at"], "updatedAt": row["updated_at"]}
 
 
+def _booking(row: dict[str, object]) -> dict[str, object]:
+    return {
+        "id": row["id"], "branchId": str(row["branch_id"]), "customerId": row["customer_id"],
+        "vehicleId": row["vehicle_id"], "bookingDate": row["booking_date"],
+        "serviceType": row["service_type"], "arrivalWindow": row["arrival_window"],
+        "requestedWork": row["requested_work"], "status": row["status"],
+        "visitId": row["visit_id"], "jobCardId": row["job_card_id"], "arrivedAt": row["arrived_at"],
+        "createdAt": row["created_at"], "updatedAt": row["updated_at"],
+    }
+
+
 def _assert_active_customer(session, customer_id: int, branch_id: UUID) -> dict[str, object]:
     row = _row_or_404(session, "customers", customer_id)
     if row["branch_id"] != branch_id or row["archived_at"] is not None:
@@ -163,6 +201,134 @@ def _assert_active_vehicle(session, vehicle_id: int, branch_id: UUID, customer_i
     if row["branch_id"] != branch_id or row["customer_id"] != customer_id or row["archived_at"] is not None:
         raise auth_error("VEHICLE_NOT_AVAILABLE", status.HTTP_422_UNPROCESSABLE_ENTITY)
     return row
+
+
+def _booking_capacity(session, current: TenantScope, branch_id: UUID, booking_date: date, service_type: BookingServiceType) -> tuple[int, int]:
+    """Serialize one date/type allocation so simultaneous requests cannot oversell it."""
+    lock_key = f"{branch_id}:{booking_date.isoformat()}:{service_type}"
+    session.execute(text("SELECT pg_advisory_xact_lock(hashtextextended(:lock_key, 0))"), {"lock_key": lock_key})
+    limits = session.execute(text("""
+        SELECT service_work_capacity, general_checkup_followup_capacity
+        FROM booking_capacity_limits
+        WHERE tenant_id=:tenant_id AND branch_id=:branch_id AND booking_date=:booking_date
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "booking_date": booking_date}).mappings().one_or_none()
+    limit = int(limits["service_work_capacity"] if limits and service_type == "Service Work" else limits["general_checkup_followup_capacity"] if limits else 10)
+    allocated = int(session.execute(text("""
+        SELECT count(*) FROM bookings
+        WHERE tenant_id=:tenant_id AND branch_id=:branch_id AND booking_date=:booking_date
+          AND service_type=:service_type AND status IN ('BOOKED','CONFIRMED','RESCHEDULED')
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "booking_date": booking_date, "service_type": service_type}).scalar_one())
+    return allocated, limit
+
+
+@router.get("/bookings")
+def list_bookings(scope: ScopedTenant, booking_date: date | None = Query(default=None, alias="bookingDate"), branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
+    session, current = scope
+    _require_any(scope, ("page.receive-vehicle.read", "page.my-queue.read"))
+    if branch_id is not None:
+        _branch(current, branch_id)
+    clauses, parameters = [], {}
+    if branch_id is not None:
+        clauses.append("branch_id=:branch_id")
+        parameters["branch_id"] = str(branch_id)
+    if booking_date is not None:
+        clauses.append("booking_date=:booking_date")
+        parameters["booking_date"] = booking_date
+    where = f" WHERE {' AND '.join(clauses)}" if clauses else ""
+    rows = session.execute(text(f"SELECT * FROM bookings{where} ORDER BY booking_date, id"), parameters).mappings().all()
+    return [_booking(dict(row)) for row in rows]
+
+
+@router.post("/bookings", status_code=status.HTTP_201_CREATED)
+def create_booking(input: BookingCreate, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    branch_id = _branch(_require_any(scope, ("page.receive-vehicle.write", "page.my-queue.write"), mutation=True), input.branch_id)
+    _assert_active_customer(session, input.customer_id, branch_id)
+    _assert_active_vehicle(session, input.vehicle_id, branch_id, input.customer_id)
+    allocated, limit = _booking_capacity(session, current, branch_id, input.booking_date, input.service_type)
+    if allocated >= limit:
+        raise auth_error("BOOKING_CAPACITY_EXHAUSTED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    row = session.execute(text("""
+        INSERT INTO bookings (tenant_id,branch_id,customer_id,vehicle_id,booking_date,service_type,arrival_window,requested_work,created_by,updated_by)
+        VALUES (:tenant_id,:branch_id,:customer_id,:vehicle_id,:booking_date,:service_type,:arrival_window,:requested_work,:actor_id,:actor_id)
+        RETURNING *
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "customer_id": input.customer_id,
+             "vehicle_id": input.vehicle_id, "booking_date": input.booking_date, "service_type": input.service_type,
+             "arrival_window": input.arrival_window.strip(), "requested_work": _clean(input.requested_work), "actor_id": str(current.actor_id)}).mappings().one()
+    payload = _booking(dict(row))
+    _audit(session, current, "BOOKING_CREATED", "Capacity-aware booking created", {}, payload)
+    return payload
+
+
+@router.get("/bookings/{booking_id}")
+def get_booking(booking_id: int, scope: ScopedTenant) -> dict[str, object]:
+    session, _ = scope
+    _require_any(scope, ("page.receive-vehicle.read", "page.my-queue.read"))
+    row = session.execute(text("SELECT * FROM bookings WHERE id=:id"), {"id": booking_id}).mappings().one_or_none()
+    if row is None:
+        raise auth_error("BOOKING_NOT_FOUND", status.HTTP_404_NOT_FOUND)
+    return _booking(dict(row))
+
+
+@router.post("/bookings/{booking_id}/check-in")
+def check_in_booking(booking_id: int, input: BookingCheckIn, scope: ScopedTenant) -> dict[str, object]:
+    """Atomically turn one arrival into its durable Visit and routed Job Card."""
+    session, current = scope
+    _require_any(scope, ("page.receive-vehicle.write", "page.job-card.write", "page.my-queue.write"), mutation=True)
+    booking_row = session.execute(text("SELECT * FROM bookings WHERE id=:id FOR UPDATE"), {"id": booking_id}).mappings().one_or_none()
+    if booking_row is None:
+        raise auth_error("BOOKING_NOT_FOUND", status.HTTP_404_NOT_FOUND)
+    booking = dict(booking_row)
+    if booking["status"] not in ("BOOKED", "CONFIRMED", "RESCHEDULED"):
+        raise auth_error("BOOKING_CHECK_IN_NOT_ALLOWED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    branch_id = UUID(str(booking["branch_id"]))
+    # Import lazily because the Job router already depends on the intake helpers above.
+    from app.jobs import _job_with_estimates, _record_assignment
+    department_id, manager_id = input.department_id, input.responsible_manager_id
+    if (department_id is None) != (manager_id is None):
+        raise auth_error("BOOKING_ROUTING_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    route_filter = "" if department_id is None else "AND d.id=:department_id AND membership.user_id=:manager_id"
+    routes = session.execute(text(f"""
+            SELECT d.id AS department_id, membership.user_id AS manager_id
+            FROM service_departments d
+            JOIN service_department_managers manager_link ON manager_link.department_id=d.id
+            JOIN tenant_memberships membership ON membership.id=manager_link.manager_membership_id AND membership.status='ACTIVE'
+            JOIN membership_branches branch_membership ON branch_membership.membership_id=membership.id AND branch_membership.branch_id=d.branch_id
+            JOIN membership_roles roles ON roles.membership_id=membership.id
+            JOIN tenant_roles role ON role.id=roles.role_id AND role.system_key='service_manager' AND role.status='ACTIVE'
+            WHERE d.tenant_id=:tenant_id AND d.branch_id=:branch_id AND d.status='ACTIVE'
+              {route_filter}
+            ORDER BY d.name, membership.user_id LIMIT 2
+        """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "department_id": str(department_id) if department_id else None, "manager_id": str(manager_id) if manager_id else None}).mappings().all()
+    if len(routes) != 1:
+        raise auth_error("BOOKING_ROUTING_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    department_id, manager_id = UUID(str(routes[0]["department_id"])), UUID(str(routes[0]["manager_id"]))
+    visit_row = session.execute(text("""
+        INSERT INTO visits (tenant_id,branch_id,customer_id,vehicle_id,received_by,fuel,odo_reading,fuel_level_value,fuel_level_unit,keys,accessories,requested_work,photos_note)
+        VALUES (:tenant_id,:branch_id,:customer_id,:vehicle_id,:actor_id,:fuel,:odo_reading,:fuel_level_value,:fuel_level_unit,:keys,:accessories,:requested_work,:photos_note)
+        RETURNING *
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "customer_id": booking["customer_id"],
+             "vehicle_id": booking["vehicle_id"], "actor_id": str(current.actor_id), "fuel": _clean(input.fuel),
+             "odo_reading": input.odo_reading, "fuel_level_value": input.fuel_level_value.strip(), "fuel_level_unit": input.fuel_level_unit.strip(),
+             "keys": input.keys.strip(), "accessories": input.accessories.strip(), "requested_work": _clean(input.requested_work),
+             "photos_note": input.photos_note.strip()}).mappings().one()
+    job_row = session.execute(text("""
+        INSERT INTO job_cards (tenant_id,branch_id,job_no,visit_id,department_id,responsible_manager_id,assignment_state,status,work_list,created_by,updated_by)
+        VALUES (:tenant_id,:branch_id,'PENDING',:visit_id,:department_id,:manager_id,'AWAITING_ADVISOR_ASSIGNMENT','NEW',:work_list,:actor_id,:actor_id)
+        RETURNING *
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "visit_id": visit_row["id"],
+             "department_id": str(department_id), "manager_id": str(manager_id),
+             "work_list": _clean(input.requested_work), "actor_id": str(current.actor_id)}).mappings().one()
+    job_row = session.execute(text("UPDATE job_cards SET job_no=:job_no,updated_at=now() WHERE id=:id RETURNING *"), {"id": job_row["id"], "job_no": f"JC-{int(job_row['id']):06d}"}).mappings().one()
+    _record_assignment(session, current, int(job_row["id"]), branch_id, department_id, manager_id, None, "ROUTED_TO_MANAGER", "Booking checked in; awaiting advisor assignment")
+    updated = session.execute(text("""
+        UPDATE bookings SET status='ARRIVED',visit_id=:visit_id,job_card_id=:job_card_id,arrived_at=now(),updated_by=:actor_id,updated_at=now()
+        WHERE id=:id RETURNING *
+    """), {"id": booking_id, "visit_id": visit_row["id"], "job_card_id": job_row["id"], "actor_id": str(current.actor_id)}).mappings().one()
+    booking_payload = _booking(dict(updated))
+    job_payload = _job_with_estimates(session, int(job_row["id"]))
+    _audit(session, current, "BOOKING_CHECKED_IN", "Booking checked in to Visit and Job Card", _booking(booking), {"booking": booking_payload, "visit": _visit(dict(visit_row)), "job": job_payload})
+    return {"booking": booking_payload, "visit": _visit(dict(visit_row)), "job": job_payload}
 
 
 @router.get("/customers")

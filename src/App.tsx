@@ -270,6 +270,7 @@ import {
   type EmulationRole,
 } from "./developer-control-plane";
 import { BookingCalendar } from "./booking-calendar";
+import { RemoteBookingDesk } from "./remote-bookings";
 import {
   APP_THEME_FONTS,
   APP_THEME_PALETTES,
@@ -1523,6 +1524,7 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
+  if (cognitoConfig && activeMenuItem === "Advance Bookings") return <RemoteBookingDesk config={cognitoConfig} />;
   if (activeMenuItem === "Leads") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="leads" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="leads" />;
   if (activeMenuItem === "Quotations") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="quotations" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="quotations" />;
   if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" initialReportCategory="quotation" />;

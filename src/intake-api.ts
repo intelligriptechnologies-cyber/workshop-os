@@ -28,6 +28,14 @@ export type RemoteVehicle = Vehicle & { branchId: string; archivedAt: string | n
 export type CustomerInput = Pick<Customer, "name" | "mobile" | "type" | "address">;
 export type VehicleInput = Omit<Vehicle, "id">;
 export type VisitInput = Pick<RemoteVisit, "customerId" | "vehicleId" | "advisorId" | "fuel" | "odoReading" | "fuelLevelValue" | "fuelLevelUnit" | "keys" | "accessories" | "requestedWork" | "photosNote">;
+export type RemoteBooking = {
+  id: number; branchId: string; customerId: number; vehicleId: number; bookingDate: string;
+  serviceType: "Service Work" | "General Checkup / Follow-up"; arrivalWindow: string; requestedWork: string;
+  status: "BOOKED" | "CONFIRMED" | "RESCHEDULED" | "ARRIVED" | "CANCELLED" | "NO_SHOW";
+  visitId: number | null; jobCardId: number | null; arrivedAt: string | null;
+};
+export type BookingInput = Pick<RemoteBooking, "customerId" | "vehicleId" | "bookingDate" | "serviceType" | "arrivalWindow" | "requestedWork">;
+export type BookingCheckInInput = Pick<RemoteVisit, "fuel" | "odoReading" | "fuelLevelValue" | "fuelLevelUnit" | "keys" | "accessories" | "requestedWork" | "photosNote">;
 
 async function request<T>(config: CognitoConfig, path: string, init?: RequestInit): Promise<T> {
   const response = await authenticatedFetch(config, path, init);
@@ -39,6 +47,11 @@ async function request<T>(config: CognitoConfig, path: string, init?: RequestIni
 const json = (body: unknown): RequestInit => ({ method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 
 export const intakeApi = {
+  bookings: {
+    list: (config: CognitoConfig, bookingDate?: string) => request<RemoteBooking[]>(config, `/api/v1/bookings${bookingDate ? `?${new URLSearchParams({ bookingDate })}` : ""}`),
+    create: (config: CognitoConfig, input: BookingInput) => request<RemoteBooking>(config, "/api/v1/bookings", json(input)),
+    checkIn: (config: CognitoConfig, id: number, input: BookingCheckInInput) => request<{ booking: RemoteBooking; visit: RemoteVisit; job: { id: number; jobNo: string } }>(config, `/api/v1/bookings/${id}/check-in`, json(input)),
+  },
   customers: {
     list: (config: CognitoConfig, options: { q?: string; archived?: boolean } = {}) => request<RemoteCustomer[]>(config, `/api/v1/customers?${new URLSearchParams({ q: options.q ?? "", archived: String(options.archived ?? false) })}`),
     save: (config: CognitoConfig, input: CustomerInput & { id?: number }) => input.id
