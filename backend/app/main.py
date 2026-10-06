@@ -139,8 +139,8 @@ def read_tenant_settings(scope: ScopedTenant) -> dict[str, object]:
 def write_tenant_settings(input: SettingsUpdate, scope: ScopedTenant) -> dict[str, object]:
     """Write through the trusted Tenant context; caller-supplied tenant ids do not exist here."""
     session, current = scope
-    require_permission(scope, "tenant.settings.write")
     require_tenant_mutation(scope)
+    require_permission(scope, "tenant.settings.write")
     row = session.execute(
         text(
             """

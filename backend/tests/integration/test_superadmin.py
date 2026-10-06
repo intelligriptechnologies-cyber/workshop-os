@@ -105,7 +105,9 @@ def test_superadmin_provisions_audited_read_only_tenant_control_plane() -> None:
             "email": "owner@north.example.test",
             "status": "PENDING",
         }
-        assert tenant["platformBilling"]["agreedPrice"] == 2500
+        # Decimal values are serialized as JSON strings to preserve the exact
+        # agreed billing amount at the HTTP boundary.
+        assert tenant["platformBilling"]["agreedPrice"] == "2500.00"
 
         with get_engine().connect() as connection:
             assert connection.execute(
@@ -124,7 +126,7 @@ def test_superadmin_provisions_audited_read_only_tenant_control_plane() -> None:
                 text(
                     "SELECT count(*) FROM membership_roles AS mr "
                     "JOIN tenant_roles AS tr ON tr.id=mr.role_id "
-                    "WHERE mr.tenant_id=:tenant_id AND tr.system_key='owner_admin'"
+                    "WHERE mr.tenant_id=:tenant_id AND tr.system_key='admin'"
                 ),
                 {"tenant_id": tenant_id},
             ).scalar_one() == 1

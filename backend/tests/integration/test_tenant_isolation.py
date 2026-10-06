@@ -45,18 +45,9 @@ def test_rls_fails_closed_and_blocks_cross_tenant_and_cross_branch_rows() -> Non
 
     engine = get_engine()
     with engine.begin() as connection:
-        connection.execute(text("DELETE FROM tenant_audit_events"))
-        connection.execute(text("DELETE FROM support_emulations"))
-        connection.execute(text("DELETE FROM tenant_admin_invitations"))
-        connection.execute(text("DELETE FROM platform_billing"))
-        connection.execute(text("DELETE FROM superadmins"))
-        connection.execute(text("DELETE FROM branch_settings"))
-        connection.execute(text("DELETE FROM tenant_settings"))
-        connection.execute(text("DELETE FROM membership_branches"))
-        connection.execute(text("DELETE FROM tenant_memberships"))
-        connection.execute(text("DELETE FROM branches"))
-        connection.execute(text("DELETE FROM platform_users"))
-        connection.execute(text("DELETE FROM tenants"))
+        # Integration scenarios add tenant-owned dependants over time. Reset
+        # from the two roots so this RLS fixture remains order-independent.
+        connection.execute(text("TRUNCATE TABLE tenants, platform_users RESTART IDENTITY CASCADE"))
         connection.execute(text("INSERT INTO tenants (id, name, lifecycle_state) VALUES (:id, :name, 'active'), (:jaipur, 'Jaipur', 'active')"), {"id": str(NORTH_TENANT), "name": "North", "jaipur": str(JAIPUR_TENANT)})
         connection.execute(text("INSERT INTO branches (id, tenant_id, name, is_primary) VALUES (:id, :tenant, 'North Main', true), (:south, :tenant, 'North South', false), (:jaipur_branch, :jaipur, 'Jaipur Main', true)"), {"id": str(NORTH_BRANCH), "south": str(SOUTH_BRANCH), "tenant": str(NORTH_TENANT), "jaipur_branch": str(JAIPUR_BRANCH), "jaipur": str(JAIPUR_TENANT)})
         connection.execute(text("INSERT INTO platform_users (id, cognito_subject, display_name, email) VALUES (:id, 'north-user', 'North', 'north@example.test'), (:jaipur, 'jaipur-user', 'Jaipur', 'jaipur@example.test')"), {"id": str(NORTH_USER), "jaipur": str(JAIPUR_USER)})
