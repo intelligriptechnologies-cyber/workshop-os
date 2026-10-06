@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from pathlib import Path
 
 from app.finance import _fiscal_year, _render_html
 
@@ -19,3 +20,10 @@ def test_issued_document_html_escapes_untrusted_snapshot_content() -> None:
     assert '<script>' not in rendered
     assert '&lt;script&gt;alert(1)&lt;/script&gt;' in rendered
     assert 'INV-&lt;unsafe&gt;' in rendered
+
+
+def test_runtime_role_can_lock_the_active_invoice_claim_before_issuing() -> None:
+    migration = Path(__file__).parents[2] / "alembic" / "versions" / "20261006_0021_finance_claim_lock_grant.py"
+    sql = migration.read_text(encoding="utf-8")
+    assert "GRANT SELECT, INSERT, UPDATE, DELETE ON active_invoice_claims TO workshopos_runtime" in sql
+    assert "GRANT UPDATE ON invoices TO workshopos_runtime" in sql
