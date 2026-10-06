@@ -121,6 +121,7 @@ export function AdminConsole({
   onThemeSaved,
   onStateSaved,
   initialTab,
+  initialReportCategory,
 }: {
   state: WorkshopState;
   mutate: Mutate;
@@ -129,6 +130,7 @@ export function AdminConsole({
   onThemeSaved?: (theme: AppTheme) => void;
   onStateSaved?: () => void;
   initialTab?: AdminTab;
+  initialReportCategory?: ReportCategory;
 }) {
   const [tab, setTab] = useState<AdminTab>(initialTab ?? "Users");
   const [adminState, setAdminState] = useState<AdminDemoState>(() =>
@@ -261,6 +263,7 @@ export function AdminConsole({
             commit={commit}
             actingUser={actingUser}
             onDirtyChange={setTemplateDirty}
+            initialCategory={initialReportCategory}
           />
         )}
         {tab === "Inventory Import" && (
@@ -2461,6 +2464,7 @@ function ReportTemplatesTab({
   commit,
   actingUser,
   onDirtyChange,
+  initialCategory = "invoice",
 }: {
   adminState: AdminDemoState;
   commit: (
@@ -2469,8 +2473,9 @@ function ReportTemplatesTab({
   ) => boolean;
   actingUser: User;
   onDirtyChange: (dirty: boolean) => void;
+  initialCategory?: ReportCategory;
 }) {
-  const [category, setCategory] = useState<ReportCategory>("invoice");
+  const [category, setCategory] = useState<ReportCategory>(initialCategory);
   const categoryTemplates = adminState.reportTemplates.filter(
     (template) => template.category === category,
   );

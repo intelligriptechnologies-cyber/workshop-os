@@ -1,7 +1,7 @@
 import { useState } from "react";
 import type { Lead, LeadStage } from "./sales-api";
 import type { LeadFormDraft } from "./sales-lead-dialog";
-import type { ExportReport } from "./ui-kit";
+import { FilterClearButton, type ExportReport } from "./ui-kit";
 
 export const leadStages: Array<{ value: LeadStage; label: string }> = [
   { value: "NEW", label: "New" },
@@ -66,7 +66,7 @@ export function salesLeadsReport(leads: Lead[], createdMonth: string, query = ""
   };
 }
 
-export function SalesLeadFilterBar({ query, stage, createdMonth, busy, onQueryChange, onStageChange, onCreatedMonthChange, onApply, onClear }: {
+export function SalesLeadFilterBar({ query, stage, createdMonth, busy, onQueryChange, onStageChange, onCreatedMonthChange, onClear }: {
   query: string;
   stage: LeadStage | "";
   createdMonth: string;
@@ -74,26 +74,22 @@ export function SalesLeadFilterBar({ query, stage, createdMonth, busy, onQueryCh
   onQueryChange: (query: string) => void;
   onStageChange: (stage: LeadStage | "") => void;
   onCreatedMonthChange: (month: string) => void;
-  onApply: () => void;
   onClear: () => void;
 }) {
   return <div className="sales-lead-filter-row sales-crm-filter">
     <label className="list-search">Search leads
-      <input value={query} onChange={(event) => onQueryChange(event.target.value)} onKeyDown={(event) => {
-        if (event.key === "Enter") { event.preventDefault(); onApply(); }
-      }} placeholder="Name, company, or phone" />
+      <input aria-label="Search leads" value={query} disabled={busy} onChange={(event) => onQueryChange(event.target.value)} placeholder="Name, company, or phone" />
     </label>
     <label>Status
-      <select aria-label="Lead status filter" value={stage} onChange={(event) => onStageChange(event.target.value as LeadStage | "")}>
+      <select aria-label="Lead status filter" value={stage} disabled={busy} onChange={(event) => onStageChange(event.target.value as LeadStage | "")}>
         <option value="">All statuses</option>
         {leadStages.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
       </select>
     </label>
     <label>Created month/year
-      <input type="month" value={createdMonth} onChange={(event) => onCreatedMonthChange(event.target.value)} />
+      <input aria-label="Lead created month/year" type="month" value={createdMonth} disabled={busy} onChange={(event) => onCreatedMonthChange(event.target.value)} />
     </label>
-    <button type="button" onClick={onApply} disabled={busy}>Apply</button>
-    <button type="button" onClick={onClear} disabled={busy}>Clear</button>
+    <FilterClearButton onClick={onClear} disabled={busy} />
   </div>;
 }
 

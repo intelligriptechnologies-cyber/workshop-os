@@ -63,7 +63,7 @@ export const REPORT_PLACEHOLDERS: Record<ReportCategory, readonly string[]> = Ob
 ) as unknown as Record<ReportCategory, readonly string[]>;
 
 /** Bumped whenever the seeded default designs change; stale, unedited seeded defaults in a stored session are replaced. */
-export const DEFAULT_TEMPLATE_VERSION = 3;
+export const DEFAULT_TEMPLATE_VERSION = 4;
 
 const ACCENT = "#1f5f99";
 const INK = "#18222d";
@@ -105,10 +105,28 @@ const DEFAULT_TEMPLATE_HTML: Record<ReportCategory, string> = {
 
 export function seedReportTemplates(now: Date | string = new Date()): ReportTemplate[] {
   const timestamp = new Date(now).toISOString();
-  return (Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[]).map((category) => ({
+  const defaults = (Object.keys(REPORT_CATEGORY_LABELS) as ReportCategory[]).map((category) => ({
     id: `template-${category}-default`, category, name: `Standard ${REPORT_CATEGORY_LABELS[category]}`,
     html: DEFAULT_TEMPLATE_HTML[category], active: true, createdAt: timestamp, updatedAt: timestamp, seedVersion: DEFAULT_TEMPLATE_VERSION,
   }));
+  const quotation = defaults.find((template) => template.category === "quotation")!;
+  return [
+    ...defaults,
+    {
+      ...quotation,
+      id: "template-quotation-marron",
+      name: "Marron Template",
+      html: quotation.html.replaceAll(ACCENT, "#8b2f3c"),
+      active: false,
+    },
+    {
+      ...quotation,
+      id: "template-quotation-yellow",
+      name: "Yellow Template",
+      html: quotation.html.replaceAll(ACCENT, "#d97706"),
+      active: false,
+    },
+  ];
 }
 
 const LOOP_PATTERN = /{{\s*#lines\s*}}([\s\S]*?){{\s*\/lines\s*}}/g;

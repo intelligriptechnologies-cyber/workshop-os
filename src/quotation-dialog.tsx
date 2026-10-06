@@ -14,8 +14,8 @@ const money = (amount: number) => new Intl.NumberFormat("en-IN", { style: "curre
 const totals = (lines: QuotationLine[], discount: number) => { const subtotal = lines.reduce((sum, line) => sum + line.quantity * line.rate, 0); const gst = lines.reduce((sum, line) => sum + Math.max(0, line.quantity * line.rate - (subtotal ? discount * (line.quantity * line.rate / subtotal) : 0)) * line.gstRate / 100, 0); return { subtotal, gst, total: Math.max(0, subtotal - discount) + gst }; };
 
 function QuotationTotals({ subtotal, discount, gst, total }: { subtotal: number; discount: number; gst: number; total: number }) {
-  const items = [["Subtotal", subtotal], ["Discount", discount], ["GST", gst]] as const;
-  return <dl className="quotation-totals" aria-label="Quotation totals">{items.map(([label, amount]) => <div className="quotation-total-item" key={label}><dt>{label}</dt><dd>{money(amount)}</dd></div>)}<div className="quotation-total-item quotation-total-grand"><dt>Total</dt><dd>{money(total)}</dd></div></dl>;
+  const items = [["Subtotal", subtotal], ["Discount", discount], ["GST", gst], ["Total", total]] as const;
+  return <dl className="quotation-totals" aria-label="Quotation totals">{items.map(([label, amount]) => <div className={`quotation-total-item${label === "Total" ? " quotation-total-grand" : ""}`} key={label}><dt>{label}</dt><dd>{money(amount)}</dd></div>)}</dl>;
 }
 
 function CatalogDescriptionCombobox({ lineNumber, value, tasks, onChange, onSelect }: { lineNumber: number; value: string; tasks: ServiceTask[]; onChange: (description: string) => void; onSelect: (task: ServiceTask) => void }) {

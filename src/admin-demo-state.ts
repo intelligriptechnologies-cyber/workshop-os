@@ -539,7 +539,11 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
       const stale = fresh && (template.seedVersion ?? 0) < DEFAULT_TEMPLATE_VERSION && template.createdAt === template.updatedAt;
       return stale ? { ...fresh, active: template.active, createdAt: template.createdAt } : template;
     });
-    const templates = upgraded.length ? upgraded : seeded;
+    // Add newly introduced seeded options without discarding a user's custom
+    // templates or their currently selected active template.
+    const templates = upgraded.length
+      ? [...upgraded, ...seeded.filter((template) => !upgraded.some((candidate) => candidate.id === template.id))]
+      : seeded;
     const activeId = templates.find((template) => template.active)?.id ?? templates[0].id;
     return templates.map((template) => ({ ...template, active: template.id === activeId }));
   });

@@ -165,6 +165,7 @@ export async function openWorkshopDb() {
   migrateSchema(db);
   if (scalar<number>(db, "select count(*) from users") === 0) seed(db);
   ensureDemoAdvisors(db);
+  ensureDemoTeamStructure(db);
   persist(db);
   return db;
 }
@@ -706,6 +707,50 @@ export function ensureDemoAdvisors(db: Database) {
   }
 }
 
+/**
+ * The local demo starts with its service-routing structure already in place.
+ * Each record is keyed by its stable email/name, so this safely upgrades an
+ * existing browser database without replacing departments or appointments an
+ * administrator has added themselves.
+ */
+export function ensureDemoTeamStructure(db: Database) {
+  const seededManagers = [
+    ["general.service.manager@example.com", "General Service Manager", "General Service Work"],
+    ["ppf.paint.manager@example.com", "PPF/Paint Manager", "PPF/Paint Work"],
+  ] as const;
+
+  seededManagers.forEach(([email, name, departmentName]) => {
+    let manager = maybe<User>(db, "select * from users where email=?", [email]);
+    if (!manager) {
+      const id = insert(
+        db,
+        "insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service_manager', 'admin123', datetime('now'), datetime('now'))",
+        [email, name],
+      );
+      manager = one<User>(db, "select * from users where id=?", [id]);
+    }
+
+    let department = maybe<{ id: number }>(
+      db,
+      "select id from service_departments where lower(name)=lower(?)",
+      [departmentName],
+    );
+    if (!department) {
+      const id = createServiceDepartment(db, departmentName);
+      department = { id };
+    }
+
+    if (manager.archived_at) {
+      db.run("update users set archived_at=null, archived_reason=null, updated_at=datetime('now') where id=?", [manager.id]);
+    }
+    appointServiceDepartmentManager(db, department.id, manager.id);
+  });
+}
+
+function isPreloadedServiceManager(user: Pick<User, "email">) {
+  return user.email === "general.service.manager@example.com" || user.email === "ppf.paint.manager@example.com";
+}
+
 export function loadLargeDemoDataset(db: Database) {
   const subStatuses: SubStatus[] = [
     "Gather Requirements",
@@ -1111,7 +1156,8 @@ export function updateUser(
   id: number,
   payload: Pick<User, "email" | "name" | "role" | "password">,
 ) {
-  one<User>(db, "select * from users where id=? and archived_at is null", [id]);
+  const existing = one<User>(db, "select * from users where id=? and archived_at is null", [id]);
+  if (isPreloadedServiceManager(existing)) throw new Error("Preloaded Service Department Manager accounts are locked.");
   validateUser(db, payload, id);
   db.run(
     "update users set email=?, name=?, role=?, password=?, updated_at=datetime('now') where id=?",
@@ -1136,6 +1182,8 @@ export function archiveUser(
     "select * from users where id=? and archived_at is null",
     [id],
   );
+  if (isPreloadedServiceManager(target))
+    throw new Error("Preloaded Service Department Manager accounts are locked.");
   if (id === actingUserId)
     throw new Error("You cannot archive your own signed-in account.");
   if (!reason.trim()) throw new Error("An archive reason is required.");

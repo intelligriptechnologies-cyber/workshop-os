@@ -5,13 +5,26 @@ import { ADMIN_DEMO_STORAGE_KEY, createDefaultAdminDemoState, loadAdminDemoState
 
 test("every default template uses the modern accent band (prototype layout B) with company header, stamp and signature", () => {
   for (const template of seedReportTemplates("2026-09-26T00:00:00Z")) {
-    assert.match(template.html, /<header style="box-sizing:border-box;background:#1f5f99;color:#fff/, `${template.category} header band`);
+    const accent = template.id === "template-quotation-marron"
+      ? "#8b2f3c"
+      : template.id === "template-quotation-yellow"
+        ? "#d97706"
+        : "#1f5f99";
+    assert.match(template.html, new RegExp(`<header style="box-sizing:border-box;background:${accent};color:#fff`), `${template.name} header band`);
     for (const key of ["blocks.company_logo", "company.name", "company.address", "company.phone", "company.email", "company.gstin", "blocks.company_stamp", "blocks.authorized_signature"]) {
       assert.ok(template.html.includes(`{{${key}}}`), `${template.category} has ${key}`);
     }
     assert.equal(template.seedVersion, DEFAULT_TEMPLATE_VERSION);
     assert.doesNotMatch(template.html, /border-bottom:3px solid/);
   }
+});
+
+test("quotation seeds include reddish Marron and orangish Yellow template variants", () => {
+  const quotations = seedReportTemplates("2026-09-26T00:00:00Z").filter((template) => template.category === "quotation");
+  assert.deepEqual(quotations.map((template) => template.name), ["Standard Quotation", "Marron Template", "Yellow Template"]);
+  assert.match(quotations[1].html, /background:#8b2f3c/);
+  assert.match(quotations[2].html, /background:#d97706/);
+  assert.equal(quotations.filter((template) => template.active).length, 1);
 });
 
 test("amount in words uses Indian grouping", () => {
@@ -33,4 +46,8 @@ test("stale unedited seeded defaults upgrade; edited templates are kept", () => 
   const html = (category: string) => hydrated.reportTemplates.find((template) => template.category === category)!.html;
   assert.match(html("invoice"), /background:#1f5f99/);
   assert.equal(html("estimate"), "<p>mine</p>");
+  assert.deepEqual(
+    hydrated.reportTemplates.filter((template) => template.category === "quotation").map((template) => template.name),
+    ["Standard Quotation", "Marron Template", "Yellow Template"],
+  );
 });

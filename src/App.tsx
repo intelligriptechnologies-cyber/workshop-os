@@ -1525,7 +1525,7 @@ function RoleWorkspace({
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
   if (activeMenuItem === "Leads") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="leads" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="leads" />;
   if (activeMenuItem === "Quotations") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="quotations" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="quotations" />;
-  if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" />;
+  if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" initialReportCategory="quotation" />;
   if (cognitoConfig && activeMenuItem === "Follow-ups")
     return <RemoteFollowupsWorkspace config={cognitoConfig} mode="followups" />;
   if (cognitoConfig && activeMenuItem === "Search")

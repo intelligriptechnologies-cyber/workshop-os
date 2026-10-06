@@ -7,10 +7,13 @@ import {
   assignServiceAdvisorTeam,
   createSchema,
   createServiceDepartment,
+  ensureDemoTeamStructure,
   migrateSchema,
   readState,
   removeServiceAdvisorTeam,
   removeServiceDepartmentManager,
+  updateUser,
+  archiveUser,
 } from "../src/db";
 
 async function database() {
@@ -73,4 +76,26 @@ test("only active role-qualified users can be appointed or assigned", async () =
   assert.throws(() => assignServiceAdvisorTeam(db, departmentId, 1, 5), /Service Advisor role/);
   db.run("update users set archived_at='2026-10-03T00:00:00.000Z' where id=3");
   assert.throws(() => assignServiceAdvisorTeam(db, departmentId, 1, 3), /Expected row/);
+});
+
+test("preloads the two service departments and maps one manager to each", async () => {
+  const db = await database();
+
+  ensureDemoTeamStructure(db);
+  ensureDemoTeamStructure(db);
+
+  const state = readState(db);
+  const general = state.service_departments.find((department) => department.name === "General Service Work");
+  const ppfPaint = state.service_departments.find((department) => department.name === "PPF/Paint Work");
+  const generalManager = state.users.find((user) => user.email === "general.service.manager@example.com");
+  const ppfPaintManager = state.users.find((user) => user.email === "ppf.paint.manager@example.com");
+
+  assert.ok(general);
+  assert.ok(ppfPaint);
+  assert.equal(generalManager?.role, "service_manager");
+  assert.equal(ppfPaintManager?.role, "service_manager");
+  assert.deepEqual(general.manager_ids, [generalManager!.id]);
+  assert.deepEqual(ppfPaint.manager_ids, [ppfPaintManager!.id]);
+  assert.throws(() => updateUser(db, generalManager!.id, { ...generalManager!, name: "Changed" }), /locked/);
+  assert.throws(() => archiveUser(db, ppfPaintManager!.id, "No longer needed", 1), /locked/);
 });

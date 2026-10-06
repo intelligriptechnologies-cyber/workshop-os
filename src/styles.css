@@ -325,7 +325,7 @@ form {
 .sales-crm-filter { margin-bottom: 14px; }
 .sales-lead-filter-row {
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) minmax(10rem, .65fr) auto auto;
+  grid-template-columns: minmax(12rem, 1.4fr) minmax(8rem, .7fr) minmax(9rem, .8fr) auto;
   align-items: end;
   gap: 10px;
   margin-top: 14px;
@@ -334,7 +334,7 @@ form {
 .sales-lead-filter-row button { min-height: 42px; }
 .quotation-filter-row {
   display: grid;
-  grid-template-columns: minmax(14rem, 1fr) repeat(2, minmax(9rem, .7fr)) auto;
+  grid-template-columns: minmax(12rem, 1.35fr) repeat(2, minmax(8rem, .75fr)) auto;
   align-items: end;
   gap: 10px;
   margin-top: 14px;
@@ -350,6 +350,9 @@ form {
 @media (max-width: 720px) {
   .sales-lead-filter-row { grid-template-columns: 1fr 1fr; }
   .sales-lead-filter-row .list-search { grid-column: 1 / -1; }
+  .quotation-filter-row { grid-template-columns: 1fr 1fr; }
+  .quotation-filter-row .list-search { grid-column: 1 / -1; }
+  .quotation-filter-row .filter-clear-action { width: 100%; }
   .sales-crm-table { overflow-x: auto; }
   .sales-crm-table table { min-width: 760px; }
 }
@@ -1372,7 +1375,7 @@ main {
   width: min(100%, 34rem);
   justify-self: end;
   display: grid;
-  grid-template-columns: repeat(3, minmax(7rem, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 14px 24px;
   margin: 4px 0 0;
   padding: 16px 0 0;
@@ -1380,19 +1383,14 @@ main {
 }
 .quotation-total-item { display: grid; gap: 4px; min-width: 0; }
 .quotation-total-item dt { color: #657482; font-size: .78rem; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.quotation-total-item dd { margin: 0; color: #243447; font-weight: 600; text-align: right; white-space: nowrap; }
-.quotation-total-grand { grid-column: 1 / -1; grid-template-columns: 1fr auto; align-items: baseline; gap: 16px; padding-top: 14px; border-top: 1px solid #cfdbe0; }
+.quotation-total-item dd { margin: 0; color: #243447; font-weight: 600; text-align: right; overflow-wrap: anywhere; }
 .quotation-total-grand dt { color: #173b40; font-size: .9rem; }
 .quotation-total-grand dd { color: #075d63; font-size: 1.1rem; font-weight: 800; }
 .quotation-dialog .dialog-footer { padding-block: 14px; }
 .quotation-output-controls { display: inline-flex; flex-wrap: wrap; gap: 10px; }
 @media (max-width: 640px) {
-  .quotation-totals { width: 100%; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px 18px; }
-  .quotation-total-grand { grid-column: 1 / -1; }
+  .quotation-totals { width: 100%; gap: 12px 18px; }
   .quotation-dialog .dialog-footer { padding-block: 12px; }
-}
-@media (max-width: 400px) {
-  .quotation-totals { grid-template-columns: 1fr; }
 }
 .billing-manager { min-width: 0; }
 .billing-manager .table-wrap { margin-top: 12px; }
