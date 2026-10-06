@@ -97,18 +97,24 @@ def list_followups(
     _permission(scope, mutation=False)
     if branch_id is not None:
         _branch(current, branch_id)
-    rows = session.execute(text("""
+    filters = ["(f.archived_at IS NOT NULL)" if archived else "f.archived_at IS NULL"]
+    values: dict[str, object] = {}
+    if job_id is not None:
+        filters.append("f.job_card_id=:job_id")
+        values["job_id"] = job_id
+    if branch_id is not None:
+        filters.append("f.branch_id=:branch_id")
+        values["branch_id"] = str(branch_id)
+    rows = session.execute(text(f"""
         SELECT f.*, j.job_no, c.name AS customer_name, v.number AS vehicle_no
         FROM followups f
         JOIN job_cards j ON j.id=f.job_card_id
         JOIN visits visit ON visit.id=j.visit_id
         JOIN customers c ON c.id=visit.customer_id
         JOIN vehicles v ON v.id=visit.vehicle_id
-        WHERE (:job_id IS NULL OR f.job_card_id=:job_id)
-          AND (:branch_id IS NULL OR f.branch_id=:branch_id)
-          AND (:archived = (f.archived_at IS NOT NULL))
+        WHERE {' AND '.join(filters)}
         ORDER BY (f.status='OPEN') DESC, f.due_at NULLS LAST, f.updated_at DESC, f.id DESC
-    """), {"job_id": job_id, "branch_id": str(branch_id) if branch_id else None, "archived": archived}).mappings().all()
+    """), values).mappings().all()
     return [_payload(dict(row)) for row in rows]
 
 
@@ -211,27 +217,31 @@ def search(
     needle = f"%{q.strip()}%"
     prefix = f"{q.strip()}%"
     exact = q.strip()
-    rows = session.execute(text("""
+    branch_filters = {alias: "" if branch_id is None else f" AND {alias}.branch_id=:branch_id" for alias in ("c", "v", "j", "i")}
+    values: dict[str, object] = {"needle": needle, "prefix": prefix, "exact": exact, "entities": list(requested), "limit": limit}
+    if branch_id is not None:
+        values["branch_id"] = str(branch_id)
+    rows = session.execute(text(f"""
         SELECT * FROM (
           SELECT 'customer' AS entity, c.id, c.branch_id, c.name AS title, c.mobile AS subtitle,
             CASE WHEN lower(c.name)=lower(:exact) OR lower(c.mobile)=lower(:exact) THEN 0 WHEN c.name ILIKE :prefix OR c.mobile ILIKE :prefix THEN 1 ELSE 2 END AS rank
-          FROM customers c WHERE c.archived_at IS NULL AND (:branch_id IS NULL OR c.branch_id=:branch_id) AND (c.name ILIKE :needle OR c.mobile ILIKE :needle)
+          FROM customers c WHERE c.archived_at IS NULL{branch_filters['c']} AND (c.name ILIKE :needle OR c.mobile ILIKE :needle)
           UNION ALL
           SELECT 'vehicle', v.id, v.branch_id, v.number, concat_ws(' · ',v.make,v.model,c.name),
             CASE WHEN upper(v.number)=upper(:exact) THEN 0 WHEN v.number ILIKE :prefix THEN 1 ELSE 2 END
-          FROM vehicles v JOIN customers c ON c.id=v.customer_id WHERE v.archived_at IS NULL AND c.archived_at IS NULL AND (:branch_id IS NULL OR v.branch_id=:branch_id) AND (v.number ILIKE :needle OR v.make ILIKE :needle OR v.model ILIKE :needle OR c.name ILIKE :needle)
+          FROM vehicles v JOIN customers c ON c.id=v.customer_id WHERE v.archived_at IS NULL AND c.archived_at IS NULL{branch_filters['v']} AND (v.number ILIKE :needle OR v.make ILIKE :needle OR v.model ILIKE :needle OR c.name ILIKE :needle)
           UNION ALL
           SELECT 'job', j.id, j.branch_id, j.job_no, concat_ws(' · ',v.number,c.name,j.status),
             CASE WHEN lower(j.job_no)=lower(:exact) THEN 0 WHEN j.job_no ILIKE :prefix THEN 1 ELSE 2 END
           FROM job_cards j JOIN visits visit ON visit.id=j.visit_id JOIN customers c ON c.id=visit.customer_id JOIN vehicles v ON v.id=visit.vehicle_id
-          WHERE (:branch_id IS NULL OR j.branch_id=:branch_id) AND (j.job_no ILIKE :needle OR v.number ILIKE :needle OR c.name ILIKE :needle)
+          WHERE TRUE{branch_filters['j']} AND (j.job_no ILIKE :needle OR v.number ILIKE :needle OR c.name ILIKE :needle)
           UNION ALL
           SELECT 'invoice', i.id, i.branch_id, d.document_no, concat_ws(' · ',j.job_no,v.number,c.name),
             CASE WHEN lower(d.document_no)=lower(:exact) THEN 0 WHEN d.document_no ILIKE :prefix THEN 1 ELSE 2 END
           FROM invoices i JOIN financial_documents d ON d.id=i.issued_document_id JOIN job_cards j ON j.id=i.job_card_id
             JOIN visits visit ON visit.id=j.visit_id JOIN customers c ON c.id=visit.customer_id JOIN vehicles v ON v.id=visit.vehicle_id
           WHERE NOT EXISTS (SELECT 1 FROM financial_document_events event WHERE event.document_id=d.id AND event.event_type='VOID')
-            AND (:branch_id IS NULL OR i.branch_id=:branch_id) AND (d.document_no ILIKE :needle OR j.job_no ILIKE :needle OR v.number ILIKE :needle OR c.name ILIKE :needle)
+            {branch_filters['i']} AND (d.document_no ILIKE :needle OR j.job_no ILIKE :needle OR v.number ILIKE :needle OR c.name ILIKE :needle)
         ) AS searchable WHERE entity = ANY(:entities) ORDER BY rank, entity, title, id LIMIT :limit
-    """), {"needle": needle, "prefix": prefix, "exact": exact, "branch_id": str(branch_id) if branch_id else None, "entities": list(requested), "limit": limit}).mappings().all()
+    """), values).mappings().all()
     return {"query": q.strip(), "results": [{"entity": row["entity"], "id": row["id"], "branchId": str(row["branch_id"]), "title": row["title"], "subtitle": row["subtitle"], "rank": row["rank"]} for row in rows]}
