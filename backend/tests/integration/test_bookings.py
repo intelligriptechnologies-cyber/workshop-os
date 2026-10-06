@@ -71,6 +71,18 @@ def test_booking_check_in_creates_persisted_visit_and_job_and_isolation_holds() 
         assert booking.status_code == 201, booking.text
         booking_id = booking.json()["id"]
         assert client.get("/api/v1/bookings?bookingDate=2026-10-10", headers=south_headers).json() == []
+        from app.database import get_engine
+        with get_engine().begin() as connection:
+            unassigned_branch_id, viewer_user_id, viewer_membership_id = uuid4(), uuid4(), uuid4()
+            connection.execute(text("INSERT INTO branches (id,tenant_id,name,is_primary) VALUES (:id,:tenant_id,'North Secondary',false)"), {"id": str(unassigned_branch_id), "tenant_id": str(north["id"])})
+            connection.execute(text("INSERT INTO platform_users (id,cognito_subject,display_name,email) VALUES (:id,'north-viewer','North Viewer','viewer@north.example.test')"), {"id": str(viewer_user_id)})
+            connection.execute(text("INSERT INTO tenant_memberships (id,tenant_id,user_id,status) VALUES (:id,:tenant_id,:user_id,'ACTIVE')"), {"id": str(viewer_membership_id), "tenant_id": str(north["id"]), "user_id": str(viewer_user_id)})
+            connection.execute(text("UPDATE platform_users SET active_membership_id=:membership_id WHERE id=:id"), {"id": str(viewer_user_id), "membership_id": str(viewer_membership_id)})
+            connection.execute(text("INSERT INTO membership_branches (membership_id,branch_id,tenant_id) VALUES (:membership_id,:branch_id,:tenant_id)"), {"membership_id": str(viewer_membership_id), "branch_id": north_route["branch"], "tenant_id": str(north["id"])})
+        unassigned_branch = client.get(f"/api/v1/bookings?branchId={unassigned_branch_id}", headers=north_headers)
+        assert unassigned_branch.status_code == 403 and unassigned_branch.json()["code"] == "BRANCH_ACCESS_DENIED"
+        insufficient_role = client.get("/api/v1/bookings", headers={"x-workshopos-identity": "north-viewer"})
+        assert insufficient_role.status_code == 403 and insufficient_role.json()["code"] == "PERMISSION_DENIED"
         checked_in = client.post(f"/api/v1/bookings/{booking_id}/check-in", headers=north_headers, json={"departmentId": north_route["department"], "responsibleManagerId": north_route["manager"], "fuel": "3 bars", "odoReading": 1250, "fuelLevelValue": "3", "fuelLevelUnit": "bars", "keys": "one key", "accessories": "mat", "requestedWork": "Annual service", "photosNote": "No visible damage"})
         assert checked_in.status_code == 200, checked_in.text
         payload = checked_in.json()
@@ -80,8 +92,34 @@ def test_booking_check_in_creates_persisted_visit_and_job_and_isolation_holds() 
         assert payload["job"]["visitId"] == payload["visit"]["id"]
         assert payload["job"]["workList"] == "Annual service"
         assert client.get(f"/api/v1/bookings/{booking_id}", headers=south_headers).status_code == 404
+        assert client.get(f"/api/v1/jobs/{payload['job']['id']}", headers=south_headers).status_code == 404
         repeated = client.post(f"/api/v1/bookings/{booking_id}/check-in", headers=north_headers, json={"departmentId": north_route["department"], "responsibleManagerId": north_route["manager"], "fuel": "3 bars", "odoReading": 1250, "requestedWork": "Annual service"})
         assert repeated.status_code == 422 and repeated.json()["code"] == "BOOKING_CHECK_IN_NOT_ALLOWED"
+
+
+@pytest.mark.integration
+def test_support_emulation_can_read_bookings_but_cannot_check_in_and_is_audited() -> None:
+    _reset_database()
+    from app.main import app
+    with TestClient(app) as client:
+        north = _provision(client, "north")
+        route = _activate_and_route(str(north["id"]), "north-user")
+        owner_headers = {"x-workshopos-identity": "north-user"}
+        customer_id, vehicle_id = _customer_and_vehicle(client, owner_headers)
+        booking = client.post("/api/v1/bookings", headers=owner_headers, json={"customerId": customer_id, "vehicleId": vehicle_id, "bookingDate": "2026-10-10", "serviceType": "Service Work", "requestedWork": "Annual service"})
+        assert booking.status_code == 201, booking.text
+
+        emulation = client.post(f"/api/v1/superadmin/tenants/{north['id']}/emulations", headers={"x-workshopos-identity": "platform-superadmin"}, json={"reason": "Investigate booking"})
+        assert emulation.status_code == 201, emulation.text
+        emulated_headers = {"x-workshopos-identity": "platform-superadmin", "x-workshopos-emulation-id": emulation.json()["id"]}
+        visible = client.get("/api/v1/bookings", headers=emulated_headers)
+        assert visible.status_code == 200 and [row["id"] for row in visible.json()] == [booking.json()["id"]]
+        blocked = client.post(f"/api/v1/bookings/{booking.json()['id']}/check-in", headers=emulated_headers, json={"departmentId": route["department"], "responsibleManagerId": route["manager"], "fuel": "3 bars", "odoReading": 1250, "requestedWork": "Annual service"})
+        assert blocked.status_code == 403 and blocked.json()["code"] == "TENANT_READ_ONLY"
+
+        audit = client.get(f"/api/v1/superadmin/tenants/{north['id']}/audit-events", headers={"x-workshopos-identity": "platform-superadmin"})
+        assert audit.status_code == 200, audit.text
+        assert "SUPPORT_EMULATION_STARTED" in {event["action"] for event in audit.json()["events"]}
 
 
 @pytest.mark.integration
