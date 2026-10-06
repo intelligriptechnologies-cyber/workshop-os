@@ -8,12 +8,8 @@ from app.config import get_settings
 
 
 def get_engine() -> Engine:
-    """Create a process-local engine from the current settings."""
-    return create_engine(
-        str(get_settings().database_url),
-        pool_pre_ping=True,
-        connect_args={"connect_timeout": 3},
-    )
+    """Create a process-local engine from the configured PostgreSQL URL."""
+    return create_engine(str(get_settings().database_url), pool_pre_ping=True, connect_args={"connect_timeout": 3})
 
 
 def get_session() -> Generator[Session, None, None]:

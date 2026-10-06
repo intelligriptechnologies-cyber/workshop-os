@@ -1,8 +1,14 @@
-import { resolveJobDocumentActions, resolveJobDocuments, type DocumentKind, type JobDocumentAction } from "./job-documents";
+import {
+  resolveJobDocumentActions,
+  resolveJobDocuments,
+  type DocumentKind,
+  type JobDocumentAction,
+} from "./job-documents";
 import type { JobView, User } from "./types";
 
 export const JOB_CARD_TABS = [
   { key: "details", label: "Details" },
+  { key: "task-list", label: "Task List" },
   { key: "bodymark", label: "Body Mark" },
   { key: "materials", label: "Materials" },
   { key: "documents", label: "Documents" },
@@ -34,19 +40,34 @@ export interface JobCardFooter {
   downloads: FooterDownload[];
 }
 
-const ACTION_ORDER: FooterAction[] = ["create-estimate", "edit-estimate", "approve-estimate", "create-invoice", "edit-invoice"];
+const ACTION_ORDER: FooterAction[] = [
+  "create-estimate",
+  "edit-estimate",
+  "approve-estimate",
+  "create-invoice",
+  "edit-invoice",
+];
 
 /** Contextual actions (left) and document downloads (right) for the sticky footer. */
-export function resolveJobCardFooter(view: JobView, actor: Pick<User, "id" | "role">): JobCardFooter {
+export function resolveJobCardFooter(
+  view: JobView,
+  actor: Pick<User, "id" | "role">,
+): JobCardFooter {
   const actions = new Set<FooterAction>();
   for (const kind of ["estimate", "invoice"] as const) {
-    for (const action of resolveJobDocumentActions(kind, view, actor)) if (action !== "download") actions.add(action);
+    for (const action of resolveJobDocumentActions(kind, view, actor))
+      if (action !== "download") actions.add(action);
   }
-  const downloads = resolveJobDocuments(view).filter((doc) => doc.state !== "void").map((doc) => ({
-    kind: doc.kind,
-    label: doc.label,
-    enabled: doc.available,
-    reason: doc.available ? undefined : doc.message,
-  }));
-  return { actions: ACTION_ORDER.filter((action) => actions.has(action)), downloads };
+  const downloads = resolveJobDocuments(view)
+    .filter((doc) => doc.state !== "void")
+    .map((doc) => ({
+      kind: doc.kind,
+      label: doc.label,
+      enabled: doc.available,
+      reason: doc.available ? undefined : doc.message,
+    }));
+  return {
+    actions: ACTION_ORDER.filter((action) => actions.has(action)),
+    downloads,
+  };
 }

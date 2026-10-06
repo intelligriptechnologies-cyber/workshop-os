@@ -35,7 +35,8 @@ class ApiModel(BaseModel):
 
 class JobCreate(ApiModel):
     visit_id: Annotated[int, Field(gt=0)] = Field(alias="visitId")
-    advisor_id: UUID | None = Field(default=None, alias="advisorId")
+    department_id: UUID = Field(alias="departmentId")
+    responsible_manager_id: UUID = Field(alias="responsibleManagerId")
     branch_id: UUID | None = Field(default=None, alias="branchId")
     work_list: Annotated[str, Field(max_length=8000)] = Field(default="", alias="workList")
     promised_at: datetime | None = Field(default=None, alias="promisedAt")
@@ -67,6 +68,17 @@ class JobCommand(ApiModel):
     reason: Annotated[str, Field(max_length=4000)] = ""
 
 
+class AdvisorAssignment(ApiModel):
+    advisor_id: UUID = Field(alias="advisorId")
+    reason: Annotated[str, Field(max_length=4000)] = ""
+
+
+class ManagerTransfer(ApiModel):
+    department_id: UUID = Field(alias="departmentId")
+    responsible_manager_id: UUID = Field(alias="responsibleManagerId")
+    reason: Annotated[str, Field(max_length=4000)] = ""
+
+
 def _permission(scope: ScopedTenant, *, mutation: bool) -> TenantScope:
     return _require_any(
         scope,
@@ -86,6 +98,9 @@ def _job(row: dict[str, object]) -> dict[str, object]:
     return {
         "id": row["id"], "jobNo": row["job_no"], "visitId": row["visit_id"],
         "branchId": str(row["branch_id"]), "advisorId": str(row["advisor_id"]) if row["advisor_id"] else None,
+        "departmentId": str(row["department_id"]) if row.get("department_id") else None,
+        "responsibleManagerId": str(row["responsible_manager_id"]) if row.get("responsible_manager_id") else None,
+        "assignmentState": row.get("assignment_state") or "LEGACY",
         "status": row["status"], "workList": row["work_list"], "promisedAt": row["promised_at"],
         "createdAt": row["created_at"], "updatedAt": row["updated_at"],
     }
@@ -121,12 +136,27 @@ def _job_with_estimates(session, job_id: int) -> dict[str, object]:
         {"id": row["id"], "command": row["command"], "fromStatus": row["from_status"], "toStatus": row["to_status"], "reason": row["reason"], "requestKey": row["request_key"], "at": row["created_at"]}
         for row in session.execute(text("SELECT * FROM job_events WHERE job_card_id=:job_id ORDER BY id"), {"job_id": job_id}).mappings().all()
     ]
-    return {**_job(job), "estimates": estimates, "events": events}
+    history = [{
+        "id": row["id"], "action": row["action"], "reason": row["reason"], "at": row["created_at"],
+        "actorId": str(row["actor_id"]), "departmentId": str(row["department_id"]) if row["department_id"] else None,
+        "departmentName": row["department_name"], "managerId": str(row["manager_id"]) if row["manager_id"] else None,
+        "managerName": row["manager_name"], "advisorId": str(row["advisor_id"]) if row["advisor_id"] else None,
+        "advisorName": row["advisor_name"],
+    } for row in session.execute(text("SELECT * FROM job_assignment_history WHERE job_card_id=:job_id ORDER BY id"), {"job_id": job_id}).mappings().all()]
+    department = session.execute(text("SELECT name FROM service_departments WHERE id=:id"), {"id": str(job["department_id"])}).scalar() if job.get("department_id") else None
+    manager = session.execute(text("SELECT display_name FROM platform_users WHERE id=:id"), {"id": str(job["responsible_manager_id"])}).scalar() if job.get("responsible_manager_id") else None
+    advisor = session.execute(text("SELECT display_name FROM platform_users WHERE id=:id"), {"id": str(job["advisor_id"])}).scalar() if job.get("advisor_id") else None
+    return {**_job(job), "department": {"id": str(job["department_id"]), "name": department} if job.get("department_id") else None,
+            "responsibleManager": {"id": str(job["responsible_manager_id"]), "name": manager} if job.get("responsible_manager_id") else None,
+            "advisor": {"id": str(job["advisor_id"]), "name": advisor} if job.get("advisor_id") else None,
+            "assignmentHistory": history, "estimates": estimates, "events": events}
 
 
 def _assert_job_actor(current: TenantScope, job: dict[str, object]) -> None:
     """Tenant Admin has all granted page authority; advisors own assigned jobs."""
     if any(name == "Owner/Admin" for _, name, _ in current.roles):
+        return
+    if job.get("responsible_manager_id") is not None and str(job["responsible_manager_id"]) == str(current.actor_id):
         return
     if job["advisor_id"] is not None and str(job["advisor_id"]) == str(current.actor_id):
         return
@@ -145,6 +175,35 @@ def _assert_active_advisor(session, current: TenantScope, branch_id: UUID, advis
         raise auth_error("ADVISOR_NOT_AVAILABLE", status.HTTP_422_UNPROCESSABLE_ENTITY)
 
 
+def _routing(session, current: TenantScope, branch_id: UUID, department_id: UUID, manager_id: UUID) -> dict[str, object]:
+    """Resolve an active appointed manager; never trust IDs supplied by the browser."""
+    row = session.execute(text("""
+        SELECT d.id, d.name, manager.id AS manager_membership_id, manager.user_id AS manager_id, user_row.display_name AS manager_name
+        FROM service_departments d
+        JOIN service_department_managers dm ON dm.department_id=d.id
+        JOIN tenant_memberships manager ON manager.id=dm.manager_membership_id AND manager.status='ACTIVE'
+        JOIN membership_branches mb ON mb.membership_id=manager.id AND mb.branch_id=d.branch_id
+        JOIN membership_roles mr ON mr.membership_id=manager.id AND mr.tenant_id=manager.tenant_id
+        JOIN tenant_roles role ON role.id=mr.role_id AND role.system_key='service_manager' AND role.status='ACTIVE'
+        JOIN platform_users user_row ON user_row.id=manager.user_id
+        WHERE d.id=:department_id AND d.tenant_id=:tenant_id AND d.branch_id=:branch_id AND d.status='ACTIVE'
+          AND manager.user_id=:manager_id
+    """), {"department_id": str(department_id), "tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "manager_id": str(manager_id)}).mappings().one_or_none()
+    if row is None:
+        raise auth_error("MANAGER_NOT_ELIGIBLE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    return dict(row)
+
+
+def _record_assignment(session, current: TenantScope, job_id: int, branch_id: object, department_id: object | None, manager_id: object | None, advisor_id: object | None, action: str, reason: str) -> None:
+    department_name = session.execute(text("SELECT name FROM service_departments WHERE id=:id"), {"id": str(department_id)}).scalar() if department_id else None
+    manager_name = session.execute(text("SELECT display_name FROM platform_users WHERE id=:id"), {"id": str(manager_id)}).scalar() if manager_id else None
+    advisor_name = session.execute(text("SELECT display_name FROM platform_users WHERE id=:id"), {"id": str(advisor_id)}).scalar() if advisor_id else None
+    session.execute(text("""
+        INSERT INTO job_assignment_history (tenant_id,branch_id,job_card_id,department_id,department_name,manager_id,manager_name,advisor_id,advisor_name,actor_id,action,reason)
+        VALUES (:tenant_id,:branch_id,:job_id,:department_id,:department_name,:manager_id,:manager_name,:advisor_id,:advisor_name,:actor_id,:action,:reason)
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "job_id": job_id, "department_id": str(department_id) if department_id else None, "department_name": department_name, "manager_id": str(manager_id) if manager_id else None, "manager_name": manager_name, "advisor_id": str(advisor_id) if advisor_id else None, "advisor_name": advisor_name, "actor_id": str(current.actor_id), "action": action, "reason": reason})
+
+
 def _branch_requires_approval(session, branch_id: object) -> bool:
     row = session.execute(text("SELECT settings FROM branch_settings WHERE branch_id=:branch_id"), {"branch_id": str(branch_id)}).mappings().one_or_none()
     settings = dict(row["settings"]) if row and row["settings"] else {}
@@ -157,17 +216,21 @@ def list_jobs(scope: ScopedTenant, branch_id: UUID | None = Query(default=None, 
     _permission(scope, mutation=False)
     if branch_id is not None:
         _branch(current, branch_id)
+    is_owner = any(name == "Owner/Admin" for _, name, _ in current.roles)
     rows = session.execute(text("""
         SELECT * FROM job_cards WHERE (:branch_id IS NULL OR branch_id=:branch_id)
+          AND (:is_owner OR responsible_manager_id=:actor_id OR advisor_id=:actor_id)
         ORDER BY created_at DESC, id DESC
-    """), {"branch_id": str(branch_id) if branch_id else None}).mappings().all()
+    """), {"branch_id": str(branch_id) if branch_id else None, "is_owner": is_owner, "actor_id": str(current.actor_id)}).mappings().all()
     return [_job_with_estimates(session, int(row["id"])) for row in rows]
 
 
 @router.get("/jobs/{job_id}")
 def get_job(job_id: int, scope: ScopedTenant) -> dict[str, object]:
-    session, _ = scope
+    session, current = scope
     _permission(scope, mutation=False)
+    job = _row_or_404(session, "job_cards", job_id, "JOB_NOT_FOUND")
+    _assert_job_actor(current, job)
     return _job_with_estimates(session, job_id)
 
 
@@ -181,18 +244,78 @@ def create_job(input: JobCreate, scope: ScopedTenant) -> dict[str, object]:
     existing = session.execute(text("SELECT id FROM job_cards WHERE visit_id=:visit_id"), {"visit_id": input.visit_id}).mappings().one_or_none()
     if existing:
         raise auth_error("VISIT_ALREADY_HAS_JOB", status.HTTP_409_CONFLICT)
-    advisor_id = input.advisor_id or current.actor_id
-    _assert_active_advisor(session, current, branch_id, advisor_id)
+    _routing(session, current, branch_id, input.department_id, input.responsible_manager_id)
     row = session.execute(text("""
-        INSERT INTO job_cards (tenant_id, branch_id, job_no, visit_id, advisor_id, status, work_list, promised_at, created_by, updated_by)
-        VALUES (:tenant_id,:branch_id,'PENDING',:visit_id,:advisor_id,'NEW',:work_list,:promised_at,:actor_id,:actor_id)
+        INSERT INTO job_cards (tenant_id, branch_id, job_no, visit_id, department_id, responsible_manager_id, assignment_state, status, work_list, promised_at, created_by, updated_by)
+        VALUES (:tenant_id,:branch_id,'PENDING',:visit_id,:department_id,:manager_id,'AWAITING_ADVISOR_ASSIGNMENT','NEW',:work_list,:promised_at,:actor_id,:actor_id)
         RETURNING *
     """), {"tenant_id": str(current.tenant_id), "branch_id": str(branch_id), "visit_id": input.visit_id,
-             "advisor_id": str(advisor_id), "work_list": input.work_list.strip(),
+             "department_id": str(input.department_id), "manager_id": str(input.responsible_manager_id), "work_list": input.work_list.strip(),
              "promised_at": input.promised_at, "actor_id": str(current.actor_id)}).mappings().one()
     row = session.execute(text("UPDATE job_cards SET job_no=:job_no, updated_at=now() WHERE id=:id RETURNING *"), {"id": row["id"], "job_no": f"JC-{int(row['id']):06d}"}).mappings().one()
-    payload = _job(dict(row))
+    _record_assignment(session, current, int(row["id"]), branch_id, input.department_id, input.responsible_manager_id, None, "ROUTED_TO_MANAGER", "Awaiting advisor assignment")
+    payload = _job_with_estimates(session, int(row["id"]))
     _audit(session, current, "JOB_CREATED", "Job created from visit", {}, payload)
+    return payload
+
+
+@router.put("/jobs/{job_id}/advisor")
+def assign_job_advisor(job_id: int, input: AdvisorAssignment, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _permission(scope, mutation=True)
+    job = _row_or_404(session, "job_cards", job_id, "JOB_NOT_FOUND")
+    _assert_job_actor(current, job)
+    if job["status"] in ("CANCELLED", "CLOSED"):
+        raise auth_error("JOB_TERMINAL", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    if job.get("responsible_manager_id") is None or job.get("department_id") is None:
+        raise auth_error("JOB_ROUTING_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    # Only the responsible manager may delegate. Owners have transfer power,
+    # but cannot bypass a manager's branch-local advisor team.
+    if str(job["responsible_manager_id"]) != str(current.actor_id):
+        raise auth_error("MANAGER_ASSIGNMENT_REQUIRED", status.HTTP_403_FORBIDDEN)
+    advisor = session.execute(text("""
+        SELECT advisor.user_id FROM service_advisor_teams team
+        JOIN tenant_memberships advisor ON advisor.id=team.advisor_membership_id AND advisor.status='ACTIVE'
+        JOIN membership_branches mb ON mb.membership_id=advisor.id AND mb.branch_id=team.branch_id
+        JOIN membership_roles mr ON mr.membership_id=advisor.id AND mr.tenant_id=advisor.tenant_id
+        JOIN tenant_roles role ON role.id=mr.role_id AND role.system_key='service' AND role.status='ACTIVE'
+        WHERE team.tenant_id=:tenant_id AND team.branch_id=:branch_id AND team.department_id=:department_id
+          AND team.manager_membership_id=(SELECT id FROM tenant_memberships WHERE tenant_id=:tenant_id AND user_id=:manager_id)
+          AND advisor.user_id=:advisor_id
+    """), {"tenant_id": str(current.tenant_id), "branch_id": str(job["branch_id"]), "department_id": str(job["department_id"]), "manager_id": str(current.actor_id), "advisor_id": str(input.advisor_id)}).scalar()
+    if not advisor:
+        raise auth_error("ADVISOR_NOT_IN_MANAGER_TEAM", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    before = _job(job)
+    row = session.execute(text("""
+        UPDATE job_cards SET advisor_id=:advisor_id, assignment_state='ASSIGNED_TO_ADVISOR', updated_by=:actor_id, updated_at=now()
+        WHERE id=:job_id RETURNING *
+    """), {"advisor_id": str(input.advisor_id), "actor_id": str(current.actor_id), "job_id": job_id}).mappings().one()
+    _record_assignment(session, current, job_id, job["branch_id"], job["department_id"], job["responsible_manager_id"], input.advisor_id, "ADVISOR_ASSIGNED", input.reason.strip() or "Advisor delegated by manager")
+    payload = _job_with_estimates(session, job_id)
+    _audit(session, current, "JOB_ADVISOR_ASSIGNED", input.reason.strip() or "Advisor delegated by manager", before, payload)
+    return payload
+
+
+@router.put("/jobs/{job_id}/manager")
+def transfer_job_manager(job_id: int, input: ManagerTransfer, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _permission(scope, mutation=True)
+    if not any(name == "Owner/Admin" for _, name, _ in current.roles):
+        raise auth_error("MANAGER_TRANSFER_FORBIDDEN", status.HTTP_403_FORBIDDEN)
+    job = _row_or_404(session, "job_cards", job_id, "JOB_NOT_FOUND")
+    if job["status"] in ("CANCELLED", "CLOSED"):
+        raise auth_error("JOB_TERMINAL", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    if str(input.department_id) == str(job.get("department_id")) and str(input.responsible_manager_id) == str(job.get("responsible_manager_id")):
+        raise auth_error("MANAGER_TRANSFER_UNCHANGED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    _routing(session, current, UUID(str(job["branch_id"])), input.department_id, input.responsible_manager_id)
+    before = _job(job)
+    session.execute(text("""
+        UPDATE job_cards SET department_id=:department_id, responsible_manager_id=:manager_id, advisor_id=NULL,
+          assignment_state='AWAITING_ADVISOR_ASSIGNMENT', updated_by=:actor_id, updated_at=now() WHERE id=:job_id
+    """), {"department_id": str(input.department_id), "manager_id": str(input.responsible_manager_id), "actor_id": str(current.actor_id), "job_id": job_id})
+    _record_assignment(session, current, job_id, job["branch_id"], input.department_id, input.responsible_manager_id, None, "MANAGER_TRANSFERRED", input.reason.strip() or "Transferred by administrator")
+    payload = _job_with_estimates(session, job_id)
+    _audit(session, current, "JOB_MANAGER_TRANSFERRED", input.reason.strip() or "Transferred by administrator", before, payload)
     return payload
 
 

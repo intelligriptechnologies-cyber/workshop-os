@@ -1,6 +1,18 @@
-export type Role = "admin" | "service" | "reception" | "accounts" | "store" | "tech";
+export type Role =
+  "admin" | "service" | "service_manager" | "reception" | "accounts" | "store" | "tech";
 
-export type MainStatus = "NEW" | "IN_PROGRESS" | "HOLD" | "COMPLETED" | "CLOSED" | "CANCELLED";
+export type LeadStage = "NEW" | "QUALIFIED" | "QUOTATION_SENT" | "WON" | "LOST";
+export type LeadTemperature = "HOT" | "WARM" | "COLD";
+export type QuotationStatus = "DRAFT" | "SENT" | "ACCEPTED" | "REJECTED" | "EXPIRED";
+export interface SalesLead { id: number; display_name: string; phone: string; company: string; company_not_entered: number; email: string; email_not_entered: number; address: string; service_interest: string; notes: string; stage: LeadStage; temperature: LeadTemperature; follow_up_due: string | null; site_visit_completed: number; site_visit_date: string | null; created_at: string; updated_at: string; }
+export interface SalesQuotationLine { id: number; quotation_id: number; line_no: number; kind: string; description: string; quantity: number; rate: number; gst_rate: number; }
+export interface SalesQuotation { id: number; lead_id: number; quotation_no: string; status: QuotationStatus; valid_until: string | null; customer_notes: string; discount: number; subtotal: number; gst_amount: number; total: number; template_id: string; template_html: string; created_at: string; updated_at: string; lines: SalesQuotationLine[]; }
+export interface ServiceDepartmentAdvisorTeam { manager_id: number; advisor_id: number; }
+export interface ServiceDepartment { id: number; name: string; status: "ACTIVE" | "ARCHIVED"; created_at: string; updated_at: string; manager_ids: number[]; advisor_team_ids: number[]; advisor_teams: ServiceDepartmentAdvisorTeam[]; }
+export interface ServiceCatalogMaster { id: number; name: string; status: "ACTIVE" | "ARCHIVED"; created_at: string; updated_at: string; }
+
+export type MainStatus =
+  "NEW" | "IN_PROGRESS" | "HOLD" | "COMPLETED" | "CLOSED" | "CANCELLED";
 
 export type ChecklistStage = Exclude<MainStatus, "CANCELLED" | "HOLD">;
 
@@ -17,6 +29,7 @@ export type SubStatus =
   | "QC Pending"
   | "Customer Verification"
   | "Invoice Ready"
+  | "Remind Customer for Sharing Google Review/Feedback"
   | "Payment Received"
   | "Receipt Generated"
   | "Gate Pass Generated"
@@ -27,6 +40,10 @@ export type QcStatus = "Pending" | "Pass" | "Fail";
 export type PaymentStatus = "Pending" | "Partial" | "Paid";
 export type PaymentMode = "UPI" | "Cash" | "Card" | "Bank transfer" | "Other";
 export type ViewMode = "grid" | "table";
+export type BookingStatus =
+  "Booked" | "Confirmed" | "Arrived" | "Rescheduled" | "Cancelled" | "No-show";
+export type BookingArrivalWindow = "" | "Morning" | "Afternoon" | "Evening";
+export type BookingServiceType = "Service Work" | "General Checkup / Follow-up";
 
 export interface ListQuery {
   search: string;
@@ -86,7 +103,8 @@ export interface MediaListSummary {
   src: string;
   createdAt: string;
 }
-export type SearchCategory = "all" | "job" | "customer" | "vehicle" | "invoice" | "payment";
+export type SearchCategory =
+  "all" | "job" | "customer" | "vehicle" | "invoice" | "payment";
 
 export interface SearchCriteria {
   query: string;
@@ -168,6 +186,78 @@ export interface Visit {
   updated_at?: string;
 }
 
+/** A future reception reservation. It deliberately has no Visit or Job Card until check-in. */
+export interface Booking {
+  id: number;
+  customer_id?: number | null;
+  vehicle_id?: number | null;
+  customer_name: string;
+  mobile: string;
+  customer_type: string;
+  vehicle_no: string;
+  make: string;
+  model: string;
+  color: string;
+  requested_work: string;
+  service_type: BookingServiceType;
+  booking_date: string;
+  arrival_window: BookingArrivalWindow;
+  status: BookingStatus;
+  created_by: number;
+  confirmed_at?: string | null;
+  arrived_at?: string | null;
+  rescheduled_at?: string | null;
+  cancelled_at?: string | null;
+  no_show_at?: string | null;
+  reschedule_reason?: string | null;
+  cancellation_reason?: string | null;
+  no_show_reason?: string | null;
+  /** Set once this future reservation is received at reception. */
+  visit_id?: number | null;
+  /** Set once this future reservation is received at reception. */
+  job_card_id?: number | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface BookingCallLog {
+  id: number;
+  booking_id: number;
+  note: string;
+  called_by: number;
+  called_at: string;
+}
+
+export interface BookingEvent {
+  id: number;
+  booking_id: number;
+  kind: BookingStatus;
+  actor_id: number;
+  at: string;
+  note: string;
+  previous_booking_date?: string | null;
+  booking_date: string;
+}
+
+/** A per-day advance-booking ceiling. Missing rows use the workshop default. */
+export interface BookingCapacityLimit {
+  booking_date: string;
+  service_work_capacity: number;
+  general_checkup_followup_capacity: number;
+  set_by: number;
+  updated_at: string;
+}
+
+/** Records the exceptional Admin approval that admitted a booking over capacity. */
+export interface BookingCapacityOverride {
+  id: number;
+  booking_id: number;
+  booking_date: string;
+  reason: string;
+  approved_by: number;
+  approved_at: string;
+}
+
 export interface JobCard {
   id: number;
   job_no: string;
@@ -224,6 +314,38 @@ export interface EstimateItem {
   gst_rate?: number | null;
   archived_at?: string;
   archived_reason?: string;
+  created_at?: string;
+  updated_at?: string;
+  task_list_item_id?: number | null;
+}
+
+export interface ServiceCatalogItem {
+  id: number;
+  name: string;
+  base_rate: number;
+  gst_rate: number;
+  service_department_id?: number | null;
+  brand_id?: number | null;
+  car_segment_id?: number | null;
+  department_name?: string | null;
+  brand_name?: string | null;
+  car_segment_name?: string | null;
+  archived_at?: string | null;
+  archived_reason?: string | null;
+  created_at?: string;
+  updated_at?: string;
+}
+
+export interface JobTaskListItem {
+  id: number;
+  job_card_id: number;
+  service_catalog_item_id?: number | null;
+  name: string;
+  base_rate: number;
+  gst_rate: number;
+  done: number;
+  archived_at?: string | null;
+  archived_reason?: string | null;
   created_at?: string;
   updated_at?: string;
 }
@@ -352,7 +474,8 @@ export interface Supplier {
   updated_at: string;
 }
 
-export type InwardPurchaseStatus = "Draft" | "Awaiting PO Approval" | "Approved" | "Received" | "Submitted";
+export type InwardPurchaseStatus =
+  "Draft" | "Awaiting PO Approval" | "Approved" | "Received" | "Submitted";
 
 export interface InwardPurchase {
   id: number;
@@ -411,7 +534,18 @@ export interface InwardPurchaseRevision {
   revised_at: string;
 }
 
-export type PurchaseOrderStatus = "Draft" | "Sent" | "Partially Received" | "Ready to Close" | "Closed" | "Cancelled";
+export type PurchaseOrderStatus =
+  | "PO Request"
+  | "PO Request Approved"
+  | "PO Issued"
+  | "PO Received"
+  | "PO Confirmation"
+  | "Draft"
+  | "Sent"
+  | "Partially Received"
+  | "Ready to Close"
+  | "Closed"
+  | "Cancelled";
 
 /** A new purchasing commitment. Legacy inward_purchases remain receipt history. */
 export interface PurchaseOrder {
@@ -428,12 +562,17 @@ export interface PurchaseOrder {
   created_by: number;
   created_at: string;
   updated_at: string;
+  /** Child orders created when Admin splits a Purchase Request by supplier. */
+  source_purchase_order_id?: number | null;
 }
 
 export interface PurchaseOrderLine {
   id: number;
   purchase_order_id: number;
   item_id: number;
+  /** Populated for a New Item Request before Admin creates its SKU. */
+  item_name: string;
+  unit: string;
   ordered_qty: number;
   unit_cost: number;
   discount: number;
@@ -441,6 +580,52 @@ export interface PurchaseOrderLine {
   subtotal: number;
   gst_amount: number;
   total: number;
+  /** The requested line copied into a supplier-specific child Purchase Order. */
+  source_purchase_order_line_id?: number | null;
+}
+
+/** A manually captured supplier quote used only during Admin price review. */
+export interface PurchaseOrderQuotation {
+  id: number;
+  purchase_order_id: number;
+  purchase_order_line_id: number;
+  supplier_name: string;
+  quote_date: string;
+  quoted_qty: number;
+  unit_cost: number;
+  notes: string;
+  created_by: number;
+  created_at: string;
+  updated_at: string;
+}
+
+/** A supplier delivery recorded against an issued Purchase Order. It does not change inventory. */
+export interface PurchaseOrderReceipt {
+  id: number;
+  purchase_order_id: number;
+  received_by: number;
+  received_at: string;
+  note: string;
+}
+
+export interface PurchaseOrderReceiptLine {
+  id: number;
+  purchase_order_receipt_id: number;
+  purchase_order_line_id: number;
+  delivered_qty: number;
+}
+
+/** Admin's final disposition of a delivered Purchase Order line, before closure posts Stock Inward. */
+export interface PurchaseOrderConfirmation {
+  id: number;
+  purchase_order_id: number;
+  purchase_order_line_id: number;
+  accepted_qty: number;
+  returned_qty: number;
+  damaged_qty: number;
+  wasted_qty: number;
+  confirmed_by: number;
+  confirmed_at: string;
 }
 
 /** A physical receipt. Its linked ledger row is the sole inventory movement. */
@@ -651,6 +836,7 @@ export interface JobView {
   technician: User;
   estimate?: Estimate;
   estimate_items: EstimateItem[];
+  task_list_items: JobTaskListItem[];
   material_requests: MaterialRequest[];
   local_purchases: LocalPurchase[];
   material_purchase_requests: MaterialPurchaseRequest[];
@@ -686,12 +872,18 @@ export interface WorkshopState {
   customers: Customer[];
   vehicles: Vehicle[];
   visits: Visit[];
+  bookings: Booking[];
+  booking_call_logs: BookingCallLog[];
+  booking_events: BookingEvent[];
+  booking_capacity_limits: BookingCapacityLimit[];
+  booking_capacity_overrides: BookingCapacityOverride[];
   jobs: JobView[];
   /** Historical records are deliberately separate so operational screens stay active-only. */
   archived_customers: Customer[];
   archived_vehicles: Vehicle[];
   archived_jobs: JobView[];
   inventory: InventoryItem[];
+  service_catalog: ServiceCatalogItem[];
   attendance: AdvisorAttendance[];
   suppliers: Supplier[];
   inward_purchases: InwardPurchase[];
@@ -700,7 +892,16 @@ export interface WorkshopState {
   inward_purchase_revisions: InwardPurchaseRevision[];
   purchase_orders: PurchaseOrder[];
   purchase_order_lines: PurchaseOrderLine[];
+  purchase_order_quotations: PurchaseOrderQuotation[];
+  purchase_order_receipts: PurchaseOrderReceipt[];
+  purchase_order_receipt_lines: PurchaseOrderReceiptLine[];
+  purchase_order_confirmations: PurchaseOrderConfirmation[];
   stock_inwards: StockInward[];
+  sales_leads: SalesLead[];
+  sales_quotations: SalesQuotation[];
+  service_departments: ServiceDepartment[];
+  service_brands: ServiceCatalogMaster[];
+  car_segments: ServiceCatalogMaster[];
 }
 
 export interface AdvisorAttendance {

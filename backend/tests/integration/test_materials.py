@@ -74,7 +74,12 @@ def test_reservation_issue_return_waste_are_scoped_and_never_overdraw_stock() ->
         assert client.post(f"/api/v1/material-reservations/{reservation.json()['id']}/commands/issue", headers=headers, json={"quantity": 2}).status_code == 409
         assert client.post(f"/api/v1/material-reservations/{reservation.json()['id']}/commands/return", headers=headers, json={"quantity": 1}).status_code == 200
         assert client.post(f"/api/v1/material-reservations/{reservation.json()['id']}/commands/waste", headers=headers, json={"quantity": 2, "reason": "Spillage"}).status_code == 200
-        assert client.get("/api/v1/catalogue-items", headers=headers).json()[0]["onHand"] == 1
+        # Waste settles stock already issued to the job. It must not subtract
+        # the same physical quantity a second time from the Store balance.
+        assert client.get("/api/v1/catalogue-items", headers=headers).json()[0]["onHand"] == 3
         entries = client.get("/api/v1/material-ledger", headers=headers).json()
         assert {entry["entryType"] for entry in entries} >= {"RESERVE", "ISSUE", "RETURN", "WASTE"}
+        stock_entries = client.get("/api/v1/stock-ledger", headers=headers).json()
+        assert {entry["entryType"] for entry in stock_entries} >= {"INWARD", "ISSUE", "RETURN"}
+        assert all(entry["entryType"] != "WASTE" for entry in stock_entries)
         assert client.get("/api/v1/material-reservations", headers={"x-workshopos-identity": "south-material-user"}).json() == []

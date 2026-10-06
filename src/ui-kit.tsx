@@ -1,5 +1,5 @@
 import { Download } from "lucide-react";
-import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode, type RefObject } from "react";
 import { downloadExcel, downloadPdf, type ExportColumn, type ExportReport } from "./export-utils";
 import { PAGE_SIZE_OPTIONS } from "./list-utils";
 
@@ -85,10 +85,30 @@ export function Dialog({ title, subtitle, onClose, children, wide = false, foote
 
 export interface SearchSelectOption { value: number | string; label: string }
 
+/** Closes an open picker without changing its input or selected value. */
+export function usePickerDismissal(rootRef: RefObject<HTMLElement | null>, open: boolean, onDismiss: () => void) {
+  const onDismissRef = useRef(onDismiss);
+  useEffect(() => { onDismissRef.current = onDismiss; }, [onDismiss]);
+  useEffect(() => {
+    if (!open) return;
+    const dismissIfOutside = (event: PointerEvent | FocusEvent) => {
+      if (!rootRef.current?.contains(event.target as Node)) onDismissRef.current();
+    };
+    document.addEventListener("pointerdown", dismissIfOutside);
+    document.addEventListener("focusin", dismissIfOutside);
+    return () => {
+      document.removeEventListener("pointerdown", dismissIfOutside);
+      document.removeEventListener("focusin", dismissIfOutside);
+    };
+  }, [open, rootRef]);
+}
+
 export function SearchSelect({ label, options, value, onChange, placeholder = 'Search...', disabled = false, hideLabel = false, openOnFocus = true }: { label: string; options: SearchSelectOption[]; value: number | string | undefined; onChange: (value: number | string) => void; placeholder?: string; disabled?: boolean; hideLabel?: boolean; openOnFocus?: boolean }) {
   const [open, setOpen] = useState(false); const [query, setQuery] = useState(''); const listId = useId();
+  const rootRef = useRef<HTMLLabelElement>(null);
+  usePickerDismissal(rootRef, open, () => setOpen(false));
   const selected = options.find((option) => option.value === value); const needle = query.trim().toLowerCase(); const shown = options.filter((option) => !needle || option.label.toLowerCase().includes(needle)).slice(0, 100);
-  return <label className="search-select"><span className={hideLabel ? "sr-only" : undefined}>{label}</span><input role="combobox" aria-label={label} aria-expanded={open} aria-controls={listId} aria-autocomplete="list" disabled={disabled} placeholder={placeholder} value={open ? query : selected?.label ?? ''} onFocus={() => { if (openOnFocus) { setQuery(''); setOpen(true); } }} onClick={() => { if (!open) { setQuery(''); setOpen(true); } }} onChange={(event) => { setQuery(event.target.value); setOpen(true); }} onBlur={() => window.setTimeout(() => setOpen(false), 120)} onKeyDown={(event) => { if (event.key === 'Enter' && open) { event.preventDefault(); if (shown[0]) { onChange(shown[0].value); setOpen(false); } } else if (event.key === 'Escape' && open) { event.stopPropagation(); setOpen(false); } }} />
+  return <label className="search-select" ref={rootRef}><span className={hideLabel ? "sr-only" : undefined}>{label}</span><input role="combobox" aria-label={label} aria-expanded={open} aria-controls={listId} aria-autocomplete="list" disabled={disabled} placeholder={placeholder} value={open ? query : selected?.label ?? ''} onFocus={() => { if (openOnFocus) { setQuery(''); setOpen(true); } }} onClick={() => { if (!open) { setQuery(''); setOpen(true); } }} onChange={(event) => { setQuery(event.target.value); setOpen(true); }} onBlur={() => window.setTimeout(() => setOpen(false), 120)} onKeyDown={(event) => { if (event.key === 'Enter' && open) { event.preventDefault(); if (shown[0]) { onChange(shown[0].value); setOpen(false); } } else if (event.key === 'Escape' && open) { event.stopPropagation(); setOpen(false); } }} />
     {open && <ul id={listId} role="listbox" className="search-select-options">{shown.length ? shown.map((option) => <li key={option.value}><button type="button" role="option" aria-selected={option.value === value} onMouseDown={(event) => event.preventDefault()} onClick={() => { onChange(option.value); setOpen(false); }}>{option.label}</button></li>) : <li className="picker-stock">No matches</li>}</ul>}
   </label>;
 }

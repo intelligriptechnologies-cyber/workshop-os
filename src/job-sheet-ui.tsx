@@ -49,7 +49,7 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
         <div className="snapshot">
           <Row label="Service type" value={view.job.service_type ?? ""} />
           <Row label="Pickup / Drop" value={view.job.pickup_drop ?? ""} />
-          <Row label="Estimated delivery" value={view.job.estimated_delivery ?? ""} />
+          <Row label="Estimated Delivery Date" value={view.job.estimated_delivery ?? ""} />
           <Row label="Fuel" value={view.visit.fuel} />
           <Row label="Accessories" value={view.visit.accessories} />
           <Row label="Engine number" value={view.vehicle.engine_no ?? ""} />
@@ -66,7 +66,7 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
         <div className="form-grid">
           <label>Service Type<select value={draft.service_type} onChange={set("service_type")}><option value="">—</option>{SERVICE_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
           <label>Pickup / Drop<select value={draft.pickup_drop} onChange={set("pickup_drop")}><option value="">—</option>{PICKUP_DROP_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></label>
-          <label>Estimated Delivery<input value={draft.estimated_delivery} onChange={set("estimated_delivery")} /></label>
+          <label>Estimated Delivery Date<input type="date" value={draft.estimated_delivery} onChange={set("estimated_delivery")} /></label>
           <label>Fuel<select value={draft.fuel} onChange={set("fuel")}>{[...new Set([draft.fuel, ...FUEL_LEVELS])].filter(Boolean).map((item) => <option key={item}>{item}</option>)}</select></label>
           <label>Accessories<input value={draft.accessories} onChange={set("accessories")} /></label>
           <label>Engine Number<input value={draft.engine_no} onChange={set("engine_no")} /></label>

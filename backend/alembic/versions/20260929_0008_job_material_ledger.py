@@ -101,16 +101,17 @@ def upgrade() -> None:
         END $$;
         CREATE TRIGGER material_ledger_validate_before_insert BEFORE INSERT ON material_ledger FOR EACH ROW EXECUTE FUNCTION material_ledger_validate();
 
-        -- Physical outcomes are written by the database from their material
-        -- event.  A caller cannot make a visible ISSUE/RETURN/WASTE entry while
-        -- omitting the authoritative stock impact.
+        -- Physical stock moves only when stock leaves or returns to the Store.
+        -- WASTE settles material that has already left stock through ISSUE, so
+        -- it remains an immutable job-material outcome without double-debiting
+        -- the catalogue balance.
         CREATE FUNCTION material_ledger_stock_outcome() RETURNS trigger LANGUAGE plpgsql AS $$
         DECLARE stock_type text; stock_quantity numeric(14,3);
         BEGIN
             stock_type := CASE NEW.entry_type WHEN 'ISSUE' THEN 'ISSUE' WHEN 'RETURN' THEN 'RETURN'
-                WHEN 'WASTE' THEN 'WASTE' WHEN 'ISSUE_REVERSAL' THEN 'ISSUE_REVERSAL' ELSE NULL END;
+                WHEN 'ISSUE_REVERSAL' THEN 'ISSUE_REVERSAL' ELSE NULL END;
             IF stock_type IS NULL THEN RETURN NEW; END IF;
-            stock_quantity := CASE WHEN NEW.entry_type IN ('ISSUE','WASTE') THEN -NEW.quantity ELSE NEW.quantity END;
+            stock_quantity := CASE WHEN NEW.entry_type='ISSUE' THEN -NEW.quantity ELSE NEW.quantity END;
             INSERT INTO stock_ledger (tenant_id,branch_id,item_id,material_ledger_id,entry_type,quantity,unit_cost,reason,actor_id)
             VALUES (NEW.tenant_id,NEW.branch_id,NEW.item_id,NEW.id,stock_type,stock_quantity,0,
                 COALESCE(NULLIF(NEW.reason,''), lower(replace(NEW.entry_type,'_',' '))),NEW.actor_id);

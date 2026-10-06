@@ -27,7 +27,7 @@ import {
   resubmitMaterialApprovalForActor,
   reconcileMaterialQty,
 } from "../src/db";
-import { canManageMaterialRows, materialRowActions, overStockWarning } from "../src/materials";
+import { allocateMaterialDemands, canManageMaterialRows, materialRowActions, overStockWarning, triageMaterialDemand, triageMaterialDemands } from "../src/materials";
 
 async function database(main = "IN_PROGRESS", sub = "Material Requested") {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });
@@ -96,6 +96,39 @@ test("requesting over stock warns but succeeds; stock is seed minus ledger", asy
   db.run("insert into stock_ledger(job_card_id,material_row_id,item_id,qty,type,by_user,at) values(1,1,2,3,'issue',1,'2026-01-01')");
   assert.equal(readState(db).inventory.find((item) => item.id === 2)?.stock_qty, 1);
   assert.equal(overStockWarning(1, 1), undefined);
+});
+
+test("material demand triage sends shortages to procurement and leaves available SKUs issuable", () => {
+  assert.equal(triageMaterialDemand({ requested_qty: 3, issued_qty: 1 }, { stock_qty: 2 }), "issuable");
+  assert.equal(triageMaterialDemand({ requested_qty: 3, issued_qty: 1 }, { stock_qty: 1 }), "procurement");
+  assert.equal(triageMaterialDemand({ requested_qty: 1, issued_qty: 0 }, undefined), "procurement");
+});
+
+test("material demand triage allocates projected availability across outstanding requests for the same SKU", () => {
+  assert.deepEqual(
+    triageMaterialDemands(
+      [
+        { id: 1, item_id: 1, requested_qty: 6, issued_qty: 0 },
+        { id: 2, item_id: 1, requested_qty: 5, issued_qty: 0 },
+        { id: 3, item_id: 2, requested_qty: 4, issued_qty: 1 },
+      ],
+      [{ id: 1, stock_qty: 10 }, { id: 2, stock_qty: 3 }],
+    ),
+    ["issuable", "procurement", "issuable"],
+  );
+  assert.deepEqual(
+    allocateMaterialDemands(
+      [
+        { id: 1, item_id: 1, requested_qty: 6, issued_qty: 0 },
+        { id: 2, item_id: 1, requested_qty: 5, issued_qty: 0 },
+      ],
+      [{ id: 1, stock_qty: 10 }],
+    ),
+    [
+      { outcome: "issuable", procurementQty: 0 },
+      { outcome: "procurement", procurementQty: 1 },
+    ],
+  );
 });
 
 test("Materials Requested auto-ticks on the first Requested row and stays ticked when cancelled", async () => {
@@ -300,14 +333,14 @@ test("local purchases require a selected job and vendor/bill details", async () 
   assert.throws(() => createLocalPurchase(db, { job_card_id: 0, item_description: "Clip", quantity: 1, unit: "piece", unit_cost: 5, vendor: "Parts", bill_reference: "BILL-1" }), /selected job/);
 });
 
-test("a new-item purchase request is separate until Store purchases, stocks and issues it", async () => {
+test("legacy direct purchase, stock and issue is denied without posting inventory or issuing material", async () => {
   const db = await database();
   const requestId = createMaterialPurchaseRequestForActor(db, 1, 2, { item_name: "Door trim clip", quantity: 6, unit: "piece" });
   assert.deepEqual(rows(db, "select status,mapped_inventory_item_id,material_request_id from material_purchase_requests"), [{ status: "Pending", mapped_inventory_item_id: null, material_request_id: null }]);
-  const result = purchaseStockAndIssueForActor(db, requestId, 6, { sku: "CLIP-6", category: "Trim", unit_cost: 12, vendor: "City Parts", bill_reference: "BILL-9" });
-  assert.equal(materialStockOnHand(db, result.itemId), 0, "the purchased quantity is immediately issued to the job");
-  assert.deepEqual(rows(db, `select status,mapped_inventory_item_id,material_request_id,local_purchase_id from material_purchase_requests where id=${requestId}`), [{ status: "Completed", mapped_inventory_item_id: result.itemId, material_request_id: result.materialRowId, local_purchase_id: result.purchaseId }]);
-  assert.deepEqual(rows(db, `select status,requested_qty,issued_qty from material_requests where id=${result.materialRowId}`), [{ status: "Issued", requested_qty: 6, issued_qty: 6 }]);
-  assert.equal(readState(db).jobs[0].material_purchase_requests[0].status, "Completed");
-  assert.throws(() => purchaseStockAndIssueForActor(db, requestId, 6, { unit_cost: 0, vendor: "City Parts", bill_reference: "BILL-10" }), /pending/);
+  assert.throws(
+    () => purchaseStockAndIssueForActor(db, requestId, 6, { unit_cost: 12, vendor: "City Parts", bill_reference: "BILL-9" }),
+    /unavailable.*Purchase Request.*PO closure/i,
+  );
+  assert.equal(rows(db, "select * from local_purchases").length, 0);
+  assert.equal(rows(db, "select * from material_requests").length, 0);
 });

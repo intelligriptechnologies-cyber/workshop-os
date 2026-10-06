@@ -154,7 +154,7 @@ export function BillingManager({ mode, state, actor, mutate, panel = true, pendi
     <section className={panel ? "workspace single-panel" : "billing-manager"} data-billing-manager={mode} role="tabpanel">
       <div className={panel ? "desk-panel" : "manager-panel"} role={panel ? undefined : "tabpanel"}>
         {pendingInvoicesOnly && <div className="panel-actions"><div><h2>Ready To Invoice</h2><p>Active invoices awaiting payment. View or download invoices from this read-only queue.</p></div></div>}
-        {!compactAccountsPanel && <>
+        {panel && !compactAccountsPanel && <>
           <div className="panel-actions"><div><h2>{mode}</h2><p>{mode === "Payments" ? "Paid invoices with downloadable receipts" : "All workshop jobs"}</p></div></div>
           {actor.role === "accounts" && <p className="permission-note">Invoices are view/download-only. Use Quick Mark Paid to complete the handover.</p>}
           {actor.role === "accounts" && <AccountsReconciliationQueues jobs={state.jobs} />}
