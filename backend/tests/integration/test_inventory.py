@@ -113,3 +113,48 @@ def test_store_purchase_request_is_approved_and_issued_by_admin_with_durable_sup
         assert {order["status"] for order in issued.json()["purchaseOrders"]} == {"SENT"}
         refreshed = client.get(f"/api/v1/purchase-requests/{request_id}", headers=admin)
         assert refreshed.status_code == 200 and [event["command"] for event in refreshed.json()["events"]] == ["REQUESTED", "APPROVED", "ISSUED"]
+
+
+@pytest.mark.integration
+def test_partial_delivery_is_confirmed_then_posts_accepted_stock_once_on_close() -> None:
+    """A Store user gets a durable delivery/audit path, not a manual stock write."""
+    _reset_database()
+    from app.main import app
+    with TestClient(app) as client:
+        tenant = _provision(client, "delivery-inward")
+    _activate(str(tenant["id"]), "delivery-admin")
+    _activate_store(str(tenant["id"]), "delivery-store")
+    with TestClient(app) as client:
+        admin = {"x-workshopos-identity": "delivery-admin"}
+        store = {"x-workshopos-identity": "delivery-store"}
+        item = client.post("/api/v1/catalogue-items", headers=admin, json={"sku": "DISC", "name": "Brake disc", "unit": "each"}).json()
+        supplier = client.post("/api/v1/suppliers", headers=admin, json={"name": "Parts Co"}).json()
+        po = client.post("/api/v1/purchase-orders", headers=admin, json={"supplierId": supplier["id"], "poNumber": "PO-DELIVERY-1", "orderDate": "2026-10-08", "lines": [{"itemId": item["id"], "orderedQty": 5, "unitCost": 100}]}).json()
+        line_id = po["lines"][0]["id"]
+        assert client.post(f"/api/v1/purchase-orders/{po['id']}/commands/send", headers=admin, json={}).status_code == 200
+
+        denied = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-receipts", headers=store, json={"requestKey": "delivery-1", "lines": [{"lineId": line_id, "deliveredQty": 3}]})
+        assert denied.status_code == 403
+        receipt = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-receipts", headers=admin, json={"requestKey": "delivery-1", "note": "GRN-10", "lines": [{"lineId": line_id, "deliveredQty": 3}]})
+        assert receipt.status_code == 201, receipt.text
+        retry = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-receipts", headers=admin, json={"requestKey": "delivery-1", "note": "GRN-10", "lines": [{"lineId": line_id, "deliveredQty": 3}]})
+        assert retry.status_code == 200 and retry.json()["id"] == receipt.json()["id"]
+        assert client.get("/api/v1/catalogue-items", headers=admin).json()[0]["onHand"] == 0
+
+        invalid = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-confirmations", headers=admin, json={"requestKey": "confirmation-1", "lines": [{"lineId": line_id, "acceptedQty": 1, "rejectedQty": 1}]})
+        assert invalid.status_code == 422 and invalid.json()["code"] == "DELIVERY_ACCOUNTING_MISMATCH"
+        confirmation = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-confirmations", headers=admin, json={"requestKey": "confirmation-1", "lines": [{"lineId": line_id, "acceptedQty": 2, "rejectedQty": 1, "rejectionReason": "Damaged"}]})
+        assert confirmation.status_code == 201, confirmation.text
+        assert client.post(f"/api/v1/purchase-orders/{po['id']}/commands/close", headers=admin, json={"reason": "Accepted delivery posted"}).status_code == 200
+        closed = client.post(f"/api/v1/purchase-orders/{po['id']}/commands/close", headers=admin, json={"reason": "Accepted delivery posted"})
+        assert closed.status_code == 200 and closed.json()["status"] == "CLOSED"
+        assert client.get("/api/v1/catalogue-items", headers=admin).json()[0]["onHand"] == 2
+        inwards = client.get("/api/v1/stock-inwards", headers=admin).json()
+        assert len(inwards) == 1 and inwards[0]["qty"] == 2
+        assert len(client.get("/api/v1/stock-ledger", headers=admin).json()) == 1
+        from app.database import get_engine
+        with get_engine().connect() as connection:
+            actions = connection.execute(text("SELECT action FROM tenant_audit_events WHERE tenant_id=:tenant"), {"tenant": str(tenant["id"])}).scalars().all()
+        assert {"PURCHASE_DELIVERY_RECEIVED", "PURCHASE_DELIVERY_CONFIRMED", "PURCHASE_ORDER_CLOSE"} <= set(actions)
+        locked = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-receipts", headers=admin, json={"requestKey": "delivery-2", "lines": [{"lineId": line_id, "deliveredQty": 1}]})
+        assert locked.status_code == 422 and locked.json()["code"] == "PURCHASE_ORDER_NOT_RECEIVABLE"

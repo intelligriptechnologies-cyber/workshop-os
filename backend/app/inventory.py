@@ -11,7 +11,7 @@ from datetime import date
 from typing import Annotated, Literal
 from uuid import UUID
 
-from fastapi import APIRouter, Query, status
+from fastapi import APIRouter, Query, Response, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
@@ -72,6 +72,29 @@ class PurchaseOrderCommand(ApiModel):
     reason: Annotated[str, Field(max_length=1000)] = ""
 
 
+class DeliveryReceiptLineInput(ApiModel):
+    line_id: Annotated[int, Field(gt=0)] = Field(alias="lineId")
+    delivered_qty: Annotated[float, Field(gt=0, le=100000000)] = Field(alias="deliveredQty")
+
+
+class DeliveryReceiptInput(ApiModel):
+    request_key: Annotated[str, Field(min_length=1, max_length=200)] = Field(alias="requestKey")
+    note: Annotated[str, Field(max_length=4000)] = ""
+    lines: Annotated[list[DeliveryReceiptLineInput], Field(min_length=1, max_length=250)]
+
+
+class DeliveryConfirmationLineInput(ApiModel):
+    line_id: Annotated[int, Field(gt=0)] = Field(alias="lineId")
+    accepted_qty: Annotated[float, Field(ge=0, le=100000000)] = Field(alias="acceptedQty")
+    rejected_qty: Annotated[float, Field(ge=0, le=100000000)] = Field(alias="rejectedQty")
+    rejection_reason: Annotated[str, Field(max_length=1000)] = Field(default="", alias="rejectionReason")
+
+
+class DeliveryConfirmationInput(ApiModel):
+    request_key: Annotated[str, Field(min_length=1, max_length=200)] = Field(alias="requestKey")
+    lines: Annotated[list[DeliveryConfirmationLineInput], Field(min_length=1, max_length=250)]
+
+
 class StockInwardInput(ApiModel):
     branch_id: UUID | None = Field(default=None, alias="branchId")
     item_id: Annotated[int, Field(gt=0)] = Field(alias="itemId")
@@ -91,6 +114,13 @@ class StockAdjustmentInput(ApiModel):
 def _permission(scope: ScopedTenant, *, mutation: bool) -> TenantScope:
     verb = "write" if mutation else "read"
     return _require_any(scope, (f"page.stock.{verb}", f"page.inward-purchases.{verb}"), mutation=mutation)
+
+
+def _purchase_admin(scope: ScopedTenant) -> TenantScope:
+    current = _permission(scope, mutation=True)
+    if not any(name == "Owner/Admin" for _, name, _ in current.roles):
+        raise auth_error("PURCHASE_DELIVERY_ADMIN_REQUIRED", status.HTTP_403_FORBIDDEN)
+    return current
 
 
 def _adjustment_quantity(quantity: float) -> float:
@@ -115,7 +145,7 @@ def _supplier(row: dict[str, object]) -> dict[str, object]:
 
 
 def _line(row: dict[str, object]) -> dict[str, object]:
-    return {"id": row["id"], "itemId": row["item_id"], "lineNo": row["line_no"], "orderedQty": float(row["ordered_qty"]), "unitCost": float(row["unit_cost"]), "discount": float(row["discount"]), "gstRate": float(row["gst_rate"]), "receivedQty": float(row.get("received_qty") or 0)}
+    return {"id": row["id"], "itemId": row["item_id"], "lineNo": row["line_no"], "orderedQty": float(row["ordered_qty"]), "unitCost": float(row["unit_cost"]), "discount": float(row["discount"]), "gstRate": float(row["gst_rate"]), "receivedQty": float(row.get("received_qty") or 0), "deliveredQty": float(row.get("delivered_qty") or 0), "acceptedQty": float(row.get("accepted_qty") or 0), "rejectedQty": float(row.get("rejected_qty") or 0)}
 
 
 def _purchase(row: dict[str, object], lines: list[dict[str, object]] | None = None) -> dict[str, object]:
@@ -125,6 +155,17 @@ def _purchase(row: dict[str, object], lines: list[dict[str, object]] | None = No
 
 def _inward(row: dict[str, object]) -> dict[str, object]:
     return {"id": row["id"], "branchId": str(row["branch_id"]), "itemId": row["item_id"], "purchaseOrderId": row["purchase_order_id"], "purchaseOrderLineId": row["purchase_order_line_id"], "qty": float(row["qty"]), "unitCost": float(row["unit_cost"]), "note": row["note"], "receivedBy": str(row["received_by"]), "receivedAt": row["received_at"]}
+
+
+def _delivery_receipt(session, receipt_id: int) -> dict[str, object]:
+    receipt = _row_or_404(session, "purchase_order_delivery_receipts", receipt_id, "PURCHASE_DELIVERY_RECEIPT_NOT_FOUND")
+    lines = session.execute(text("SELECT * FROM purchase_order_delivery_receipt_lines WHERE receipt_id=:id ORDER BY id"), {"id": receipt_id}).mappings().all()
+    return {"id": receipt["id"], "purchaseOrderId": receipt["purchase_order_id"], "requestKey": receipt["request_key"], "note": receipt["note"], "receivedAt": receipt["received_at"], "lines": [{"lineId": row["purchase_order_line_id"], "deliveredQty": float(row["delivered_qty"])} for row in lines]}
+
+
+def _delivery_confirmations(session, purchase_id: int, request_key: str) -> list[dict[str, object]]:
+    rows = session.execute(text("SELECT * FROM purchase_order_delivery_confirmations WHERE purchase_order_id=:purchase AND request_key=:key ORDER BY purchase_order_line_id"), {"purchase": purchase_id, "key": request_key}).mappings().all()
+    return [{"id": row["id"], "lineId": row["purchase_order_line_id"], "acceptedQty": float(row["accepted_qty"]), "rejectedQty": float(row["rejected_qty"]), "rejectionReason": row["rejection_reason"], "confirmedAt": row["confirmed_at"]} for row in rows]
 
 
 def _item_available(session, item_id: int, branch_id: UUID) -> dict[str, object]:
@@ -143,9 +184,14 @@ def _supplier_available(session, supplier_id: int, branch_id: UUID) -> dict[str,
 
 def _purchase_with_lines(session, purchase_id: int) -> dict[str, object]:
     purchase = _row_or_404(session, "purchase_orders", purchase_id, "PURCHASE_ORDER_NOT_FOUND")
-    rows = session.execute(text("""SELECT line.*, COALESCE(SUM(inward.qty), 0) AS received_qty
-        FROM purchase_order_lines line LEFT JOIN stock_inwards inward ON inward.purchase_order_line_id=line.id
-        WHERE line.purchase_order_id=:id GROUP BY line.id ORDER BY line.line_no"""), {"id": purchase_id}).mappings().all()
+    rows = session.execute(text("""SELECT line.*, COALESCE(inwards.received_qty, 0) AS received_qty,
+            COALESCE(deliveries.delivered_qty, 0) AS delivered_qty, COALESCE(confirmations.accepted_qty, 0) AS accepted_qty,
+            COALESCE(confirmations.rejected_qty, 0) AS rejected_qty
+        FROM purchase_order_lines line
+        LEFT JOIN LATERAL (SELECT SUM(qty) received_qty FROM stock_inwards WHERE purchase_order_line_id=line.id) inwards ON true
+        LEFT JOIN LATERAL (SELECT SUM(receipt_line.delivered_qty) delivered_qty FROM purchase_order_delivery_receipt_lines receipt_line WHERE receipt_line.purchase_order_line_id=line.id) deliveries ON true
+        LEFT JOIN LATERAL (SELECT SUM(accepted_qty) accepted_qty,SUM(rejected_qty) rejected_qty FROM purchase_order_delivery_confirmations WHERE purchase_order_line_id=line.id) confirmations ON true
+        WHERE line.purchase_order_id=:id ORDER BY line.line_no"""), {"id": purchase_id}).mappings().all()
     return _purchase(purchase, [_line(dict(row)) for row in rows])
 
 
@@ -254,7 +300,7 @@ def archive_supplier(supplier_id: int, input: ArchiveInput, scope: ScopedTenant)
 def list_purchase_orders(scope: ScopedTenant, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _permission(scope, mutation=False)
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("SELECT * FROM purchase_orders WHERE (:branch_id IS NULL OR branch_id=:branch_id) ORDER BY order_date DESC,id DESC"), {"branch_id": str(branch_id) if branch_id else None}).mappings().all()
+    rows = session.execute(text("SELECT * FROM purchase_orders" + (" WHERE branch_id=:branch_id" if branch_id else "") + " ORDER BY order_date DESC,id DESC"), {"branch_id": str(branch_id)} if branch_id else {}).mappings().all()
     return [_purchase_with_lines(session, int(row["id"])) for row in rows]
 
 
@@ -277,19 +323,100 @@ def update_purchase_order(purchase_id: int, input: PurchaseOrderInput, scope: Sc
 
 @router.post("/purchase-orders/{purchase_id}/commands/{command}")
 def purchase_order_command(purchase_id: int, command: Literal["send", "cancel", "close"], input: PurchaseOrderCommand, scope: ScopedTenant) -> dict[str, object]:
-    session, current = scope; _permission(scope, mutation=True); before = _row_or_404(session, "purchase_orders", purchase_id, "PURCHASE_ORDER_NOT_FOUND"); transitions = {"send": {"DRAFT": "SENT"}, "cancel": {"DRAFT": "CANCELLED", "SENT": "CANCELLED", "PARTIALLY_RECEIVED": "CANCELLED", "READY_TO_CLOSE": "CANCELLED"}, "close": {"SENT": "CLOSED", "PARTIALLY_RECEIVED": "CLOSED", "READY_TO_CLOSE": "CLOSED"}}
+    session, current = scope; _permission(scope, mutation=True); before = _row_or_404(session, "purchase_orders", purchase_id, "PURCHASE_ORDER_NOT_FOUND")
+    if command == "close" and before["status"] == "CLOSED":
+        return _purchase_with_lines(session, purchase_id)
+    transitions = {"send": {"DRAFT": "SENT"}, "cancel": {"DRAFT": "CANCELLED", "SENT": "CANCELLED", "PARTIALLY_RECEIVED": "CANCELLED", "READY_TO_CLOSE": "CANCELLED"}, "close": {"SENT": "CLOSED", "PARTIALLY_RECEIVED": "CLOSED", "READY_TO_CLOSE": "CLOSED"}}
     next_status = transitions[command].get(str(before["status"]))
     if not next_status: raise auth_error("INVALID_PURCHASE_ORDER_TRANSITION", status.HTTP_422_UNPROCESSABLE_ENTITY)
     if command in {"cancel", "close"} and not input.reason.strip(): raise auth_error("PURCHASE_ORDER_REASON_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    deliveries = session.execute(text("SELECT 1 FROM purchase_order_delivery_receipts WHERE purchase_order_id=:id LIMIT 1"), {"id": purchase_id}).scalar()
+    if command == "close" and deliveries:
+        confirmations = session.execute(text("SELECT count(*) FROM purchase_order_delivery_confirmations WHERE purchase_order_id=:id"), {"id": purchase_id}).scalar_one()
+        delivered_lines = session.execute(text("SELECT count(DISTINCT purchase_order_line_id) FROM purchase_order_delivery_receipt_lines WHERE receipt_id IN (SELECT id FROM purchase_order_delivery_receipts WHERE purchase_order_id=:id)"), {"id": purchase_id}).scalar_one()
+        if before["status"] != "READY_TO_CLOSE" or confirmations != delivered_lines:
+            raise auth_error("PURCHASE_DELIVERY_CONFIRMATION_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+        confirmed = session.execute(text("""SELECT confirmation.*, line.item_id, line.unit_cost
+            FROM purchase_order_delivery_confirmations confirmation
+            JOIN purchase_order_lines line ON line.id=confirmation.purchase_order_line_id
+            WHERE confirmation.purchase_order_id=:id AND confirmation.accepted_qty > 0
+            ORDER BY confirmation.purchase_order_line_id"""), {"id": purchase_id}).mappings().all()
+        for confirmation in confirmed:
+            inward = session.execute(text("""INSERT INTO stock_inwards (tenant_id,branch_id,item_id,purchase_order_id,purchase_order_line_id,qty,unit_cost,note,received_by)
+                VALUES (:tenant,:branch,:item,:purchase,:line,:qty,:cost,:note,:actor) RETURNING *"""), {"tenant": str(current.tenant_id), "branch": str(before["branch_id"]), "item": confirmation["item_id"], "purchase": purchase_id, "line": confirmation["purchase_order_line_id"], "qty": confirmation["accepted_qty"], "cost": confirmation["unit_cost"], "note": f"Accepted delivery confirmation #{confirmation['id']}", "actor": str(current.actor_id)}).mappings().one()
+            session.execute(text("""INSERT INTO stock_ledger (tenant_id,branch_id,item_id,inward_id,entry_type,quantity,unit_cost,reason,actor_id)
+                VALUES (:tenant,:branch,:item,:inward,'INWARD',:qty,:cost,:reason,:actor)"""), {"tenant": str(current.tenant_id), "branch": str(before["branch_id"]), "item": confirmation["item_id"], "inward": inward["id"], "qty": confirmation["accepted_qty"], "cost": confirmation["unit_cost"], "reason": f"Accepted delivery confirmation #{confirmation['id']}", "actor": str(current.actor_id)})
     session.execute(text("UPDATE purchase_orders SET status=:status,updated_by=:actor_id,updated_at=now() WHERE id=:id"), {"id": purchase_id, "status": next_status, "actor_id": str(current.actor_id)})
     payload = _purchase_with_lines(session, purchase_id); _audit(session, current, f"PURCHASE_ORDER_{command.upper()}", input.reason.strip() or "Purchase order sent", _purchase(before), payload); return payload
+
+
+@router.post("/purchase-orders/{purchase_id}/delivery-receipts", status_code=status.HTTP_201_CREATED)
+def record_delivery_receipt(purchase_id: int, input: DeliveryReceiptInput, response: Response, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope; _purchase_admin(scope); order = _row_or_404(session, "purchase_orders", purchase_id, "PURCHASE_ORDER_NOT_FOUND")
+    request_key = input.request_key.strip()
+    existing = session.execute(text("SELECT id FROM purchase_order_delivery_receipts WHERE purchase_order_id=:purchase AND request_key=:key"), {"purchase": purchase_id, "key": request_key}).scalar_one_or_none()
+    if existing is not None:
+        response.status_code = status.HTTP_200_OK
+        return _delivery_receipt(session, int(existing))
+    if order["status"] not in {"SENT", "PARTIALLY_RECEIVED"}:
+        raise auth_error("PURCHASE_ORDER_NOT_RECEIVABLE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    requested = {line.line_id: line for line in input.lines}
+    if len(requested) != len(input.lines):
+        raise auth_error("DUPLICATE_DELIVERY_LINE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    lines = [dict(row) for row in session.execute(text("SELECT * FROM purchase_order_lines WHERE purchase_order_id=:id"), {"id": purchase_id}).mappings()]
+    available = {int(line["id"]): line for line in lines}
+    if set(requested) - set(available):
+        raise auth_error("PURCHASE_ORDER_LINE_MISMATCH", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    delivered = {int(row["purchase_order_line_id"]): float(row["qty"]) for row in session.execute(text("""SELECT receipt_line.purchase_order_line_id, SUM(receipt_line.delivered_qty) qty
+        FROM purchase_order_delivery_receipt_lines receipt_line JOIN purchase_order_delivery_receipts receipt ON receipt.id=receipt_line.receipt_id
+        WHERE receipt.purchase_order_id=:id GROUP BY receipt_line.purchase_order_line_id"""), {"id": purchase_id}).mappings()}
+    for line_id, requested_line in requested.items():
+        if delivered.get(line_id, 0) + requested_line.delivered_qty > float(available[line_id]["ordered_qty"]):
+            raise auth_error("DELIVERY_EXCEEDS_PURCHASE_ORDER", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    receipt = session.execute(text("""INSERT INTO purchase_order_delivery_receipts(tenant_id,branch_id,purchase_order_id,request_key,note,received_by)
+        VALUES(:tenant,:branch,:purchase,:key,:note,:actor) RETURNING id"""), {"tenant": str(current.tenant_id), "branch": str(order["branch_id"]), "purchase": purchase_id, "key": request_key, "note": input.note.strip(), "actor": str(current.actor_id)}).scalar_one()
+    for line_id, requested_line in requested.items():
+        session.execute(text("""INSERT INTO purchase_order_delivery_receipt_lines(tenant_id,branch_id,receipt_id,purchase_order_line_id,delivered_qty)
+            VALUES(:tenant,:branch,:receipt,:line,:qty)"""), {"tenant": str(current.tenant_id), "branch": str(order["branch_id"]), "receipt": receipt, "line": line_id, "qty": requested_line.delivered_qty})
+    session.execute(text("UPDATE purchase_orders SET status='PARTIALLY_RECEIVED',updated_by=:actor,updated_at=now() WHERE id=:id"), {"actor": str(current.actor_id), "id": purchase_id})
+    payload = _delivery_receipt(session, int(receipt)); _audit(session, current, "PURCHASE_DELIVERY_RECEIVED", input.note.strip() or "Delivery received", {}, payload); return payload
+
+
+@router.post("/purchase-orders/{purchase_id}/delivery-confirmations", status_code=status.HTTP_201_CREATED)
+def confirm_delivery(purchase_id: int, input: DeliveryConfirmationInput, response: Response, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope; _purchase_admin(scope); order = _row_or_404(session, "purchase_orders", purchase_id, "PURCHASE_ORDER_NOT_FOUND")
+    request_key = input.request_key.strip()
+    replay = _delivery_confirmations(session, purchase_id, request_key)
+    if replay:
+        response.status_code = status.HTTP_200_OK
+        return {"purchaseOrderId": purchase_id, "requestKey": request_key, "confirmations": replay}
+    if order["status"] != "PARTIALLY_RECEIVED":
+        raise auth_error("PURCHASE_ORDER_NOT_CONFIRMABLE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    requested = {line.line_id: line for line in input.lines}
+    if len(requested) != len(input.lines):
+        raise auth_error("DUPLICATE_DELIVERY_LINE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    delivered = {int(row["purchase_order_line_id"]): float(row["qty"]) for row in session.execute(text("""SELECT receipt_line.purchase_order_line_id, SUM(receipt_line.delivered_qty) qty
+        FROM purchase_order_delivery_receipt_lines receipt_line JOIN purchase_order_delivery_receipts receipt ON receipt.id=receipt_line.receipt_id
+        WHERE receipt.purchase_order_id=:id GROUP BY receipt_line.purchase_order_line_id"""), {"id": purchase_id}).mappings()}
+    if set(requested) != set(delivered):
+        raise auth_error("DELIVERY_CONFIRMATION_INCOMPLETE", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    for line_id, confirmation in requested.items():
+        if confirmation.accepted_qty + confirmation.rejected_qty != delivered[line_id]:
+            raise auth_error("DELIVERY_ACCOUNTING_MISMATCH", status.HTTP_422_UNPROCESSABLE_ENTITY)
+        if confirmation.rejected_qty > 0 and not confirmation.rejection_reason.strip():
+            raise auth_error("DELIVERY_REJECTION_REASON_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    for line_id, confirmation in requested.items():
+        session.execute(text("""INSERT INTO purchase_order_delivery_confirmations(tenant_id,branch_id,purchase_order_id,purchase_order_line_id,request_key,accepted_qty,rejected_qty,rejection_reason,confirmed_by)
+            VALUES(:tenant,:branch,:purchase,:line,:key,:accepted,:rejected,:reason,:actor)"""), {"tenant": str(current.tenant_id), "branch": str(order["branch_id"]), "purchase": purchase_id, "line": line_id, "key": request_key, "accepted": confirmation.accepted_qty, "rejected": confirmation.rejected_qty, "reason": confirmation.rejection_reason.strip(), "actor": str(current.actor_id)})
+    session.execute(text("UPDATE purchase_orders SET status='READY_TO_CLOSE',updated_by=:actor,updated_at=now() WHERE id=:id"), {"actor": str(current.actor_id), "id": purchase_id})
+    payload = {"purchaseOrderId": purchase_id, "requestKey": request_key, "confirmations": _delivery_confirmations(session, purchase_id, request_key)}; _audit(session, current, "PURCHASE_DELIVERY_CONFIRMED", "Delivery accepted/rejected quantities confirmed", {}, payload); return payload
 
 
 @router.get("/stock-inwards")
 def list_stock_inwards(scope: ScopedTenant, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _permission(scope, mutation=False)
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("SELECT * FROM stock_inwards WHERE (:branch_id IS NULL OR branch_id=:branch_id) ORDER BY received_at DESC,id DESC"), {"branch_id": str(branch_id) if branch_id else None}).mappings().all()
+    rows = session.execute(text("SELECT * FROM stock_inwards" + (" WHERE branch_id=:branch_id" if branch_id else "") + " ORDER BY received_at DESC,id DESC"), {"branch_id": str(branch_id)} if branch_id else {}).mappings().all()
     return [_inward(dict(row)) for row in rows]
 
 

@@ -2,7 +2,7 @@ import { authenticatedFetch, type CognitoConfig } from "./auth";
 
 export type RemoteCatalogueItem = { id: number; branchId: string; sku: string; category: string; name: string; unit: string; lowStockQty: number; sellingPrice: number; onHand: number; archivedAt: string | null };
 export type RemoteSupplier = { id: number; branchId: string; name: string; mobile: string; email: string; address: string; archivedAt: string | null };
-export type RemotePurchaseLine = { id: number; itemId: number; lineNo: number; orderedQty: number; unitCost: number; discount: number; gstRate: number; receivedQty: number };
+export type RemotePurchaseLine = { id: number; itemId: number; lineNo: number; orderedQty: number; unitCost: number; discount: number; gstRate: number; receivedQty: number; deliveredQty: number; acceptedQty: number; rejectedQty: number };
 export type RemotePurchaseOrder = { id: number; branchId: string; supplierId: number; poNumber: string; orderDate: string; status: string; notes: string; lines: RemotePurchaseLine[] };
 export type RemoteStockInward = { id: number; branchId: string; itemId: number; purchaseOrderId: number | null; purchaseOrderLineId: number | null; qty: number; unitCost: number; note: string; receivedAt: string };
 export type RemotePurchaseRequestLine = { id: number; itemId: number | null; newItemName: string | null; unit: string; orderedQty: number; lineNo: number };
@@ -36,6 +36,8 @@ export const inventoryApi = {
     list: (config: CognitoConfig) => request<RemotePurchaseOrder[]>(config, "/api/v1/purchase-orders"),
     create: (config: CognitoConfig, input: { supplierId: number; poNumber: string; orderDate: string; notes?: string; lines: Array<{ itemId: number; orderedQty: number; unitCost: number; discount?: number; gstRate?: number }> }) => request<RemotePurchaseOrder>(config, "/api/v1/purchase-orders", json(input)),
     command: (config: CognitoConfig, id: number, command: "send" | "cancel" | "close", reason = "") => request<RemotePurchaseOrder>(config, `/api/v1/purchase-orders/${id}/commands/${command}`, json({ reason })),
+    receiveDelivery: (config: CognitoConfig, id: number, input: { requestKey: string; note?: string; lines: Array<{ lineId: number; deliveredQty: number }> }) => request<unknown>(config, `/api/v1/purchase-orders/${id}/delivery-receipts`, json(input)),
+    confirmDelivery: (config: CognitoConfig, id: number, input: { requestKey: string; lines: Array<{ lineId: number; acceptedQty: number; rejectedQty: number; rejectionReason?: string }> }) => request<unknown>(config, `/api/v1/purchase-orders/${id}/delivery-confirmations`, json(input)),
   },
   purchaseRequests: {
     list: (config: CognitoConfig) => request<RemotePurchaseRequest[]>(config, "/api/v1/purchase-requests"),
