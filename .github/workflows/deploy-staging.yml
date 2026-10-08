@@ -32,39 +32,6 @@ jobs:
           npm ci
           npm run build
 
-      - name: Validate staging environment secrets
-        env:
-          WORKSHOPOS_STAGING_API_ENV: ${{ secrets.WORKSHOPOS_STAGING_API_ENV }}
-          WORKSHOPOS_STAGING_DB_ENV: ${{ secrets.WORKSHOPOS_STAGING_DB_ENV }}
-        run: |
-          set -euo pipefail
-          if [[ -z "$WORKSHOPOS_STAGING_API_ENV" || -z "$WORKSHOPOS_STAGING_DB_ENV" ]]; then
-            echo "Required staging environment secrets are missing or empty."
-            exit 1
-          fi
-          if [[ "$WORKSHOPOS_STAGING_API_ENV" == *REPLACE_WITH_* || "$WORKSHOPOS_STAGING_DB_ENV" == *REPLACE_WITH_* ]]; then
-            echo "Staging environment secrets still contain template placeholders."
-            exit 1
-          fi
-          python3 - <<'PY'
-          import os
-          from urllib.parse import unquote, urlsplit
-
-          def assignment(contents: str, name: str) -> str:
-              for line in contents.splitlines():
-                  if line.startswith(f"{name}="):
-                      return line.split("=", 1)[1]
-              raise SystemExit("Staging environment secrets are missing required database credentials.")
-
-          database_url = assignment(os.environ["WORKSHOPOS_STAGING_API_ENV"], "WORKSHOPOS_DATABASE_URL")
-          postgres_password = assignment(os.environ["WORKSHOPOS_STAGING_DB_ENV"], "POSTGRES_PASSWORD")
-          api_password = unquote(urlsplit(database_url).password or "")
-          if not api_password or not postgres_password:
-              raise SystemExit("Staging environment secrets must contain non-empty database passwords.")
-          if api_password != postgres_password:
-              raise SystemExit("Staging API and database secrets use different database passwords.")
-          PY
-
       - name: Configure SSH
         env:
           HETZNER_DEPLOY_KEY: ${{ secrets.HETZNER_DEPLOY_KEY }}
@@ -76,32 +43,6 @@ jobs:
           printf '%s\n' "$HETZNER_KNOWN_HOSTS" > ~/.ssh/known_hosts
           chmod 644 ~/.ssh/known_hosts
 
-      - name: Provision staging Compose environment files
-        env:
-          HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
-          HETZNER_USER: ${{ secrets.HETZNER_USER }}
-          WORKSHOPOS_STAGING_API_ENV: ${{ secrets.WORKSHOPOS_STAGING_API_ENV }}
-          WORKSHOPOS_STAGING_DB_ENV: ${{ secrets.WORKSHOPOS_STAGING_DB_ENV }}
-        run: |
-          set -euo pipefail
-          write_secret() {
-            local contents="$1"
-            local target="$2"
-            printf '%s' "$contents" | ssh -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes -i ~/.ssh/id_ed25519 "$HETZNER_USER@$HETZNER_HOST" "
-              set -euo pipefail
-              install -d -m 700 /opt/workshop/staging/secrets
-              umask 077
-              temporary=\$(mktemp /opt/workshop/staging/secrets/.${target}.XXXXXX)
-              trap 'rm -f \"\$temporary\"' EXIT
-              cat > \"\$temporary\"
-              chmod 600 \"\$temporary\"
-              mv -f \"\$temporary\" /opt/workshop/staging/secrets/${target}
-              trap - EXIT
-            "
-          }
-          write_secret "$WORKSHOPOS_STAGING_API_ENV" workshopos-api.env
-          write_secret "$WORKSHOPOS_STAGING_DB_ENV" workshopos-db.env
-
       - name: Deploy staging source
         env:
           HETZNER_HOST: ${{ secrets.HETZNER_HOST }}
@@ -112,9 +53,7 @@ jobs:
             cd /opt/workshop/staging/source
             git fetch origin Prem-dev-fbb
             git checkout --detach '${{ github.sha }}'
-            WORKSHOPOS_STAGING_API_ENV_FILE=/opt/workshop/staging/secrets/workshopos-api.env \
-            WORKSHOPOS_STAGING_DB_ENV_FILE=/opt/workshop/staging/secrets/workshopos-db.env \
-              docker compose -f deploy/compose.staging.yaml --project-name workshopos-staging config --quiet
-            docker compose -f deploy/compose.staging.yaml --project-name workshopos-staging up -d --build
+            docker compose -f deploy/compose.staging.yaml --project-name workshopos-staging config --quiet
+            docker compose -f deploy/compose.staging.yaml --project-name workshopos-staging up -d --build --remove-orphans
             docker compose -f deploy/compose.staging.yaml --project-name workshopos-staging ps
           REMOTE

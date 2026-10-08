@@ -1,87 +1,25 @@
 name: workshopos-staging
 
-# Caddy is the sole public ingress. It reaches frontend:80 through the external
-# workshopos-staging-proxy network; api and db deliberately have no host ports.
+# Caddy is the sole public ingress. It reaches frontend:80 through the
+# external workshopos-staging-proxy network. The app runs fully standalone
+# (in-browser SQLite + client-side demo login) — no API/DB stack is deployed
+# at this stage.
 services:
   frontend:
     build:
       context: ..
       dockerfile: deploy/Dockerfile.staging
     restart: unless-stopped
-    depends_on:
-      api:
-        condition: service_healthy
     networks:
       workshopos-staging-proxy:
         aliases:
           - workshopos-frontend
-      workshopos-staging-private:
     labels:
       com.workshopos.stack: staging
       com.workshopos.service: frontend
 
-  api:
-    build:
-      context: ..
-      dockerfile: Dockerfile.local
-    restart: unless-stopped
-    # This file is owned by the deployment operator and must never be committed.
-    # It supplies only the WORKSHOPOS_* Cognito and database values.
-    env_file:
-      - path: ${WORKSHOPOS_STAGING_API_ENV_FILE:-/opt/workshop/staging/secrets/workshopos-api.env}
-        required: true
-    environment:
-      WORKSHOPOS_ENVIRONMENT: staging
-      WORKSHOPOS_AUTH_MODE: cognito
-      WORKSHOPOS_ALLOW_DEMO_AUTH: "false"
-    depends_on:
-      db:
-        condition: service_healthy
-    networks:
-      workshopos-staging-private:
-    healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=2)"]
-      interval: 10s
-      timeout: 5s
-      retries: 12
-      start_period: 30s
-    labels:
-      com.workshopos.stack: staging
-      com.workshopos.service: api
-
-  db:
-    image: postgres:17-alpine
-    restart: unless-stopped
-    env_file:
-      # Keep database bootstrap credentials out of the API/Cognito environment.
-      - path: ${WORKSHOPOS_STAGING_DB_ENV_FILE:-/opt/workshop/staging/secrets/workshopos-db.env}
-        required: true
-    volumes:
-      - workshopos-staging-postgres:/var/lib/postgresql/data
-    networks:
-      workshopos-staging-private:
-    healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
-      interval: 5s
-      timeout: 5s
-      retries: 20
-    labels:
-      com.workshopos.stack: staging
-      com.workshopos.service: db
-
-volumes:
-  workshopos-staging-postgres:
-    name: workshopos-staging-postgres-data
-    labels:
-      com.workshopos.stack: staging
-
 networks:
-  # Managed by the existing Caddy deployment. Only frontend joins it.
+  # Managed by the existing Caddy deployment.
   workshopos-staging-proxy:
     external: true
     name: workshopos-staging-proxy
-  # Project-private traffic between frontend, API, and PostgreSQL. It has no
-  # host-published services; API retains outbound access required for Cognito
-  # token/JWKS validation.
-  workshopos-staging-private:
-    name: workshopos-staging-private
