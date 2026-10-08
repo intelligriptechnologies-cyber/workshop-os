@@ -140,6 +140,8 @@ def test_partial_delivery_is_confirmed_then_posts_accepted_stock_once_on_close()
         retry = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-receipts", headers=admin, json={"requestKey": "delivery-1", "note": "GRN-10", "lines": [{"lineId": line_id, "deliveredQty": 3}]})
         assert retry.status_code == 200 and retry.json()["id"] == receipt.json()["id"]
         assert client.get("/api/v1/catalogue-items", headers=admin).json()[0]["onHand"] == 0
+        bypass = client.post("/api/v1/stock-inwards", headers=admin, json={"itemId": item["id"], "qty": 3, "purchaseOrderLineId": line_id})
+        assert bypass.status_code == 422 and bypass.json()["code"] == "PURCHASE_ORDER_DELIVERY_MANAGED"
 
         invalid = client.post(f"/api/v1/purchase-orders/{po['id']}/delivery-confirmations", headers=admin, json={"requestKey": "confirmation-1", "lines": [{"lineId": line_id, "acceptedQty": 1, "rejectedQty": 1}]})
         assert invalid.status_code == 422 and invalid.json()["code"] == "DELIVERY_ACCOUNTING_MISMATCH"
