@@ -576,6 +576,10 @@ main {
 .back-action { min-height: 42px; border: 1px solid #6c757d; border-radius: 8px; background: #6c757d; color: #fff; padding: 0 14px; }
 .primary-action:hover { background: #0b5ed7; }
 .primary-action:focus-visible { outline-color: var(--app-theme-focus, rgba(21, 97, 109, .35)); }
+.job-details-save-row { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.job-details-saved { display: inline-flex; align-items: center; gap: 5px; color: #176b48; font-size: .875rem; font-weight: 600; animation: job-details-saved-in 180ms ease-out both; }
+@keyframes job-details-saved-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .job-details-saved { animation: none; } }
 .add-action:focus-visible, .back-action:focus-visible { outline-color: rgba(13, 110, 253, .5); }
 .secondary-action { min-height: 36px; border: 1px solid #15616d; border-radius: 7px; background: #fff; color: #0e6268; padding: 0 11px; }
 .secondary-action:hover { background: #e8f5f3; }

@@ -9386,7 +9386,8 @@ function Admin({
           />
           {selected && (
             <>
-              <JobEditor
+              <AdminJobEditor
+                key={selected.job.id}
                 view={selected}
                 users={state.users}
                 mutate={mutate}
@@ -11974,18 +11975,54 @@ function DuplicateVisitEditor({
   );
 }
 
+function useJobDetailsSaveNotice() {
+  const [saved, setSaved] = useState(false);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  useEffect(() => () => {
+    if (timer.current !== null) clearTimeout(timer.current);
+  }, []);
+
+  const onSaveResult = (ok: boolean) => {
+    if (timer.current !== null) clearTimeout(timer.current);
+    setSaved(ok);
+    timer.current = ok
+      ? setTimeout(() => {
+          setSaved(false);
+          timer.current = null;
+        }, 3000)
+      : null;
+  };
+
+  return { saved, onSaveResult };
+}
+
+function AdminJobEditor(props: {
+  view: JobView;
+  users: User[];
+  mutate: Mutate;
+  actor: User;
+}) {
+  const { saved, onSaveResult } = useJobDetailsSaveNotice();
+  return <JobEditor {...props} saved={saved} onSaveResult={onSaveResult} />;
+}
+
 function JobEditor({
   view,
   users,
   mutate,
   actor,
   embedded = false,
+  saved,
+  onSaveResult,
 }: {
   view: JobView;
   users: User[];
   mutate: Mutate;
   actor: User;
   embedded?: boolean;
+  saved: boolean;
+  onSaveResult: (ok: boolean) => void;
 }) {
   const [draft, setDraft] = useState({
     advisor_id: view.job.advisor_id,
@@ -12010,10 +12047,11 @@ function JobEditor({
         onSubmit={(event) => {
           event.preventDefault();
           setError("");
-          mutate(
+          const ok = mutate(
             (db) => saveJobDetailsForActor(db, view.job.id, actor.id, draft),
             setError,
           );
+          onSaveResult(ok);
         }}
       >
         <div className="form-grid">
@@ -12198,7 +12236,14 @@ function JobEditor({
             {error}
           </p>
         )}
-        <button className="primary-action">Save Job Details</button>
+        <div className="job-details-save-row">
+          <button className="primary-action">Save Job Details</button>
+          {saved && (
+            <span className="job-details-saved" role="status">
+              <Check size={15} aria-hidden="true" /> Job details saved
+            </span>
+          )}
+        </div>
       </form>
       {embedded && (
         <JobLifecyclePanel
@@ -15989,6 +16034,7 @@ function JobRecordDialog({
 }) {
   const [tab, setTab] = useState<JobCardTabKey>("details");
   const [documentEditor, setDocumentEditor] = useState<DocumentEditor>();
+  const { saved, onSaveResult } = useJobDetailsSaveNotice();
   const archive = () => {
     if (
       !onAdminArchive ||
@@ -16126,6 +16172,8 @@ function JobRecordDialog({
               users={state.users}
               mutate={mutate}
               actor={actor}
+              saved={saved}
+              onSaveResult={onSaveResult}
             />
             <JobSheetSection
               key={`sheet-${view.job.updated_at}`}
