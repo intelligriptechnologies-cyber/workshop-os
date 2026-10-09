@@ -2650,6 +2650,20 @@ export function updateJobSheetForActor(
   saveJobDetailsForActor(db, jobId, actorId, input);
 }
 
+/** Updates the delivery date without saving any other Details-tab drafts. */
+export function updateEstimatedDeliveryForActor(
+  db: Database,
+  jobId: number,
+  actorId: number,
+  estimatedDelivery: string,
+) {
+  assertJobLifecycleMutationAccess(db, jobId, actorId);
+  db.run(
+    "update job_cards set estimated_delivery=?, updated_at=datetime('now') where id=?",
+    [estimatedDelivery, jobId],
+  );
+}
+
 /** Persists the tap-to-mark damage diagram with the Job Card. */
 export function setDamageMarksForActor(
   db: Database,

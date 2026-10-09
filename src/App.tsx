@@ -49,6 +49,7 @@ import {
   todayJobPeriod,
   type JobPeriod,
 } from "./job-picker";
+import { jobDeliveryClass, useLocalDeliveryDate } from "./job-delivery-highlight";
 import { RemoteFinanceWorkspace } from "./remote-finance";
 import { RemoteFollowupsWorkspace } from "./remote-followups";
 import { RemoteSalesWorkspace } from "./remote-sales";
@@ -784,7 +785,7 @@ function App() {
             (searchDateFilter ||
               !searchMonthFilter ||
               (searchCategory === "job"
-                ? jobCreatedDate(view)
+                ? view.job.estimated_delivery
                 : view.visit.received_at.slice(0, 7)
               )?.slice(0, 7) === searchMonthFilter),
         ),
@@ -1108,7 +1109,11 @@ function App() {
       setSearchCategory(drilldown.category ?? "");
       setSearchStatus("ALL");
       setSearchDateFilter(drilldown.date ?? "");
-      setSearchMonthFilter(drilldown.month ?? "");
+      setSearchMonthFilter(
+        drilldown.category === "job"
+          ? drilldown.month ?? localCalendarDate().slice(0, 7)
+          : drilldown.month ?? "",
+      );
       setSearchPaymentMode("ALL");
       setSearchLowStockOnly(drilldown.category === "stock");
     }
@@ -1162,6 +1167,7 @@ function App() {
                     setSearchMonthFilter("");
                     setSearchPaymentMode("ALL");
                   }
+                  setDashboardDrilldown(undefined);
                   setActiveMenuItem(item.label);
                 }}
                 title={item.label}
@@ -1202,6 +1208,10 @@ function App() {
                       | SearchCategorySelection
                       | "";
                     setSearchCategory(nextCategory);
+                    if (nextCategory === "job" && searchCategory !== "job") {
+                      setSearchDateFilter("");
+                      setSearchMonthFilter(localCalendarDate().slice(0, 7));
+                    }
                     if (nextCategory !== "job") setSearchStatus("ALL");
                     if (nextCategory !== "payment") setSearchPaymentMode("ALL");
                     if (nextCategory !== "stock") {
@@ -1814,7 +1824,6 @@ function SearchPortal({
   const [page, setPage] = useState(1);
   const [pageSize, setPageSize] = useState(DEFAULT_PAGE_SIZE);
   const [jobWorkflow, setJobWorkflow] = useState("ALL");
-  const [jobVehicle, setJobVehicle] = useState("ALL");
   const [jobAdvisor, setJobAdvisor] = useState("ALL");
   const [jobSort, setJobSort] = useState("newest");
   const [jobArchivedOnly, setJobArchivedOnly] = useState(false);
@@ -1871,7 +1880,7 @@ function SearchPortal({
     setPaymentMode("ALL");
     setLowStockOnly(false);
     setActiveLowStockOnly(false);
-    setJobWorkflow("ALL"); setJobVehicle("ALL"); setJobAdvisor("ALL"); setJobSort("newest"); setJobArchivedOnly(false);
+    setJobWorkflow("ALL"); setJobAdvisor("ALL"); setJobSort("newest"); setJobArchivedOnly(false);
     setPage(1);
   };
   const clearJobCardFilters = () => {
@@ -1880,7 +1889,6 @@ function SearchPortal({
     setDateFilter("");
     setMonthFilter("");
     setJobWorkflow("ALL");
-    setJobVehicle("ALL");
     setJobAdvisor("ALL");
     setJobSort("newest");
     setJobArchivedOnly(false);
@@ -1897,9 +1905,8 @@ function SearchPortal({
       (!query || normalizeSearch(`${view.job.job_no} ${view.vehicle.number} ${view.vehicle.make} ${view.vehicle.model} ${view.customer.name} ${view.customer.mobile}`).includes(normalizeSearch(query))) &&
       (status === "ALL" || view.job.main_status === status) &&
       (!dateFilter || view.job.estimated_delivery === dateFilter) &&
-      (!monthFilter || jobCreatedDate(view).slice(0, 7) === monthFilter) &&
+      (!monthFilter || view.job.estimated_delivery?.slice(0, 7) === monthFilter) &&
       (jobWorkflow === "ALL" || view.job.sub_status === jobWorkflow) &&
-      (jobVehicle === "ALL" || String(view.vehicle.id) === jobVehicle) &&
       (jobAdvisor === "ALL" || String(view.advisor.id) === jobAdvisor),
     ).sort((a, b) => {
       if (jobSort === "oldest") return a.job.id - b.job.id;
@@ -1909,7 +1916,7 @@ function SearchPortal({
       if (jobSort === "delivery-latest") return (b.job.estimated_delivery || "").localeCompare(a.job.estimated_delivery || "");
       return b.job.id - a.job.id;
     });
-  }, [jobs, state.archived_jobs, actor.role, query, status, dateFilter, monthFilter, jobWorkflow, jobVehicle, jobAdvisor, jobSort, jobArchivedOnly]);
+  }, [jobs, state.archived_jobs, actor.role, query, status, dateFilter, monthFilter, jobWorkflow, jobAdvisor, jobSort, jobArchivedOnly]);
   const paged = paginate(category === "job" ? jobRows : jobs, page, pageSize);
   const stockRows = useMemo(() => {
     const needle = normalizeSearch(query);
@@ -1984,14 +1991,13 @@ function SearchPortal({
           {category === "job" && (
             <JobCardFilterFields
               jobs={jobArchivedOnly && actor.role === "admin" ? state.archived_jobs : state.jobs}
-              values={{ search: query, primary: status, secondary: jobWorkflow, date: dateFilter, month: monthFilter, customer: "", vehicle: jobVehicle, advisor: jobAdvisor, sort: jobSort, archivedOnly: jobArchivedOnly }}
+              values={{ search: query, primary: status, secondary: jobWorkflow, date: dateFilter, month: monthFilter, customer: "", advisor: jobAdvisor, sort: jobSort, archivedOnly: jobArchivedOnly }}
               onChange={(patch) => changeFilters(() => {
                 if (patch.search !== undefined) setQuery(patch.search);
                 if (patch.primary !== undefined) setStatus(patch.primary as SearchCriteria["status"]);
                 if (patch.secondary !== undefined) setJobWorkflow(patch.secondary);
-                if (patch.date !== undefined) setDateFilter(patch.date);
-                if (patch.month !== undefined) setMonthFilter(patch.month);
-                if (patch.vehicle !== undefined) setJobVehicle(patch.vehicle);
+                if (patch.date !== undefined) { setDateFilter(patch.date); if (patch.date) setMonthFilter(""); }
+                if (patch.month !== undefined) { setMonthFilter(patch.month); if (patch.month) setDateFilter(""); }
                 if (patch.advisor !== undefined) setJobAdvisor(patch.advisor);
                 if (patch.sort !== undefined) setJobSort(patch.sort);
                 if (patch.archivedOnly !== undefined) setJobArchivedOnly(patch.archivedOnly);
@@ -2267,6 +2273,7 @@ function SearchResultsTable({
     mode: "view" | "edit",
   ) => void;
 }) {
+  const today = useLocalDeliveryDate();
   const headers =
     category === "job"
       ? ["Job #", "Vehicle", "Customer", "Estimated Delivery Date", "Status", "Total", "Actions"]
@@ -2308,7 +2315,7 @@ function SearchResultsTable({
             return (
               <tr
                 key={view.job.id}
-                className="clickable-row"
+                className={`clickable-row ${category === "job" ? jobDeliveryClass(view.job, today) : ""}`}
                 onClick={() => onOpenRecord(view, category, "view")}
               >
                 {category === "job" && (
@@ -3603,6 +3610,7 @@ function ServiceAdvisor({
   )
     return (
       <ServiceAdvisorList
+        key={activeMenuItem}
         kind={
           activeMenuItem === "Job Card" || activeMenuItem === "Job Cards"
             ? "job-cards"
@@ -3645,15 +3653,17 @@ function ServiceAdvisorList({
   actor: User;
   filterLayout?: "default" | "search";
 }) {
+  const today = useLocalDeliveryDate();
   const [search, setSearch] = useState("");
   const [date, setDate] = useState(() =>
     kind === "estimates" ? localCalendarDate() : "",
   );
-  const [month, setMonth] = useState("");
+  const [month, setMonth] = useState(() =>
+    kind === "job-cards" ? localCalendarDate().slice(0, 7) : "",
+  );
   const [mainStatus, setMainStatus] = useState("ALL");
   const [workflow, setWorkflow] = useState("ALL");
   const [customer, setCustomer] = useState("");
-  const [vehicle, setVehicle] = useState("ALL");
   const [advisor, setAdvisor] = useState("ALL");
   const [sort, setSort] = useState("newest");
   const [page, setPage] = useState(1);
@@ -3676,7 +3686,7 @@ function ServiceAdvisorList({
           listedJobs
             .map((item) =>
               kind === "job-cards"
-                ? jobCreatedDate(item).slice(0, 7)
+                ? item.job.estimated_delivery?.slice(0, 7) ?? ""
                 : item.visit.received_at.slice(0, 7),
             )
             .filter((value) => /^\d{4}-\d{2}$/.test(value)),
@@ -3699,11 +3709,10 @@ function ServiceAdvisorList({
               `${item.job.job_no} ${item.vehicle.number} ${item.vehicle.make} ${item.vehicle.model} ${item.customer.name} ${item.customer.mobile}`,
             ).includes(needle)) &&
           (!date || filteredDate === date) && // Exact date intentionally takes precedence over month/year.
-          (kind !== "job-cards" || !month || jobCreatedDate(item).slice(0, 7) === month) &&
+          (kind !== "job-cards" || !month || item.job.estimated_delivery?.slice(0, 7) === month) &&
           (kind !== "job-cards" || mainStatus === "ALL" || item.job.main_status === mainStatus) &&
           (kind !== "job-cards" || workflow === "ALL" || item.job.sub_status === workflow) &&
           (kind !== "job-cards" || !customer || normalizeSearch(`${item.customer.name} ${item.customer.mobile}`).includes(normalizeSearch(customer))) &&
-          (kind !== "job-cards" || vehicle === "ALL" || String(item.vehicle.id) === vehicle) &&
           (kind !== "job-cards" || advisor === "ALL" || String(item.advisor.id) === advisor)
         );
       }).sort((a, b) => {
@@ -3714,7 +3723,7 @@ function ServiceAdvisorList({
         if (sort === "delivery-soonest") return (a.job.estimated_delivery || "9999-12-31").localeCompare(b.job.estimated_delivery || "9999-12-31");
         return (b.job.estimated_delivery || "").localeCompare(a.job.estimated_delivery || "");
       }),
-    [listedJobs, needle, date, month, kind, mainStatus, workflow, customer, vehicle, advisor, sort],
+    [listedJobs, needle, date, month, kind, mainStatus, workflow, customer, advisor, sort],
   );
   const paged = paginate(filtered, page, pageSize);
   useEffect(() => {
@@ -3730,7 +3739,7 @@ function ServiceAdvisorList({
     setSearch("");
     setDate("");
     setMonth("");
-    setMainStatus("ALL"); setWorkflow("ALL"); setCustomer(""); setVehicle("ALL"); setAdvisor("ALL"); setSort("newest");
+    setMainStatus("ALL"); setWorkflow("ALL"); setCustomer(""); setAdvisor("ALL"); setSort("newest");
     setPage(1);
   };
   const open = (
@@ -3827,15 +3836,14 @@ function ServiceAdvisorList({
         {kind === "job-cards" ? (
           <JobCardFilterFields
             jobs={listedJobs}
-            values={{ search, primary: mainStatus, secondary: workflow, date, month, customer, vehicle, advisor, sort, archivedOnly: false }}
+            values={{ search, primary: mainStatus, secondary: workflow, date, month, customer, advisor, sort, archivedOnly: false }}
             onChange={(patch) => {
               if (patch.search !== undefined) setSearch(patch.search);
               if (patch.primary !== undefined) setMainStatus(patch.primary);
               if (patch.secondary !== undefined) setWorkflow(patch.secondary);
-              if (patch.date !== undefined) setDate(patch.date);
-              if (patch.month !== undefined) setMonth(patch.month);
+              if (patch.date !== undefined) { setDate(patch.date); if (patch.date) setMonth(""); }
+              if (patch.month !== undefined) { setMonth(patch.month); if (patch.month) setDate(""); }
               if (patch.customer !== undefined) setCustomer(patch.customer);
-              if (patch.vehicle !== undefined) setVehicle(patch.vehicle);
               if (patch.advisor !== undefined) setAdvisor(patch.advisor);
               if (patch.sort !== undefined) setSort(patch.sort);
               setPage(1);
@@ -3901,8 +3909,8 @@ function ServiceAdvisorList({
               filters: activeFilterSummary({
                 Search: search.trim(),
                 [kind === "job-cards" ? "Estimated Delivery Date" : "Received date"]: date,
-                [kind === "job-cards" ? "Job Created Month-Year" : "Received month"]: month,
-                ...(kind === "job-cards" ? { "Main status": mainStatus, Workflow: workflow, Customer: customer, Vehicle: vehicle, "Service advisor": advisor, Sort: sort } : {}),
+                [kind === "job-cards" ? "Estimated Delivery Month-Year" : "Received month"]: month,
+                ...(kind === "job-cards" ? { "Main status": mainStatus, Workflow: workflow, Customer: customer, "Service advisor": advisor, Sort: sort } : {}),
               }),
               columns,
               rows: filtered,
@@ -3927,7 +3935,7 @@ function ServiceAdvisorList({
           <div className="record-grid jobs">
             {paged.items.map((row) => (
               <article
-                className={`record-card job-card job-status-${row.job.main_status.toLowerCase()}`}
+                className={`record-card job-card job-status-${row.job.main_status.toLowerCase()} ${jobDeliveryClass(row.job, today)}`}
                 key={row.job.id}
               >
                 <div className="record-identity">
@@ -3974,7 +3982,7 @@ function ServiceAdvisorList({
                     className={
                       kind === "followups"
                         ? `service-followup-row service-followup-${tone}`
-                        : undefined
+                        : kind === "job-cards" ? jobDeliveryClass(row.job, today) : undefined
                     }
                   >
                     <td>{row.job.job_no}</td>
@@ -10438,6 +10446,7 @@ function VisitJobManager({
   selected?: JobView;
   setSelectedJobId: (id: number) => void;
 }) {
+  const today = useLocalDeliveryDate();
   const [archivedOnly, setArchivedOnly] = useState(false);
   const [creating, setCreating] = useState(false);
   const [record, setRecord] = useState<{ id: number; mode: "view" | "edit" }>();
@@ -10644,7 +10653,7 @@ function VisitJobManager({
             </thead>
             <tbody>
               {paged.items.map((row) => (
-                <tr key={row.job.id}>
+                <tr key={row.job.id} className={jobDeliveryClass(row.job, today)}>
                   <td>{row.job.job_no}</td>
                   <td>
                     {row.vehicle.number} · {row.vehicle.make}{" "}
@@ -17492,14 +17501,11 @@ type EntityFilters = {
 
 type JobCardFilterValues = Pick<
   EntityFilters,
-  "search" | "primary" | "secondary" | "date" | "month" | "customer" | "vehicle" | "advisor" | "sort" | "archivedOnly"
+  "search" | "primary" | "secondary" | "date" | "month" | "customer" | "advisor" | "sort" | "archivedOnly"
 >;
 
-const jobCreatedDate = (view: JobView) =>
-  (view.job.created_at || view.visit.received_at || "").slice(0, 10);
-
-const jobCreatedMonths = (jobs: JobView[]) =>
-  [...new Set(jobs.map(jobCreatedDate).map((date) => date.slice(0, 7)).filter((month) => /^\d{4}-\d{2}$/.test(month)))].sort().reverse();
+const jobDeliveryMonths = (jobs: JobView[], selectedMonth: string) =>
+  [...new Set([localCalendarDate().slice(0, 7), selectedMonth, ...jobs.map((view) => view.job.estimated_delivery?.slice(0, 7) ?? "")].filter((month) => /^\d{4}-\d{2}$/.test(month)))].sort().reverse();
 
 function JobCardFilterFields({
   jobs,
@@ -17519,23 +17525,21 @@ function JobCardFilterFields({
   variant: "admin" | "search" | "service";
 }) {
   const workflows = [...new Set(jobs.map((item) => item.job.sub_status))].sort();
-  const vehicles = [...new Map(jobs.map((item) => [item.vehicle.id, item.vehicle])).values()].sort((a, b) => a.number.localeCompare(b.number));
   const advisors = [...new Map(jobs.map((item) => [item.advisor.id, item.advisor])).values()].sort((a, b) => a.name.localeCompare(b.name));
   const search = <label className="list-search job-card-search-filter">Search<input aria-label={searchLabel} value={values.search} placeholder="Job, vehicle, customer or mobile" onChange={(event) => onChange({ search: event.target.value })} /></label>;
   const status = <label className="job-card-status-filter">Main status<select aria-label="Main status" value={values.primary} onChange={(event) => onChange({ primary: event.target.value })}><option value="ALL">All statuses</option>{["NEW", "IN_PROGRESS", "COMPLETED", "CANCELLED", "CLOSED"].map((value) => <option key={value}>{value}</option>)}</select></label>;
   const workflow = <label className="job-card-workflow-filter">Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>;
   const deliveryDate = <label className="job-card-date-filter">Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>;
-  const month = <label className="job-card-month-filter">Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>;
-  const vehicle = <label className="job-card-vehicle-filter">Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>;
+  const month = <label className="job-card-month-filter">Estimated Delivery Month-Year<select aria-label="Estimated delivery month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobDeliveryMonths(jobs, values.month).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>;
   const advisor = <label className="job-card-advisor-filter">Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>;
   const sort = <label className="job-card-sort-filter">Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>;
   const archive = showArchive ? <div className="job-card-archive-filter"><span>Show archived only</span><Switch className="job-card-archive-switch" label="Show archived only" checked={values.archivedOnly} onCheckedChange={(archivedOnly) => onChange({ archivedOnly })} /></div> : null;
   const clear = <ListSearchActions onClear={onClear} />;
 
   return <div className={`job-card-filter-grid job-card-filter-grid--${variant}`} data-job-card-filters>
-    {variant === "service" ? <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}{vehicle}{sort}{clear}</div> : <>
+    {variant === "service" ? <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}{sort}{clear}</div> : <>
       <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}</div>
-      <div className="job-card-filter-row">{vehicle}{advisor}{sort}{archive}{clear}</div>
+      <div className="job-card-filter-row">{advisor}{sort}{archive}{clear}</div>
     </>}
   </div>;
 }
@@ -17581,6 +17585,7 @@ function EntityList({
   const [filters, setFilters] = useState<EntityFilters>({
     ...emptyFilters,
     ...initialFilters,
+    month: initialFilters?.month ?? (kind === "jobs" && !initialFilters?.date ? localCalendarDate().slice(0, 7) : ""),
   });
   const [page, setPage] = useState(1);
   const {
@@ -17596,7 +17601,12 @@ function EntityList({
     archivedOnly,
   } = filters;
   const updateFilters = (patch: Partial<EntityFilters>) => {
-    setFilters((current) => ({ ...current, ...patch }));
+    setFilters((current) => ({
+      ...current,
+      ...patch,
+      ...(kind === "jobs" && patch.date ? { month: "" } : {}),
+      ...(kind === "jobs" && patch.month ? { date: "" } : {}),
+    }));
     setPage(1);
   };
   const updateSearch = (value: string) => {
@@ -17658,13 +17668,11 @@ function EntityList({
           (secondaryFilter === "ALL" ||
             item.job.sub_status === secondaryFilter) &&
           (!dateFilter || item.job.estimated_delivery === dateFilter) &&
-          (!monthFilter || jobCreatedDate(item).slice(0, 7) === monthFilter) &&
+          (!monthFilter || item.job.estimated_delivery?.slice(0, 7) === monthFilter) &&
           (!customerFilter ||
             normalizeSearch(`${item.customer.name} ${item.customer.mobile}`).includes(
               normalizeSearch(customerFilter),
             )) &&
-          (vehicleFilter === "ALL" ||
-            String(item.vehicle.id) === vehicleFilter) &&
           (advisorFilter === "ALL" || String(item.advisor.id) === advisorFilter)
         );
       })
@@ -17998,14 +18006,8 @@ function EntityList({
           Workflow: secondaryFilter,
           Sort: sort,
           "Estimated Delivery Date": dateFilter,
-          "Job Created Month-Year": monthFilter,
+          "Estimated Delivery Month-Year": monthFilter,
           Customer: customerFilter,
-          Vehicle:
-            vehicleFilter === "ALL"
-              ? "ALL"
-              : (jobVehicleOptions.find(
-                  (item) => String(item.id) === vehicleFilter,
-                )?.number ?? vehicleFilter),
           Advisor:
             advisorFilter === "ALL"
               ? "ALL"
@@ -18240,7 +18242,7 @@ function EntityList({
           {kind === "jobs" && (
             <JobCardFilterFields
               jobs={archivedOnly && role === "admin" ? state.archived_jobs : state.jobs}
-              values={{ search: effectiveSearch, primary: filter, secondary: secondaryFilter, date: dateFilter, month: monthFilter, customer: customerFilter, vehicle: vehicleFilter, advisor: advisorFilter, sort, archivedOnly }}
+              values={{ search: effectiveSearch, primary: filter, secondary: secondaryFilter, date: dateFilter, month: monthFilter, customer: customerFilter, advisor: advisorFilter, sort, archivedOnly }}
               onChange={(patch) => {
                 if (patch.search !== undefined && onExternalSearchChange) onExternalSearchChange(patch.search);
                 else updateFilters(patch);
@@ -18672,6 +18674,7 @@ function EntityResults({
   openRecord: (id: number, mode?: "view" | "edit") => void;
   mutate: Mutate;
 }) {
+  const today = useLocalDeliveryDate();
   const canArchive =
     !historical &&
     (kind === "media"
@@ -18707,7 +18710,7 @@ function EntityResults({
       const manageable = canManageJob(row);
       return (
         <article
-          className={`record-card job-card job-status-${row.job.main_status.toLowerCase()}`}
+          className={`record-card job-card job-status-${row.job.main_status.toLowerCase()} ${jobDeliveryClass(row.job, today)}`}
           key={row.job.id}
         >
           <div className="record-identity">
@@ -18836,6 +18839,7 @@ function EntityResults({
                 state={state}
                 canArchive={canArchive}
                 canManageJob={kind === "jobs" && canManageJob(raw as JobView)}
+                today={today}
                 openRecord={openRecord}
                 archive={archive}
               />
@@ -18934,6 +18938,7 @@ function EntityTableRow({
   state,
   canArchive,
   canManageJob,
+  today,
   openRecord,
   archive,
 }: {
@@ -18942,6 +18947,7 @@ function EntityTableRow({
   state: WorkshopState;
   canArchive: boolean;
   canManageJob: boolean;
+  today: string;
   openRecord: (id: number, mode?: "view" | "edit") => void;
   archive: (id: number) => void;
 }) {
@@ -18993,7 +18999,7 @@ function EntityTableRow({
   }
   const statusClass =
     kind === "jobs"
-      ? `job-status-${(raw as JobView).job.main_status.toLowerCase()}`
+      ? `job-status-${(raw as JobView).job.main_status.toLowerCase()} ${jobDeliveryClass((raw as JobView).job, today)}`
       : undefined;
   return (
     <tr className={statusClass}>

@@ -1476,6 +1476,24 @@ main {
   font-weight: 500;
 }
 
+.job-sheet-delivery-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.job-sheet-delivery-actions input {
+  min-width: 0;
+}
+
+@media (max-width: 560px) {
+  .job-sheet-delivery-row .info-row {
+    align-items: flex-start;
+    flex-direction: column;
+    padding: 8px 0;
+  }
+}
+
 .status {
   width: fit-content;
   max-width: 100%;
@@ -2938,7 +2956,6 @@ th {
 .job-card-filter-grid > .job-card-workflow-filter { flex: 0 1 9rem; width: 9rem; }
 .job-card-filter-grid > .job-card-date-filter { flex: 0 1 10.5rem; width: 10.5rem; }
 .job-card-filter-grid > .job-card-month-filter { flex: 0 1 11.5rem; width: 11.5rem; }
-.job-card-filter-grid > .job-card-vehicle-filter { flex: 0 1 8rem; width: 8rem; }
 .job-card-filter-grid > .job-card-advisor-filter { flex: 0 1 10rem; width: 10rem; }
 .job-card-filter-grid > .job-card-sort-filter { flex: 0 1 11.5rem; width: 11.5rem; }
 .job-card-archive-filter { display: grid; gap: .28rem; flex: 0 0 auto; white-space: nowrap; }
@@ -2966,7 +2983,7 @@ th {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
 .job-card-filter-grid--service .job-card-filter-row {
-  grid-template-columns: minmax(12rem, 1.4fr) repeat(6, minmax(0, 1fr)) auto;
+  grid-template-columns: minmax(12rem, 1.4fr) repeat(5, minmax(0, 1fr)) auto;
 }
 .job-card-filter-grid--admin .job-card-filter-row > label,
 .job-card-filter-grid--search .job-card-filter-row > label,
@@ -2979,6 +2996,8 @@ th {
   min-width: 0;
   width: auto;
 }
+.job-card-filter-grid--admin .job-card-filter-row > label,
+.job-card-filter-grid--search .job-card-filter-row > label { width: 100%; }
 .job-card-filter-grid--admin .list-search-actions,
 .job-card-filter-grid--search .list-search-actions,
 .job-card-filter-grid--service .list-search-actions {
@@ -2995,6 +3014,11 @@ th {
 }
 .job-card-filter-grid--admin .list-search-actions,
 .job-card-filter-grid--search .list-search-actions { justify-content: stretch; }
+.job-card-filter-grid--admin :is(input, select, .job-card-archive-switch, .filter-clear-action),
+.job-card-filter-grid--search :is(input, select, .job-card-archive-switch, .filter-clear-action) {
+  box-sizing: border-box;
+  height: 44px;
+}
 
 /* Search keeps each workspace's fields and behavior, but presents them in the
    same aligned desktop grid and narrow-screen stack as Job Card search. */
@@ -3030,6 +3054,8 @@ th {
   .job-card-filter-grid > .list-search-actions .filter-clear-action { width: 100%; }
   .job-card-filter-grid--admin .job-card-filter-row,
   .job-card-filter-grid--search .job-card-filter-row,
+  .job-card-filter-grid--admin .job-card-filter-row + .job-card-filter-row,
+  .job-card-filter-grid--search .job-card-filter-row + .job-card-filter-row,
   .job-card-filter-grid--service .job-card-filter-row { grid-template-columns: 1fr; }
   .job-card-filter-grid--admin .job-card-filter-row > *,
   .job-card-filter-grid--search .job-card-filter-row > *,
@@ -3842,6 +3868,30 @@ th {
 .reception-visit-row.job-status-closed:hover, .reception-visit-row.job-status-closed.active { background: #eef0f3; }
 .reception-visit-row.job-status-hold:hover, .reception-visit-row.job-status-hold.active { background: #fff2c8; }
 .reception-visit-row.job-status-cancelled:hover, .reception-visit-row.job-status-cancelled.active { background: #ffebeb; }
+
+/* Estimated delivery takes precedence over lifecycle surface colors. */
+.record-card.job-card.job-delivery-approaching,
+.record-card.job-card.job-delivery-approaching:hover {
+  background: #fff1c9;
+  border-color: #e9b747;
+  color: #3d2d16;
+}
+.record-card.job-card.job-delivery-overdue,
+.record-card.job-card.job-delivery-overdue:hover {
+  background: #ffe1e5;
+  border-color: #eaa1ad;
+  color: #48252d;
+}
+tr.job-delivery-approaching > td,
+tr.job-delivery-approaching:hover > td {
+  background: #fff1c9;
+  color: #3d2d16;
+}
+tr.job-delivery-overdue > td,
+tr.job-delivery-overdue:hover > td {
+  background: #ffe1e5;
+  color: #48252d;
+}
 .expected-today { margin: .85rem 0; padding: .8rem; border: 1px solid #d9e2e8; border-radius: 10px; background: #fbfcfd; }
 .expected-today-heading, .expected-filter-bar { display: flex; align-items: center; justify-content: space-between; gap: .75rem; }
 .expected-today-heading h2 { margin: 0; color: #24313d; font-size: 1rem; }
