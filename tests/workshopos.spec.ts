@@ -236,6 +236,31 @@ test("admin dashboard presents live metrics in an accessible command-center grid
   await expect(grid.locator(".collection-bars i")).toHaveCount(7);
   await expect(grid.locator(".customer-trend")).toBeVisible();
 
+  const expectCashflowLayout = async () => {
+    const card = grid.locator(".command-cashflow");
+    const [cardBox, selectorBox, trackBox, chartBox] = await Promise.all([
+      card.boundingBox(),
+      cashflowMonth.boundingBox(),
+      card.locator(".collection-pace-track").boundingBox(),
+      card.locator(".collection-bars").boundingBox(),
+    ]);
+    expect(cardBox).not.toBeNull();
+    expect(selectorBox).not.toBeNull();
+    expect(trackBox).not.toBeNull();
+    expect(chartBox).not.toBeNull();
+    expect(chartBox!.y).toBeGreaterThanOrEqual(trackBox!.y + trackBox!.height);
+    expect(chartBox!.x).toBeGreaterThanOrEqual(cardBox!.x);
+    expect(chartBox!.x + chartBox!.width).toBeLessThanOrEqual(cardBox!.x + cardBox!.width);
+    expect(chartBox!.y + chartBox!.height).toBeLessThanOrEqual(cardBox!.y + cardBox!.height);
+    const overlapWidth = Math.max(0, Math.min(chartBox!.x + chartBox!.width, selectorBox!.x + selectorBox!.width) - Math.max(chartBox!.x, selectorBox!.x));
+    const overlapHeight = Math.max(0, Math.min(chartBox!.y + chartBox!.height, selectorBox!.y + selectorBox!.height) - Math.max(chartBox!.y, selectorBox!.y));
+    expect(overlapWidth * overlapHeight).toBe(0);
+  };
+  await expectCashflowLayout();
+  await cashflowMonth.click();
+  await cashflowMonth.selectOption(initialCashflowMonth);
+  await expect(cashflowMonth).toHaveValue(initialCashflowMonth);
+
   await grid.locator(".command-card").first().focus();
   await expect(grid.locator(".command-card").first()).toHaveCSS("outline-style", "solid");
 
@@ -277,12 +302,17 @@ test("admin dashboard presents live metrics in an accessible command-center grid
     await expect(page.getByLabel("Search month-year")).toHaveValue(historicalCashflowMonth!);
     await page.locator(".role-nav").getByRole("button", { name: "Dashboard", exact: true }).click();
   }
+  await cashflowMonth.selectOption(initialCashflowMonth);
 
   await page.emulateMedia({ reducedMotion: "reduce" });
   await expect(page.locator(".command-card").first()).toHaveCSS("transition-duration", "0s");
   await page.setViewportSize({ width: 390, height: 844 });
   await expectNoPageOverflow(page);
   expect(await page.locator(".command-grid").evaluate((element) => getComputedStyle(element).gridTemplateColumns.split(" ").length)).toBe(1);
+  await expectCashflowLayout();
+  await cashflowMonth.click();
+  await cashflowMonth.selectOption(initialCashflowMonth);
+  await expect(cashflowMonth).toHaveValue(initialCashflowMonth);
 
   await page.locator(".role-nav").getByRole("button", { name: "Job Cards", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Job Cards", exact: true })).toBeVisible();
@@ -589,18 +619,31 @@ test("direct Job Cards uses one clear two-row filter toolbar", async ({ page }) 
   await expect(page.getByRole("group", { name: "View mode" }).getByRole("button", { name: "Grid", exact: true })).toBeVisible();
   await expect(page.getByRole("group", { name: "View mode" }).getByRole("button", { name: "Table", exact: true })).toBeVisible();
   await expect(toolbar.locator(".job-card-filter-row")).toHaveCount(2);
-  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Search");
-  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Main status");
-  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Workflow");
-  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Estimated Delivery Date");
-  await expect(toolbar.locator(".job-card-filter-row").first()).toContainText("Job Created Month-Year");
-  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Customer");
-  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Vehicle");
-  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Service advisor");
-  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Sort");
-  await expect(toolbar.locator(".job-card-filter-row").last()).toContainText("Show archived only");
+  await expect(toolbar.getByLabel("Customer filter")).toHaveCount(0);
+  const fieldOrder = await toolbar.locator(".job-card-filter-row").evaluateAll((rows) => rows.map((row) => Array.from(row.children, (control) => {
+    if (control.classList.contains("list-search-actions")) return "Clear";
+    if (control.classList.contains("job-card-archive-filter")) return "Show archived only";
+    return control.firstChild?.textContent?.trim() ?? "";
+  })));
+  expect(fieldOrder).toEqual([
+    ["Search", "Main status", "Workflow", "Estimated Delivery Date", "Job Created Month-Year"],
+    ["Vehicle", "Service advisor", "Sort", "Show archived only", "Clear"],
+  ]);
   const desktopRows = await toolbar.locator(".job-card-filter-row").evaluateAll((rows) => new Set(rows.map((row) => Math.round(row.getBoundingClientRect().bottom))).size);
   expect(desktopRows).toBe(2);
+  const desktopColumns = await toolbar.locator(".job-card-filter-row").evaluateAll((rows) => rows.map((row) => Array.from(row.children, (control) => ({
+    left: control.getBoundingClientRect().left,
+    width: control.getBoundingClientRect().width,
+  }))));
+  expect(desktopColumns).toHaveLength(2);
+  for (const columns of desktopColumns) {
+    expect(columns).toHaveLength(5);
+    expect(Math.max(...columns.map(({ width }) => width)) - Math.min(...columns.map(({ width }) => width))).toBeLessThanOrEqual(1);
+  }
+  desktopColumns[0].forEach((column, index) => {
+    expect(Math.abs(column.left - desktopColumns[1][index].left)).toBeLessThanOrEqual(1);
+    expect(Math.abs(column.width - desktopColumns[1][index].width)).toBeLessThanOrEqual(1);
+  });
 
   const months = await month.locator("option").evaluateAll((options) => options.slice(1).map((option) => (option as HTMLOptionElement).value));
   expect(months).not.toHaveLength(0);
@@ -625,7 +668,7 @@ test("direct Job Cards uses one clear two-row filter toolbar", async ({ page }) 
   await page.setViewportSize({ width: 390, height: 844 });
   await page.getByRole("button", { name: "Show filters", exact: true }).click();
   const mobileControlRows = await toolbar.locator(".job-card-filter-row > label, .job-card-filter-row > .job-card-archive-filter, .job-card-filter-row > .list-search-actions").evaluateAll((controls) => new Set(controls.map((control) => Math.round(control.getBoundingClientRect().top))).size);
-  expect(mobileControlRows).toBeGreaterThan(2);
+  expect(mobileControlRows).toBe(10);
   const [clearBox, toolbarBox] = await Promise.all([
     toolbar.getByRole("button", { name: "Clear", exact: true }).boundingBox(),
     toolbar.boundingBox(),

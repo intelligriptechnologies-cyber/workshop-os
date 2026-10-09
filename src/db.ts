@@ -97,8 +97,10 @@ import type {
   ServiceCatalogMaster,
 } from "./types";
 import { validateMediaDataUrl, type JobMediaCategory } from "./job-media";
+import demoDeliveryDates from "./demo-delivery-dates.json";
 
 const STORAGE_KEY = "workshopos.sqlite.v2";
+const DELIVERY_DATES_MIGRATION_KEY = "workshopos.delivery-dates.2026-10-09.v1";
 export const DEFAULT_SERVICE_WORK_BOOKING_CAPACITY = 8;
 export const DEFAULT_GENERAL_CHECKUP_FOLLOWUP_BOOKING_CAPACITY = 4;
 const wasmUrl = new URL(
@@ -156,17 +158,30 @@ export async function openWorkshopDb() {
   const saved =
     localStorage.getItem(STORAGE_KEY) ??
     localStorage.getItem("workshopos.sqlite.v1");
-  const db = saved
-    ? new SQL.Database(
-        Uint8Array.from(atob(saved), (char) => char.charCodeAt(0)),
-      )
-    : new SQL.Database();
+  let bytes: Uint8Array;
+  if (saved) {
+    bytes = Uint8Array.from(atob(saved), (char) => char.charCodeAt(0));
+  } else {
+    const response = await fetch(`${import.meta.env.BASE_URL}workshopos-demo.sqlite`);
+    if (!response.ok) throw new Error("Could not load the WorkshopOS demo database.");
+    bytes = new Uint8Array(await response.arrayBuffer());
+  }
+  const db = new SQL.Database(bytes);
   createSchema(db);
   migrateSchema(db);
   if (scalar<number>(db, "select count(*) from users") === 0) seed(db);
   ensureDemoAdvisors(db);
   ensureDemoTeamStructure(db);
+  if (saved && !localStorage.getItem(DELIVERY_DATES_MIGRATION_KEY)) {
+    for (const [jobNo, date] of Object.entries(demoDeliveryDates)) {
+      db.run(
+        "update job_cards set estimated_delivery=? where job_no=? and main_status in ('NEW','IN_PROGRESS','HOLD')",
+        [date, jobNo],
+      );
+    }
+  }
   persist(db);
+  localStorage.setItem(DELIVERY_DATES_MIGRATION_KEY, "1");
   return db;
 }
 

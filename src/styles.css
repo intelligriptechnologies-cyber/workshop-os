@@ -1044,6 +1044,10 @@ main {
   padding-right: 8.25rem;
 }
 
+.operational-dashboard .command-cashflow .command-card-heading {
+  z-index: 2;
+}
+
 .operational-dashboard .command-icon-tile {
   width: 48px;
   height: 48px;
@@ -1160,9 +1164,6 @@ main {
 }
 
 .operational-dashboard .collection-bars {
-  position: absolute;
-  top: 4.25rem;
-  right: 1.65rem;
   width: 9.75rem;
   height: 5.9rem;
   opacity: .27;
@@ -1203,7 +1204,7 @@ main {
   .operational-dashboard .command-card-heading { padding-right: 0; }
   .operational-dashboard .command-card-footer { position: static; margin-top: auto; }
   .operational-dashboard .cashflow-month { position: static; margin-left: 0; }
-  .operational-dashboard .collection-bars { top: 5.25rem; right: 1.25rem; width: 7rem; }
+  .operational-dashboard .collection-bars { width: 7rem; }
 }
 
 .board-heading {
@@ -2946,9 +2947,7 @@ th {
 .job-card-archive-switch .ui-switch-state { display: none; }
 .job-card-filter-grid > .list-search-actions { align-self: end; flex: 0 0 auto; margin-left: 0; min-height: 42px; }
 
-/* Each Job Card context opts into an explicit presentation variant. Search and
-   admin keep the complete set in two aligned rows; service is a table-only
-   toolbar without customer or advisor controls. */
+/* Admin and Search share two aligned rows; service uses a table toolbar. */
 .job-card-filter-grid--admin,
 .job-card-filter-grid--search,
 .job-card-filter-grid--service {
@@ -2962,12 +2961,7 @@ th {
   gap: .65rem;
   align-items: end;
 }
-.job-card-filter-grid--admin .job-card-filter-row:first-child {
-  grid-template-columns: minmax(12rem, 1.4fr) repeat(4, minmax(0, 1fr));
-}
-.job-card-filter-grid--admin .job-card-filter-row:last-child {
-  grid-template-columns: minmax(12rem, 1.4fr) repeat(3, minmax(0, 1fr)) auto auto;
-}
+.job-card-filter-grid--admin .job-card-filter-row,
 .job-card-filter-grid--search .job-card-filter-row {
   grid-template-columns: repeat(5, minmax(0, 1fr));
 }
@@ -2991,11 +2985,15 @@ th {
   align-self: end;
   min-height: 42px;
 }
+.job-card-filter-grid--admin .job-card-archive-filter,
 .job-card-filter-grid--search .job-card-archive-filter,
+.job-card-filter-grid--admin .list-search-actions,
 .job-card-filter-grid--search .list-search-actions,
+.job-card-filter-grid--admin .list-search-actions .filter-clear-action,
 .job-card-filter-grid--search .list-search-actions .filter-clear-action {
   width: 100%;
 }
+.job-card-filter-grid--admin .list-search-actions,
 .job-card-filter-grid--search .list-search-actions { justify-content: stretch; }
 
 /* Search keeps each workspace's fields and behavior, but presents them in the
@@ -3033,8 +3031,6 @@ th {
   .job-card-filter-grid--admin .job-card-filter-row,
   .job-card-filter-grid--search .job-card-filter-row,
   .job-card-filter-grid--service .job-card-filter-row { grid-template-columns: 1fr; }
-  .job-card-filter-grid--admin .job-card-filter-row:first-child,
-  .job-card-filter-grid--admin .job-card-filter-row:last-child { grid-template-columns: 1fr; }
   .job-card-filter-grid--admin .job-card-filter-row > *,
   .job-card-filter-grid--search .job-card-filter-row > *,
   .job-card-filter-grid--service .job-card-filter-row > *,

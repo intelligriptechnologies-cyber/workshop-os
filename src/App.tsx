@@ -17526,7 +17526,6 @@ function JobCardFilterFields({
   const workflow = <label className="job-card-workflow-filter">Workflow<select aria-label="Workflow status" value={values.secondary} onChange={(event) => onChange({ secondary: event.target.value })}><option value="ALL">All workflows</option>{workflows.map((value) => <option key={value}>{value}</option>)}</select></label>;
   const deliveryDate = <label className="job-card-date-filter">Estimated Delivery Date<input aria-label="Estimated delivery date" type="date" value={values.date} onChange={(event) => onChange({ date: event.target.value })} /></label>;
   const month = <label className="job-card-month-filter">Job Created Month-Year<select aria-label="Job created month-year" value={values.month} onChange={(event) => onChange({ month: event.target.value })}><option value="">All months</option>{jobCreatedMonths(jobs).map((value) => <option key={value} value={value}>{new Date(`${value}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>;
-  const customer = <label className="job-card-customer-filter">Customer<input aria-label="Customer filter" value={values.customer} placeholder="Name or mobile" onChange={(event) => onChange({ customer: event.target.value })} /></label>;
   const vehicle = <label className="job-card-vehicle-filter">Vehicle<select aria-label="Vehicle filter" value={values.vehicle} onChange={(event) => onChange({ vehicle: event.target.value })}><option value="ALL">All vehicles</option>{vehicles.map((item) => <option key={item.id} value={item.id}>{item.number}</option>)}</select></label>;
   const advisor = <label className="job-card-advisor-filter">Service advisor<select aria-label="Service advisor filter" value={values.advisor} onChange={(event) => onChange({ advisor: event.target.value })}><option value="ALL">All advisors</option>{advisors.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}</select></label>;
   const sort = <label className="job-card-sort-filter">Sort<select aria-label="Sort results" value={values.sort} onChange={(event) => onChange({ sort: event.target.value })}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option><option value="amount-high">Amount (high to low)</option><option value="amount-low">Amount (low to high)</option></select></label>;
@@ -17534,12 +17533,9 @@ function JobCardFilterFields({
   const clear = <ListSearchActions onClear={onClear} />;
 
   return <div className={`job-card-filter-grid job-card-filter-grid--${variant}`} data-job-card-filters>
-    {variant === "service" ? <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}{vehicle}{sort}{clear}</div> : variant === "search" ? <>
+    {variant === "service" ? <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}{vehicle}{sort}{clear}</div> : <>
       <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}</div>
       <div className="job-card-filter-row">{vehicle}{advisor}{sort}{archive}{clear}</div>
-    </> : <>
-      <div className="job-card-filter-row">{search}{status}{workflow}{deliveryDate}{month}</div>
-      <div className="job-card-filter-row">{customer}{vehicle}{advisor}{sort}{archive}{clear}</div>
     </>}
   </div>;
 }
