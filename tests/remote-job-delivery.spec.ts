@@ -40,6 +40,7 @@ test("authenticated advisor saves and clears estimated delivery only after API p
   await page.goto("/");
   await page.getByRole("button", { name: "Job Card", exact: true }).click();
   const workspace = page.getByRole("region", { name: "Online job workflow" });
+  await workspace.getByRole("button", { name: "Clear filters" }).click();
   await expect(workspace.getByText("JC-21").first()).toBeVisible();
   await workspace.getByLabel("Estimated Delivery Date").fill("2026-10-20");
   pauseNext = true;
@@ -54,6 +55,7 @@ test("authenticated advisor saves and clears estimated delivery only after API p
   await page.reload();
   await page.getByRole("button", { name: "Job Card", exact: true }).click();
   const reloaded = page.getByRole("region", { name: "Online job workflow" });
+  await reloaded.getByRole("button", { name: "Clear filters" }).click();
   await expect(reloaded.getByLabel("Estimated Delivery Date")).toHaveValue("2026-10-20");
   await reloaded.getByRole("button", { name: "Clear date" }).click();
   await reloaded.getByRole("button", { name: "Save delivery date" }).click();
@@ -66,6 +68,7 @@ test("authenticated advisor saves and clears estimated delivery only after API p
   await expect(reloaded.getByRole("status")).toHaveCount(0);
   await page.reload();
   await page.getByRole("button", { name: "Job Card", exact: true }).click();
+  await page.getByRole("region", { name: "Online job workflow" }).getByRole("button", { name: "Clear filters" }).click();
   await expect(page.getByRole("region", { name: "Online job workflow" }).getByLabel("Estimated Delivery Date")).toHaveValue("");
   outageNext = true;
   const afterReload = page.getByRole("region", { name: "Online job workflow" });
@@ -79,10 +82,12 @@ test("authenticated advisor saves and clears estimated delivery only after API p
   await page.reload();
   await page.getByRole("button", { name: "Job Card", exact: true }).click();
   const readOnly = page.getByRole("region", { name: "Online job workflow" });
+  await readOnly.getByRole("button", { name: "Clear filters" }).click();
   await expect(readOnly.getByText("Estimated Delivery Date: Not set")).toBeVisible();
   await expect(readOnly.getByRole("button", { name: "Save delivery date" })).toHaveCount(0);
   actorType = "tenant_user"; membershipStatus = "READ_ONLY";
   await page.reload();
   await page.getByRole("button", { name: "Job Card", exact: true }).click();
+  await page.getByRole("region", { name: "Online job workflow" }).getByRole("button", { name: "Clear filters" }).click();
   await expect(page.getByRole("region", { name: "Online job workflow" }).getByRole("button", { name: "Save delivery date" })).toHaveCount(0);
 });

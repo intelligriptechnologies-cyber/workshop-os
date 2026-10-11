@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 import { getAuthenticatedApiReachability, loadWorkshopSession, subscribeAuthenticatedApiReachability, type CognitoConfig, type WorkshopSession } from "./auth";
 import { jobsApi, type RemoteEstimate, type RemoteJob } from "./jobs-api";
+import { localDeliveryDate, useLocalDeliveryDate } from "./job-delivery-highlight";
+import { filterRemoteJobs, remoteJobDeliveryClass, type RemoteJobFilters } from "./remote-job-list";
 
 type Props = { config: CognitoConfig; mode: "jobs" | "estimates" };
 
@@ -24,11 +26,15 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
   const [session, setSession] = useState<WorkshopSession>();
   const [offline, setOffline] = useState(() => getAuthenticatedApiReachability().status === "offline");
   const [busy, setBusy] = useState(false);
-  const selected = useMemo(() => jobs.find((job) => job.id === selectedId) ?? jobs[0], [jobs, selectedId]);
+  const today = useLocalDeliveryDate();
+  const [filters, setFilters] = useState<RemoteJobFilters>(() => ({ month: mode === "jobs" ? localDeliveryDate().slice(0, 7) : "", date: "", sort: "newest" }));
+  const visibleJobs = useMemo(() => mode === "jobs" ? filterRemoteJobs(jobs, filters) : jobs, [jobs, filters, mode]);
+  const selected = useMemo(() => visibleJobs.find((job) => job.id === selectedId) ?? visibleJobs[0], [visibleJobs, selectedId]);
+  const months = useMemo(() => [...new Set([today.slice(0, 7), filters.month, ...jobs.map((job) => job.estimatedDelivery?.slice(0, 7) ?? "")].filter((month) => /^\d{4}-\d{2}$/.test(month)))].sort().reverse(), [jobs, filters.month, today]);
 
   useEffect(() => { const unsubscribe = subscribeAuthenticatedApiReachability((value) => setOffline(value.status === "offline")); return () => { unsubscribe(); }; }, []);
   useEffect(() => { void loadWorkshopSession(config).then(setSession).catch((caught) => setError(caught instanceof Error ? caught.message : "SESSION_FAILED")); }, [config]);
-  useEffect(() => { setDeliveryDate(selected?.estimatedDelivery ?? ""); setDeliveryNotice(""); }, [selected?.id]);
+  useEffect(() => { setDeliveryDate(selected?.estimatedDelivery ?? ""); }, [selected?.id]);
 
   const refresh = async () => {
     const next = await jobsApi.list(config);
@@ -71,6 +77,13 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
   return <section className="manager-panel" aria-label="Online job workflow">
     <div className="panel-actions"><div><h3>{mode === "jobs" ? "Job Cards" : "Estimates"}</h3><span>Live tenant and branch records. Demo data stays available when signed out.</span></div></div>
     {error && <p className="form-error" role="alert">{error}</p>}
+    {deliveryNotice && <p role="status">{deliveryNotice}</p>}
+    {mode === "jobs" && <div className="job-card-filter-grid" aria-label="Job Card filters">
+      <label>Estimated delivery date<input aria-label="Filter by exact delivery date" type="date" value={filters.date} onChange={(event) => setFilters((current) => ({ ...current, date: event.target.value, month: "" }))} /></label>
+      <label>Estimated delivery month<select aria-label="Filter by delivery month" value={filters.month} onChange={(event) => setFilters((current) => ({ ...current, month: event.target.value, date: "" }))}><option value="">All months</option>{months.map((month) => <option key={month} value={month}>{new Date(`${month}-01T00:00:00`).toLocaleDateString("en-IN", { month: "long", year: "numeric" })}</option>)}</select></label>
+      <label>Sort<select aria-label="Sort Job Cards" value={filters.sort} onChange={(event) => setFilters((current) => ({ ...current, sort: event.target.value as RemoteJobFilters["sort"] }))}><option value="newest">Newest</option><option value="oldest">Oldest</option><option value="delivery-soonest">Estimated delivery (soonest)</option><option value="delivery-latest">Estimated delivery (latest)</option></select></label>
+      <button type="button" onClick={() => setFilters({ month: "", date: "", sort: "newest" })}>Clear filters</button>
+    </div>}
     {mode === "jobs" && <form className="form-grid" onSubmit={(event) => { event.preventDefault(); void run(async () => { await jobsApi.create(config, { visitId: Number(visitId), departmentId, responsibleManagerId, workList }); setVisitId(""); setDepartmentId(""); setResponsibleManagerId(""); setWorkList(""); }); }}>
       <label>Visit ID<input required min="1" type="number" value={visitId} onChange={(event) => setVisitId(event.target.value)} /></label>
       <label>Service department ID<input required value={departmentId} onChange={(event) => setDepartmentId(event.target.value)} /></label>
@@ -78,7 +91,8 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
       <label>Initial work list<input value={workList} onChange={(event) => setWorkList(event.target.value)} /></label>
       <div className="action-row"><button className="primary-action" disabled={busy}>Create Job Card</button></div>
     </form>}
-    <div className="table-wrap"><table><thead><tr><th>Job</th><th>Visit</th><th>Status</th><th>Current estimate</th></tr></thead><tbody>{jobs.map((job) => { const item = currentEstimate(job); return <tr key={job.id} aria-selected={selected?.id === job.id} aria-disabled={busy} onClick={() => { if (!busy) setSelectedId(job.id); }}><td><button className="link-action" type="button" disabled={busy} onClick={() => { if (!busy) setSelectedId(job.id); }}>{job.jobNo}</button></td><td>{job.visitId}</td><td>{job.status}</td><td>{item ? `${item.status} · rev ${item.revision}` : "None"}</td></tr>; })}</tbody></table></div>
+    <div className="table-wrap"><table aria-label="Online Job Cards"><thead><tr><th>Job</th><th>Visit</th><th>Status</th>{mode === "jobs" && <th>Estimated delivery</th>}<th>Current estimate</th></tr></thead><tbody>{visibleJobs.map((job) => { const item = currentEstimate(job); const urgency = mode === "jobs" ? remoteJobDeliveryClass(job, today) : ""; return <tr key={job.id} className={urgency} aria-selected={selected?.id === job.id} aria-disabled={busy} onClick={() => { if (!busy) setSelectedId(job.id); }}><td><button className="link-action" type="button" disabled={busy} onClick={() => { if (!busy) setSelectedId(job.id); }}>{job.jobNo}</button></td><td>{job.visitId}</td><td>{job.status}</td>{mode === "jobs" && <td>{job.estimatedDelivery ?? "Not set"}{urgency && <span className="job-delivery-urgency"> · {urgency === "job-delivery-overdue" ? "Overdue" : "Approaching"}</span>}</td>}<td>{item ? `${item.status} · rev ${item.revision}` : "None"}</td></tr>; })}</tbody></table></div>
+    {mode === "jobs" && !visibleJobs.length && <p className="empty-state">No Job Cards match these delivery filters. Clear filters to see all months, including undated Job Cards.</p>}
     {selected && <section className="record-view"><h4>{selected.jobNo} · {selected.status}</h4>
       <div className="action-row">{selected.status === "NEW" && <button className="primary-action" disabled={busy} onClick={() => command("start-work")}>Start work</button>}{selected.status === "IN_PROGRESS" && <><button disabled={busy} onClick={() => command("hold-job")}>Place on hold</button><button className="primary-action" disabled={busy} title="Requires approved estimate, work evidence, resolved materials, passing QC, and a current invoice." onClick={() => command("complete-work")}>Complete work</button></>}{selected.status === "HOLD" && <button className="primary-action" disabled={busy} onClick={() => command("resume-work")}>Resume work</button>}{selected.status === "COMPLETED" && <button disabled={busy} onClick={() => command("start-rework")}>Start rework</button>}{["NEW", "IN_PROGRESS", "HOLD"].includes(selected.status) && <button className="danger-action" disabled={busy} onClick={() => command("cancel-job")}>Cancel job</button>}</div>
       <EstimatePanel estimate={estimate} busy={busy} onCreate={() => { if (!description.trim() || !Number(quantity) || Number(rate) < 0) { setError("Estimate description, quantity and rate are required."); return; } void run(async () => { await jobsApi.createEstimate(config, selected.id, { lines: [{ kind: "labour", description, quantity: Number(quantity), rate: Number(rate), gstRate: 18 }] }); setDescription(""); setRate(""); }); }} onDecision={(outcome) => { if (!estimate) return; void run(() => jobsApi.decideEstimate(config, estimate.id, { outcome, channel, decidedAt: new Date().toISOString(), note })); }} description={description} quantity={quantity} rate={rate} setDescription={setDescription} setQuantity={setQuantity} setRate={setRate} channel={channel} setChannel={setChannel} note={note} setNote={setNote} />
@@ -92,7 +106,6 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
           </div>
         </form> : <p>Estimated Delivery Date: {selected.estimatedDelivery ?? "Not set"}</p>}
         {offline && <p role="alert">Offline mode is read-only. Reconnect to save a delivery date.</p>}
-        {deliveryNotice && <p role="status">{deliveryNotice}</p>}
       </div>}
     </section>}
   </section>;

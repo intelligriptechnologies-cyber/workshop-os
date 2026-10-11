@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import type { JobCard } from "./types";
+
+type DeliveryJob = { estimated_delivery?: string | null; main_status: string; archived_at?: string | null };
 
 function calendarDay(value: string): number | undefined {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined;
@@ -20,7 +21,7 @@ export function localDeliveryDate(now = new Date()): string {
 }
 
 export function jobDeliveryTone(
-  job: Pick<JobCard, "estimated_delivery" | "main_status" | "archived_at">,
+  job: DeliveryJob,
   today: string,
 ): "approaching" | "overdue" | undefined {
   if (job.archived_at || job.main_status === "CLOSED" || job.main_status === "CANCELLED") return undefined;
@@ -33,7 +34,7 @@ export function jobDeliveryTone(
   return undefined;
 }
 
-export function jobDeliveryClass(job: Pick<JobCard, "estimated_delivery" | "main_status" | "archived_at">, today: string) {
+export function jobDeliveryClass(job: DeliveryJob, today: string) {
   const tone = jobDeliveryTone(job, today);
   return tone ? `job-delivery-${tone}` : "";
 }
