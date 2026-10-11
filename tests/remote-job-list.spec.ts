@@ -13,6 +13,8 @@ test(`${roleName} Job Cards browse authoritative delivery dates and urgency`, as
   const overdue = date(yesterday.getFullYear(), yesterday.getMonth() + 1, yesterday.getDate());
   const nextMonthDate = new Date(year, month, 2);
   const nextMonth = date(nextMonthDate.getFullYear(), nextMonthDate.getMonth() + 1, 2);
+  const tomorrowDate = new Date(year, month - 1, now.getDate() + 1);
+  const tomorrow = date(tomorrowDate.getFullYear(), tomorrowDate.getMonth() + 1, tomorrowDate.getDate());
   const base = { visitId: 11, branchId: "branch-1", advisorId: "actor-1", departmentId: null, responsibleManagerId: null, assignmentState: "ASSIGNED_TO_ADVISOR", department: null, responsibleManager: null, advisor: null, assignmentHistory: [], workList: "Service", promisedAt: null, archivedAt: null, createdAt: "2026-01-01T09:00:00Z", updatedAt: "2026-01-01T09:00:00Z", estimates: [], events: [] };
   const jobs = [
     { ...base, id: 1, jobNo: "JC-OVERDUE", status: "NEW", estimatedDelivery: overdue },
@@ -21,7 +23,9 @@ test(`${roleName} Job Cards browse authoritative delivery dates and urgency`, as
     { ...base, id: 4, jobNo: "JC-UNDATED", status: "NEW", estimatedDelivery: null },
     { ...base, id: 5, jobNo: "JC-CLOSED", status: "CLOSED", estimatedDelivery: overdue },
     { ...base, id: 6, jobNo: "JC-ARCHIVED", status: "NEW", estimatedDelivery: overdue, archivedAt: "2026-01-02T00:00:00Z" },
+    { ...base, id: 7, jobNo: "JC-TOMORROW", status: "NEW", estimatedDelivery: tomorrow },
   ];
+  await page.clock.install({ time: new Date(year, month - 1, now.getDate(), 12) });
   await page.addInitScript(() => sessionStorage.setItem("workshopos.cognito.tokens.v1", JSON.stringify({ accessToken: "delivery-list-token", expiresAt: Date.now() + 3_600_000 })));
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
@@ -57,8 +61,10 @@ test(`${roleName} Job Cards browse authoritative delivery dates and urgency`, as
   await expect(table.locator("tbody tr").first()).toContainText(overdue);
   await workspace.getByRole("combobox", { name: "Sort Job Cards" }).selectOption("delivery-latest");
   await expect(table.locator("tbody tr").first()).toContainText("JC-FUTURE");
-  await page.clock.setFixedTime(new Date(year, month - 1, now.getDate() + 1, 12));
-  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await page.clock.fastForward(24 * 60 * 60 * 1000);
   await expect(table.getByRole("row", { name: /JC-TODAY/ })).toContainText("Overdue");
+  await page.clock.setFixedTime(new Date(year, month - 1, now.getDate() + 2, 12));
+  await page.evaluate(() => document.dispatchEvent(new Event("visibilitychange")));
+  await expect(table.getByRole("row", { name: /JC-TOMORROW/ })).toContainText("Overdue");
 });
 }

@@ -52,6 +52,9 @@ test("authenticated advisor saves and clears estimated delivery only after API p
   releaseSave?.();
   await expect(workspace.getByRole("status")).toHaveText("Estimated delivery date saved.");
   expect(commands).toEqual([{ date: "2026-10-20", authorization: "Bearer delivery-token" }]);
+  await workspace.getByRole("button", { name: "JC-22" }).click();
+  await expect(workspace.getByRole("status")).toHaveCount(0);
+  await workspace.getByRole("button", { name: "JC-21" }).click();
   await page.reload();
   await page.getByRole("button", { name: "Job Card", exact: true }).click();
   const reloaded = page.getByRole("region", { name: "Online job workflow" });
