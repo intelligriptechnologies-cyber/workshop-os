@@ -55,6 +55,7 @@ import { RemoteTechnicianWorkspace } from "./remote-execution";
 import { RemoteFollowupsWorkspace } from "./remote-followups";
 import { RemoteSalesWorkspace } from "./remote-sales";
 import { RemoteMaterialsWorkspace } from "./remote-materials";
+import { RemoteJobWorkflow } from "./remote-jobs";
 import { RemoteInventoryWorkspace } from "./remote-inventory";
 import { LocalSalesWorkspace } from "./local-sales";
 import { dashboardFacts } from "./dashboard-metrics";
@@ -1537,6 +1538,7 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
+  if (cognitoConfig && ["Job Cards", "Job Card", "My Queue"].includes(activeMenuItem)) return <RemoteJobWorkflow config={cognitoConfig} mode="jobs" />;
   if (cognitoConfig && activeMenuItem === "My Tasks") return <RemoteTechnicianWorkspace config={cognitoConfig} />;
   if (cognitoConfig && activeMenuItem === "Advance Bookings") return <RemoteBookingDesk config={cognitoConfig} />;
   if (cognitoConfig && activeMenuItem === "Material Requests") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="requests" />;

@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState } from "react";
-import type { CognitoConfig } from "./auth";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { getAuthenticatedApiReachability, loadWorkshopSession, subscribeAuthenticatedApiReachability, type CognitoConfig, type WorkshopSession } from "./auth";
 import { jobsApi, type RemoteEstimate, type RemoteJob } from "./jobs-api";
 
 type Props = { config: CognitoConfig; mode: "jobs" | "estimates" };
@@ -19,8 +19,16 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
   const [channel, setChannel] = useState<"in_person" | "phone" | "whatsapp" | "email" | "other">("phone");
   const [note, setNote] = useState("");
   const [error, setError] = useState("");
+  const [deliveryNotice, setDeliveryNotice] = useState("");
+  const [deliveryDate, setDeliveryDate] = useState("");
+  const [session, setSession] = useState<WorkshopSession>();
+  const [offline, setOffline] = useState(() => getAuthenticatedApiReachability().status === "offline");
   const [busy, setBusy] = useState(false);
   const selected = useMemo(() => jobs.find((job) => job.id === selectedId) ?? jobs[0], [jobs, selectedId]);
+
+  useEffect(() => { const unsubscribe = subscribeAuthenticatedApiReachability((value) => setOffline(value.status === "offline")); return () => { unsubscribe(); }; }, []);
+  useEffect(() => { void loadWorkshopSession(config).then(setSession).catch((caught) => setError(caught instanceof Error ? caught.message : "SESSION_FAILED")); }, [config]);
+  useEffect(() => { setDeliveryDate(selected?.estimatedDelivery ?? ""); setDeliveryNotice(""); }, [selected?.id]);
 
   const refresh = async () => {
     const next = await jobsApi.list(config);
@@ -40,6 +48,25 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
     const reason = needsReason ? window.prompt("Reason for this lifecycle command:") ?? "" : "";
     void run(() => jobsApi.command(config, selected.id, kind, reason));
   };
+  const mayEditDelivery = Boolean(selected && session && session.actorType === "tenant_user" && session.membership.status === "ACTIVE" && !selected.archivedAt && !["CANCELLED", "CLOSED"].includes(selected.status)
+    && (session.membership.permissions.includes("page.job-card.write") || session.membership.permissions.includes("page.jobs.write"))
+    && (session.membership.roles.some((role) => role.name === "Owner/Admin")
+      || (session.membership.roles.some((role) => role.name === "Service Advisor") && selected.advisorId === session.actorId)));
+  const saveDelivery = async (event: FormEvent) => {
+    event.preventDefault();
+    if (!selected || !mayEditDelivery) return;
+    if (offline) { setError("OFFLINE_READ_ONLY"); setDeliveryNotice(""); return; }
+    setBusy(true); setError(""); setDeliveryNotice("");
+    try {
+      const requested = deliveryDate || null;
+      await jobsApi.updateEstimatedDelivery(config, selected.id, requested);
+      const persisted = await jobsApi.get(config, selected.id);
+      if (persisted.estimatedDelivery !== requested) throw new Error("DELIVERY_SAVE_NOT_CONFIRMED");
+      setJobs((current) => current.map((job) => job.id === persisted.id ? persisted : job));
+      setDeliveryNotice("Estimated delivery date saved.");
+    } catch (caught) { setError(caught instanceof Error ? caught.message : "DELIVERY_SAVE_FAILED"); }
+    finally { setBusy(false); }
+  };
   const estimate = selected ? currentEstimate(selected) : undefined;
   return <section className="manager-panel" aria-label="Online job workflow">
     <div className="panel-actions"><div><h3>{mode === "jobs" ? "Job Cards" : "Estimates"}</h3><span>Live tenant and branch records. Demo data stays available when signed out.</span></div></div>
@@ -51,10 +78,22 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
       <label>Initial work list<input value={workList} onChange={(event) => setWorkList(event.target.value)} /></label>
       <div className="action-row"><button className="primary-action" disabled={busy}>Create Job Card</button></div>
     </form>}
-    <div className="table-wrap"><table><thead><tr><th>Job</th><th>Visit</th><th>Status</th><th>Current estimate</th></tr></thead><tbody>{jobs.map((job) => { const item = currentEstimate(job); return <tr key={job.id} aria-selected={selected?.id === job.id} onClick={() => setSelectedId(job.id)}><td><button className="link-action" type="button" onClick={() => setSelectedId(job.id)}>{job.jobNo}</button></td><td>{job.visitId}</td><td>{job.status}</td><td>{item ? `${item.status} · rev ${item.revision}` : "None"}</td></tr>; })}</tbody></table></div>
+    <div className="table-wrap"><table><thead><tr><th>Job</th><th>Visit</th><th>Status</th><th>Current estimate</th></tr></thead><tbody>{jobs.map((job) => { const item = currentEstimate(job); return <tr key={job.id} aria-selected={selected?.id === job.id} aria-disabled={busy} onClick={() => { if (!busy) setSelectedId(job.id); }}><td><button className="link-action" type="button" disabled={busy} onClick={() => { if (!busy) setSelectedId(job.id); }}>{job.jobNo}</button></td><td>{job.visitId}</td><td>{job.status}</td><td>{item ? `${item.status} · rev ${item.revision}` : "None"}</td></tr>; })}</tbody></table></div>
     {selected && <section className="record-view"><h4>{selected.jobNo} · {selected.status}</h4>
       <div className="action-row">{selected.status === "NEW" && <button className="primary-action" disabled={busy} onClick={() => command("start-work")}>Start work</button>}{selected.status === "IN_PROGRESS" && <><button disabled={busy} onClick={() => command("hold-job")}>Place on hold</button><button className="primary-action" disabled={busy} title="Requires approved estimate, work evidence, resolved materials, passing QC, and a current invoice." onClick={() => command("complete-work")}>Complete work</button></>}{selected.status === "HOLD" && <button className="primary-action" disabled={busy} onClick={() => command("resume-work")}>Resume work</button>}{selected.status === "COMPLETED" && <button disabled={busy} onClick={() => command("start-rework")}>Start rework</button>}{["NEW", "IN_PROGRESS", "HOLD"].includes(selected.status) && <button className="danger-action" disabled={busy} onClick={() => command("cancel-job")}>Cancel job</button>}</div>
       <EstimatePanel estimate={estimate} busy={busy} onCreate={() => { if (!description.trim() || !Number(quantity) || Number(rate) < 0) { setError("Estimate description, quantity and rate are required."); return; } void run(async () => { await jobsApi.createEstimate(config, selected.id, { lines: [{ kind: "labour", description, quantity: Number(quantity), rate: Number(rate), gstRate: 18 }] }); setDescription(""); setRate(""); }); }} onDecision={(outcome) => { if (!estimate) return; void run(() => jobsApi.decideEstimate(config, estimate.id, { outcome, channel, decidedAt: new Date().toISOString(), note })); }} description={description} quantity={quantity} rate={rate} setDescription={setDescription} setQuantity={setQuantity} setRate={setRate} channel={channel} setChannel={setChannel} note={note} setNote={setNote} />
+      {mode === "jobs" && <div className="job-sheet-delivery-row">
+        {mayEditDelivery ? <form onSubmit={(event) => void saveDelivery(event)}>
+          <label htmlFor="remote-estimated-delivery">Estimated Delivery Date</label>
+          <div className="job-sheet-delivery-actions">
+            <input id="remote-estimated-delivery" type="date" value={deliveryDate} disabled={busy || offline} onChange={(event) => { setDeliveryDate(event.target.value); setDeliveryNotice(""); }} />
+            <button className="primary-action" type="submit" disabled={busy || offline}>Save delivery date</button>
+            <button type="button" disabled={busy || offline} onClick={() => { setDeliveryDate(""); setDeliveryNotice(""); }}>Clear date</button>
+          </div>
+        </form> : <p>Estimated Delivery Date: {selected.estimatedDelivery ?? "Not set"}</p>}
+        {offline && <p role="alert">Offline mode is read-only. Reconnect to save a delivery date.</p>}
+        {deliveryNotice && <p role="status">{deliveryNotice}</p>}
+      </div>}
     </section>}
   </section>;
 }

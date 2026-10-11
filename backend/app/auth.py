@@ -193,6 +193,7 @@ ScopedTenant = Annotated[tuple[Session, TenantScope], Depends(tenant_scope)]
 def session_payload(scope: TenantScope) -> dict[str, object]:
     return {
         "actorType": scope.actor_type,
+        "actorId": str(scope.actor_id),
         "membership": {
             "id": str(scope.membership_id),
             "displayName": scope.display_name,

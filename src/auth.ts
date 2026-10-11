@@ -15,7 +15,7 @@ export type SessionMembership = {
   id: string;
   displayName: string;
   email: string;
-  status: "INVITED" | "ACTIVE" | "ARCHIVED";
+  status: "INVITED" | "ACTIVE" | "ARCHIVED" | "READ_ONLY";
   roleIds: string[];
   roles: Array<{ id: string; name: string; permissions: string[] }>;
   branchIds: string[];
@@ -24,7 +24,7 @@ export type SessionMembership = {
   version: number;
 };
 
-export type WorkshopSession = { membership: SessionMembership; tenant: { id: string; name: string } };
+export type WorkshopSession = { actorId: string; actorType: "tenant_user" | "support_emulation"; membership: SessionMembership; tenant: { id: string; name: string } };
 
 type Tokens = { accessToken: string; refreshToken?: string; expiresAt: number };
 const TOKEN_KEY = "workshopos.cognito.tokens.v1";

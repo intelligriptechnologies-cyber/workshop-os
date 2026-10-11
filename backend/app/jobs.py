@@ -8,12 +8,12 @@ command, rather than an unrestricted update of a job or estimate row.
 from __future__ import annotations
 
 import json
-from datetime import datetime
+from datetime import date, datetime
 from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Header, Query, status
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 from sqlalchemy import text
 
 from app.auth import ScopedTenant, auth_error
@@ -68,6 +68,17 @@ class JobCommand(ApiModel):
     reason: Annotated[str, Field(max_length=4000)] = ""
 
 
+class EstimatedDeliveryUpdate(ApiModel):
+    estimated_delivery: date | None = Field(alias="estimatedDelivery")
+
+    @field_validator("estimated_delivery", mode="before")
+    @classmethod
+    def date_only(cls, value: object) -> object:
+        if value is not None and (not isinstance(value, str) or len(value) != 10 or not value[:4].isdigit() or value[4] != "-" or not value[5:7].isdigit() or value[7] != "-" or not value[8:].isdigit()):
+            raise ValueError("estimatedDelivery must be a YYYY-MM-DD calendar date or null")
+        return value
+
+
 class AdvisorAssignment(ApiModel):
     advisor_id: UUID = Field(alias="advisorId")
     reason: Annotated[str, Field(max_length=4000)] = ""
@@ -102,6 +113,8 @@ def _job(row: dict[str, object]) -> dict[str, object]:
         "responsibleManagerId": str(row["responsible_manager_id"]) if row.get("responsible_manager_id") else None,
         "assignmentState": row.get("assignment_state") or "LEGACY",
         "status": row["status"], "workList": row["work_list"], "promisedAt": row["promised_at"],
+        "estimatedDelivery": row["estimated_delivery"].isoformat() if row["estimated_delivery"] else None,
+        "archivedAt": row["archived_at"],
         "createdAt": row["created_at"], "updatedAt": row["updated_at"],
     }
 
@@ -217,7 +230,7 @@ def list_jobs(scope: ScopedTenant, branch_id: UUID | None = Query(default=None, 
         _branch(current, branch_id)
     is_owner = any(name == "Owner/Admin" for _, name, _ in current.roles)
     rows = session.execute(text("""
-        SELECT * FROM job_cards WHERE (:branch_id IS NULL OR branch_id=:branch_id)
+        SELECT * FROM job_cards WHERE (CAST(:branch_id AS uuid) IS NULL OR branch_id=CAST(:branch_id AS uuid))
           AND (:is_owner OR responsible_manager_id=:actor_id OR advisor_id=:actor_id)
         ORDER BY created_at DESC, id DESC
     """), {"branch_id": str(branch_id) if branch_id else None, "is_owner": is_owner, "actor_id": str(current.actor_id)}).mappings().all()
@@ -230,6 +243,31 @@ def get_job(job_id: int, scope: ScopedTenant) -> dict[str, object]:
     _permission(scope, mutation=False)
     job = _row_or_404(session, "job_cards", job_id, "JOB_NOT_FOUND")
     _assert_job_actor(current, job)
+    return _job_with_estimates(session, job_id)
+
+
+@router.put("/jobs/{job_id}/estimated-delivery")
+def update_estimated_delivery(job_id: int, input: EstimatedDeliveryUpdate, scope: ScopedTenant) -> dict[str, object]:
+    session, current = scope
+    _require_any(scope, ("page.job-card.write", "page.jobs.write"), mutation=True)
+    locked = session.execute(text("SELECT * FROM job_cards WHERE id=:job_id FOR UPDATE"), {"job_id": job_id}).mappings().one_or_none()
+    if locked is None:
+        raise auth_error("JOB_NOT_FOUND", status.HTTP_404_NOT_FOUND)
+    job = dict(locked)
+    is_owner = any(name == "Owner/Admin" for _, name, _ in current.roles)
+    if not is_owner and str(job["advisor_id"]) != str(current.actor_id):
+        raise auth_error("JOB_ASSIGNMENT_REQUIRED", status.HTTP_403_FORBIDDEN)
+    if not is_owner and not any(name == "Service Advisor" for _, name, _ in current.roles):
+        raise auth_error("PERMISSION_DENIED", status.HTTP_403_FORBIDDEN)
+    if job["archived_at"] is not None or job["status"] in ("CANCELLED", "CLOSED"):
+        raise auth_error("JOB_READ_ONLY", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    before = job["estimated_delivery"].isoformat() if job["estimated_delivery"] else None
+    after = input.estimated_delivery.isoformat() if input.estimated_delivery else None
+    session.execute(text("""
+        UPDATE job_cards SET estimated_delivery=:estimated_delivery, updated_by=:actor_id, updated_at=now()
+        WHERE id=:job_id
+    """), {"estimated_delivery": input.estimated_delivery, "actor_id": str(current.actor_id), "job_id": job_id})
+    _audit(session, current, "JOB_ESTIMATED_DELIVERY_UPDATED", "Estimated delivery date changed", {"estimatedDelivery": before}, {"estimatedDelivery": after})
     return _job_with_estimates(session, job_id)
 
 
