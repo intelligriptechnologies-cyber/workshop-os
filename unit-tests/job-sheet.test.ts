@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
-import { archiveJobPhotoForActor, createSchema, migrateSchema, receiveVehicle, saveJobDetailsForActor, saveJobPhotoForActor, setDamageMarksForActor, updateJobSheetForActor } from "../src/db";
+import { archiveJobPhotoForActor, createSchema, migrateSchema, readState, receiveVehicle, saveJobDetailsForActor, saveJobPhotoForActor, setDamageMarksForActor, updateEstimatedDeliveryForActor, updateJobSheetForActor } from "../src/db";
 import { addDamageMark, parseDamageMarks, removeDamageMark } from "../src/job-sheet";
 
 async function database() {
@@ -10,7 +10,7 @@ async function database() {
   const db = new SQL.Database();
   createSchema(db);
   migrateSchema(db);
-  db.run("insert into users(id,email,name,role,password) values (1,'o@t','Owner','admin','x'),(2,'a@t','Adv','service','x'),(3,'r@t','Rec','reception','x'),(5,'t@t','Tech','tech','x')");
+  db.run("insert into users(id,email,name,role,password) values (1,'o@t','Owner','admin','x'),(2,'a@t','Adv','service','x'),(3,'r@t','Rec','reception','x'),(4,'b@t','Other advisor','service','x'),(5,'t@t','Tech','tech','x')");
   return db;
 }
 const row = (db: Database, sql: string) => db.exec(sql)[0].values[0];
@@ -56,6 +56,42 @@ test("job-details saves preserve the assigned service advisor", async () => {
   const jobId = receiveVehicle(db, intake);
   saveJobDetailsForActor(db, jobId, 2, { advisor_id: 1, work_list: "Door repair" });
   assert.equal(row(db, `select advisor_id from job_cards where id=${jobId}`)[0], 2);
+});
+
+test("Owner and assigned advisor can save or clear only the delivery date in every editable status", async () => {
+  for (const status of ["NEW", "IN_PROGRESS", "HOLD", "COMPLETED"]) {
+    const db = await database();
+    const jobId = receiveVehicle(db, { ...intake, estimatedDelivery: "2026-10-01" });
+    db.run("update job_cards set main_status=?, work_list='Unchanged work', updated_at='2000-01-01 00:00:00' where id=?", [status, jobId]);
+    const before = db.exec(`select * from job_cards where id=${jobId}`)[0];
+    const otherTables = ["visits", "vehicles", "customers"].map((table) => db.exec(`select * from ${table}`)[0].values);
+    for (const [actorId, date] of [[2, "2026-11-15"], [2, ""], [1, "2026-12-15"], [1, ""]] as const) {
+      updateEstimatedDeliveryForActor(db, jobId, actorId, date);
+      const after = db.exec(`select * from job_cards where id=${jobId}`)[0];
+      assert.deepEqual(after.values[0].filter((_, index) => !["estimated_delivery", "updated_at"].includes(after.columns[index])), before.values[0].filter((_, index) => !["estimated_delivery", "updated_at"].includes(before.columns[index])));
+      assert.equal(row(db, `select estimated_delivery from job_cards where id=${jobId}`)[0], date);
+      assert.notEqual(row(db, `select updated_at from job_cards where id=${jobId}`)[0], "2000-01-01 00:00:00");
+      assert.equal(readState(db).jobs.find((view) => view.job.id === jobId)?.job.estimated_delivery, date);
+      assert.deepEqual(["visits", "vehicles", "customers"].map((table) => db.exec(`select * from ${table}`)[0].values), otherTables);
+    }
+  }
+});
+
+test("other users, archived records and terminal jobs cannot change the delivery date", async () => {
+  const db = await database();
+  const jobId = receiveVehicle(db, { ...intake, estimatedDelivery: "2026-10-01" });
+  for (const actorId of [3, 4, 5]) {
+    assert.throws(() => updateEstimatedDeliveryForActor(db, jobId, actorId, "2026-12-01"), /Only the Owner/);
+  }
+  db.run("update users set archived_at='2026-10-01' where id=2");
+  assert.throws(() => updateEstimatedDeliveryForActor(db, jobId, 2, "2026-12-01"));
+  for (const status of ["CLOSED", "CANCELLED"]) {
+    db.run("update job_cards set main_status=? where id=?", [status, jobId]);
+    assert.throws(() => updateEstimatedDeliveryForActor(db, jobId, 1, "2026-12-01"), /read-only/);
+  }
+  db.run("update job_cards set main_status='NEW', archived_at='2026-10-01' where id=?", [jobId]);
+  assert.throws(() => updateEstimatedDeliveryForActor(db, jobId, 1, "2026-12-01"));
+  assert.equal(row(db, `select estimated_delivery from job_cards where id=${jobId}`)[0], "2026-10-01");
 });
 
 test("before and after photo mutation gates follow the job status", async () => {

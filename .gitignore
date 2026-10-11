@@ -14,5 +14,6 @@ playwright-report/
 /.claude/
 /.playwright-mcp/
 /.serena/
+/.scratch/chrome-profile1-workshopos-original.*
 backend/.pytest_cache/
 backend/**/__pycache__/

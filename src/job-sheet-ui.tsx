@@ -1,11 +1,34 @@
 import { useState } from "react";
-import { updateJobSheetForActor } from "./db";
+import { canMutateJobLifecycle, isTerminalMainStatus, updateEstimatedDeliveryForActor, updateJobSheetForActor } from "./db";
 import { FUEL_LEVELS, parseDamageMarks, PICKUP_DROP_OPTIONS, SERVICE_TYPES } from "./job-sheet";
 import type { JobView, User } from "./types";
 import type { Mutate } from "./App";
 
 function Row({ label, value }: { label: string; value: string }) {
   return <div className="info-row"><span>{label}</span><strong>{value || "—"}</strong></div>;
+}
+
+function EstimatedDeliveryRow({ view, actor, mutate }: { view: JobView; actor: User; mutate: Mutate }) {
+  const [date, setDate] = useState(view.job.estimated_delivery ?? "");
+  const [error, setError] = useState("");
+  const canEdit = !view.job.archived_at && !isTerminalMainStatus(view.job.main_status) && canMutateJobLifecycle(actor, view.job);
+  if (!canEdit) return <Row label="Estimated Delivery Date" value={view.job.estimated_delivery ?? ""} />;
+  return (
+    <div className="job-sheet-delivery-row">
+      <form className="info-row" onSubmit={(event) => {
+        event.preventDefault();
+        setError("");
+        mutate((db) => updateEstimatedDeliveryForActor(db, view.job.id, actor.id, date), setError);
+      }}>
+        <label htmlFor={`job-delivery-date-${view.job.id}`}>Estimated Delivery Date</label>
+        <div className="job-sheet-delivery-actions">
+          <input id={`job-delivery-date-${view.job.id}`} type="date" value={date} onChange={(event) => setDate(event.target.value)} />
+          <button type="submit" className="primary-action">Save</button>
+        </div>
+      </form>
+      {error && <p role="alert" className="form-error">{error}</p>}
+    </div>
+  );
 }
 
 export function DamageDiagram({ marks, onAdd, onRemove }: { marks: ReturnType<typeof parseDamageMarks>; onAdd?: (x: number, y: number) => void; onRemove?: (id: number) => void }) {
@@ -49,7 +72,7 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
         <div className="snapshot">
           <Row label="Service type" value={view.job.service_type ?? ""} />
           <Row label="Pickup / Drop" value={view.job.pickup_drop ?? ""} />
-          <Row label="Estimated Delivery Date" value={view.job.estimated_delivery ?? ""} />
+          <EstimatedDeliveryRow key={`${view.job.id}-${view.job.estimated_delivery ?? ""}`} view={view} actor={actor} mutate={mutate} />
           <Row label="Fuel" value={view.visit.fuel} />
           <Row label="Accessories" value={view.visit.accessories} />
           <Row label="Engine number" value={view.vehicle.engine_no ?? ""} />
