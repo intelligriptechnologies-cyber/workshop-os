@@ -89,6 +89,10 @@ Pre-edit tracked and untracked application files were copied to the sibling
 HEAD identifier. The database backup is `database-before.dump` in that
 directory. Dependency/build caches were not part of the application snapshot.
 The original worktree contained extensive uncommitted backend changes.
+Those application changes are preserved in checkpoint commit `21af3e1` and
+branch `preservation/ui-restoration-20261020`. Subsequent focused commits are
+`5747e27` (reference harness/inventory), `e544e91` (login/navigation), and
+`2fe44f8` (guarded account-repair command).
 
 The local API image was rebuilt and restarted with the email-login support.
 The production/hosted environment was untouched.
