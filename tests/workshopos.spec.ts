@@ -12,6 +12,12 @@ const roles = [
 ] as const;
 
 test.beforeEach(async ({ page }) => {
+  // This suite exercises the reference's local-demo workflows. Keep its mode
+  // independent of the developer's running database-auth API.
+  await page.route("**/api/v1/auth/config", route => route.fulfill({ json: { mode: "local", allowDemo: true } }));
+  await page.route("**/sql-wasm.wasm", route => route.fulfill({
+    body: readFileSync("node_modules/sql.js/dist/sql-wasm.wasm"), contentType: "application/wasm",
+  }));
   await page.goto("/");
   await page.evaluate(() => localStorage.clear());
   await page.reload();
