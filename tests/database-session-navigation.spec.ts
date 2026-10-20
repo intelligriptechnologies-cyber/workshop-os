@@ -52,8 +52,8 @@ test("database session restores menu URLs and follows browser history", async ({
   await page.goto("/app/forbidden");
   await expect(page).toHaveURL(/\/app\/(dashboard|sales-leads)$/);
   await page.setViewportSize({ width: 390, height: 844 });
-  await expect(page.locator(".topbar .workspace-logout")).toBeVisible();
-  await expect(page.getByRole("button", { name: "Logout", exact: true })).toHaveCount(1);
+  await expect(page.locator(".topbar .mobile-logout")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Logout", exact: true })).toBeVisible();
   expect(api.requests).toContain("/api/v1/session");
   expect(api.requests).toContain("/api/v1/jobs");
 });
@@ -66,9 +66,7 @@ test("expired session shows login and database logout survives refresh", async (
   await expect(page.getByRole("button", { name: "Login", exact: true })).toBeVisible();
   await page.goto("/app/dashboard");
   await expect(page.getByRole("button", { name: "Login", exact: true })).toBeVisible();
-  await page.getByRole("combobox", { name: "Workshop", exact: true }).selectOption("demo");
-  await expect(page.getByRole("combobox", { name: "User" })).toHaveValue("");
-  await page.getByRole("combobox", { name: "User" }).selectOption("member-1");
+  await page.getByLabel("Email", { exact: true }).fill("owner@example.test");
   await page.getByLabel("Password").fill("secret");
   await page.getByRole("button", { name: "Login", exact: true }).click();
   await expect(page).toHaveURL(/\/app\/dashboard$/);
@@ -79,55 +77,24 @@ test("expired session shows login and database logout survives refresh", async (
   expect(api.requests).toContain("/api/v1/auth/logout");
 });
 
-test("database sign-in loads workshop users and requires a selection and password", async ({ page }) => {
+test("database sign-in uses email and keeps entered values after rejection", async ({ page }) => {
   const api = await mockDatabase(page);
   api.expire();
-  await page.goto("/");
-  await expect(page.getByRole("combobox", { name: "Workshop", exact: true })).toHaveValue("");
-  await page.getByRole("combobox", { name: "Workshop", exact: true }).selectOption("demo");
-  await expect(page.getByRole("combobox", { name: "User" })).toContainText("Owner");
-  await expect(page.getByRole("combobox", { name: "User" })).toHaveValue("");
-  await expect(page.getByRole("button", { name: "Login", exact: true })).toBeDisabled();
-  expect(api.requests).toContain("/api/v1/auth/tenants/demo/users");
-  await page.getByRole("combobox", { name: "User" }).selectOption("member-1");
-  await expect(page.getByRole("button", { name: "Login", exact: true })).toBeDisabled();
-  await page.getByLabel("Password").fill("secret");
-  await expect(page.getByRole("button", { name: "Login", exact: true })).toBeEnabled();
-  await page.getByRole("combobox", { name: "Workshop", exact: true }).selectOption("north");
-  await expect(page.getByRole("combobox", { name: "User" })).toHaveValue("");
-  await expect(page.getByLabel("Password")).toHaveValue("");
-});
-
-test("unavailable workshop and user lookups offer retries", async ({ page }) => {
-  let lookupUnavailable = false;
-  let workshopsUnavailable = true;
-  await page.route("**/api/v1/**", async (route) => {
-    const path = new URL(route.request().url()).pathname;
-    const json = (data: unknown, status = 200) => route.fulfill({ status, json: data });
-    if (path === "/api/v1/auth/config") return json({ mode: "database" });
-    if (path === "/api/v1/auth/workshops") return workshopsUnavailable
-      ? json({ code: "UNAVAILABLE" }, 503)
-      : json([{ code: "demo", name: "Sambit Autocare" }]);
-    if (path === "/api/v1/session") return json({ code: "AUTHENTICATION_REQUIRED" }, 401);
-    if (path.startsWith("/api/v1/auth/tenants/")) {
-      if (lookupUnavailable) return json({ code: "UNAVAILABLE" }, 503);
-      return path.endsWith("/demo/users") ? json([{ id: "member-1", name: "Owner/Admin" }]) : json({ code: "NOT_FOUND" }, 404);
-    }
-    return json([]);
+  const attempts: unknown[] = [];
+  await page.route("**/api/v1/auth/login", route => {
+    attempts.push(route.request().postDataJSON());
+    return route.fulfill({ status: 401, json: { code: "INVALID_CREDENTIALS" } });
   });
   await page.goto("/");
-  await expect(page.getByText(/could not load workshops/i)).toBeVisible();
-  workshopsUnavailable = false;
-  await page.getByRole("button", { name: "Retry workshops" }).click();
-  await page.getByRole("combobox", { name: "Workshop", exact: true }).selectOption("demo");
-  await expect(page.getByRole("combobox", { name: "User" })).toContainText("Owner/Admin");
-  lookupUnavailable = true;
-  await page.getByRole("combobox", { name: "Workshop", exact: true }).selectOption("");
-  await page.getByRole("combobox", { name: "Workshop", exact: true }).selectOption("demo");
-  await expect(page.getByText(/could not load workshop users/i)).toBeVisible();
-  lookupUnavailable = false;
-  await page.getByRole("button", { name: "Retry users" }).click();
-  await expect(page.getByRole("combobox", { name: "User" })).toContainText("Owner/Admin");
+  await page.getByLabel("Email", { exact: true }).fill("owner@example.test");
+  await page.getByLabel("Password").fill("incorrect");
+  await page.getByRole("button", { name: "Login", exact: true }).click();
+  await expect(page.getByText("Incorrect password.", { exact: true })).toBeVisible();
+  await expect(page.getByLabel("Email", { exact: true })).toHaveValue("owner@example.test");
+  await expect(page.getByLabel("Password")).toHaveValue("incorrect");
+  expect(attempts).toEqual([{ email: "owner@example.test", password: "incorrect" }]);
+  expect(api.requests).not.toContain("/api/v1/auth/workshops");
+  expect(api.requests.some(path => path.startsWith("/api/v1/auth/tenants/"))).toBe(false);
 });
 
 test("session API failure offers retry without opening browser SQLite", async ({ page }) => {

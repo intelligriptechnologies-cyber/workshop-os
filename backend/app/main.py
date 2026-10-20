@@ -104,7 +104,7 @@ def auth_config() -> dict[str, object]:
     """Expose only browser-safe sign-in configuration, never authorization scope."""
     settings = get_settings()
     if settings.auth_mode == "database":
-        return {"mode": "database"}
+        return {"mode": "database", "allowDemo": settings.environment == "local" and settings.allow_demo_auth}
     if settings.auth_mode == "local":
         if not settings.demo_auth_enabled:
             raise auth_error("AUTH_CONFIGURATION_INVALID", status.HTTP_503_SERVICE_UNAVAILABLE)

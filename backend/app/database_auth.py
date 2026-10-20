@@ -9,7 +9,7 @@ from datetime import datetime, timedelta, timezone
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Request, Response, status
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -58,9 +58,20 @@ def _code(code: str) -> str:
 
 
 class LoginInput(BaseModel):
-    tenant_code: str = Field(alias="tenantCode")
-    user_id: UUID = Field(alias="userId")
+    tenant_code: str | None = Field(default=None, alias="tenantCode")
+    user_id: UUID | None = Field(default=None, alias="userId")
+    email: str | None = None
     password: str
+
+    @model_validator(mode="after")
+    def require_one_identity(self):
+        if (self.user_id is None) == (self.email is None):
+            raise ValueError("Provide email or userId")
+        if self.email is not None:
+            self.email = self.email.strip().lower()
+            if not self.email:
+                raise ValueError("Email is required")
+        return self
 
 
 @router.get("/workshops")
@@ -96,16 +107,29 @@ def list_login_users(code: str, session: Session = Depends(get_session)) -> list
 @router.post("/login")
 def login(input: LoginInput, response: Response, session: Session = Depends(get_session)) -> dict[str, str]:
     _database_mode()
+    configured_tenant = get_settings().database_tenant_code
+    # Email sign-in is deployment scoped. A browser cannot choose its tenant.
+    if input.email is not None:
+        if not configured_tenant:
+            raise auth_error("AUTH_CONFIGURATION_INVALID", status.HTTP_503_SERVICE_UNAVAILABLE)
+        tenant_code = _code(configured_tenant)
+        if input.tenant_code is not None and _code(input.tenant_code) != tenant_code:
+            raise auth_error("INVALID_CREDENTIALS")
+    else:
+        tenant_code = _code(input.tenant_code or configured_tenant or "")
+    identity_clause = "lower(u.email) = :identity" if input.email is not None else "u.id = CAST(:identity AS uuid)"
     with session.begin():
         session.execute(text("DELETE FROM database_sessions WHERE expires_at <= now()"))
-        row = session.execute(text("""
+        matches = session.execute(text(f"""
             SELECT t.id AS tenant_id, m.id AS membership_id, u.id AS user_id, u.password_hash
             FROM tenants t
             JOIN tenant_memberships m ON m.tenant_id = t.id AND m.status = 'ACTIVE'
             JOIN platform_users u ON u.id = m.user_id AND u.status = 'ACTIVE'
-            WHERE lower(t.code) = :code AND u.id = :user_id
+            WHERE lower(t.code) = :code AND {identity_clause}
               AND t.lifecycle_state IN ('trial', 'active', 'payment_due')
-        """), {"code": _code(input.tenant_code), "user_id": str(input.user_id)}).mappings().one_or_none()
+        """), {"code": tenant_code, "identity": input.email if input.email is not None else str(input.user_id)}).mappings().all()
+        # Ambiguous imported identities must never choose an arbitrary account.
+        row = matches[0] if len(matches) == 1 else None
         if not row or not verify_password(input.password, row["password_hash"]):
             raise auth_error("INVALID_CREDENTIALS")
         token, csrf = secrets.token_urlsafe(48), secrets.token_urlsafe(32)

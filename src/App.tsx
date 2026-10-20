@@ -222,7 +222,7 @@ import {
 import type { ExportColumn } from "./export-utils";
 import {
   beginCognitoLogin,
-  databaseLogin,
+  databaseEmailLogin,
   databaseLogout,
   endCognitoSession,
   loadAuthConfig,
@@ -983,10 +983,10 @@ function App() {
     return true;
   };
 
-  const handleLogin = async (email: string, password: string, tenantCode?: string) => {
+  const handleLogin = async (email: string, password: string) => {
     if (authConfig?.mode === "database") {
       try {
-        await databaseLogin(tenantCode ?? "", email, password);
+        await databaseEmailLogin(email, password);
         const session = await loadWorkshopSession(authConfig);
         if (!session) throw new Error("SESSION_FAILED");
         const role = workshopRole(session.membership.roles.map((item) => item.name));
@@ -1307,6 +1307,10 @@ function App() {
             </>
           )}
         </nav>
+        <button className="logout" onClick={developerEmulation ? returnToDeveloper : handleLogout}>
+          <LogOut size={18} />
+          <span>{developerEmulation ? "Return to Developer" : "Logout"}</span>
+        </button>
       </aside>
 
       <main>
@@ -1357,12 +1361,23 @@ function App() {
               />
             </div>
           )}
-          <div className="topbar-account">
-            <div className="user-pill"><UserRound size={18} />{user.email}</div>
-            <button className="workspace-logout" onClick={developerEmulation ? returnToDeveloper : handleLogout}>
-              <LogOut size={18} />{developerEmulation ? "Return to Developer" : "Logout"}
-            </button>
+          <div className="user-pill">
+            <UserRound size={18} />
+            {user.email}
           </div>
+          {developerEmulation && (
+            <button className="secondary-action" onClick={returnToDeveloper}>
+              Return to Developer
+            </button>
+          )}
+          <button
+            className="mobile-logout"
+            onClick={developerEmulation ? returnToDeveloper : handleLogout}
+            aria-label={developerEmulation ? "Return to Developer" : "Logout"}
+          >
+            <LogOut size={18} />
+            {developerEmulation ? "Return" : "Logout"}
+          </button>
         </header>
 
         {menuItems.length === 0 ? (
@@ -1474,62 +1489,13 @@ function LoginScreen({
   config,
   error,
 }: {
-  onLogin: (email: string, password: string, tenantCode?: string) => void;
+  onLogin: (email: string, password: string) => void;
   onCognitoLogin: () => void;
   config?: AuthConfig;
   error: string;
 }) {
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("admin123");
-  const [tenantCode, setTenantCode] = useState("");
-  const [workshops, setWorkshops] = useState<Array<{ code: string; name: string }>>([]);
-  const [workshopError, setWorkshopError] = useState("");
-  const [workshopLoading, setWorkshopLoading] = useState(false);
-  const [workshopRetry, setWorkshopRetry] = useState(0);
-  const [tenantUsers, setTenantUsers] = useState<Array<{ id: string; name: string }>>([]);
-  const [tenantError, setTenantError] = useState("");
-  const [tenantLoading, setTenantLoading] = useState(false);
-  const [lookupRetry, setLookupRetry] = useState(0);
-  useEffect(() => {
-    if (config?.mode !== "database") return;
-    const controller = new AbortController();
-    setWorkshops([]);
-    setWorkshopError("");
-    setWorkshopLoading(true);
-    fetch("/api/v1/auth/workshops", { signal: controller.signal })
-      .then(async (response) => {
-        if (!response.ok) throw new Error("Could not load workshops. Try again.");
-        return response.json() as Promise<Array<{ code: string; name: string }>>;
-      })
-      .then((items) => { if (!controller.signal.aborted) { setWorkshops(items); setWorkshopLoading(false); } })
-      .catch(() => { if (!controller.signal.aborted) { setWorkshopError("Could not load workshops. Try again."); setWorkshopLoading(false); } });
-    return () => controller.abort();
-  }, [config?.mode, workshopRetry]);
-  useEffect(() => {
-    if (config?.mode !== "database") return;
-    setTenantUsers([]);
-    setEmail("");
-    setPassword("");
-    setTenantError("");
-    setTenantLoading(false);
-    const code = tenantCode.trim();
-    if (!code) return;
-    setTenantLoading(true);
-    const controller = new AbortController();
-    const timer = setTimeout(() => {
-      fetch(`/api/v1/auth/tenants/${encodeURIComponent(code)}/users`, { signal: controller.signal })
-        .then(async (response) => {
-          if (response.status === 404) throw new Error("No users found for this workshop code. Check the code and try again.");
-          if (!response.ok) throw new Error("Could not load workshop users. Try again.");
-          const users = await response.json() as Array<{ id: string; name: string }>;
-          if (!users.length) throw new Error("No users found for this workshop code. Check the code and try again.");
-          return users;
-        })
-        .then((users) => { if (!controller.signal.aborted) { setTenantUsers(users); setTenantError(""); setTenantLoading(false); } })
-        .catch((caught) => { if (!controller.signal.aborted) { setTenantError(caught instanceof Error ? caught.message : "Could not load workshop users. Try again."); setTenantLoading(false); } });
-    }, 300);
-    return () => { clearTimeout(timer); controller.abort(); };
-  }, [config?.mode, tenantCode, lookupRetry]);
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -1563,29 +1529,16 @@ function LoginScreen({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              onLogin(email, password, tenantCode);
+              onLogin(email, password);
             }}
           >
-            {config?.mode === "database" && <>
-              <label>Workshop
-                <select value={tenantCode} onChange={(event) => { setTenantCode(event.target.value); setEmail(""); setPassword(""); }} required disabled={workshopLoading}>
-                  <option value="">{workshopLoading ? "Loading workshops…" : "Select a workshop"}</option>
-                  {workshops.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
-                </select>
-              </label>
-            </>}
-            {config?.mode === "database" ? <label>User
-              <select value={email} onChange={(event) => setEmail(event.target.value)} required disabled={!tenantCode || tenantLoading}>
-                <option value="">{tenantLoading ? "Loading users…" : "Select a user"}</option>
-                {tenantUsers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
-              </select>
-            </label> : <label>
+            <label>
               Email
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
-            </label>}
+            </label>
             <label>
               Password
               <input
@@ -1594,13 +1547,11 @@ function LoginScreen({
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-            {(workshopError || tenantError || error) && <p className="error-text" role="alert">{workshopError || tenantError || error}</p>}
-            {config?.mode === "database" && workshopError && <button type="button" className="secondary-action" onClick={() => setWorkshopRetry((value) => value + 1)}>Retry workshops</button>}
-            {config?.mode === "database" && tenantError && <button type="button" className="secondary-action" onClick={() => setLookupRetry((value) => value + 1)}>Retry users</button>}
-            <button className="primary-action" disabled={config?.mode === "database" && (!tenantCode || !email || !password || workshopLoading || tenantLoading || !!workshopError || !!tenantError)}>Login</button>
+            {error && <p className="error-text">{error}</p>}
+            <button className="primary-action">Login</button>
           </form>
         )}
-        {config?.mode === "local" && config.allowDemo && (
+        {(config?.mode === "local" || config?.mode === "database") && config.allowDemo && (
           <label className="demo-login-select">
             Emulate User:
             <select

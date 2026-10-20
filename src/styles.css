@@ -83,11 +83,6 @@ button.danger-action {
   box-shadow: 0 26px 70px rgba(24, 34, 45, 0.16);
 }
 
-.login-code-hint {
-  margin: -2px 0 12px;
-  font-size: 0.85rem;
-}
-
 .login-mark,
 .brand,
 .panel-title,
@@ -440,6 +435,13 @@ form {
   background: var(--app-theme-hover, #c6e7b7);
 }
 
+.logout {
+  width: 100%;
+  margin-top: 14px;
+  gap: 8px;
+  justify-content: center;
+  flex: 0 0 auto;
+}
 
 .rail-collapsed .rail {
   padding: 18px 12px;
@@ -451,15 +453,14 @@ form {
 
 .rail-collapsed .brand div,
 .rail-collapsed .rail-role,
-.rail-collapsed .role-nav span {
+.rail-collapsed .role-nav span,
+.rail-collapsed .logout span {
   display: none;
 }
 
-.rail-collapsed .connection-state { width: 54px; justify-content: center; padding-inline: 0; }
-.rail-collapsed .connection-state span:last-child { display: none; }
-
 .rail-collapsed .rail-toggle,
-.rail-collapsed .role-nav button {
+.rail-collapsed .role-nav button,
+.rail-collapsed .logout {
   width: 54px;
   padding: 0;
   justify-content: center;
@@ -469,10 +470,8 @@ form {
   left: 59px;
 }
 
-.workspace-logout {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
+.mobile-logout {
+  display: none;
   gap: 8px;
   min-height: 40px;
   border: 1px solid #ccd5df;
@@ -481,13 +480,6 @@ form {
   color: #24313d;
   padding: 0 12px;
   font-weight: 400;
-}
-
-.topbar-account {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  margin-left: auto;
 }
 
 main {
@@ -2577,6 +2569,7 @@ th {
   }
 
   .brand,
+  .logout,
   .rail-toggle {
     display: none;
   }
@@ -2614,6 +2607,10 @@ th {
     display: inline;
   }
 
+  .mobile-logout {
+    display: inline-flex;
+    justify-content: center;
+  }
 
   main {
     min-height: auto;
@@ -2647,12 +2644,8 @@ th {
   }
 
   .topbar {
-    display: flex;
-    flex-wrap: wrap;
+    display: grid;
   }
-
-  .topbar-account { margin-left: auto; max-width: 100%; }
-  .topbar-account .user-pill { display: none; }
 
   .search-topbar-controls {
     margin-left: 0;

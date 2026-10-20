@@ -7,7 +7,7 @@ export type CognitoConfig = {
   callbackUri: string;
   logoutUri: string;
   scopes: string[];
-} | { mode: "database" };
+} | { mode: "database"; allowDemo?: boolean };
 
 export type AuthConfig = CognitoConfig | { mode: "local"; allowDemo: boolean };
 type OidcConfig = Extract<CognitoConfig, { mode: "cognito" }>;
@@ -302,6 +302,16 @@ export function endCognitoSession(config: OidcConfig) {
 export async function databaseLogin(tenantCode: string, userId: string, password: string) {
   const response = await fetch("/api/v1/auth/login", { method: "POST", credentials: "same-origin",
     headers: { "content-type": "application/json" }, body: JSON.stringify({ tenantCode, userId, password }) });
+  if (!response.ok) throw new Error((await response.json() as { code?: string }).code ?? "LOGIN_FAILED");
+  databaseSessionKnown = true;
+}
+
+export async function databaseEmailLogin(email: string, password: string) {
+  const response = await fetch("/api/v1/auth/login", {
+    method: "POST", credentials: "same-origin",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ email, password }),
+  });
   if (!response.ok) throw new Error((await response.json() as { code?: string }).code ?? "LOGIN_FAILED");
   databaseSessionKnown = true;
 }
