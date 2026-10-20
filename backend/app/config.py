@@ -13,7 +13,7 @@ class Settings(BaseSettings):
 
     database_url: PostgresDsn
     environment: str = "local"
-    auth_mode: Literal["local", "cognito"] = "local"
+    auth_mode: Literal["local", "cognito", "database"] = "local"
     allow_demo_auth: bool = True
     superadmin_bootstrap_subjects: str = ""
     cognito_client_id: str | None = None

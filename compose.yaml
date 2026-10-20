@@ -24,6 +24,7 @@ services:
     environment:
       WORKSHOPOS_DATABASE_URL: postgresql+psycopg://workshopos_admin:workshopos_admin_local@db:5432/workshopos
       WORKSHOPOS_ENVIRONMENT: local
+      WORKSHOPOS_AUTH_MODE: database
     ports:
       - "127.0.0.1:8000:8000"
     depends_on:

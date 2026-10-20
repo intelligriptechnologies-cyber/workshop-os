@@ -129,7 +129,7 @@ def followup_jobs(scope: ScopedTenant, branch_id: UUID | None = Query(default=No
         SELECT j.id, j.branch_id, j.job_no, j.status, c.name AS customer_name, v.number AS vehicle_no
         FROM job_cards j JOIN visits visit ON visit.id=j.visit_id
         JOIN customers c ON c.id=visit.customer_id JOIN vehicles v ON v.id=visit.vehicle_id
-        WHERE (:branch_id IS NULL OR j.branch_id=:branch_id) AND j.status NOT IN ('CANCELLED','CLOSED')
+        WHERE (CAST(:branch_id AS uuid) IS NULL OR j.branch_id=:branch_id) AND j.status NOT IN ('CANCELLED','CLOSED')
         ORDER BY j.created_at DESC, j.id DESC
     """), {"branch_id": str(branch_id) if branch_id else None}).mappings().all()
     return [{"id": row["id"], "branchId": str(row["branch_id"]), "jobNo": row["job_no"], "status": row["status"], "customerName": row["customer_name"], "vehicleNo": row["vehicle_no"]} for row in rows]

@@ -3,19 +3,13 @@
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import text
+from uuid import uuid4
 
 
 def _reset_database() -> None:
     from app.database import get_engine
     with get_engine().begin() as connection:
-        for table in (
-            "job_events", "estimate_decisions", "estimate_lines", "estimates", "job_cards",
-            "tenant_audit_events", "visits", "vehicles", "customers", "support_emulations",
-            "tenant_admin_invitations", "platform_billing", "branch_settings", "tenant_settings",
-            "membership_roles", "role_permissions", "tenant_roles", "membership_branches",
-            "tenant_memberships", "superadmins", "branches", "platform_users", "tenants",
-        ):
-            connection.execute(text(f"DELETE FROM {table}"))
+        connection.execute(text("TRUNCATE tenants, platform_users RESTART IDENTITY CASCADE"))
         connection.execute(text("INSERT INTO platform_users (id, cognito_subject, display_name, email) VALUES (gen_random_uuid(), 'platform-superadmin', 'Platform Admin', 'platform@example.test')"))
         connection.execute(text("INSERT INTO superadmins (user_id) SELECT id FROM platform_users WHERE cognito_subject = 'platform-superadmin'"))
 
@@ -31,7 +25,7 @@ def _provision(client: TestClient, name: str) -> dict[str, object]:
     return response.json()
 
 
-def _activate_owner(tenant_id: str, subject: str) -> None:
+def _activate_owner(tenant_id: str, subject: str) -> dict[str, str]:
     from app.database import get_engine
     permissions = (
         "page.customers.read", "page.customers.write", "page.vehicles.read", "page.vehicles.write",
@@ -48,6 +42,12 @@ def _activate_owner(tenant_id: str, subject: str) -> None:
                 SELECT id, :permission FROM tenant_roles WHERE tenant_id=:tenant_id AND name='Owner/Admin'
                 ON CONFLICT DO NOTHING
             """), {"tenant_id": tenant_id, "permission": permission})
+        connection.execute(text("INSERT INTO membership_roles (membership_id,tenant_id,role_id) SELECT :membership_id,:tenant_id,id FROM tenant_roles WHERE tenant_id=:tenant_id AND system_key='service_manager' ON CONFLICT DO NOTHING"), {"membership_id": str(row["membership_id"]), "tenant_id": tenant_id})
+        branch_id = connection.execute(text("SELECT id FROM branches WHERE tenant_id=:tenant_id AND is_primary"), {"tenant_id": tenant_id}).scalar_one()
+        department_id = uuid4()
+        connection.execute(text("INSERT INTO service_departments (id,tenant_id,branch_id,name,created_by,updated_by) VALUES (:id,:tenant_id,:branch_id,'Mechanical',:user_id,:user_id)"), {"id": str(department_id), "tenant_id": tenant_id, "branch_id": str(branch_id), "user_id": str(row["user_id"])})
+        connection.execute(text("INSERT INTO service_department_managers (tenant_id,branch_id,department_id,manager_membership_id,appointed_by) VALUES (:tenant_id,:branch_id,:department_id,:membership_id,:user_id)"), {"tenant_id": tenant_id, "branch_id": str(branch_id), "department_id": str(department_id), "membership_id": str(row["membership_id"]), "user_id": str(row["user_id"])})
+        return {"department": str(department_id), "manager": str(row["user_id"])}
 
 
 def _intake(client: TestClient, headers: dict[str, str]) -> int:
@@ -66,20 +66,20 @@ def test_job_estimate_decision_and_lifecycle_are_scoped_and_audited() -> None:
     from app.main import app
     with TestClient(app) as client:
         north, south = _provision(client, "north"), _provision(client, "south")
-        _activate_owner(str(north["id"]), "north-user")
+        north_route = _activate_owner(str(north["id"]), "north-user")
         _activate_owner(str(south["id"]), "south-user")
         headers = {"x-workshopos-identity": "north-user"}
         visit_id = _intake(client, headers)
-        job = client.post("/api/v1/jobs", headers=headers, json={"visitId": visit_id, "workList": "Annual service"})
+        job = client.post("/api/v1/jobs", headers=headers, json={"visitId": visit_id, "workList": "Annual service", "departmentId": north_route["department"], "responsibleManagerId": north_route["manager"]})
         assert job.status_code == 201, job.text
         assert job.json()["status"] == "NEW"
-        assert client.post("/api/v1/jobs", headers=headers, json={"visitId": visit_id}).status_code == 409
+        assert client.post("/api/v1/jobs", headers=headers, json={"visitId": visit_id, "departmentId": north_route["department"], "responsibleManagerId": north_route["manager"]}).status_code == 409
 
         estimate = client.post(f"/api/v1/jobs/{job.json()['id']}/estimates", headers=headers, json={"lines": [{"kind": "labour", "description": "Annual service", "quantity": 1, "rate": 1000, "gstRate": 18}]})
         assert estimate.status_code == 201, estimate.text
         from app.database import get_engine
         with get_engine().begin() as connection:
-            branch = connection.execute(text("SELECT primary_branch_id FROM tenants WHERE id=:tenant_id"), {"tenant_id": str(north["id"])}).scalar_one()
+            branch = connection.execute(text("SELECT id FROM branches WHERE tenant_id=:tenant_id AND is_primary"), {"tenant_id": str(north["id"])}).scalar_one()
             owner = connection.execute(text("SELECT user_id FROM tenant_memberships WHERE tenant_id=:tenant_id"), {"tenant_id": str(north["id"])}).scalar_one()
             connection.execute(text("INSERT INTO branch_settings (tenant_id,branch_id,settings,updated_by) VALUES (:tenant_id,:branch_id,CAST(:settings AS jsonb),:owner) ON CONFLICT (tenant_id,branch_id) DO UPDATE SET settings=EXCLUDED.settings"), {"tenant_id": str(north["id"]), "branch_id": str(branch), "settings": '{\"requireEstimateApproval\": true}', "owner": str(owner)})
         blocked = client.post(f"/api/v1/jobs/{job.json()['id']}/commands/start-work", headers=headers, json={})

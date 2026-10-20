@@ -38,6 +38,11 @@ by updating both Environment values together and running the deploy workflow.
 `WORKSHOPOS_ALLOW_DEMO_AUTH=false` are forced by Compose and cannot be weakened
 by these files.
 
+For a planned database-login cutover, use the separate
+[`DATABASE_AUTH_CUTOVER.md`](DATABASE_AUTH_CUTOVER.md) procedure and
+`compose.database-auth.yaml` overlay. The default staging Compose file remains
+on Cognito until that overlay is explicitly selected.
+
 ## Validate and deploy
 
 Run from the repository root on the target host:

@@ -275,7 +275,7 @@ def archive_catalogue(item_id: int, input: ArchiveInput, scope: ScopedTenant) ->
 def list_suppliers(scope: ScopedTenant, q: str = "", archived: bool = False, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _permission(scope, mutation=False)
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("SELECT * FROM suppliers WHERE (:archived=(archived_at IS NOT NULL)) AND (:branch_id IS NULL OR branch_id=:branch_id) AND (:q='' OR name ILIKE :needle OR mobile ILIKE :needle) ORDER BY name,id"), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
+    rows = session.execute(text("SELECT * FROM suppliers WHERE (:archived=(archived_at IS NOT NULL)) AND (CAST(:branch_id AS uuid) IS NULL OR branch_id=:branch_id) AND (:q='' OR name ILIKE :needle OR mobile ILIKE :needle) ORDER BY name,id"), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
     return [_supplier(dict(row)) for row in rows]
 
 

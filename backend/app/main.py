@@ -1,4 +1,4 @@
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import Depends, FastAPI, HTTPException, status
@@ -23,6 +23,10 @@ from app.finance import router as finance_router
 from app.followups import router as followups_router
 from app.sales_crm import router as sales_crm_router
 from app.procurement import router as procurement_router
+from app.database_auth import router as database_auth_router
+from app.media import router as media_router
+from app.checklists import router as checklists_router
+from app.service_catalog import router as service_catalog_router
 
 
 app = FastAPI(title="WorkshopOS API", version="0.1.0")
@@ -37,6 +41,10 @@ app.include_router(finance_router)
 app.include_router(followups_router)
 app.include_router(sales_crm_router)
 app.include_router(procurement_router)
+app.include_router(database_auth_router)
+app.include_router(media_router)
+app.include_router(checklists_router)
+app.include_router(service_catalog_router)
 
 
 @app.exception_handler(HTTPException)
@@ -49,6 +57,11 @@ def workshop_http_error(_, error: HTTPException) -> JSONResponse:
 
 class SettingsUpdate(BaseModel):
     settings: dict[str, Any]
+
+
+class ThemeUpdate(BaseModel):
+    fontId: Literal["system", "arial", "verdana", "trebuchet", "georgia"]
+    paletteId: Literal["go-lite", "go-yellow", "go-orange", "go-blue"]
 
 
 def require_permission(scope: ScopedTenant, permission: str) -> None:
@@ -90,6 +103,8 @@ def api_health(session: Session = Depends(get_session)) -> dict[str, str]:
 def auth_config() -> dict[str, object]:
     """Expose only browser-safe sign-in configuration, never authorization scope."""
     settings = get_settings()
+    if settings.auth_mode == "database":
+        return {"mode": "database"}
     if settings.auth_mode == "local":
         if not settings.demo_auth_enabled:
             raise auth_error("AUTH_CONFIGURATION_INVALID", status.HTTP_503_SERVICE_UNAVAILABLE)
@@ -135,6 +150,28 @@ def read_tenant_settings(scope: ScopedTenant) -> dict[str, object]:
     return {"settings": dict(row["settings"]) if row else {}, "updatedAt": row["updated_at"].isoformat() if row else None}
 
 
+@app.get("/api/v1/tenant/theme", tags=["tenant"])
+def read_tenant_theme(scope: ScopedTenant) -> dict[str, str]:
+    session, current = scope
+    row = session.execute(text("SELECT settings->'appTheme' FROM tenant_settings WHERE tenant_id=:tenant"),
+                          {"tenant": str(current.tenant_id)}).scalar_one_or_none()
+    return {"fontId": row.get("fontId", "system"), "paletteId": row.get("paletteId", "go-lite")} if isinstance(row, dict) else {"fontId": "system", "paletteId": "go-lite"}
+
+
+@app.put("/api/v1/tenant/theme", tags=["tenant"])
+def write_tenant_theme(input: ThemeUpdate, scope: ScopedTenant) -> dict[str, str]:
+    session, current = scope
+    require_tenant_mutation(scope)
+    require_permission(scope, "tenant.settings.write")
+    theme = input.model_dump()
+    session.execute(text("""INSERT INTO tenant_settings(tenant_id,settings,updated_by)
+        VALUES (:tenant,jsonb_build_object('appTheme',CAST(:theme AS jsonb)),:actor)
+        ON CONFLICT (tenant_id) DO UPDATE SET settings=jsonb_set(tenant_settings.settings,'{appTheme}',
+        CAST(:theme AS jsonb),true),updated_by=:actor,updated_at=now()"""),
+        {"tenant": str(current.tenant_id), "theme": __import__("json").dumps(theme), "actor": str(current.actor_id)})
+    return theme
+
+
 @app.put("/api/v1/tenant/settings", tags=["tenant"])
 def write_tenant_settings(input: SettingsUpdate, scope: ScopedTenant) -> dict[str, object]:
     """Write through the trusted Tenant context; caller-supplied tenant ids do not exist here."""
@@ -147,7 +184,8 @@ def write_tenant_settings(input: SettingsUpdate, scope: ScopedTenant) -> dict[st
             INSERT INTO tenant_settings (tenant_id, settings, updated_by)
             VALUES (:tenant_id, CAST(:settings AS jsonb), :actor_id)
             ON CONFLICT (tenant_id) DO UPDATE
-            SET settings = EXCLUDED.settings, updated_by = EXCLUDED.updated_by, updated_at = now()
+            SET settings = tenant_settings.settings || EXCLUDED.settings,
+                updated_by = EXCLUDED.updated_by, updated_at = now()
             RETURNING settings, updated_at
             """
         ),

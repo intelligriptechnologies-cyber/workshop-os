@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - Prem-dev-fbb
+      - prem-dev-fbb-backend
   workflow_dispatch:
 
 concurrency:
@@ -14,7 +15,11 @@ permissions:
   contents: read
 
 jobs:
+  verify:
+    uses: ./.github/workflows/verify.yml
+
   deploy:
+    needs: verify
     environment: staging
     runs-on: ubuntu-latest
     steps:

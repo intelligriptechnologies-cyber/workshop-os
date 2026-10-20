@@ -3,6 +3,8 @@ import { getAuthenticatedApiReachability, loadWorkshopSession, subscribeAuthenti
 import { jobsApi, type RemoteEstimate, type RemoteJob } from "./jobs-api";
 import { localDeliveryDate, useLocalDeliveryDate } from "./job-delivery-highlight";
 import { filterRemoteJobs, remoteJobDeliveryClass, type RemoteJobFilters } from "./remote-job-list";
+import { RemoteChecklists } from "./remote-checklists";
+import { RemoteJobServiceTasks } from "./remote-job-service-tasks";
 
 type Props = { config: CognitoConfig; mode: "jobs" | "estimates" };
 
@@ -96,6 +98,8 @@ export function RemoteJobWorkflow({ config, mode }: Props) {
     {selected && <section className="record-view"><h4>{selected.jobNo} · {selected.status}</h4>
       <div className="action-row">{selected.status === "NEW" && <button className="primary-action" disabled={busy} onClick={() => command("start-work")}>Start work</button>}{selected.status === "IN_PROGRESS" && <><button disabled={busy} onClick={() => command("hold-job")}>Place on hold</button><button className="primary-action" disabled={busy} title="Requires approved estimate, work evidence, resolved materials, passing QC, and a current invoice." onClick={() => command("complete-work")}>Complete work</button></>}{selected.status === "HOLD" && <button className="primary-action" disabled={busy} onClick={() => command("resume-work")}>Resume work</button>}{selected.status === "COMPLETED" && <button disabled={busy} onClick={() => command("start-rework")}>Start rework</button>}{["NEW", "IN_PROGRESS", "HOLD"].includes(selected.status) && <button className="danger-action" disabled={busy} onClick={() => command("cancel-job")}>Cancel job</button>}</div>
       <EstimatePanel estimate={estimate} busy={busy} onCreate={() => { if (!description.trim() || !Number(quantity) || Number(rate) < 0) { setError("Estimate description, quantity and rate are required."); return; } void run(async () => { await jobsApi.createEstimate(config, selected.id, { lines: [{ kind: "labour", description, quantity: Number(quantity), rate: Number(rate), gstRate: 18 }] }); setDescription(""); setRate(""); }); }} onDecision={(outcome) => { if (!estimate) return; void run(() => jobsApi.decideEstimate(config, estimate.id, { outcome, channel, decidedAt: new Date().toISOString(), note })); }} description={description} quantity={quantity} rate={rate} setDescription={setDescription} setQuantity={setQuantity} setRate={setRate} channel={channel} setChannel={setChannel} note={note} setNote={setNote} />
+      {mode === "jobs" && <RemoteChecklists config={config} jobId={selected.id} jobStatus={selected.status} />}
+      {mode === "jobs" && <RemoteJobServiceTasks config={config} jobId={selected.id} jobStatus={selected.status} />}
       {mode === "jobs" && <div className="job-sheet-delivery-row">
         {mayEditDelivery ? <form onSubmit={(event) => void saveDelivery(event)}>
           <label htmlFor="remote-estimated-delivery">Estimated Delivery Date</label>

@@ -1,0 +1,6 @@
+# Opt-in cutover overlay. Keep compose.staging.yaml on Cognito until the
+# bundled import has been verified and an operator chooses the cutover window.
+services:
+  api:
+    environment:
+      WORKSHOPOS_AUTH_MODE: database

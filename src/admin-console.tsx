@@ -18,6 +18,11 @@ import {
 import { Info, PanelTitle, UserManager, money, roleLabels, type Mutate } from "./App";
 import { PaginationToolbar, ResultPagination } from "./pagination-toolbar";
 import type { CognitoConfig } from "./auth";
+import { RemoteSettings } from "./remote-settings";
+import { RemoteRoles } from "./remote-roles";
+import { RemoteServiceCatalog } from "./remote-service-catalog";
+import { RemoteImportArchive } from "./remote-import-archive";
+import { RemoteTheme } from "./remote-theme";
 import {
   ADMIN_PAGE_GROUPS,
   addDemoRole,
@@ -105,6 +110,7 @@ const ADMIN_TABS = [
   "Report Templates",
   "Inventory Import",
   "Support & Logs",
+  "Imported Data",
 ] as const;
 type AdminTab = (typeof ADMIN_TABS)[number];
 const ADMIN_TAB_LABELS: Partial<Record<AdminTab, string>> = {
@@ -174,14 +180,16 @@ export function AdminConsole({
         <PanelTitle
           icon={<ShieldCheck />}
           title="Admin Console"
-          subtitle="Owner/Admin configuration for this demo session"
+          subtitle={cognitoConfig?.mode === "database" ? "Shared workshop configuration" : "Owner/Admin configuration for this demo session"}
         />
         <div
           className="management-tabs"
           role="tablist"
           aria-label="Admin Console tabs"
         >
-          {ADMIN_TABS.map((item) => (
+          {(cognitoConfig?.mode === "database"
+            ? ADMIN_TABS.filter((item) => ["Users", "Team Structure", "Service Task Catalog", "Roles & Page Access", "Business Settings", "App Theme", "Company Settings", "Report Templates", "Imported Data"].includes(item))
+            : ADMIN_TABS.filter((item) => item !== "Imported Data")).map((item) => (
             <button
               key={item}
               role="tab"
@@ -219,7 +227,7 @@ export function AdminConsole({
         )}
         {tab === "Team Structure" && <TeamStructureTab state={state} mutate={mutate} cognitoConfig={cognitoConfig} />}
         {tab === "Service Task Catalog" && (
-          <ServiceTaskCatalog
+          cognitoConfig?.mode === "database" ? <RemoteServiceCatalog config={cognitoConfig} /> : <ServiceTaskCatalog
             items={state.service_catalog}
             departments={state.service_departments}
             brands={state.service_brands}
@@ -229,21 +237,21 @@ export function AdminConsole({
           />
         )}
         {tab === "Roles & Page Access" && (
-          <RolesPageAccessTab
+          cognitoConfig?.mode === "database" ? <RemoteRoles config={cognitoConfig} /> : <RolesPageAccessTab
             adminState={adminState}
             commit={commit}
             actingUser={actingUser}
           />
         )}
         {tab === "Business Settings" && (
-          <BusinessSettingsTab
+          cognitoConfig?.mode === "database" ? <RemoteSettings config={cognitoConfig} mode="business" /> : <BusinessSettingsTab
             adminState={adminState}
             commit={commit}
             actingUser={actingUser}
           />
         )}
         {tab === "App Theme" && (
-          <AppThemeTab
+          cognitoConfig?.mode === "database" ? <RemoteTheme config={cognitoConfig} onSaved={onThemeSaved} /> : <AppThemeTab
             adminState={adminState}
             commit={commit}
             actingUser={actingUser}
@@ -251,14 +259,14 @@ export function AdminConsole({
           />
         )}
         {tab === "Company Settings" && (
-          <CompanySettingsTab
+          cognitoConfig?.mode === "database" ? <RemoteSettings config={cognitoConfig} mode="company" /> : <CompanySettingsTab
             adminState={adminState}
             commit={commit}
             actingUser={actingUser}
           />
         )}
         {tab === "Report Templates" && (
-          <ReportTemplatesTab
+          cognitoConfig?.mode === "database" ? <RemoteSettings config={cognitoConfig} mode="templates" /> : <ReportTemplatesTab
             adminState={adminState}
             commit={commit}
             actingUser={actingUser}
@@ -282,6 +290,7 @@ export function AdminConsole({
             actingUser={actingUser}
           />
         )}
+        {tab === "Imported Data" && cognitoConfig?.mode === "database" && <RemoteImportArchive config={cognitoConfig} />}
       </div>
     </section>
   );

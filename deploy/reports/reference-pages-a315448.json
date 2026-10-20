@@ -1,0 +1,69 @@
+{
+  "admin": [
+    "Dashboard",
+    "Advance Bookings",
+    "Approvals",
+    "Data Flow",
+    "Job Cards",
+    "Media",
+    "Purchase Orders",
+    "Manage",
+    "Search",
+    "Admin Console",
+    "Leads",
+    "Quotations",
+    "Quotation Settings"
+  ],
+  "service": [
+    "My Queue",
+    "Job Card",
+    "Estimate",
+    "Follow-ups",
+    "Media",
+    "Search"
+  ],
+  "advisor-aa": [
+    "My Queue",
+    "Job Card",
+    "Estimate",
+    "Follow-ups",
+    "Media",
+    "Search"
+  ],
+  "advisor-bb1": [
+    "My Queue",
+    "Job Card",
+    "Estimate",
+    "Follow-ups",
+    "Media",
+    "Search"
+  ],
+  "reception": [
+    "Today Queue",
+    "Advance Bookings",
+    "Customers",
+    "Vehicles",
+    "Search"
+  ],
+  "accounts": [
+    "Ready To Invoice",
+    "Invoice",
+    "Payment",
+    "Delivery",
+    "Search"
+  ],
+  "store": [
+    "Material Requests",
+    "Issue Material",
+    "Reconcile",
+    "Stock",
+    "Purchase Orders",
+    "Search"
+  ],
+  "tech": [
+    "My Tasks",
+    "Work Update",
+    "QC Prep",
+    "Search"
+  ]
+}

@@ -222,6 +222,8 @@ import {
 import type { ExportColumn } from "./export-utils";
 import {
   beginCognitoLogin,
+  databaseLogin,
+  databaseLogout,
   endCognitoSession,
   loadAuthConfig,
   loadWorkshopSession,
@@ -276,17 +278,26 @@ import {
 } from "./developer-control-plane";
 import { BookingCalendar } from "./booking-calendar";
 import { RemoteBookingDesk } from "./remote-bookings";
+import { RemoteReceptionIntake } from "./remote-intake";
+import { RemoteEntities } from "./remote-entities";
+import { RemoteMedia } from "./remote-media";
+import { RemoteDashboard } from "./remote-dashboard";
+import { RemoteDataFlow } from "./remote-data-flow";
+import { loadRemoteTheme } from "./remote-theme";
 import {
   APP_THEME_FONTS,
   APP_THEME_PALETTES,
+  DEFAULT_APP_THEME,
   loadAdminDemoState,
   PAGE_LABEL_BY_KEY,
   resolvePermittedPages,
   resolveRoleMenuPageKeys,
+  ROLE_MENU_PAGE_KEYS,
   type AdminPageKey,
   SALES_CRM_PAGES,
   type AppTheme,
 } from "./admin-demo-state";
+import { pagesFromRolePermissions } from "./remote-role-access";
 import {
   renderJobDocument,
   renderSnapshotDocument,
@@ -551,8 +562,29 @@ function workshopRole(names: string[]): Role {
   if (value.includes("store")) return "store";
   if (value.includes("accounts") || value.includes("cashier"))
     return "accounts";
+  if (value.includes("manager")) return "service_manager";
   return "service";
 }
+
+function remoteLanding(items: MenuItem[]): string {
+  const supported = ["Leads", "Today Queue", "My Queue", "My Tasks", "Stock", "Invoice", "Job Cards", "Customers", "Vehicles"];
+  return supported.find((label) => items.some((item) => item.label === label)) ?? items[0]?.label ?? "";
+}
+
+function pageFromLocation(items: MenuItem[], landing: string): string {
+  const key = window.location.pathname.match(/^\/app\/([^/]+)\/?$/)?.[1];
+  return items.find((item) => item.key === key)?.label ?? landing;
+}
+
+const emptyRemoteState: WorkshopState = {
+  users: [], customers: [], vehicles: [], visits: [], bookings: [], booking_call_logs: [], booking_events: [],
+  booking_capacity_limits: [], booking_capacity_overrides: [], jobs: [], archived_customers: [], archived_vehicles: [],
+  archived_jobs: [], inventory: [], service_catalog: [], attendance: [], suppliers: [], inward_purchases: [],
+  inward_purchase_lines: [], inward_purchase_attachments: [], inward_purchase_revisions: [], purchase_orders: [],
+  purchase_order_lines: [], purchase_order_quotations: [], purchase_order_receipts: [], purchase_order_receipt_lines: [],
+  purchase_order_confirmations: [], stock_inwards: [], sales_leads: [], sales_quotations: [], service_departments: [],
+  service_brands: [], car_segments: [],
+};
 
 const apiErrors: Record<string, string> = {
   EMAIL_EXISTS: "That email already belongs to a WorkshopOS account.",
@@ -628,7 +660,16 @@ function App() {
     () => loadDeveloperControlPlane(),
   );
   const [authConfig, setAuthConfig] = useState<AuthConfig>();
+  const [remotePages, setRemotePages] = useState<AdminPageKey[]>([]);
   const [authLoading, setAuthLoading] = useState(true);
+  const [authFailure, setAuthFailure] = useState("");
+  const [authAttempt, setAuthAttempt] = useState(0);
+  const replacePageUrl = useRef(false);
+  useEffect(() => {
+    const expired = () => { setUser(undefined); setLoginError("Your session has expired. Sign in again."); };
+    window.addEventListener("workshopos:session-expired", expired);
+    return () => window.removeEventListener("workshopos:session-expired", expired);
+  }, []);
   const currentAdminState = useMemo(
     () => loadAdminDemoState(),
     [adminStateVersion],
@@ -636,23 +677,41 @@ function App() {
 
   useEffect(() => {
     if (!user) return;
-    const items = menuItemsForRole(
-      user.role,
-      resolvePermittedPages(currentAdminState, user.role),
-    );
-    if (!items.some((item) => item.label === activeMenuItem))
-      setActiveMenuItem(items[0]?.label ?? "");
-  }, [activeMenuItem, currentAdminState, user]);
+    const items = menuItemsForRole(user.role,
+      authConfig?.mode !== "local" ? remotePages : resolvePermittedPages(currentAdminState, user.role));
+    if (!items.some((item) => item.label === activeMenuItem)) {
+      replacePageUrl.current = true;
+      setActiveMenuItem(pageFromLocation(items, authConfig?.mode !== "local" ? remoteLanding(items) : items[0]?.label ?? ""));
+    }
+  }, [activeMenuItem, authConfig, currentAdminState, remotePages, user]);
 
   useEffect(() => {
-    openWorkshopDb().then((database) => {
-      setDb(database);
-      const next = readState(database);
-      syncDocumentSnapshots(undefined, next.jobs, loadAdminDemoState());
-      setState(next);
-      setSelectedJobId(next.jobs[0]?.job.id);
-    });
-  }, []);
+    if (!user || !activeMenuItem) return;
+    const pages = authConfig?.mode !== "local" ? remotePages : resolvePermittedPages(currentAdminState, user.role);
+    const item = menuItemsForRole(user.role, pages).find((entry) => entry.label === activeMenuItem);
+    if (!item) return;
+    const path = `/app/${item.key}`;
+    if (window.location.pathname !== path) {
+      window.history[replacePageUrl.current ? "replaceState" : "pushState"](null, "", path);
+    }
+    replacePageUrl.current = false;
+  }, [activeMenuItem, authConfig, currentAdminState, remotePages, user]);
+
+  useEffect(() => {
+    const restorePage = () => {
+      if (!user) return;
+      const pages = authConfig?.mode !== "local" ? remotePages : resolvePermittedPages(currentAdminState, user.role);
+      const items = menuItemsForRole(user.role, pages);
+      const label = pageFromLocation(items, authConfig?.mode !== "local" ? remoteLanding(items) : items[0]?.label ?? "");
+      const item = items.find((entry) => entry.label === label);
+      if (item && window.location.pathname !== `/app/${item.key}`)
+        window.history.replaceState(null, "", `/app/${item.key}`);
+      replacePageUrl.current = label !== activeMenuItem;
+      setActiveMenuItem(label);
+    };
+    window.addEventListener("popstate", restorePage);
+    return () => window.removeEventListener("popstate", restorePage);
+  }, [activeMenuItem, authConfig, currentAdminState, remotePages, user]);
 
   useEffect(() => {
     const font =
@@ -688,10 +747,25 @@ function App() {
   }, [appTheme]);
 
   useEffect(() => {
+    let cancelled = false;
+    setAuthLoading(true);
+    setAuthFailure("");
     loadAuthConfig()
       .then(async (config) => {
+        if (cancelled) return;
         setAuthConfig(config);
-        if (config.mode === "cognito") {
+        if (config.mode !== "local") {
+          setState(emptyRemoteState);
+          if (config.mode === "database") setAppTheme({ ...DEFAULT_APP_THEME });
+        } else {
+          const database = await openWorkshopDb();
+          setDb(database);
+          const next = readState(database);
+          syncDocumentSnapshots(undefined, next.jobs, loadAdminDemoState());
+          setState(next);
+          setSelectedJobId(next.jobs[0]?.job.id);
+        }
+        if (config.mode !== "local") {
           try {
             const session = await loadWorkshopSession(config);
             if (session) {
@@ -708,19 +782,28 @@ function App() {
                 externalId: session.membership.id,
               };
               setUser(authenticatedUser);
+              const pages = pagesFromRolePermissions(session.membership.permissions, ROLE_MENU_PAGE_KEYS[role]);
+              setRemotePages(pages);
               const items = menuItemsForRole(
                 role,
-                resolvePermittedPages(loadAdminDemoState(), role),
+                pages,
               );
-              setActiveMenuItem(items[0]?.label ?? "");
+              replacePageUrl.current = true;
+              setActiveMenuItem(pageFromLocation(items, remoteLanding(items)));
+              if (config.mode === "database") void loadRemoteTheme(config).then(setAppTheme).catch(() => {});
             }
           } catch (error) {
+            if (config.mode === "database") throw error;
             setLoginError(apiErrorMessage(error));
           }
         }
       })
-      .finally(() => setAuthLoading(false));
-  }, []);
+      .catch((error) => {
+        if (!cancelled) setAuthFailure(apiErrorMessage(error));
+      })
+      .finally(() => { if (!cancelled) setAuthLoading(false); });
+    return () => { cancelled = true; };
+  }, [authAttempt]);
 
   useEffect(() => {
     const moveRailToggle = (clientY: number) => {
@@ -843,6 +926,11 @@ function App() {
     state?.jobs.find((item) => item.job.id === selectedJobId) ?? state?.jobs[0];
 
   const mutate: Mutate = (action, onError) => {
+    if (authConfig?.mode !== "local") {
+      const message = "This screen is awaiting a server-backed save path.";
+      if (onError) onError(message); else window.alert(message);
+      return false;
+    }
     if (!db) return false;
     try {
       action(db);
@@ -895,7 +983,28 @@ function App() {
     return true;
   };
 
-  const handleLogin = (email: string, password: string) => {
+  const handleLogin = async (email: string, password: string, tenantCode?: string) => {
+    if (authConfig?.mode === "database") {
+      try {
+        await databaseLogin(tenantCode ?? "", email, password);
+        const session = await loadWorkshopSession(authConfig);
+        if (!session) throw new Error("SESSION_FAILED");
+        const role = workshopRole(session.membership.roles.map((item) => item.name));
+        setUser({ id: -1, name: session.membership.displayName, email: session.membership.email,
+          role, password: "", externalAuth: true, externalId: session.membership.id });
+        const pages = pagesFromRolePermissions(session.membership.permissions, ROLE_MENU_PAGE_KEYS[role]);
+        setRemotePages(pages);
+        const items = menuItemsForRole(role, pages);
+        replacePageUrl.current = true;
+        setActiveMenuItem(pageFromLocation(items, remoteLanding(items)));
+        void loadRemoteTheme(authConfig).then(setAppTheme).catch(() => {});
+        setLoginError("");
+      } catch (error) {
+        setLoginError(error instanceof Error && error.message === "INVALID_CREDENTIALS"
+          ? "Incorrect password." : apiErrorMessage(error));
+      }
+      return;
+    }
     if (!state) return;
     if (
       authConfig?.mode === "local" &&
@@ -917,19 +1026,26 @@ function App() {
       found.role,
       resolvePermittedPages(loadAdminDemoState(), found.role),
     );
-    setActiveMenuItem(items[0]?.label ?? "");
+    replacePageUrl.current = true;
+    setActiveMenuItem(pageFromLocation(items, items[0]?.label ?? ""));
     setLoginError("");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (authConfig?.mode === "database") {
+      try { await databaseLogout(); }
+      catch { setLoginError("Sign out failed. Try again."); return; }
+    }
     if (authConfig?.mode === "cognito") {
       endCognitoSession(authConfig);
       return;
     }
     setUser(undefined);
+    setRemotePages([]);
     setDeveloperMode(false);
     setDeveloperEmulation(undefined);
     setActiveMenuItem("");
+    window.history.replaceState(null, "", "/");
     setQuery("");
     setSearchCategory("");
     setSearchStatus("ALL");
@@ -974,8 +1090,10 @@ function App() {
     railToggleStartY.current = event.clientY;
   };
 
-  if (!state || authLoading)
+  if (authLoading)
     return <div className="loading">Loading WorkshopOS...</div>;
+  if (authFailure) return <div className="loading" role="alert"><div><p>{authFailure}</p><button type="button" onClick={() => setAuthAttempt((attempt) => attempt + 1)}>Retry</button></div></div>;
+  if (!state) return <div className="loading">Loading WorkshopOS...</div>;
   const returnToDeveloper = () => {
     setUser(undefined);
     setDeveloperEmulation(undefined);
@@ -1024,7 +1142,7 @@ function App() {
   // Reads the (session-storage backed) Admin Console role/page-access state fresh on every
   // render so a role's permitted pages here reflect the latest Roles & Page Access save made
   // in the Admin Console during this session, without the two stores needing to be merged.
-  const permittedPages = resolvePermittedPages(currentAdminState, user.role);
+  const permittedPages = authConfig?.mode !== "local" ? remotePages : resolvePermittedPages(currentAdminState, user.role);
   const menuItems = menuItemsForRole(user.role, permittedPages);
 
   const leaveSearch = () => {
@@ -1189,10 +1307,6 @@ function App() {
             </>
           )}
         </nav>
-        <button className="logout" onClick={developerEmulation ? returnToDeveloper : handleLogout}>
-          <LogOut size={18} />
-          <span>{developerEmulation ? "Return to Developer" : "Logout"}</span>
-        </button>
       </aside>
 
       <main>
@@ -1243,23 +1357,12 @@ function App() {
               />
             </div>
           )}
-          <div className="user-pill">
-            <UserRound size={18} />
-            {user.email}
-          </div>
-          {developerEmulation && (
-            <button className="secondary-action" onClick={returnToDeveloper}>
-              Return to Developer
+          <div className="topbar-account">
+            <div className="user-pill"><UserRound size={18} />{user.email}</div>
+            <button className="workspace-logout" onClick={developerEmulation ? returnToDeveloper : handleLogout}>
+              <LogOut size={18} />{developerEmulation ? "Return to Developer" : "Logout"}
             </button>
-          )}
-          <button
-            className="mobile-logout"
-            onClick={developerEmulation ? returnToDeveloper : handleLogout}
-            aria-label={developerEmulation ? "Return to Developer" : "Logout"}
-          >
-            <LogOut size={18} />
-            {developerEmulation ? "Return" : "Logout"}
-          </button>
+          </div>
         </header>
 
         {menuItems.length === 0 ? (
@@ -1304,9 +1407,7 @@ function App() {
             dashboardDrilldown={dashboardDrilldown}
             state={state}
             user={user}
-            cognitoConfig={
-              authConfig?.mode === "cognito" ? authConfig : undefined
-            }
+            cognitoConfig={authConfig?.mode !== "local" ? authConfig : undefined}
             onNavigate={setActiveMenuItem}
             onDashboardNavigate={openDashboardDrilldown}
             onThemeSaved={setAppTheme}
@@ -1373,13 +1474,62 @@ function LoginScreen({
   config,
   error,
 }: {
-  onLogin: (email: string, password: string) => void;
+  onLogin: (email: string, password: string, tenantCode?: string) => void;
   onCognitoLogin: () => void;
   config?: AuthConfig;
   error: string;
 }) {
   const [email, setEmail] = useState("admin@example.com");
   const [password, setPassword] = useState("admin123");
+  const [tenantCode, setTenantCode] = useState("");
+  const [workshops, setWorkshops] = useState<Array<{ code: string; name: string }>>([]);
+  const [workshopError, setWorkshopError] = useState("");
+  const [workshopLoading, setWorkshopLoading] = useState(false);
+  const [workshopRetry, setWorkshopRetry] = useState(0);
+  const [tenantUsers, setTenantUsers] = useState<Array<{ id: string; name: string }>>([]);
+  const [tenantError, setTenantError] = useState("");
+  const [tenantLoading, setTenantLoading] = useState(false);
+  const [lookupRetry, setLookupRetry] = useState(0);
+  useEffect(() => {
+    if (config?.mode !== "database") return;
+    const controller = new AbortController();
+    setWorkshops([]);
+    setWorkshopError("");
+    setWorkshopLoading(true);
+    fetch("/api/v1/auth/workshops", { signal: controller.signal })
+      .then(async (response) => {
+        if (!response.ok) throw new Error("Could not load workshops. Try again.");
+        return response.json() as Promise<Array<{ code: string; name: string }>>;
+      })
+      .then((items) => { if (!controller.signal.aborted) { setWorkshops(items); setWorkshopLoading(false); } })
+      .catch(() => { if (!controller.signal.aborted) { setWorkshopError("Could not load workshops. Try again."); setWorkshopLoading(false); } });
+    return () => controller.abort();
+  }, [config?.mode, workshopRetry]);
+  useEffect(() => {
+    if (config?.mode !== "database") return;
+    setTenantUsers([]);
+    setEmail("");
+    setPassword("");
+    setTenantError("");
+    setTenantLoading(false);
+    const code = tenantCode.trim();
+    if (!code) return;
+    setTenantLoading(true);
+    const controller = new AbortController();
+    const timer = setTimeout(() => {
+      fetch(`/api/v1/auth/tenants/${encodeURIComponent(code)}/users`, { signal: controller.signal })
+        .then(async (response) => {
+          if (response.status === 404) throw new Error("No users found for this workshop code. Check the code and try again.");
+          if (!response.ok) throw new Error("Could not load workshop users. Try again.");
+          const users = await response.json() as Array<{ id: string; name: string }>;
+          if (!users.length) throw new Error("No users found for this workshop code. Check the code and try again.");
+          return users;
+        })
+        .then((users) => { if (!controller.signal.aborted) { setTenantUsers(users); setTenantError(""); setTenantLoading(false); } })
+        .catch((caught) => { if (!controller.signal.aborted) { setTenantError(caught instanceof Error ? caught.message : "Could not load workshop users. Try again."); setTenantLoading(false); } });
+    }, 300);
+    return () => { clearTimeout(timer); controller.abort(); };
+  }, [config?.mode, tenantCode, lookupRetry]);
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -1413,16 +1563,29 @@ function LoginScreen({
           <form
             onSubmit={(event) => {
               event.preventDefault();
-              onLogin(email, password);
+              onLogin(email, password, tenantCode);
             }}
           >
-            <label>
+            {config?.mode === "database" && <>
+              <label>Workshop
+                <select value={tenantCode} onChange={(event) => { setTenantCode(event.target.value); setEmail(""); setPassword(""); }} required disabled={workshopLoading}>
+                  <option value="">{workshopLoading ? "Loading workshops…" : "Select a workshop"}</option>
+                  {workshops.map((item) => <option key={item.code} value={item.code}>{item.name}</option>)}
+                </select>
+              </label>
+            </>}
+            {config?.mode === "database" ? <label>User
+              <select value={email} onChange={(event) => setEmail(event.target.value)} required disabled={!tenantCode || tenantLoading}>
+                <option value="">{tenantLoading ? "Loading users…" : "Select a user"}</option>
+                {tenantUsers.map((item) => <option key={item.id} value={item.id}>{item.name}</option>)}
+              </select>
+            </label> : <label>
               Email
               <input
                 value={email}
                 onChange={(event) => setEmail(event.target.value)}
               />
-            </label>
+            </label>}
             <label>
               Password
               <input
@@ -1431,8 +1594,10 @@ function LoginScreen({
                 onChange={(event) => setPassword(event.target.value)}
               />
             </label>
-            {error && <p className="error-text">{error}</p>}
-            <button className="primary-action">Login</button>
+            {(workshopError || tenantError || error) && <p className="error-text" role="alert">{workshopError || tenantError || error}</p>}
+            {config?.mode === "database" && workshopError && <button type="button" className="secondary-action" onClick={() => setWorkshopRetry((value) => value + 1)}>Retry workshops</button>}
+            {config?.mode === "database" && tenantError && <button type="button" className="secondary-action" onClick={() => setLookupRetry((value) => value + 1)}>Retry users</button>}
+            <button className="primary-action" disabled={config?.mode === "database" && (!tenantCode || !email || !password || workshopLoading || tenantLoading || !!workshopError || !!tenantError)}>Login</button>
           </form>
         )}
         {config?.mode === "local" && config.allowDemo && (
@@ -1538,17 +1703,29 @@ function RoleWorkspace({
   onAdminStateSaved: () => void;
 }) {
   const [procurementDraft, setProcurementDraft] = useState<ProcurementDraft>();
-  if (cognitoConfig && ["Job Cards", "Job Card", "My Queue"].includes(activeMenuItem)) return <RemoteJobWorkflow config={cognitoConfig} mode="jobs" />;
-  if (cognitoConfig && activeMenuItem === "My Tasks") return <RemoteTechnicianWorkspace config={cognitoConfig} />;
+  if (cognitoConfig && (activeMenuItem === "Today Queue" || activeMenuItem === "Receive Vehicle"))
+    return <RemoteReceptionIntake config={cognitoConfig} />;
+  if (cognitoConfig && (activeMenuItem === "Customers" || activeMenuItem === "Vehicles"))
+    return <RemoteEntities config={cognitoConfig} kind={activeMenuItem.toLowerCase() as "customers" | "vehicles"} />;
+  if (cognitoConfig?.mode === "database" && activeMenuItem === "Media")
+    return <RemoteMedia config={cognitoConfig} />;
+  if (cognitoConfig?.mode === "database" && activeMenuItem === "Dashboard")
+    return <RemoteDashboard config={cognitoConfig} onNavigate={onNavigate} />;
+  if (cognitoConfig?.mode === "database" && activeMenuItem === "Data Flow")
+    return <RemoteDataFlow config={cognitoConfig} />;
+  if (cognitoConfig && ["Jobs", "Job Cards", "Job Card", "My Queue"].includes(activeMenuItem)) return <RemoteJobWorkflow config={cognitoConfig} mode="jobs" />;
+  if (cognitoConfig && activeMenuItem === "Estimate") return <RemoteJobWorkflow config={cognitoConfig} mode="estimates" />;
+  if (cognitoConfig && ["My Tasks", "Work Update", "QC Prep"].includes(activeMenuItem)) return <RemoteTechnicianWorkspace config={cognitoConfig} />;
   if (cognitoConfig && activeMenuItem === "Advance Bookings") return <RemoteBookingDesk config={cognitoConfig} />;
   if (cognitoConfig && activeMenuItem === "Material Requests") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="requests" />;
   if (cognitoConfig && activeMenuItem === "Issue Material") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="issue" />;
   if (cognitoConfig && activeMenuItem === "Reconcile") return <RemoteMaterialsWorkspace config={cognitoConfig} mode="reconcile" />;
   if (cognitoConfig && activeMenuItem === "Purchase Orders") return <RemoteInventoryWorkspace config={cognitoConfig} mode="purchasing" />;
+  if (cognitoConfig && activeMenuItem === "Approvals") return <RemoteInventoryWorkspace config={cognitoConfig} mode="purchasing" />;
   if (cognitoConfig && activeMenuItem === "Stock") return <RemoteInventoryWorkspace config={cognitoConfig} mode="stock" />;
   if (activeMenuItem === "Leads") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="leads" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="leads" />;
   if (activeMenuItem === "Quotations") return cognitoConfig ? <RemoteSalesWorkspace config={cognitoConfig} mode="quotations" /> : <LocalSalesWorkspace state={state} mutate={mutate} mode="quotations" />;
-  if (activeMenuItem === "Quotation Settings") return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" initialReportCategory="quotation" />;
+  if (activeMenuItem === "Quotation Settings" && (!cognitoConfig || cognitoConfig.mode === "database")) return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} initialTab="Report Templates" initialReportCategory="quotation" />;
   if (cognitoConfig && activeMenuItem === "Follow-ups")
     return <RemoteFollowupsWorkspace config={cognitoConfig} mode="followups" />;
   if (cognitoConfig && activeMenuItem === "Search")
@@ -1562,6 +1739,10 @@ function RoleWorkspace({
     return <RemoteFinanceWorkspace config={cognitoConfig} mode="payment" />;
   if (cognitoConfig && activeMenuItem === "Delivery")
     return <RemoteFinanceWorkspace config={cognitoConfig} mode="delivery" />;
+  if (cognitoConfig?.mode === "database" && ["Admin Console", "Manage"].includes(activeMenuItem))
+    return <AdminConsole state={state} mutate={mutate} actingUser={user} cognitoConfig={cognitoConfig} onThemeSaved={onThemeSaved} onStateSaved={onAdminStateSaved} />;
+  if (cognitoConfig)
+    return <section className="workspace single-panel"><div className="desk-panel"><h2>{activeMenuItem}</h2><p className="api-error" role="alert">This screen is not yet connected to the shared database.</p></div></section>;
   if (activeMenuItem === "Search") {
     return (
       <SearchPortal
@@ -11255,6 +11436,7 @@ function RemoteUserManager({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [editing, setEditing] = useState(false);
+  const [newPassword, setNewPassword] = useState("");
   const [draft, setDraft] = useState<RemoteDraft>({
     id: "",
     name: "",
@@ -11336,6 +11518,7 @@ function RemoteUserManager({
   };
 
   const startNew = () => {
+    setNewPassword("");
     setDraft({
       id: "",
       name: "",
@@ -11354,7 +11537,7 @@ function RemoteUserManager({
         <div>
           <h3>Users</h3>
           <span>
-            Accounts are tenant-scoped and invitations are sent by Cognito.
+            {config.mode === "database" ? "Accounts and permissions are shared across the workshop." : "Accounts are tenant-scoped and invitations are sent by Cognito."}
           </span>
         </div>
         <button className="primary-action" onClick={startNew}>
@@ -11384,6 +11567,7 @@ function RemoteUserManager({
                     email: draft.email,
                     roleIds: draft.roleIds,
                     branchIds: draft.branchIds,
+                    ...(config.mode === "database" ? { password: newPassword } : {}),
                   }),
                 true,
               );
@@ -11414,9 +11598,12 @@ function RemoteUserManager({
               <small>
                 {draft.id
                   ? "Email cannot be changed after invitation."
-                  : "Cognito will email a temporary password."}
+                  : config.mode === "database" ? "Set a password for this user." : "Cognito will email a temporary password."}
               </small>
             </label>
+            {config.mode === "database" && !draft.id && <label>Password
+              <input required type="password" minLength={12} value={newPassword} onChange={(event) => setNewPassword(event.target.value)} />
+            </label>}
           </div>
           <fieldset className="assignment-fieldset">
             <legend>Roles</legend>
@@ -11446,7 +11633,7 @@ function RemoteUserManager({
           </fieldset>
           <div className="action-row">
             <button className="primary-action" disabled={busy}>
-              {draft.id ? "Save Changes" : "Invite User"}
+              {draft.id ? "Save Changes" : config.mode === "database" ? "Create User" : "Invite User"}
             </button>
             <button
               type="button"

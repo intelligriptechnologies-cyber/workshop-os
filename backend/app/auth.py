@@ -5,7 +5,7 @@ from typing import Annotated
 from uuid import UUID
 
 import jwt
-from fastapi import Depends, Header, HTTPException, status
+from fastapi import Depends, Header, HTTPException, Request, status
 from jwt import InvalidTokenError, PyJWKClient
 from jwt.exceptions import PyJWKClientError
 from sqlalchemy import text
@@ -49,6 +49,8 @@ def authenticated_subject(
         if not authorization or not authorization.startswith("Bearer "):
             raise auth_error("AUTHENTICATION_REQUIRED")
         return _cognito_subject(authorization.removeprefix("Bearer ").strip(), settings)
+    if settings.auth_mode == "database":
+        return ""
     if not settings.demo_auth_enabled:
         raise auth_error("AUTH_CONFIGURATION_INVALID", status.HTTP_503_SERVICE_UNAVAILABLE)
     if not demo_identity or len(demo_identity) > 255:
@@ -60,7 +62,7 @@ def _rows(session: Session, statement: str, parameters: dict[str, object]) -> li
     return [dict(row) for row in session.execute(text(statement), parameters).mappings().all()]
 
 
-def resolve_tenant_scope(session: Session, subject: str) -> TenantScope:
+def resolve_tenant_scope(session: Session, subject: str, *, database_identity: tuple[UUID, UUID, UUID] | None = None) -> TenantScope:
     """Resolve the one server-selected active membership for an authenticated subject."""
     membership = _rows(
         session,
@@ -68,14 +70,20 @@ def resolve_tenant_scope(session: Session, subject: str) -> TenantScope:
         SELECT u.id AS actor_id, u.display_name, u.email, m.id AS membership_id,
                m.tenant_id, m.version, t.name AS tenant_name, t.lifecycle_state
         FROM platform_users AS u
-        JOIN tenant_memberships AS m ON m.id = u.active_membership_id AND m.user_id = u.id
+        JOIN tenant_memberships AS m ON m.id = COALESCE(CAST(:database_membership AS uuid), u.active_membership_id)
+            AND m.user_id = u.id
         JOIN tenants AS t ON t.id = m.tenant_id
-        WHERE u.cognito_subject = :subject
+        WHERE ((CAST(:database_user AS uuid) IS NULL AND u.cognito_subject = :subject)
+            OR (u.id = CAST(:database_user AS uuid) AND m.tenant_id = CAST(:database_tenant AS uuid)
+                AND m.id = CAST(:database_membership AS uuid)))
           AND u.status = 'ACTIVE'
           AND m.status = 'ACTIVE'
           AND t.lifecycle_state IN ('trial', 'active', 'payment_due', 'suspended')
         """,
-        {"subject": subject},
+        {"subject": subject,
+         "database_user": str(database_identity[0]) if database_identity else None,
+         "database_tenant": str(database_identity[1]) if database_identity else None,
+         "database_membership": str(database_identity[2]) if database_identity else None},
     )
     if len(membership) != 1:
         raise auth_error("TENANT_ACCESS_DENIED", status.HTTP_403_FORBIDDEN)
@@ -176,13 +184,21 @@ def resolve_emulated_tenant_scope(session: Session, subject: str, emulation_id: 
 
 
 def tenant_scope(
+    request: Request,
     subject: str = Depends(authenticated_subject),
     session: Session = Depends(get_session),
     emulation_id: Annotated[UUID | None, Header(alias="x-workshopos-emulation-id")] = None,
 ) -> Generator[tuple[Session, TenantScope], None, None]:
     """Open a transaction after authorization and install the trusted RLS scope."""
     with session.begin():
-        scope = resolve_emulated_tenant_scope(session, subject, emulation_id) if emulation_id else resolve_tenant_scope(session, subject)
+        if get_settings().auth_mode == "database":
+            if emulation_id:
+                raise auth_error("EMULATION_ACCESS_DENIED", status.HTTP_403_FORBIDDEN)
+            from app.database_auth import database_identity as resolve_database_identity
+            identity = resolve_database_identity(request, session)
+            scope = resolve_tenant_scope(session, subject, database_identity=identity)
+        else:
+            scope = resolve_emulated_tenant_scope(session, subject, emulation_id) if emulation_id else resolve_tenant_scope(session, subject)
         apply_rls_context(session, scope)
         yield session, scope
 

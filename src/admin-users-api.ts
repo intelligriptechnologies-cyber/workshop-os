@@ -31,7 +31,7 @@ async function request<T>(config: CognitoConfig, path: string, init?: RequestIni
 
 export const adminUsersApi = {
   list: (config: CognitoConfig) => request<AdminDirectory>(config, "/api/v1/admin/users"),
-  create: (config: CognitoConfig, input: { name: string; email: string; roleIds: string[]; branchIds: string[] }) =>
+  create: (config: CognitoConfig, input: { name: string; email: string; roleIds: string[]; branchIds: string[]; password?: string }) =>
     request<{ user: AdminUser }>(config, "/api/v1/admin/users", {
       method: "POST", headers: { "content-type": "application/json", "idempotency-key": crypto.randomUUID() }, body: JSON.stringify(input),
     }),

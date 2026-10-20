@@ -30,7 +30,7 @@ test(`${roleName} Job Cards browse authoritative delivery dates and urgency`, as
   await page.route("**/api/v1/**", async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === "/api/v1/auth/config") return route.fulfill(json({ mode: "cognito", clientId: "test-client", authorizationEndpoint: "https://example.test/authorize", tokenEndpoint: "https://example.test/token", logoutEndpoint: "https://example.test/logout", callbackUri: "http://127.0.0.1/callback", logoutUri: "http://127.0.0.1/", scopes: ["openid"] }));
-    if (path === "/api/v1/session") return route.fulfill(json({ actorId: "actor-1", actorType: "tenant_user", tenant: { id: "tenant-1", name: "North" }, membership: { id: "member-1", displayName: roleName, email: "advisor@example.test", status: "ACTIVE", roleIds: ["role-1"], roles: [{ id: "role-1", name: roleName, permissions: ["page.job-card.read"] }], branchIds: ["branch-1"], branches: [{ id: "branch-1", name: "Main" }], permissions: ["page.job-card.read"], version: 1 } }));
+    if (path === "/api/v1/session") return route.fulfill(json({ actorId: "actor-1", actorType: "tenant_user", tenant: { id: "tenant-1", name: "North" }, membership: { id: "member-1", displayName: roleName, email: "advisor@example.test", status: "ACTIVE", roleIds: ["role-1"], roles: [{ id: "role-1", name: roleName, permissions: ["page.job-card.read", "page.jobs.read"] }], branchIds: ["branch-1"], branches: [{ id: "branch-1", name: "Main" }], permissions: ["page.job-card.read", "page.jobs.read"], version: 1 } }));
     if (path === "/api/v1/jobs") return route.fulfill(json(jobs));
     return route.fulfill({ status: 404, ...json({ code: "NOT_FOUND" }) });
   });

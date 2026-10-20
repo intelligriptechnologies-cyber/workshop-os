@@ -41,7 +41,11 @@ function job(overrides: Partial<JobView> = {}): JobView {
 
 test("defaults seed exactly one active template for every report category", () => {
   const state = createDefaultAdminDemoState(NOW);
-  assert.equal(state.reportTemplates.length, 6);
+  assert.equal(state.reportTemplates.length, 8);
+  assert.deepEqual(
+    state.reportTemplates.filter((template) => template.category === "quotation" && !template.active).map((template) => template.name),
+    ["Marron Template", "Yellow Template"],
+  );
   for (const category of ["estimate", "quotation", "invoice", "gate-pass", "job-card", "payment-receipt"] as const) {
     assert.equal(state.reportTemplates.filter((template) => template.category === category && template.active).length, 1);
     assert.ok(REPORT_PLACEHOLDERS[category].length > 10);
@@ -55,7 +59,7 @@ test("older session JSON hydrates new defaults and repairs active-template invar
   const old = createDefaultAdminDemoState(NOW) as Record<string, unknown>;
   delete old.reportTemplates; delete old.companyAssets;
   storage.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(old));
-  assert.equal(loadAdminDemoState(storage, NOW).reportTemplates.length, 6);
+  assert.equal(loadAdminDemoState(storage, NOW).reportTemplates.length, 8);
 
   const broken = createDefaultAdminDemoState(NOW);
   broken.reportTemplates = broken.reportTemplates.map((template) => ({ ...template, active: false }));
@@ -66,11 +70,11 @@ test("older session JSON hydrates new defaults and repairs active-template invar
 test("template creation validates names/placeholders and active transfer is immutable", () => {
   const original = createDefaultAdminDemoState(NOW);
   const added = createReportTemplate(original, { category: "invoice", name: "Compact", html: "<h1>{{report.number}}</h1>" }, NOW);
-  assert.equal(original.reportTemplates.length, 6);
-  assert.equal(added.reportTemplates.length, 7);
+  assert.equal(original.reportTemplates.length, 8);
+  assert.equal(added.reportTemplates.length, 9);
   assert.throws(() => createReportTemplate(added, { category: "invoice", name: " compact ", html: "<p>duplicate</p>" }, NOW), /unique/i);
   assert.throws(() => createReportTemplate(added, { category: "invoice", name: "Bad", html: "{{customer.secret}}" }, NOW), /customer.secret/);
-  assert.equal(added.reportTemplates.length, 7);
+  assert.equal(added.reportTemplates.length, 9);
 
   const compact = added.reportTemplates.find((template) => template.name === "Compact")!;
   const activated = activateReportTemplate(added, compact.id, NOW);

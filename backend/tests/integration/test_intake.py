@@ -8,8 +8,7 @@ from sqlalchemy import text
 def _reset_database() -> None:
     from app.database import get_engine
     with get_engine().begin() as connection:
-        for table in ("job_events", "estimate_decisions", "estimate_lines", "estimates", "job_cards", "tenant_audit_events", "visits", "vehicles", "customers", "support_emulations", "tenant_admin_invitations", "platform_billing", "branch_settings", "tenant_settings", "membership_roles", "role_permissions", "tenant_roles", "membership_branches", "tenant_memberships", "superadmins", "branches", "platform_users", "tenants"):
-            connection.execute(text(f"DELETE FROM {table}"))
+        connection.execute(text("TRUNCATE tenants, platform_users RESTART IDENTITY CASCADE"))
         connection.execute(text("INSERT INTO platform_users (id, cognito_subject, display_name, email) VALUES (gen_random_uuid(), 'platform-superadmin', 'Platform Admin', 'platform@example.test')"))
         connection.execute(text("INSERT INTO superadmins (user_id) SELECT id FROM platform_users WHERE cognito_subject = 'platform-superadmin'"))
 

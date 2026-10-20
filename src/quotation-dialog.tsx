@@ -46,7 +46,38 @@ export function QuotationEditorDialog({ config, leads, templates, quotation, tas
   </form></Dialog>;
 }
 
-export function quotationDocumentHtml(document: QuotationDocument) { const snapshot = document.snapshot; const total = Number(snapshot.total ?? 0); const lines: ReportLine[] = (snapshot.lines ?? []).map((line) => ({ kind: line.kind, description: line.description, qty: String(line.quantity), rate: money(line.rate), amount: money(line.quantity * line.rate) })); return renderReportTemplate({ html: document.templateHtml, category: "quotation" }, { "report.title": "Quotation", "report.number": document.quotationNo, "report.date": new Date(document.createdAt).toLocaleDateString("en-IN"), "customer.name": snapshot.leadName ?? "—", "customer.mobile": snapshot.phone ?? "—", "quotation.valid_until": snapshot.validUntil ?? "—", "quotation.notes": snapshot.customerNotes ?? "", "report.subtotal": money(Number(snapshot.subtotal ?? 0)), "report.discount": money(Number(snapshot.discount ?? 0)), "report.gst": money(Number(snapshot.gstAmount ?? 0)), "quotation.total": money(total), "report.amount_words": rupeesInWords(total) }, lines); }
+function companyImage(value?: string | null) {
+  return value && /^data:image\/(png|jpeg);base64,[A-Za-z0-9+/=]+$/.test(value)
+    ? `<img src="${value}" alt="Company asset" style="max-height:90px;max-width:180px" />` : "";
+}
+
+export function quotationDocumentHtml(document: QuotationDocument) {
+  const snapshot = document.snapshot;
+  const total = Number(snapshot.total ?? 0);
+  const company = snapshot.company ?? {};
+  const assets = company.assets ?? {};
+  const lines: ReportLine[] = (snapshot.lines ?? []).map((line) => ({
+    kind: line.kind, description: line.description, qty: String(line.quantity),
+    rate: money(line.rate), amount: money(line.quantity * line.rate),
+  }));
+  return renderReportTemplate({ html: document.templateHtml, category: "quotation" }, {
+    "company.name": company.businessName ?? "", "company.legal_name": company.legalName ?? "",
+    "company.address": company.address ?? "", "company.phone": company.phone ?? "",
+    "company.email": company.email ?? "", "company.gstin": company.gstin ?? "",
+    "company.footer": company.footer ?? "", "company.logo": companyImage(assets.logo),
+    "company.stamp": companyImage(assets.stamp), "company.signature": companyImage(assets.authorizedSignature),
+    "blocks.company_logo": companyImage(assets.logo), "blocks.company_stamp": companyImage(assets.stamp),
+    "blocks.authorized_signature": companyImage(assets.authorizedSignature),
+    "report.title": "Quotation", "report.number": document.quotationNo,
+    "report.date": new Date(document.createdAt).toLocaleDateString("en-IN"),
+    "customer.name": snapshot.leadName ?? "—", "customer.mobile": snapshot.phone ?? "—",
+    "quotation.valid_until": snapshot.validUntil ?? "—", "quotation.notes": snapshot.customerNotes ?? "",
+    "report.subtotal": money(Number(snapshot.subtotal ?? 0)),
+    "report.discount": money(Number(snapshot.discount ?? 0)),
+    "report.gst": money(Number(snapshot.gstAmount ?? 0)),
+    "quotation.total": money(total), "report.amount_words": rupeesInWords(total),
+  }, lines);
+}
 
 export function QuotationOutputControls({ loadDocument, onError, className, buttonClassName }: { loadDocument: () => Promise<QuotationDocument>; onError?: (message: string) => void; className?: string; buttonClassName?: string }) { const [busy, setBusy] = useState<"" | "download" | "print">(""); const run = async (action: "download" | "print") => { setBusy(action); onError?.(""); try { const document = await loadDocument(); const html = quotationDocumentHtml(document); if (action === "download") await renderHtmlToPdf(html, `${document.quotationNo}.pdf`); else { const result = printRenderedDocument({ html, title: `Quotation ${document.quotationNo}` }); if (!result.ok) throw new Error(result.error); } } catch (error) { onError?.(error instanceof Error ? error.message : "QUOTATION_OUTPUT_FAILED"); } finally { setBusy(""); } }; return <span className={className}><button type="button" className={buttonClassName} disabled={Boolean(busy)} aria-busy={Boolean(busy)} onClick={() => void run("download")}><Download size={15} />{busy === "download" ? "Generating PDF…" : "Download PDF"}</button><button type="button" className={buttonClassName} disabled={Boolean(busy)} aria-busy={Boolean(busy)} onClick={() => void run("print")}><Printer size={15} />{busy === "print" ? "Preparing print…" : "Print"}</button></span>; }
 export function QuotationDownloadButton({ config, quotationId, className, buttonClassName, onError }: { config: CognitoConfig; quotationId: number; className?: string; buttonClassName?: string; onError?: (message: string) => void }) { return <QuotationOutputControls className={className} buttonClassName={buttonClassName} loadDocument={() => salesApi.document(config, quotationId)} onError={onError} />; }

@@ -151,7 +151,7 @@ export const ROLE_MENU_PAGE_KEYS: Readonly<Record<Role, readonly AdminPageKey[]>
   store: ["material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"],
   tech: ["my-tasks", "work-update", "qc-prep", "search"],
   accounts: ["ready-to-invoice", "invoice", "payment", "delivery", "search"],
-  admin: ["dashboard", "advance-bookings", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search", "sales-leads", "quotations", "quotation-settings", "admin-console"],
+  admin: ["dashboard", "advance-bookings", "approvals", "data-flow", "jobs", "customers", "vehicles", "media", "inward-purchases", "manage", "search", "sales-leads", "quotations", "quotation-settings", "admin-console"],
 };
 
 /** Sidebar workflows are a role-owned subset of saved Page Access grants. */

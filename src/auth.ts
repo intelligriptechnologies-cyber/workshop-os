@@ -7,9 +7,10 @@ export type CognitoConfig = {
   callbackUri: string;
   logoutUri: string;
   scopes: string[];
-};
+} | { mode: "database" };
 
 export type AuthConfig = CognitoConfig | { mode: "local"; allowDemo: boolean };
+type OidcConfig = Extract<CognitoConfig, { mode: "cognito" }>;
 
 export type SessionMembership = {
   id: string;
@@ -31,6 +32,7 @@ const TOKEN_KEY = "workshopos.cognito.tokens.v1";
 const OAUTH_KEY = "workshopos.cognito.oauth.v1";
 const READ_CACHE_KEY = "workshopos.auth.read-cache.v1";
 const READ_CACHE_VERSION = 1;
+let databaseSessionKnown = false;
 
 export type AuthenticatedApiReachability = {
   status: "online" | "offline";
@@ -152,17 +154,15 @@ function randomValue() {
 }
 
 export async function loadAuthConfig(): Promise<AuthConfig> {
-  const localDemo = import.meta.env.DEV || location.hostname === "localhost" || location.hostname === "127.0.0.1";
-  try {
-    const response = await fetch("/api/v1/auth/config", { headers: { accept: "application/json" } });
-    if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) return { mode: "local", allowDemo: localDemo };
-    return await response.json() as AuthConfig;
-  } catch {
-    return { mode: "local", allowDemo: localDemo };
-  }
+  const response = await fetch("/api/v1/auth/config", { headers: { accept: "application/json" }, cache: "no-store" });
+  if (!response.ok || !response.headers.get("content-type")?.includes("application/json")) throw new Error("AUTH_CONFIG_UNAVAILABLE");
+  const config = await response.json() as AuthConfig;
+  if (config.mode === "local" && !config.allowDemo) throw new Error("AUTH_CONFIGURATION_INVALID");
+  if (config.mode !== "local" && config.mode !== "database" && config.mode !== "cognito") throw new Error("AUTH_CONFIGURATION_INVALID");
+  return config;
 }
 
-export async function beginCognitoLogin(config: CognitoConfig) {
+export async function beginCognitoLogin(config: OidcConfig) {
   const verifier = randomValue();
   const state = randomValue();
   sessionStorage.setItem(OAUTH_KEY, JSON.stringify({ verifier, state }));
@@ -179,7 +179,7 @@ export async function beginCognitoLogin(config: CognitoConfig) {
   location.assign(url);
 }
 
-async function exchange(config: CognitoConfig, values: URLSearchParams): Promise<Tokens> {
+async function exchange(config: OidcConfig, values: URLSearchParams): Promise<Tokens> {
   const response = await fetch(config.tokenEndpoint, {
     method: "POST",
     headers: { "content-type": "application/x-www-form-urlencoded" },
@@ -190,7 +190,7 @@ async function exchange(config: CognitoConfig, values: URLSearchParams): Promise
   return { accessToken: payload.access_token, refreshToken: payload.refresh_token, expiresAt: Date.now() + payload.expires_in * 1000 };
 }
 
-async function tokens(config: CognitoConfig): Promise<Tokens | undefined> {
+async function tokens(config: OidcConfig): Promise<Tokens | undefined> {
   const saved = sessionStorage.getItem(TOKEN_KEY);
   if (!saved) return undefined;
   const current = JSON.parse(saved) as Tokens;
@@ -204,7 +204,7 @@ async function tokens(config: CognitoConfig): Promise<Tokens | undefined> {
   return refreshed;
 }
 
-export async function completeCognitoCallback(config: CognitoConfig) {
+export async function completeCognitoCallback(config: OidcConfig) {
   const params = new URLSearchParams(location.search);
   const code = params.get("code");
   if (!code) return;
@@ -221,6 +221,21 @@ export async function completeCognitoCallback(config: CognitoConfig) {
 }
 
 export async function authenticatedFetch(config: CognitoConfig, path: string, init: RequestInit = {}) {
+  if (config.mode === "database") {
+    const csrf = document.cookie.split("; ").find((value) => value.startsWith("workshopos_csrf="))?.split("=")[1];
+    const method = (init.method ?? "GET").toUpperCase();
+    const response = await fetch(path, { ...init, credentials: "same-origin", headers: {
+      ...init.headers, accept: "application/json",
+      ...(method === "GET" || method === "HEAD" ? {} : { "x-workshopos-csrf": decodeURIComponent(csrf ?? "") }),
+    } });
+    if (response.status === 401) {
+      const hadSession = databaseSessionKnown;
+      invalidateAuthenticatedSession();
+      databaseSessionKnown = false;
+      if (hadSession) window.dispatchEvent(new Event("workshopos:session-expired"));
+    }
+    return response;
+  }
   const current = await tokens(config);
   if (!current) throw new Error("AUTHENTICATION_REQUIRED");
   const method = (init.method ?? "GET").toUpperCase();
@@ -247,6 +262,15 @@ export async function authenticatedFetch(config: CognitoConfig, path: string, in
 }
 
 export async function loadWorkshopSession(config: CognitoConfig): Promise<WorkshopSession | undefined> {
+  if (config.mode === "database") {
+    const response = await authenticatedFetch(config, "/api/v1/session", { cache: "no-store" });
+    if (response.status === 401 || response.status === 403) return undefined;
+    if (!response.ok) throw new Error((await response.json() as { code?: string }).code ?? "SESSION_FAILED");
+    const session = await response.json() as WorkshopSession;
+    databaseSessionKnown = true;
+    setAuthenticatedCacheScope(session);
+    return session;
+  }
   await completeCognitoCallback(config);
   const current = await tokens(config);
   if (!current) return undefined;
@@ -268,9 +292,25 @@ export async function checkAuthenticatedApiReachability(config: CognitoConfig) {
   return getAuthenticatedApiReachability();
 }
 
-export function endCognitoSession(config: CognitoConfig) {
+export function endCognitoSession(config: OidcConfig) {
   invalidateAuthenticatedSession();
   const url = new URL(config.logoutEndpoint);
   url.search = new URLSearchParams({ client_id: config.clientId, logout_uri: config.logoutUri }).toString();
   location.assign(url);
+}
+
+export async function databaseLogin(tenantCode: string, userId: string, password: string) {
+  const response = await fetch("/api/v1/auth/login", { method: "POST", credentials: "same-origin",
+    headers: { "content-type": "application/json" }, body: JSON.stringify({ tenantCode, userId, password }) });
+  if (!response.ok) throw new Error((await response.json() as { code?: string }).code ?? "LOGIN_FAILED");
+  databaseSessionKnown = true;
+}
+
+export async function databaseLogout() {
+  const csrf = document.cookie.split("; ").find((value) => value.startsWith("workshopos_csrf="))?.split("=")[1];
+  const response = await fetch("/api/v1/auth/logout", { method: "POST", credentials: "same-origin",
+    headers: { "x-workshopos-csrf": decodeURIComponent(csrf ?? "") } });
+  if (!response.ok) throw new Error("LOGOUT_FAILED");
+  databaseSessionKnown = false;
+  invalidateAuthenticatedSession();
 }

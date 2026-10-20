@@ -7,12 +7,12 @@ export type Lead = { id: number; branchId: string; displayName: string; phone: s
 export type QuotationLine = { id?: number; kind: string; description: string; quantity: number; rate: number; gstRate: number };
 export type Quotation = { id: number; branchId: string; leadId: number; quotationNo: string; status: QuotationStatus; validUntil: string | null; customerNotes: string; discount: number; subtotal: number; gstAmount: number; total: number; templateId: string; templateHtml?: string; createdAt: string; updatedAt: string; lines: QuotationLine[] };
 export type ServiceTask = { id: number; name: string; description: string; rate: number; gstRate: number };
-export type QuotationDocument = { quotationNo: string; createdAt: string; templateHtml: string; snapshot: { leadName?: string; phone?: string; validUntil?: string | null; customerNotes?: string; discount?: number; subtotal?: number; gstAmount?: number; total?: number; lines?: QuotationLine[] } };
+export type QuotationDocument = { quotationNo: string; createdAt: string; templateHtml: string; snapshot: { leadName?: string; phone?: string; validUntil?: string | null; customerNotes?: string; discount?: number; subtotal?: number; gstAmount?: number; total?: number; lines?: QuotationLine[]; company?: { businessName?: string; legalName?: string; address?: string; phone?: string; email?: string; gstin?: string; footer?: string; assets?: { logo?: string | null; stamp?: string | null; authorizedSignature?: string | null } } } };
 
 async function request<T>(config: CognitoConfig, path: string, init?: RequestInit): Promise<T> { const response = await authenticatedFetch(config, path, init); if (!response.ok) { const body = await response.json().catch(() => ({})) as { code?: string }; throw new Error(body.code ?? "SALES_CRM_API_FAILED"); } return response.json() as Promise<T>; }
 const json = (method: "POST" | "PUT", body: unknown): RequestInit => ({ method, headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
 export const salesApi = {
-  leads: (config: CognitoConfig, filters = "") => request<Lead[]>(config, `/api/v1/sales/leads${filters}`),
+  leads: (config: CognitoConfig, filters = "") => request<Lead[]>(config, `/api/v1/sales/leads${filters}`, { cache: "no-store" }),
   createLead: (config: CognitoConfig, input: Omit<Lead, "id" | "branchId" | "createdAt" | "updatedAt">) => request<Lead>(config, "/api/v1/sales/leads", json("POST", input)),
   updateLead: (config: CognitoConfig, id: number, input: Omit<Lead, "id" | "branchId" | "createdAt" | "updatedAt">) => request<Lead>(config, `/api/v1/sales/leads/${id}`, json("PUT", input)),
   quotations: (config: CognitoConfig, filters = "") => request<Quotation[]>(config, `/api/v1/sales/quotations${filters}`),

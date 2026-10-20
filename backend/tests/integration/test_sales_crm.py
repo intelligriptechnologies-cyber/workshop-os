@@ -45,6 +45,26 @@ def _activate(tenant_id: str, subject: str) -> None:
 
 
 @pytest.mark.integration
+def test_created_month_filters_creation_instead_of_follow_up() -> None:
+    _reset_database()
+    from app.main import app
+
+    with TestClient(app) as first, TestClient(app) as second:
+        tenant = _provision(first)
+        _activate(str(tenant["id"]), "sales-created-month")
+        headers = {"x-workshopos-identity": "sales-created-month"}
+        created = first.post("/api/v1/sales/leads", headers=headers, json={
+            "displayName": "Created month lead", "phone": "9000000001", "followUpDue": "2030-01-15",
+        })
+        assert created.status_code == 201, created.text
+        month = created.json()["createdAt"][:7]
+        listed = second.get("/api/v1/sales/leads", headers=headers, params={"month": month})
+        assert listed.status_code == 200, listed.text
+        assert created.json()["id"] in [row["id"] for row in listed.json()]
+        assert second.get("/api/v1/sales/leads", headers=headers, params={"month": "2030-01"}).json() == []
+
+
+@pytest.mark.integration
 def test_lead_not_entered_flags_round_trip_and_are_audited() -> None:
     _reset_database()
     from app.main import app
@@ -120,7 +140,8 @@ def test_lead_follow_up_and_quotation_terminal_outcomes_follow_the_persisted_pip
             "displayName": "Asha", "phone": "9000000000", "followUpDue": "2026-10-20",
         })
         assert lead.status_code == 201, lead.text
-        assert [item["id"] for item in client.get("/api/v1/sales/leads?exactDate=2026-10-20", headers=headers).json()] == [lead.json()["id"]]
+        created_date = lead.json()["createdAt"][:10]
+        assert [item["id"] for item in client.get(f"/api/v1/sales/leads?exactDate={created_date}", headers=headers).json()] == [lead.json()["id"]]
 
         quotation = client.post("/api/v1/sales/quotations", headers=headers, json={
             "leadId": lead.json()["id"], "templateId": "quotation-default", "templateHtml": "<main>Quotation</main>",

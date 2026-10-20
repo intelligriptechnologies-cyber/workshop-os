@@ -78,7 +78,7 @@ def _event(session, current: TenantScope, request_id: int, command: str, reason:
 def list_requests(scope: ScopedTenant, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _page(scope, mutation=False)
     if branch_id: _branch(current, branch_id)
-    rows = session.execute(text("SELECT id FROM purchase_requests WHERE (:branch IS NULL OR branch_id=:branch) ORDER BY created_at DESC,id DESC"), {"branch": str(branch_id) if branch_id else None}).mappings()
+    rows = session.execute(text("SELECT id FROM purchase_requests WHERE (CAST(:branch AS uuid) IS NULL OR branch_id=:branch) ORDER BY created_at DESC,id DESC"), {"branch": str(branch_id) if branch_id else None}).mappings()
     return [_request(session, int(row["id"])) for row in rows]
 @router.get("/purchase-requests/{request_id}")
 def get_request(request_id: int, scope: ScopedTenant) -> dict[str, object]:

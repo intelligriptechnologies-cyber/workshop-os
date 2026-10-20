@@ -224,7 +224,7 @@ def _booking_capacity(session, current: TenantScope, branch_id: UUID, booking_da
 @router.get("/bookings")
 def list_bookings(scope: ScopedTenant, booking_date: date | None = Query(default=None, alias="bookingDate"), branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope
-    _require_any(scope, ("page.receive-vehicle.read", "page.my-queue.read"))
+    _require_any(scope, ("page.receive-vehicle.read", "page.my-queue.read", "page.advance-bookings.read"))
     if branch_id is not None:
         _branch(current, branch_id)
     clauses, parameters = [], {}
@@ -242,7 +242,7 @@ def list_bookings(scope: ScopedTenant, booking_date: date | None = Query(default
 @router.post("/bookings", status_code=status.HTTP_201_CREATED)
 def create_booking(input: BookingCreate, scope: ScopedTenant) -> dict[str, object]:
     session, current = scope
-    branch_id = _branch(_require_any(scope, ("page.receive-vehicle.write", "page.my-queue.write"), mutation=True), input.branch_id)
+    branch_id = _branch(_require_any(scope, ("page.receive-vehicle.write", "page.my-queue.write", "page.advance-bookings.write"), mutation=True), input.branch_id)
     _assert_active_customer(session, input.customer_id, branch_id)
     _assert_active_vehicle(session, input.vehicle_id, branch_id, input.customer_id)
     allocated, limit = _booking_capacity(session, current, branch_id, input.booking_date, input.service_type)
@@ -263,7 +263,7 @@ def create_booking(input: BookingCreate, scope: ScopedTenant) -> dict[str, objec
 @router.get("/bookings/{booking_id}")
 def get_booking(booking_id: int, scope: ScopedTenant) -> dict[str, object]:
     session, _ = scope
-    _require_any(scope, ("page.receive-vehicle.read", "page.my-queue.read"))
+    _require_any(scope, ("page.receive-vehicle.read", "page.my-queue.read", "page.advance-bookings.read"))
     row = session.execute(text("SELECT * FROM bookings WHERE id=:id"), {"id": booking_id}).mappings().one_or_none()
     if row is None:
         raise auth_error("BOOKING_NOT_FOUND", status.HTTP_404_NOT_FOUND)
@@ -274,7 +274,7 @@ def get_booking(booking_id: int, scope: ScopedTenant) -> dict[str, object]:
 def check_in_booking(booking_id: int, input: BookingCheckIn, scope: ScopedTenant) -> dict[str, object]:
     """Atomically turn one arrival into its durable Visit and routed Job Card."""
     session, current = scope
-    _require_any(scope, ("page.receive-vehicle.write", "page.job-card.write", "page.my-queue.write"), mutation=True)
+    _require_any(scope, ("page.receive-vehicle.write", "page.job-card.write", "page.my-queue.write", "page.advance-bookings.write"), mutation=True)
     booking_row = session.execute(text("SELECT * FROM bookings WHERE id=:id FOR UPDATE"), {"id": booking_id}).mappings().one_or_none()
     if booking_row is None:
         raise auth_error("BOOKING_NOT_FOUND", status.HTTP_404_NOT_FOUND)
@@ -340,7 +340,7 @@ def list_customers(scope: ScopedTenant, q: str = "", archived: bool = False, bra
     rows = session.execute(text("""
         SELECT * FROM customers
         WHERE (:archived = (archived_at IS NOT NULL))
-          AND (:branch_id IS NULL OR branch_id = :branch_id)
+          AND (CAST(:branch_id AS uuid) IS NULL OR branch_id = :branch_id)
           AND (:q = '' OR name ILIKE :needle OR mobile ILIKE :needle)
         ORDER BY name, id
     """), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
@@ -391,7 +391,7 @@ def archive_customer(customer_id: int, input: ArchiveInput, scope: ScopedTenant)
 def list_vehicles(scope: ScopedTenant, q: str = "", archived: bool = False, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _require_any(scope, ("page.vehicles.read", "page.my-queue.read"))
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("""SELECT * FROM vehicles WHERE (:archived = (archived_at IS NOT NULL)) AND (:branch_id IS NULL OR branch_id=:branch_id) AND (:q='' OR number ILIKE :needle OR make ILIKE :needle OR model ILIKE :needle) ORDER BY number, id"""), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
+    rows = session.execute(text("""SELECT * FROM vehicles WHERE (:archived = (archived_at IS NOT NULL)) AND (CAST(:branch_id AS uuid) IS NULL OR branch_id=:branch_id) AND (:q='' OR number ILIKE :needle OR make ILIKE :needle OR model ILIKE :needle) ORDER BY number, id"""), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
     return [_vehicle(dict(row)) for row in rows]
 
 
@@ -434,7 +434,7 @@ def archive_vehicle(vehicle_id: int, input: ArchiveInput, scope: ScopedTenant) -
 def list_visits(scope: ScopedTenant, q: str = "", archived: bool = False, branch_id: UUID | None = Query(default=None, alias="branchId")) -> list[dict[str, object]]:
     session, current = scope; _require_any(scope, ("page.receive-vehicle.read", "page.customers.read", "page.my-queue.read"))
     if branch_id is not None: _branch(current, branch_id)
-    rows = session.execute(text("""SELECT v.* FROM visits v JOIN customers c ON c.id=v.customer_id JOIN vehicles h ON h.id=v.vehicle_id WHERE (:archived = (v.archived_at IS NOT NULL)) AND (:branch_id IS NULL OR v.branch_id=:branch_id) AND (:q='' OR c.name ILIKE :needle OR c.mobile ILIKE :needle OR h.number ILIKE :needle OR v.requested_work ILIKE :needle) ORDER BY v.received_at DESC, v.id DESC"""), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
+    rows = session.execute(text("""SELECT v.* FROM visits v JOIN customers c ON c.id=v.customer_id JOIN vehicles h ON h.id=v.vehicle_id WHERE (:archived = (v.archived_at IS NOT NULL)) AND (CAST(:branch_id AS uuid) IS NULL OR v.branch_id=:branch_id) AND (:q='' OR c.name ILIKE :needle OR c.mobile ILIKE :needle OR h.number ILIKE :needle OR v.requested_work ILIKE :needle) ORDER BY v.received_at DESC, v.id DESC"""), {"archived": archived, "branch_id": str(branch_id) if branch_id else None, "q": q.strip(), "needle": f"%{q.strip()}%"}).mappings().all()
     return [_visit(dict(row)) for row in rows]
 
 

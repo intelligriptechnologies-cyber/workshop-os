@@ -9,33 +9,51 @@ from collections.abc import Iterable
 from typing import Annotated, Literal
 from uuid import UUID, uuid4
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, HTTPException, Query, status
 from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import text
 
 from app.auth import ScopedTenant, auth_error
+from app.config import get_settings
+from app.database_auth import hash_password
 from app.tenancy import TenantScope, require_mutation_allowed
 
 
 router = APIRouter(prefix="/api/v1/admin", tags=["tenant administration"])
 
+
+@router.get("/demo-import/rows")
+def list_demo_import_rows(scope: ScopedTenant, source_table: str | None = Query(None, alias="sourceTable"),
+                          limit: int = Query(100, ge=1, le=500), offset: int = Query(0, ge=0)) -> dict[str, object]:
+    _require(scope, "page.admin-console.read")
+    session, _ = scope
+    parameters = {"table": source_table, "limit": limit, "offset": offset}
+    total = session.execute(text("""SELECT count(*) FROM demo_import_rows
+        WHERE (CAST(:table AS text) IS NULL OR source_table=:table)"""), parameters).scalar_one()
+    rows = session.execute(text("""SELECT source_table,source_id,target_id,payload FROM demo_import_rows
+        WHERE (CAST(:table AS text) IS NULL OR source_table=:table)
+        ORDER BY source_table,source_id LIMIT :limit OFFSET :offset"""), parameters).mappings().all()
+    return {"total": total, "rows": [{"sourceTable": row["source_table"], "sourceId": row["source_id"],
+                                      "targetId": row["target_id"], "payload": row["payload"]} for row in rows]}
+
 PageKey = Literal[
-    "receive-vehicle", "today-queue", "customers", "vehicles", "search", "my-queue", "job-card",
+    "receive-vehicle", "today-queue", "advance-bookings", "customers", "vehicles", "search", "my-queue", "job-card",
     "estimate", "follow-ups", "media", "material-requests", "issue-material", "reconcile", "stock",
     "approvals", "inward-purchases", "my-tasks", "work-update", "qc-prep", "ready-to-invoice",
     "invoice", "payment", "delivery", "dashboard", "data-flow", "jobs", "manage", "admin-console",
+    "sales-leads", "quotations", "quotation-settings",
 ]
 
 UI_ROLE_PAGES: dict[str, tuple[PageKey, ...]] = {
     "Owner/Admin": (
-        "dashboard", "approvals", "data-flow", "jobs", "media", "inward-purchases", "manage", "search",
-        "admin-console", "material-requests", "issue-material", "reconcile", "stock", "estimate", "follow-ups",
+        "dashboard", "advance-bookings", "approvals", "data-flow", "jobs", "customers", "vehicles", "media", "inward-purchases", "manage", "search",
+        "admin-console", "sales-leads", "quotations", "quotation-settings", "material-requests", "issue-material", "reconcile", "stock", "estimate", "follow-ups",
     ),
     "Service Advisor": ("my-queue", "job-card", "estimate", "follow-ups", "media", "search"),
     # Managers use the same operational surfaces as advisors, but job routing
     # additionally grants them the manager queue on the server.
     "Service Department Manager": ("my-queue", "job-card", "estimate", "follow-ups", "media", "search"),
-    "Reception": ("today-queue", "customers", "vehicles", "follow-ups", "search"),
+    "Reception": ("today-queue", "advance-bookings", "customers", "vehicles", "follow-ups", "search"),
     "Accounts": ("ready-to-invoice", "invoice", "payment", "delivery", "search"),
     "Store": ("material-requests", "issue-material", "reconcile", "stock", "inward-purchases", "search"),
     "Technician": ("my-tasks", "work-update", "qc-prep", "search"),
@@ -129,6 +147,7 @@ class UserCreate(ApiModel):
     email: Annotated[str, Field(min_length=3, max_length=320)]
     role_ids: tuple[UUID, ...] = Field(alias="roleIds")
     branch_ids: tuple[UUID, ...] = Field(alias="branchIds")
+    password: str | None = Field(default=None, min_length=12, max_length=256)
 
 
 class UserUpdate(ApiModel):
@@ -500,13 +519,25 @@ def create_user(input: UserCreate, scope: ScopedTenant) -> dict[str, object]:
     if existing:
         raise HTTPException(status_code=status.HTTP_409_CONFLICT, detail={"code": "EMAIL_ALREADY_REGISTERED"})
     user_id, membership_id, invitation_id = uuid4(), uuid4(), uuid4()
-    session.execute(text("INSERT INTO platform_users (id, cognito_subject, display_name, email) VALUES (:id, NULL, :name, :email)"), {"id": str(user_id), "name": name, "email": email})
-    session.execute(text("INSERT INTO tenant_memberships (id, tenant_id, user_id, status) VALUES (:id, :tenant_id, :user_id, 'INVITED')"), {"id": str(membership_id), "tenant_id": str(current.tenant_id), "user_id": str(user_id)})
+    database_mode = get_settings().auth_mode == "database"
+    if database_mode and not input.password:
+        raise auth_error("PASSWORD_REQUIRED", status.HTTP_422_UNPROCESSABLE_ENTITY)
+    session.execute(text("INSERT INTO platform_users (id, cognito_subject, display_name, email, password_hash) VALUES (:id, NULL, :name, :email, :password_hash)"),
+                    {"id": str(user_id), "name": name, "email": email, "password_hash": hash_password(input.password) if database_mode and input.password else None})
+    session.execute(text("INSERT INTO tenant_memberships (id, tenant_id, user_id, status) VALUES (:id, :tenant_id, :user_id, :status)"),
+                    {"id": str(membership_id), "tenant_id": str(current.tenant_id), "user_id": str(user_id),
+                     "status": "ACTIVE" if database_mode else "INVITED"})
     _replace_assignments(session, current.tenant_id, membership_id, role_ids, branch_ids)
-    session.execute(text("INSERT INTO tenant_admin_invitations (id, tenant_id, membership_id, email, status, last_sent_at) VALUES (:id, :tenant_id, :membership_id, :email, 'PENDING', now())"), {"id": str(invitation_id), "tenant_id": str(current.tenant_id), "membership_id": str(membership_id), "email": email})
+    if database_mode:
+        session.execute(text("UPDATE platform_users SET active_membership_id=:membership WHERE id=:user"),
+                        {"membership": str(membership_id), "user": str(user_id)})
+    else:
+        session.execute(text("INSERT INTO tenant_admin_invitations (id, tenant_id, membership_id, email, status, last_sent_at) VALUES (:id, :tenant_id, :membership_id, :email, 'PENDING', now())"), {"id": str(invitation_id), "tenant_id": str(current.tenant_id), "membership_id": str(membership_id), "email": email})
     row = _membership_or_404(session, current.tenant_id, membership_id)
     payload = _user_payload(session, current.tenant_id, row)
-    _audit(session, current, "TENANT_USER_INVITED", "Tenant user invited", {}, {"membershipId": payload["id"], "roleIds": payload["roleIds"], "branchIds": payload["branchIds"]})
+    _audit(session, current, "TENANT_USER_CREATED" if database_mode else "TENANT_USER_INVITED",
+           "Tenant user created" if database_mode else "Tenant user invited", {},
+           {"membershipId": payload["id"], "roleIds": payload["roleIds"], "branchIds": payload["branchIds"]})
     return {"user": payload}
 
 
