@@ -1,3 +1,4 @@
+import { configurationApi } from "./configuration-api";
 import { hydrateDocumentSnapshots, type DocumentSnapshot } from './document-snapshots';
 import type { Vehicle, JobCard, ChecklistItem, JobView } from './types';
 import { request } from './customer-api';
@@ -5,10 +6,15 @@ export type ApiVehicle=Vehicle & {version:number};
 export type Projection=Record<string,Array<Record<string,unknown>>>;
 let vehicles:ApiVehicle[]=[];
 let current:Projection={};
-export const operationalVersion=(table:string,id:number)=>current[table]?.find(r=>r.id===id)?.version;
+const confirmedVersions=new Map<string,number>();
+export const operationalVersion=(table:string,id:number)=>{
+ const projected=Number(current[table]?.find(r=>r.id===id)?.version??0);
+ return Math.max(projected,confirmedVersions.get(table+':'+id)??0)||undefined;
+};
+export const recordOperationalVersion=(table:string,id:number,version:number)=>confirmedVersions.set(table+':'+id,Math.max(version,confirmedVersions.get(table+':'+id)??0));
 const keys=new Map<string,string>();
 export const operationsApi={
- async read():Promise<Projection>{current=await request<Projection>('/operations/projection');hydrateDocumentSnapshots(current.document_snapshots as unknown as DocumentSnapshot[]);vehicles=current.vehicles as unknown as ApiVehicle[];return current;},
+ async read():Promise<Projection>{await configurationApi.read();current=await request<Projection>('/operations/projection');hydrateDocumentSnapshots(current.document_snapshots as unknown as DocumentSnapshot[]);vehicles=current.vehicles as unknown as ApiVehicle[];return current;},
  async command<T>(path:string,body:unknown,method='POST'):Promise<T>{
   const signature=JSON.stringify([path,body]);const key=keys.get(signature)??crypto.randomUUID();keys.set(signature,key);
   const result=await request<T>(path,{method,headers:{'Idempotency-Key':key},body:JSON.stringify(body)});keys.delete(signature);

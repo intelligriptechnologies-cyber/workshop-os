@@ -1,3 +1,5 @@
+import { bookingApi } from "./booking-api";
+import { customersApiEnabled } from "./customer-api";
 import { useMemo, useState, type FormEvent } from "react";
 import type { Database } from "sql.js";
 import {
@@ -48,9 +50,16 @@ export function ExpectedTodayBookings({ state, actor, mutate, operationalDate, o
     setArrivalWindow(booking.arrival_window);
   };
   const closeAction = () => { setSelected(undefined); setError(""); };
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (!selected || selected.action === "check-in") return;
+    if (customersApiEnabled) {
+      try {
+        await bookingApi.change(selected.booking.id, selected.action, { note, ...(selected.action === "reschedule" ? { bookingDate: rescheduleDate, arrivalWindow, capacityOverrideReason } : {}) });
+        closeAction();
+      } catch (error) { setError(error instanceof Error ? error.message : "Booking action failed."); }
+      return;
+    }
     const success = mutate((db) => {
       if (selected.action === "call") recordBookingCall(db, selected.booking.id, actor.id, note);
       if (selected.action === "reschedule") rescheduleBooking(db, selected.booking.id, actor.id, rescheduleDate, note, arrivalWindow, new Date().toISOString(), capacityOverrideReason);

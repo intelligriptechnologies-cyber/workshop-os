@@ -156,13 +156,16 @@ let SQL: SqlJsStatic | undefined;
 const externalCustomerDatabases = new WeakSet<Database>();
 const CUSTOMER_SLICE_STORAGE_KEY = 'workshopos.sqlite.customers-api.v1';
 const OPERATIONS_STORAGE_KEY = 'workshopos.sqlite.operations-api.v1';
+const REMAINING_STORAGE_KEY = 'workshopos.sqlite.remaining-api.v1';
+const ADMINISTRATION_STORAGE_KEY = 'workshopos.sqlite.administration-api.v1';
+const BOOKING_STORAGE_KEY = 'workshopos.sqlite.bookings-api.v1';
 const FINANCIAL_STORAGE_KEY = 'workshopos.sqlite.financial-api.v1';
 const STOCK_STORAGE_KEY = 'workshopos.sqlite.stock-api.v1';
 const ESTIMATES_STORAGE_KEY = 'workshopos.sqlite.estimates-api.v1';
 
 const projectionTables = new WeakMap<Database, string[]>();
 type OperationalProjection = Record<string, Array<Record<string, unknown>>>;
-const allowedProjectionTables = new Set(["vehicles", "advisor_attendance", "checklist_cycles", "checklist_items", "job_cards", "photos", "qc_checks", "status_history", "tasks", "visits", "estimate_items", "estimates", "gate_passes", "invoice_events", "invoice_items", "invoices", "job_task_list_items", "material_approval_events", "material_approvals", "material_requests", "payments", "receipts", "inventory", "inward_purchase_attachments", "inward_purchase_events", "inward_purchase_lines", "inward_purchase_revision_lines", "inward_purchase_revisions", "inward_purchases", "local_purchases", "material_events", "material_movements", "material_purchase_requests", "purchase_order_confirmations", "purchase_order_lines", "purchase_order_quotations", "purchase_order_receipt_lines", "purchase_order_receipts", "purchase_orders", "stock_inwards", "stock_ledger", "suppliers"]);
+const allowedProjectionTables = new Set(["sales_leads", "sales_quotations", "sales_quotation_lines", "service_departments", "service_department_managers", "service_advisor_teams", "service_catalog_items", "service_brands", "car_segments", "users", "followups", "bookings", "booking_events", "booking_call_logs", "booking_capacity_limits", "booking_capacity_overrides", "vehicles", "advisor_attendance", "checklist_cycles", "checklist_items", "job_cards", "photos", "qc_checks", "status_history", "tasks", "visits", "estimate_items", "estimates", "gate_passes", "invoice_events", "invoice_items", "invoices", "job_task_list_items", "material_approval_events", "material_approvals", "material_requests", "payments", "receipts", "inventory", "inward_purchase_attachments", "inward_purchase_events", "inward_purchase_lines", "inward_purchase_revision_lines", "inward_purchase_revisions", "inward_purchases", "local_purchases", "material_events", "material_movements", "material_purchase_requests", "purchase_order_confirmations", "purchase_order_lines", "purchase_order_quotations", "purchase_order_receipt_lines", "purchase_order_receipts", "purchase_orders", "stock_inwards", "stock_ledger", "suppliers"]);
 
 export function replaceCustomerProjection(db: Database, customers: Customer[], projection?: OperationalProjection) {
   const tables = ['customers', ...Object.keys(projection ?? {}).filter(t => allowedProjectionTables.has(t))];
@@ -192,7 +195,7 @@ function installProjectionGuards(db: Database) {
 
 export async function openWorkshopDb(remoteCustomers?: Customer[], projection?: OperationalProjection) {
   SQL ??= await initSqlJs({ locateFile: () => wasmUrl });
-  const saved = remoteCustomers ? (projection ? localStorage.getItem(FINANCIAL_STORAGE_KEY) ?? localStorage.getItem(STOCK_STORAGE_KEY) ?? localStorage.getItem(ESTIMATES_STORAGE_KEY) ?? localStorage.getItem(OPERATIONS_STORAGE_KEY) : null) ?? localStorage.getItem(CUSTOMER_SLICE_STORAGE_KEY) ??
+  const saved = remoteCustomers ? (projection ? localStorage.getItem(REMAINING_STORAGE_KEY) ?? localStorage.getItem(ADMINISTRATION_STORAGE_KEY) ?? localStorage.getItem(BOOKING_STORAGE_KEY) ?? localStorage.getItem(FINANCIAL_STORAGE_KEY) ?? localStorage.getItem(STOCK_STORAGE_KEY) ?? localStorage.getItem(ESTIMATES_STORAGE_KEY) ?? localStorage.getItem(OPERATIONS_STORAGE_KEY) : null) ?? localStorage.getItem(CUSTOMER_SLICE_STORAGE_KEY) ??
     localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('workshopos.sqlite.v1') :
     localStorage.getItem(STORAGE_KEY) ??
     localStorage.getItem("workshopos.sqlite.v1");
@@ -237,7 +240,7 @@ export function persist(db: Database) {
   binary.forEach((byte: number) => {
     encoded += String.fromCharCode(byte);
   });
-  localStorage.setItem(externalCustomerDatabases.has(db) ? (projectionTables.get(db)?.includes("invoice_events") ? FINANCIAL_STORAGE_KEY : projectionTables.get(db)?.includes("inventory") ? STOCK_STORAGE_KEY : projectionTables.get(db)?.includes("estimates") ? ESTIMATES_STORAGE_KEY : projectionTables.get(db)?.includes("job_cards") ? OPERATIONS_STORAGE_KEY : CUSTOMER_SLICE_STORAGE_KEY) : STORAGE_KEY, btoa(encoded));
+  localStorage.setItem(externalCustomerDatabases.has(db) ? (projectionTables.get(db)?.includes("sales_leads") ? REMAINING_STORAGE_KEY : projectionTables.get(db)?.includes("users") ? ADMINISTRATION_STORAGE_KEY : projectionTables.get(db)?.includes("bookings") ? BOOKING_STORAGE_KEY : projectionTables.get(db)?.includes("invoice_events") ? FINANCIAL_STORAGE_KEY : projectionTables.get(db)?.includes("inventory") ? STOCK_STORAGE_KEY : projectionTables.get(db)?.includes("estimates") ? ESTIMATES_STORAGE_KEY : projectionTables.get(db)?.includes("job_cards") ? OPERATIONS_STORAGE_KEY : CUSTOMER_SLICE_STORAGE_KEY) : STORAGE_KEY, btoa(encoded));
 }
 
 export function exportPersistableDatabase(

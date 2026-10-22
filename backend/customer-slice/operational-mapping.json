@@ -705,5 +705,117 @@
       "detail": "detail"
     },
     "actors": []
+  },
+  "followups": {
+    "table": "followups",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "note": "note",
+      "due_at": "due_at",
+      "done": "done",
+      "outcome": "outcome",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "archived_at": "archived_at",
+      "archived_reason": "archive_reason"
+    },
+    "actors": []
+  },
+  "service_catalog_items": {
+    "table": "service_task_catalog",
+    "columns": {
+      "id": "id",
+      "name": "name",
+      "base_rate": "rate",
+      "gst_rate": "gst_rate",
+      "service_department_id": "slice_department_id",
+      "brand_id": "brand_id",
+      "car_segment_id": "car_segment_id",
+      "archived_at": "archived_at",
+      "archived_reason": "archive_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "service_brands": {
+    "table": "service_brands",
+    "columns": {
+      "id": "id",
+      "name": "name",
+      "status": "status",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "car_segments": {
+    "table": "car_segments",
+    "columns": {
+      "id": "id",
+      "name": "name",
+      "status": "status",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "sales_leads": {
+    "table": "sales_leads",
+    "columns": {
+      "id": "id",
+      "display_name": "display_name",
+      "phone": "phone",
+      "company": "company",
+      "company_not_entered": "company_not_entered",
+      "email": "email",
+      "email_not_entered": "email_not_entered",
+      "address": "address",
+      "service_interest": "service_interest",
+      "notes": "notes",
+      "stage": "stage",
+      "temperature": "temperature",
+      "follow_up_due": "follow_up_due",
+      "site_visit_completed": "site_visit_completed",
+      "site_visit_date": "site_visit_date",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "sales_quotations": {
+    "table": "quotations",
+    "columns": {
+      "id": "id",
+      "lead_id": "lead_id",
+      "quotation_no": "quotation_no",
+      "status": "status",
+      "valid_until": "valid_until",
+      "customer_notes": "customer_notes",
+      "discount": "discount",
+      "subtotal": "subtotal",
+      "gst_amount": "gst_amount",
+      "total": "total",
+      "template_id": "template_id",
+      "template_html": "template_html",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "sales_quotation_lines": {
+    "table": "quotation_lines",
+    "columns": {
+      "id": "id",
+      "quotation_id": "quotation_id",
+      "line_no": "line_no",
+      "kind": "kind",
+      "description": "description",
+      "quantity": "quantity",
+      "rate": "rate",
+      "gst_rate": "gst_rate"
+    },
+    "actors": []
   }
 }

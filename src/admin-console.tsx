@@ -1,3 +1,6 @@
+import { catalogApi, runCatalog } from "./catalog-api";
+import { configurationApi } from "./configuration-api";
+import { customersApiEnabled } from "./customer-api";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Archive, FileSpreadsheet, Pencil, Plus, RefreshCw, ShieldCheck, Sliders, UserMinus, UserPlus, UsersRound } from "lucide-react";
 import type { User, WorkshopState } from "./types";
@@ -140,14 +143,14 @@ export function AdminConsole({
   const [storageError, setStorageError] = useState("");
 
   /** Applies a pure admin-state change, optionally appends a log entry, then persists to sessionStorage. */
-  const commit = (
+  const commit = async (
     mutator: (current: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
   ) => {
     try {
       let next = mutator(adminState);
       if (entry) next = appendDemoLog(next, entry);
-      const saved = saveAdminDemoState(next);
+      const saved = customersApiEnabled ? await configurationApi.save(next, adminState) : saveAdminDemoState(next);
       setAdminState(saved);
       onStateSaved?.();
       setStorageError("");
@@ -319,8 +322,9 @@ function LocalTeamStructure({ state, mutate }: { state: WorkshopState; mutate: M
   useEffect(() => { if (teamManagerId && !selected?.manager_ids.includes(teamManagerId)) setTeamManagerId(0); }, [selected, teamManagerId]);
   useEffect(() => { if (selectedId && !selected) setSelectedId(undefined); }, [selected, selectedId]);
 
-  const create = (event: React.FormEvent) => {
+  const create = async (event: React.FormEvent) => {
     event.preventDefault();
+    if (customersApiEnabled) { try { const result=await catalogApi.command('department-create',{name}); setName(""); setSelectedId(result.id); } catch(error) { window.alert(error instanceof Error ? error.message : 'Action failed'); } return; }
     let departmentId = 0;
     if (mutate((db) => { departmentId = createServiceDepartment(db, name); })) {
       setName("");
@@ -329,9 +333,9 @@ function LocalTeamStructure({ state, mutate }: { state: WorkshopState; mutate: M
   };
   return <section className="admin-tab team-structure"><TeamStructureHeader /><p className="team-structure-intro">Demo branch departments, manager appointments, and advisor teams.</p>
     <form className="team-create-form" onSubmit={create}><label>New department<input aria-label="New department" required value={name} onChange={(event) => setName(event.target.value)} placeholder="e.g. General Service" /></label><button className="primary-action" type="submit"><Plus size={17} />Create department</button></form>
-    <DepartmentTable departments={state.service_departments} selectedId={selectedId} users={state.users} onManage={setSelectedId} onRename={setRenameDepartment} onArchive={(department) => mutate((db) => updateServiceDepartment(db, department.id, department.name, "ARCHIVED"))} />
-    {selected && <DepartmentTeamPanel departmentName={selected.name} managers={selected.manager_ids.map((id) => state.users.find((user) => user.id === id)).filter((user): user is User => Boolean(user))} advisorTeams={selected.advisor_teams.map((team) => ({ managerId: team.manager_id, advisor: state.users.find((user) => user.id === team.advisor_id) })).filter((team): team is { managerId: number; advisor: User } => Boolean(team.advisor))} appointmentManagerId={appointmentManagerId} teamManagerId={teamManagerId} advisorId={advisorId} eligibleManagers={managers.filter((user) => !selected.manager_ids.includes(user.id))} eligibleAdvisors={advisors} onAppointmentManagerChange={setAppointmentManagerId} onTeamManagerChange={setTeamManagerId} onAdvisorChange={setAdvisorId} onAppoint={() => { if (mutate((db) => appointServiceDepartmentManager(db, selected.id, appointmentManagerId))) { setTeamManagerId(appointmentManagerId); setAppointmentManagerId(0); } }} onRemoveManager={(managerId) => { if (mutate((db) => removeServiceDepartmentManager(db, selected.id, managerId)) && teamManagerId === managerId) setTeamManagerId(0); }} onAssignAdvisor={() => { if (mutate((db) => assignServiceAdvisorTeam(db, selected.id, teamManagerId, advisorId))) setAdvisorId(0); }} onRemoveAdvisor={(managerId, nextAdvisorId) => mutate((db) => removeServiceAdvisorTeam(db, selected.id, managerId, nextAdvisorId))} />}
-    {renameDepartment && <DepartmentRenameDialog key={renameDepartment.id} departmentName={renameDepartment.name} onClose={() => setRenameDepartment(undefined)} onSave={(name) => { if (mutate((db) => updateServiceDepartment(db, renameDepartment.id, name, renameDepartment.status))) setRenameDepartment(undefined); }} />}
+    <DepartmentTable departments={state.service_departments} selectedId={selectedId} users={state.users} onManage={setSelectedId} onRename={setRenameDepartment} onArchive={async (department) => (customersApiEnabled ? await runCatalog('department-update',{name:department.name,status:"ARCHIVED"},department.id,undefined) : mutate((db) => updateServiceDepartment(db, department.id, department.name, "ARCHIVED")))} />
+    {selected && <DepartmentTeamPanel departmentName={selected.name} managers={selected.manager_ids.map((id) => state.users.find((user) => user.id === id)).filter((user): user is User => Boolean(user))} advisorTeams={selected.advisor_teams.map((team) => ({ managerId: team.manager_id, advisor: state.users.find((user) => user.id === team.advisor_id) })).filter((team): team is { managerId: number; advisor: User } => Boolean(team.advisor))} appointmentManagerId={appointmentManagerId} teamManagerId={teamManagerId} advisorId={advisorId} eligibleManagers={managers.filter((user) => !selected.manager_ids.includes(user.id))} eligibleAdvisors={advisors} onAppointmentManagerChange={setAppointmentManagerId} onTeamManagerChange={setTeamManagerId} onAdvisorChange={setAdvisorId} onAppoint={async () => { if ((customersApiEnabled ? await runCatalog('department-appoint',{manager_id:appointmentManagerId},selected.id,undefined) : mutate((db) => appointServiceDepartmentManager(db, selected.id, appointmentManagerId)))) { setTeamManagerId(appointmentManagerId); setAppointmentManagerId(0); } }} onRemoveManager={async (managerId) => { if ((customersApiEnabled ? await runCatalog('department-remove-manager',{manager_id:managerId},selected.id,undefined) : mutate((db) => removeServiceDepartmentManager(db, selected.id, managerId))) && teamManagerId === managerId) setTeamManagerId(0); }} onAssignAdvisor={async () => { if ((customersApiEnabled ? await runCatalog('department-assign',{manager_id:teamManagerId,advisor_id:advisorId},selected.id,undefined) : mutate((db) => assignServiceAdvisorTeam(db, selected.id, teamManagerId, advisorId)))) setAdvisorId(0); }} onRemoveAdvisor={async (managerId, nextAdvisorId) => (customersApiEnabled ? await runCatalog('department-remove-advisor',{manager_id:managerId,advisor_id:nextAdvisorId},selected.id,undefined) : mutate((db) => removeServiceAdvisorTeam(db, selected.id, managerId, nextAdvisorId)))} />}
+    {renameDepartment && <DepartmentRenameDialog key={renameDepartment.id} departmentName={renameDepartment.name} onClose={() => setRenameDepartment(undefined)} onSave={async (name) => { if ((customersApiEnabled ? await runCatalog('department-update',{name:name,status:renameDepartment.status},renameDepartment.id,undefined) : mutate((db) => updateServiceDepartment(db, renameDepartment.id, name, renameDepartment.status)))) setRenameDepartment(undefined); }} />}
   </section>;
 }
 
@@ -559,12 +563,12 @@ function CatalogRow({
           <button
             type="button"
             className="grid-action grid-action-danger"
-            onClick={() =>
-              mutate(
+            onClick={async () =>
+              (customersApiEnabled ? await runCatalog('catalog-archive',{},item.id,setError) : mutate(
                 (db) =>
                   archiveServiceCatalogItemForActor(db, actor.id, item.id),
                 setError,
-              )
+              ))
             }
           >
             Archive
@@ -605,9 +609,10 @@ function CatalogServiceTaskDialog({
   const [segmentId, setSegmentId] = useState(item?.car_segment_id ?? 0);
   const [quickAdd, setQuickAdd] = useState<"service_brands" | "car_segments">();
   const [error, setError] = useState("");
-  const save = (event: React.FormEvent) => {
+  const save = async (event: React.FormEvent) => {
     event.preventDefault();
     setError("");
+    if (customersApiEnabled) { if(await runCatalog('catalog-save',{name,base_rate:rate,gst_rate:gstRate,service_department_id:departmentId,brand_id:brandId||null,car_segment_id:segmentId||null},item?.id,setError)) onClose(); return; }
     const saved = mutate(
       (db) =>
         item
@@ -716,13 +721,13 @@ function CatalogServiceTaskDialog({
 
 function CatalogMasterList({ title, table, items, mutate }: { title: string; table: "service_brands" | "car_segments"; items: WorkshopState["service_brands"]; mutate: Mutate }) {
   const [dialog, setDialog] = useState<WorkshopState["service_brands"][number]>();
-  return <section className="team-section"><div className="panel-actions"><h4>{title}</h4><button type="button" className="secondary-action" onClick={() => setDialog({ id: 0, name: "", status: "ACTIVE", created_at: "", updated_at: "" })}><Plus size={16} />Add</button></div><div className="table-wrap"><table aria-label={title}><thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.status}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => setDialog(item)}>Rename</button><button type="button" className="grid-action grid-action-danger" disabled={item.status === "ARCHIVED"} onClick={() => mutate((db) => updateServiceCatalogMaster(db, table, item.id, item.name, "ARCHIVED"))}>Archive</button></div></td></tr>)}</tbody></table></div>{dialog && <CatalogMasterDialog table={table} title={dialog.id ? `Rename ${title.slice(0, -1)}` : `Add ${title.slice(0, -1)}`} item={dialog.id ? dialog : undefined} mutate={mutate} onClose={() => setDialog(undefined)} />}</section>;
+  return <section className="team-section"><div className="panel-actions"><h4>{title}</h4><button type="button" className="secondary-action" onClick={() => setDialog({ id: 0, name: "", status: "ACTIVE", created_at: "", updated_at: "" })}><Plus size={16} />Add</button></div><div className="table-wrap"><table aria-label={title}><thead><tr><th>Name</th><th>Status</th><th>Actions</th></tr></thead><tbody>{items.map((item) => <tr key={item.id}><td>{item.name}</td><td>{item.status}</td><td><div className="grid-actions"><button type="button" className="grid-action" onClick={() => setDialog(item)}>Rename</button><button type="button" className="grid-action grid-action-danger" disabled={item.status === "ARCHIVED"} onClick={async () => (customersApiEnabled ? await runCatalog('master-save',{table:table,name:item.name,status:"ARCHIVED"},item.id,undefined) : mutate((db) => updateServiceCatalogMaster(db, table, item.id, item.name, "ARCHIVED")))}>Archive</button></div></td></tr>)}</tbody></table></div>{dialog && <CatalogMasterDialog table={table} title={dialog.id ? `Rename ${title.slice(0, -1)}` : `Add ${title.slice(0, -1)}`} item={dialog.id ? dialog : undefined} mutate={mutate} onClose={() => setDialog(undefined)} />}</section>;
 }
 
 function CatalogMasterDialog({ table, title, item, mutate, onClose, onCreated }: { table: "service_brands" | "car_segments"; title: string; item?: WorkshopState["service_brands"][number]; mutate: Mutate; onClose: () => void; onCreated?: (id: number) => void }) {
   const [name, setName] = useState(item?.name ?? "");
   const [error, setError] = useState("");
-  const save = (event: React.FormEvent) => { event.preventDefault(); let id = item?.id ?? 0; const ok = mutate((db) => { id = item ? (updateServiceCatalogMaster(db, table, item.id, name, item.status), item.id) : createServiceCatalogMaster(db, table, name); }, setError); if (ok) { onCreated?.(id); if (!onCreated) onClose(); } };
+  const save = async (event: React.FormEvent) => { event.preventDefault(); if(customersApiEnabled) { try {const result=await catalogApi.command('master-save',{table,name,status:item?.status??'ACTIVE'},item?.id);onCreated?.(result.id);if(!onCreated)onClose();}catch(error){setError(error instanceof Error?error.message:'Action failed');}return;} let id = item?.id ?? 0; const ok = mutate((db) => { id = item ? (updateServiceCatalogMaster(db, table, item.id, name, item.status), item.id) : createServiceCatalogMaster(db, table, name); }, setError); if (ok) { onCreated?.(id); if (!onCreated) onClose(); } };
   return <Dialog title={title} onClose={onClose} footer={<button className="primary-action" type="submit" form="catalog-master-dialog-form">Save</button>}><form id="catalog-master-dialog-form" onSubmit={save}><label>Name<input data-dialog-initial-focus aria-label={`${title} name`} required value={name} onChange={(event) => setName(event.target.value)} /></label>{error && <p className="error-text" role="alert">{error}</p>}</form></Dialog>;
 }
 
@@ -735,7 +740,7 @@ function RolesPageAccessTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => void;
+  ) => Promise<boolean>;
   actingUser: User;
 }) {
   const [search, setSearch] = useState("");
@@ -843,10 +848,10 @@ function RolesPageAccessTab({
           onClose={() => setCreating(false)}
         >
           <form
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
               try {
-                commit((current) => addDemoRole(current, newRole), {
+                if (!await commit((current) => addDemoRole(current, newRole), {
                   stream: "feature",
                   level: "info",
                   area: "Administration",
@@ -854,7 +859,7 @@ function RolesPageAccessTab({
                   message: `Role "${newRole.label.trim()}" created`,
                   userId: String(actingUser.id),
                   userName: actingUser.name,
-                });
+                })) return;
                 setCreating(false);
               } catch (error) {
                 setFormError(
@@ -969,10 +974,10 @@ function RolesPageAccessTab({
               {editingRoleId === role.id ? (
                 <form
                   className="inline-edit"
-                  onSubmit={(event) => {
+                  onSubmit={async (event) => {
                     event.preventDefault();
                     try {
-                      commit(
+                      if (!await commit(
                         (current) =>
                           updateDemoRole(current, role.id, editDraft),
                         {
@@ -984,7 +989,7 @@ function RolesPageAccessTab({
                           userId: String(actingUser.id),
                           userName: actingUser.name,
                         },
-                      );
+                      )) return;
                       setEditingRoleId(undefined);
                     } catch (error) {
                       window.alert(
@@ -1055,10 +1060,10 @@ function RolesPageAccessTab({
                         ? "Owner/Admin cannot be archived"
                         : undefined
                     }
-                    onClick={() => {
+                    onClick={async () => {
                       if (!window.confirm(`Archive role "${role.label}"?`))
                         return;
-                      commit((current) => archiveDemoRole(current, role.id), {
+                      if (!await commit((current) => archiveDemoRole(current, role.id), {
                         stream: "feature",
                         level: "warning",
                         area: "Administration",
@@ -1066,7 +1071,7 @@ function RolesPageAccessTab({
                         message: `Role "${role.label}" archived`,
                         userId: String(actingUser.id),
                         userName: actingUser.name,
-                      });
+                      })) return;
                       if (selectedRoleId === role.id)
                         setSelectedRoleId(undefined);
                     }}
@@ -1141,8 +1146,8 @@ function RolesPageAccessTab({
                   <button
                     className="primary-action"
                     disabled={!dirty}
-                    onClick={() => {
-                      commit(
+                    onClick={async () => {
+                      if (!await commit(
                         (current) =>
                           updateRolePageAccess(
                             current,
@@ -1159,7 +1164,7 @@ function RolesPageAccessTab({
                           userName: actingUser.name,
                           referenceId: selectedRole.id,
                         },
-                      );
+                      )) return;
                     }}
                   >
                     Save Changes
@@ -1279,7 +1284,7 @@ function AppThemeTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => boolean;
+  ) => Promise<boolean>;
   actingUser: User;
   onThemeSaved?: (theme: AppTheme) => void;
 }) {
@@ -1295,8 +1300,8 @@ function AppThemeTab({
   const palette =
     APP_THEME_PALETTES.find((item) => item.id === draft.paletteId) ??
     APP_THEME_PALETTES[0];
-  const save = () => {
-    const saved = commit((current) => updateAppTheme(current, draft), {
+  const save = async () => {
+    const saved = await commit((current) => updateAppTheme(current, draft), {
       stream: "feature",
       level: "info",
       area: "Administration",
@@ -1482,7 +1487,7 @@ function BusinessSettingsTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => boolean;
+  ) => Promise<boolean>;
   actingUser: User;
 }) {
   const [subTab, setSubTab] = useState<SettingsGroupKey>("profile");
@@ -1527,12 +1532,12 @@ function BusinessSettingsTab({
     });
   };
 
-  const save = () => {
+  const save = async () => {
     const normalized = normalizeBusinessSettings(draft);
     const validationErrors = validateBusinessSettings(normalized);
     setErrors(validationErrors);
     if (validationErrors.length > 0) return;
-    const saved = commit(
+    const saved = await commit(
       (current) => updateBusinessSettings(current, normalized),
       {
         stream: "feature",
@@ -2279,7 +2284,7 @@ function CompanySettingsTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => boolean;
+  ) => Promise<boolean>;
   actingUser: User;
 }) {
   const profile = adminState.businessSettings.profile;
@@ -2314,12 +2319,12 @@ function CompanySettingsTab({
     setSavedMessage(false);
     setAssets((current) => ({ ...current, [key]: next }));
   };
-  const save = () => {
+  const save = async () => {
     if (!companyName.trim()) {
       setError("Company name is required.");
       return;
     }
-    const ok = commit(
+    const ok = await commit(
       (current) => saveCompanyIdentity(current, companyName, assets, details),
       {
         stream: "feature",
@@ -2470,7 +2475,7 @@ function ReportTemplatesTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => boolean;
+  ) => Promise<boolean>;
   actingUser: User;
   onDirtyChange: (dirty: boolean) => void;
   initialCategory?: ReportCategory;
@@ -2539,7 +2544,7 @@ function ReportTemplatesTab({
     setCategory(next);
     load(template?.id ?? null, next);
   };
-  const save = () => {
+  const save = async () => {
     const validation: string[] = [];
     if (!draft.name.trim()) validation.push("Template name is required.");
     if (!draft.html.trim()) validation.push("Template HTML is required.");
@@ -2550,7 +2555,7 @@ function ReportTemplatesTab({
       return;
     }
     let nextId = selectedId;
-    const ok = commit(
+    const ok = await commit(
       (current) => {
         const next = selectedId
           ? updateReportTemplate(current, selectedId, draft)
@@ -2586,10 +2591,10 @@ function ReportTemplatesTab({
       preview = "";
     }
   }
-  const remove = () => {
+  const remove = async () => {
     if (!selectedId || !selected) return;
     if (!window.confirm(`Delete template "${selected.name}"?`)) return;
-    const ok = commit((current) => deleteReportTemplate(current, selectedId), {
+    const ok = await commit((current) => deleteReportTemplate(current, selectedId), {
       stream: "feature",
       level: "info",
       area: "Administration",
@@ -2813,7 +2818,7 @@ function InventoryImportTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => void;
+  ) => Promise<boolean>;
   actingUser: User;
   state: WorkshopState;
 }) {
@@ -2879,7 +2884,7 @@ function InventoryImportTab({
     setStep(3);
   };
 
-  const confirmImport = () => {
+  const confirmImport = async () => {
     if (!preview || preview.validRows.length === 0) return;
     const validRows = preview.validRows.map((row) => ({
       sku: row.item.sku,
@@ -2891,7 +2896,7 @@ function InventoryImportTab({
       sellingPrice: row.item.selling_price,
     }));
     let batchId = "";
-    commit(
+    if (!await commit(
       (current) => {
         const before = current.importBatches.length;
         const next = confirmInventoryImport(current, {
@@ -2913,7 +2918,7 @@ function InventoryImportTab({
         userId: String(actingUser.id),
         userName: actingUser.name,
       },
-    );
+    )) return;
     setResult({
       accepted: validRows.length,
       rejected: preview.rejectedRows.length,
@@ -3221,7 +3226,7 @@ function LogsPanel({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => void;
+  ) => Promise<boolean>;
 }) {
   const [search, setSearch] = useState("");
   const [dateFrom, setDateFrom] = useState("");
@@ -3264,14 +3269,14 @@ function LogsPanel({
     { header: "User", value: (row) => row.userName ?? "Unavailable" },
     { header: "Reference", value: (row) => row.referenceId ?? "Unavailable" },
   ];
-  const clear = () => {
+  const clear = async () => {
     if (
       !window.confirm(
         `Clear all ${stream} logs for this session? This cannot be undone.`,
       )
     )
       return;
-    commit((current) => clearDemoLogs(current, stream));
+    if (!await commit((current) => clearDemoLogs(current, stream))) return;
   };
 
   return (
@@ -3432,7 +3437,7 @@ function RetentionSettingsPanel({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => void;
+  ) => Promise<boolean>;
   actingUser: User;
 }) {
   const [operationalDays, setOperationalDays] = useState(
@@ -3495,8 +3500,8 @@ function RetentionSettingsPanel({
         <button
           className="primary-action"
           disabled={!dirty || operationalDays < 1 || featureDays < 1}
-          onClick={() =>
-            commit(
+          onClick={async () =>
+            await commit(
               (current) =>
                 updateBusinessSettings(current, {
                   logRetention: { operationalDays, featureDays },
@@ -3530,7 +3535,7 @@ function SupportLogsTab({
   commit: (
     mutator: (s: AdminDemoState) => AdminDemoState,
     entry?: LogEntryInput,
-  ) => void;
+  ) => Promise<boolean>;
   refresh: () => void;
   actingUser: User;
 }) {

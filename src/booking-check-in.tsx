@@ -1,3 +1,5 @@
+import { bookingApi } from "./booking-api";
+import { customersApiEnabled } from "./customer-api";
 import { useState, type FormEvent } from "react";
 import type { Database } from "sql.js";
 import { checkInBooking } from "./db";
@@ -24,10 +26,19 @@ export function BookingCheckInDialog({ booking, actor, mutate, onClose, onCreate
   const [requestedWork, setRequestedWork] = useState(booking.requested_work);
   const [marks, setMarks] = useState<DamageMark[]>([]);
   const [error, setError] = useState("");
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     const odo = Number(odoReading);
     if (!Number.isFinite(odo) || odo < 0) return setError("Enter the ODO meter reading in km.");
+    if (customersApiEnabled) {
+      try {
+        const result = await bookingApi.checkIn(booking.id, { odoReading: odo, fuelLevelValue, fuelLevelUnit, keys, accessories, requestedWork, damageMarks: serializeDamageMarks(marks) });
+        window.dispatchEvent(new CustomEvent('workshop-job-created', { detail: result.jobId }));
+        window.dispatchEvent(new Event('workshop-customers-changed'));
+        onCreated(result.jobId, result.job_no);
+      } catch (error) { setError(error instanceof Error ? error.message : "Booking action failed."); }
+      return;
+    }
     let jobId = 0;
     let jobNo = "";
     if (mutate((db) => { jobId = checkInBooking(db, booking.id, actor.id, { odoReading: odo, fuelLevelValue, fuelLevelUnit, keys, accessories, requestedWork, damageMarks: serializeDamageMarks(marks) }).jobId; jobNo = String(db.exec("select job_no from job_cards where id=?", [jobId])[0]?.values[0]?.[0] ?? ""); }, setError)) onCreated(jobId, jobNo);

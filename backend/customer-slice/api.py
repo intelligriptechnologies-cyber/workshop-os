@@ -80,6 +80,8 @@ def business(request,write=False,snapshot=False):
     with engine.begin() as c:
         if snapshot: c.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ"))
         user=identify(c,request)
+        from configuration import authorize
+        authorize(c,user,request.url.path,request.method)
         if write and user['role'] not in ('admin','reception'):
             fail('Customer changes are not permitted for this role.',403)
         c.execute(text("SELECT set_config('workshopos.actor_id',:a,true)"),{'a':str(user['user_id'])})
@@ -228,3 +230,15 @@ app.include_router(purchase_stock_router)
 
 from financial_workflows import router as financial_router
 app.include_router(financial_router)
+from bookings import router as bookings_router
+app.include_router(bookings_router)
+from execution_workflows import router as execution_router
+app.include_router(execution_router)
+from administration import router as administration_router
+app.include_router(administration_router)
+from configuration import router as configuration_router
+app.include_router(configuration_router)
+from catalog_workflows import router as catalog_router
+app.include_router(catalog_router)
+from sales_workflows import router as sales_router
+app.include_router(sales_router)

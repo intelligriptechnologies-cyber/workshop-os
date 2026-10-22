@@ -1,3 +1,6 @@
+import { runCatalog } from "./catalog-api";
+import { administrationApi } from "./administration-api";
+import { executionApi, runExecution } from "./execution-api";
 import { billingApi } from "./billing-api";
 import { runStock } from './stock-api';
 import { estimateDocumentsApi, runDocumentCommand } from './estimate-documents-api';
@@ -637,6 +640,13 @@ function App() {
     () => loadAdminDemoState(),
     [adminStateVersion],
   );
+
+  useEffect(() => {
+    if (!customersApiEnabled) return;
+    const refreshConfiguration = () => { setAdminStateVersion(value => value + 1); setAppTheme(loadAdminDemoState().appTheme); };
+    window.addEventListener('workshop-configuration-loaded', refreshConfiguration);
+    return () => window.removeEventListener('workshop-configuration-loaded', refreshConfiguration);
+  }, []);
 
   useEffect(() => {
     if (!user) return;
@@ -4335,7 +4345,7 @@ function ServiceFollowupDialog({
     setOutcome(item.outcome ?? "");
     setDone(false);
   };
-  const save = (event: FormEvent, keepOpen = false) => {
+  const save = async (event: FormEvent, keepOpen = false) => {
     event.preventDefault();
     if (!note.trim()) return;
     const timestamp = new Date().toISOString();
@@ -4360,8 +4370,16 @@ function ServiceFollowupDialog({
             created_at: timestamp,
             updated_at: timestamp,
           };
+    let remoteSaved = false;
+    if (customersApiEnabled) {
+      try {
+        const result = await executionApi.command(view.job.id, editingId && current ? 'followup-update' : 'followup-create', { note: note.trim(), due_at: current?.due_at || localCalendarDate(), done: done ? 1 : 0, outcome: outcome.trim(), resolvePrevious: done && !editingId }, editingId && current ? editingId : undefined);
+        createdId = result.id;
+        remoteSaved = true;
+      } catch (error) { window.alert(apiErrorMessage(error)); }
+    }
     if (
-      mutate((db) =>
+      customersApiEnabled ? remoteSaved : mutate((db) =>
         editingId && current
           ? updateFollowup(db, editingId, {
               ...current,
@@ -9183,9 +9201,9 @@ function Technician({
                 <input
                   defaultValue={task.notes}
                   onBlur={(event) =>
-                    mutate((db) =>
+                    (customersApiEnabled ? runExecution(view.job.id, 'task-update', {status:task.status, notes:event.target.value}, task.id) : mutate((db) =>
                       updateTask(db, task.id, task.status, event.target.value),
-                    )
+                    ))
                   }
                 />
               </label>
@@ -9195,14 +9213,14 @@ function Technician({
                     key={status}
                     className={task.status === status ? "active" : ""}
                     onClick={() =>
-                      mutate((db) =>
+                      (customersApiEnabled ? runExecution(view.job.id, 'task-update', {status:status, notes:`${status} from technician board`}, task.id) : mutate((db) =>
                         updateTask(
                           db,
                           task.id,
                           status,
                           `${status} from technician board`,
                         ),
-                      )
+                      ))
                     }
                   >
                     {status}
@@ -9212,9 +9230,9 @@ function Technician({
               <button
                 className="danger-action"
                 onClick={() =>
-                  mutate((db) =>
+                  (customersApiEnabled ? runExecution(view.job.id, 'task-archive', {reason:"Removed from technician board"}, task.id) : mutate((db) =>
                     archiveTask(db, task.id, "Removed from technician board"),
-                  )
+                  ))
                 }
               >
                 Archive Task
@@ -11077,6 +11095,7 @@ export function UserManager({
     password: "",
   };
   const [draft, setDraft] = useState<User>(empty);
+  const [passwordChanged, setPasswordChanged] = useState(false);
   const [editing, setEditing] = useState(false);
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState("ALL");
@@ -11110,7 +11129,7 @@ export function UserManager({
         <button
           className="primary-action"
           onClick={() => {
-            setDraft(empty);
+            setDraft(empty); setPasswordChanged(false);
             setEditing(true);
           }}
         >
@@ -11123,8 +11142,13 @@ export function UserManager({
           onClose={() => setEditing(false)}
         >
           <form
-            onSubmit={(event) => {
+            onSubmit={async (event) => {
               event.preventDefault();
+              if (customersApiEnabled) {
+                try { await administrationApi.saveUser(draft,passwordChanged || !draft.id); setEditing(false); }
+                catch (error) { window.alert(apiErrorMessage(error)); }
+                return;
+              }
               if (
                 mutate((db) =>
                   draft.id
@@ -11180,7 +11204,7 @@ export function UserManager({
                   type="password"
                   value={draft.password}
                   onChange={(event) =>
-                    setDraft({ ...draft, password: event.target.value })
+                    (setPasswordChanged(true), setDraft({ ...draft, password: event.target.value }))
                   }
                 />
               </label>
@@ -11312,7 +11336,7 @@ export function UserManager({
                         type="button"
                         className="grid-action"
                         onClick={() => {
-                          setDraft(item);
+                          setDraft(item); setPasswordChanged(false);
                           setEditing(true);
                         }}
                       >
@@ -11328,7 +11352,7 @@ export function UserManager({
                             : undefined
                         }
                         onClick={() =>
-                          mutate((db) =>
+                          customersApiEnabled ? administrationApi.archiveUser(item.id, "Archived by Admin").catch(error => window.alert(apiErrorMessage(error))) : mutate((db) =>
                             archiveUser(
                               db,
                               item.id,
@@ -13151,6 +13175,7 @@ function FollowupEditor({ view, mutate }: { view: JobView; mutate: Mutate }) {
       className="desk-panel"
       onSubmit={(event) => {
         event.preventDefault();
+        if (customersApiEnabled) { void runExecution(view.job.id, draft.id ? 'followup-update' : 'followup-create', draft, draft.id || undefined); return; }
         mutate((db) =>
           draft.id
             ? updateFollowup(db, draft.id, draft)
@@ -13209,9 +13234,9 @@ function FollowupEditor({ view, mutate }: { view: JobView; mutate: Mutate }) {
           <button
             type="button"
             onClick={() =>
-              mutate((db) =>
+              (customersApiEnabled ? runExecution(view.job.id, 'followup-done', {outcome:draft.outcome || "Done"}, draft.id) : mutate((db) =>
                 markFollowupDone(db, draft.id, draft.outcome || "Done"),
-              )
+              ))
             }
           >
             Mark Done
@@ -13222,9 +13247,9 @@ function FollowupEditor({ view, mutate }: { view: JobView; mutate: Mutate }) {
             type="button"
             className="danger-action"
             onClick={() =>
-              mutate((db) =>
+              (customersApiEnabled ? runExecution(view.job.id, 'followup-archive', {reason:"Archived follow-up"}, draft.id) : mutate((db) =>
                 archiveFollowup(db, draft.id, "Archived follow-up"),
-              )
+              ))
             }
           >
             Archive
@@ -15041,10 +15066,16 @@ function TaskCreator({
     users.find((item) => item.role === "tech")?.id ?? view.job.technician_id;
   return (
     <form
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
         if (
-          mutate((db) =>
+          (customersApiEnabled ? await runExecution(view.job.id, 'task-create', {
+              job_card_id: view.job.id,
+              technician_id: technicianId,
+              title,
+              status: "Pending",
+              notes,
+            }) : mutate((db) =>
             createTask(db, {
               job_card_id: view.job.id,
               technician_id: technicianId,
@@ -15052,7 +15083,7 @@ function TaskCreator({
               status: "Pending",
               notes,
             }),
-          )
+          ))
         ) {
           setTitle("");
           setNotes("");
@@ -15097,15 +15128,15 @@ function QcEditor({
           <span>{check.passed ? "Pass" : check.fail_reason || "Pending"}</span>
           <div className="action-row">
             <button
-              onClick={() => mutate((db) => updateQcCheck(db, check.id, true))}
+              onClick={() => (customersApiEnabled ? runExecution(view.job.id, true ? 'qc-pass' : 'qc-fail', {reason:''}, check.id) : mutate((db) => updateQcCheck(db, check.id, true)))}
             >
               Pass
             </button>
             <button
               onClick={() =>
-                mutate((db) =>
+                (customersApiEnabled ? runExecution(view.job.id, 'qc-rework', {technician_id:technicianId,reason:reason}, check.id) : mutate((db) =>
                   failQcWithRework(db, check.id, technicianId, reason),
-                )
+                ))
               }
             >
               Fail + Rework
@@ -15122,11 +15153,11 @@ function QcEditor({
       </label>
       <div className="action-row">
         <button
-          onClick={() => mutate((db) => markWashingNeeded(db, view.job.id))}
+          onClick={() => (customersApiEnabled ? runExecution(view.job.id, 'washing') : mutate((db) => markWashingNeeded(db, view.job.id)))}
         >
           Washing Needed
         </button>
-        <button onClick={() => mutate((db) => passQc(db, view.job.id))}>
+        <button onClick={() => (customersApiEnabled ? runExecution(view.job.id, 'qc-all') : mutate((db) => passQc(db, view.job.id)))}>
           Pass All QC
         </button>
       </div>
@@ -16493,6 +16524,17 @@ function JobTaskListPanel({
   const [manual, setManual] = useState("");
   const [rate, setRate] = useState(0);
   const [error, setError] = useState("");
+  const [taskDrafts, setTaskDrafts] = useState<Record<number, {name:string;base_rate:number;done:number}>>({});
+  const saveTask = (item: JobView['task_list_items'][number], values: {name:string;base_rate:number;done:number}) => {
+    setTaskDrafts(current => ({...current,[item.id]:values}));
+    return runCatalog('tasklist-update', values, item.id, setError);
+  };
+  useEffect(() => {
+    setTaskDrafts(current => Object.fromEntries(Object.entries(current).filter(([id,draft]) => {
+      const saved=view.task_list_items.find(item=>item.id===Number(id));
+      return saved && (saved.name!==draft.name || saved.base_rate!==draft.base_rate || saved.done!==draft.done);
+    })));
+  }, [view.task_list_items]);
   const editable =
     (view.job.main_status === "NEW" ||
       view.job.main_status === "IN_PROGRESS") &&
@@ -16546,12 +16588,14 @@ function JobTaskListPanel({
                   type="button"
                   className="secondary-action"
                   key={item.id}
-                  onClick={() =>
-                    run((db) =>
+                  onClick={async () =>
+                    (customersApiEnabled ? await runCatalog('tasklist-add',{job_id:view.job.id,...{
+                        service_catalog_item_id: item.id,
+                      }},undefined,setError) : run((db) =>
                       addJobTaskListItemForActor(db, view.job.id, actor.id, {
                         service_catalog_item_id: item.id,
                       }),
-                    )
+                    ))
                   }
                 >
                   Add {item.name} · {money(item.base_rate)}
@@ -16581,14 +16625,17 @@ function JobTaskListPanel({
           <button
             type="button"
             className="secondary-action"
-            onClick={() => {
+            onClick={async () => {
               if (
-                run((db) =>
+                (customersApiEnabled ? await runCatalog('tasklist-add',{job_id:view.job.id,...{
+                    name: manual,
+                    base_rate: rate,
+                  }},undefined,setError) : run((db) =>
                   addJobTaskListItemForActor(db, view.job.id, actor.id, {
                     name: manual,
                     base_rate: rate,
                   }),
-                )
+                ))
               ) {
                 setManual("");
                 setRate(0);
@@ -16615,7 +16662,7 @@ function JobTaskListPanel({
             </tr>
           </thead>
           <tbody>
-            {view.task_list_items.map((item) => (
+            {view.task_list_items.map((savedItem) => { const item = customersApiEnabled ? {...savedItem,...taskDrafts[savedItem.id]} : savedItem; return (
               <tr key={item.id}>
                 <td>
                   <input
@@ -16623,14 +16670,18 @@ function JobTaskListPanel({
                     type="checkbox"
                     checked={Boolean(item.done)}
                     disabled={!editable}
-                    onChange={(event) =>
-                      run((db) =>
+                    onChange={async (event) =>
+                      (customersApiEnabled ? await saveTask(item,{
+                          name: item.name,
+                          base_rate: item.base_rate,
+                          done: event.target.checked ? 1 : 0,
+                        }) : run((db) =>
                         updateJobTaskListItemForActor(db, item.id, actor.id, {
                           name: item.name,
                           base_rate: item.base_rate,
                           done: event.target.checked ? 1 : 0,
                         }),
-                      )
+                      ))
                     }
                   />
                 </td>
@@ -16639,14 +16690,18 @@ function JobTaskListPanel({
                     <input
                       aria-label={`${item.name} name`}
                       value={item.name}
-                      onChange={(event) =>
-                        run((db) =>
+                      onChange={async (event) =>
+                        (customersApiEnabled ? await saveTask(item,{
+                            name: event.target.value,
+                            base_rate: item.base_rate,
+                            done: item.done,
+                          }) : run((db) =>
                           updateJobTaskListItemForActor(db, item.id, actor.id, {
                             name: event.target.value,
                             base_rate: item.base_rate,
                             done: item.done,
                           }),
-                        )
+                        ))
                       }
                     />
                   ) : (
@@ -16661,14 +16716,18 @@ function JobTaskListPanel({
                       min="0"
                       step="0.01"
                       value={item.base_rate}
-                      onChange={(event) =>
-                        run((db) =>
+                      onChange={async (event) =>
+                        (customersApiEnabled ? await saveTask(item,{
+                            name: item.name,
+                            base_rate: Number(event.target.value),
+                            done: item.done,
+                          }) : run((db) =>
                           updateJobTaskListItemForActor(db, item.id, actor.id, {
                             name: item.name,
                             base_rate: Number(event.target.value),
                             done: item.done,
                           }),
-                        )
+                        ))
                       }
                     />
                   ) : (
@@ -16680,10 +16739,10 @@ function JobTaskListPanel({
                     <button
                       type="button"
                       className="danger-action"
-                      onClick={() =>
-                        run((db) =>
+                      onClick={async () =>
+                        (customersApiEnabled ? await runCatalog('tasklist-archive',{},item.id,setError) : run((db) =>
                           archiveJobTaskListItemForActor(db, item.id, actor.id),
-                        )
+                        ))
                       }
                     >
                       Remove
@@ -16691,7 +16750,7 @@ function JobTaskListPanel({
                   </td>
                 )}
               </tr>
-            ))}
+            );})}
           </tbody>
         </table>
       </div>
@@ -17265,9 +17324,9 @@ function DuplicateFollowupEditor({
           <div className="action-row">
             <button
               onClick={() =>
-                mutate((db) =>
+                (customersApiEnabled ? runExecution(view.job.id, 'followup-done', {outcome:followup.outcome || "Done"}, followup.id) : mutate((db) =>
                   markFollowupDone(db, followup.id, followup.outcome || "Done"),
-                )
+                ))
               }
             >
               Done
@@ -17275,9 +17334,9 @@ function DuplicateFollowupEditor({
             <button
               className="danger-action"
               onClick={() =>
-                mutate((db) =>
+                (customersApiEnabled ? runExecution(view.job.id, 'followup-archive', {reason:"Removed follow-up"}, followup.id) : mutate((db) =>
                   archiveFollowup(db, followup.id, "Removed follow-up"),
-                )
+                ))
               }
             >
               Archive
@@ -17291,7 +17350,13 @@ function DuplicateFollowupEditor({
       </label>
       <button
         onClick={() =>
-          mutate((db) =>
+          (customersApiEnabled ? runExecution(view.job.id, 'followup-create', {
+              job_card_id: view.job.id,
+              note,
+              due_at: new Date().toISOString().slice(0, 10),
+              done: 0,
+              outcome: "",
+            }) : mutate((db) =>
             createFollowup(db, {
               job_card_id: view.job.id,
               note,
@@ -17299,7 +17364,7 @@ function DuplicateFollowupEditor({
               done: 0,
               outcome: "",
             }),
-          )
+          ))
         }
       >
         Add Follow-up
@@ -17493,27 +17558,27 @@ function DuplicateInventoryEditor({
       </label>
       <div className="action-row">
         <button
-          onClick={() => mutate((db) => updateInventoryItem(db, item.id, item))}
+          onClick={() => customersApiEnabled ? void runStock("inventory-save", item, item) : mutate((db) => updateInventoryItem(db, item.id, item))}
         >
           Save Item
         </button>
         <button
           onClick={() =>
-            mutate((db) => stockIn(db, item.id, qty, "Manual stock-in"))
+            customersApiEnabled ? void runStock("stock-in",item,{qty,note:"Manual stock-in"}) : mutate((db) => stockIn(db, item.id, qty, "Manual stock-in"))
           }
         >
           Stock In
         </button>
         <button
           onClick={() =>
-            mutate((db) => adjustStock(db, item.id, qty, "Manual adjustment"))
+            customersApiEnabled ? void runStock("stock-adjust",item,{qty,note:"Manual adjustment"}) : mutate((db) => adjustStock(db, item.id, qty, "Manual adjustment"))
           }
         >
           Adjust
         </button>
         <button
           onClick={() =>
-            mutate((db) =>
+            customersApiEnabled ? void runStock("inventory-create",undefined,{sku:`${item.sku}-NEW`,category:item.category,name:item.name,unit:item.unit,stock_qty:qty,low_stock_qty:item.low_stock_qty,selling_price:item.selling_price}) : mutate((db) =>
               createInventoryItem(db, {
                 sku: `${item.sku}-NEW`,
                 category: item.category,
@@ -17531,7 +17596,7 @@ function DuplicateInventoryEditor({
         <button
           className="danger-action"
           onClick={() =>
-            mutate((db) =>
+            customersApiEnabled ? void runStock("inventory-archive",item,{reason:"Archived from stock desk"}) : mutate((db) =>
               archiveInventoryItem(db, item.id, "Archived from stock desk"),
             )
           }
@@ -17645,7 +17710,13 @@ function DuplicateTaskCreator({
       </label>
       <button
         onClick={() =>
-          mutate((db) =>
+          (customersApiEnabled ? runExecution(view.job.id, 'task-create', {
+              job_card_id: view.job.id,
+              technician_id: techId,
+              title,
+              status: "Pending",
+              notes: "",
+            }) : mutate((db) =>
             createTask(db, {
               job_card_id: view.job.id,
               technician_id: techId,
@@ -17653,7 +17724,7 @@ function DuplicateTaskCreator({
               status: "Pending",
               notes: "",
             }),
-          )
+          ))
         }
       >
         Add Task
@@ -17682,20 +17753,20 @@ function DuplicateQcEditor({
           />
           <div className="action-row">
             <button
-              onClick={() => mutate((db) => updateQcCheck(db, check.id, true))}
+              onClick={() => (customersApiEnabled ? runExecution(view.job.id, true ? 'qc-pass' : 'qc-fail', {reason:''}, check.id) : mutate((db) => updateQcCheck(db, check.id, true)))}
             >
               Pass
             </button>
             <button
               onClick={() =>
-                mutate((db) =>
+                (customersApiEnabled ? runExecution(view.job.id, false ? 'qc-pass' : 'qc-fail', {reason:reason || `Rework: ${technicianId}`}, check.id) : mutate((db) =>
                   updateQcCheck(
                     db,
                     check.id,
                     false,
                     reason || `Rework: ${technicianId}`,
                   ),
-                )
+                ))
               }
             >
               Fail
@@ -17710,7 +17781,7 @@ function DuplicateQcEditor({
           onChange={(event) => setReason(event.target.value)}
         />
       </label>
-      <button onClick={() => mutate((db) => passQc(db, view.job.id))}>
+      <button onClick={() => (customersApiEnabled ? runExecution(view.job.id, 'qc-all') : mutate((db) => passQc(db, view.job.id)))}>
         Pass All QC
       </button>
     </div>

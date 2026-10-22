@@ -40,7 +40,7 @@ Comparison requires Pillow; browser checks use the existing Playwright dependenc
 
 ## Boundary
 
-No browser token storage or silent business-data fallback. Memory-only PostgreSQL projections support existing linked views. New snapshots use `workshopos.sqlite.financial-api.v1` and omit integrated rows; prior storage keys and original SQLite files are retained. Receive Vehicle now uses an atomic backend transaction. Unintegrated linked writes fail closed, including booking check-in and task editing. Historical financial writes require explicit correction approval and remain blocked. Local user edits do not update server accounts.
+No browser token storage or silent business-data fallback. Memory-only PostgreSQL projections support existing linked views. New snapshots use `workshopos.sqlite.remaining-api.v1` and omit integrated rows; prior storage keys and original SQLite files are retained. Receive Vehicle now uses an atomic backend transaction. Bookings/check-in, task/QC/follow-up edits, teams/catalog, user accounts, configuration and CRM now use scoped PostgreSQL commands. Historical financial writes remain blocked. See report 46 for unresolved historical and dormant boundaries.
 
 Migrations preserve import custody, identity, financial values and all other imported historical rows. Customer edits are versioned and audited; archive is supported, hard delete is not. Membership version changes invalidate sessions. Runtime uses limited auth grants and a separate non-owner RLS business role.
 
@@ -49,7 +49,7 @@ Production packaging/readiness, finalized lifetime policy, remaining 67 quaranti
 
 ## Estimates / approvals / documents batch
 
-Current Alembic head: `20261022_0047` (audited financial workflows). For existing slice volumes, apply migrations without restoring data:
+Current Alembic head: `20261022_0053` (remaining-module integrations). For existing slice volumes, apply migrations without restoring data:
 
 ```powershell
 docker compose --env-file backend/customer-slice/.local.env -f backend/customer-slice/compose.yaml run --rm setup python /slice/migrate_slice.py test
@@ -108,3 +108,11 @@ python backend/customer-slice/verify_financial_preservation.py
 Financial tests add disposable native records; they never reset a database. If the existing approval regression has exhausted eligible requests, `financial_test_support.py` creates two new test-only eligible jobs/material requests through authenticated APIs. Database guard tests require native invoices from the financial suites. Visual tests read preserved dev data and the approved baseline on port 18445; three tiny Accounts rasterization differences remain a strict-comparison failure, not a replacement baseline.
 
 Rollback: retain `artifacts/pre-finance-20261022-122301/{dev,test}.dump`, restore into a separate database, and reconcile subsequent audited writes. Never downgrade destructively, replace a populated volume, or run mutation suites against development. See report 45 and its evidence summary for complete scope and limitations.
+
+## Remaining modules / restoration checkpoint
+
+See [report 46](../../docs/backend-migration/46-REMAINING-MODULES-HISTORICAL-EXCEPTIONS.md) and its evidence summary. New migrations 48?53 are additive to preserved local volumes; backups are in `artifacts/pre-remaining-20261022-131338/{dev,test}.dump`. Never restore them over populated databases. There is no destructive downgrade path.
+
+New API suites: `test_bookings.py`, `test_execution_workflows.py`, `test_administration.py`, `test_configuration.py`, `test_catalog_workflows.py`, `test_sales_workflows.py`, `test_ownership.py`. Run only through **api-test**. `run_remaining_regressions.py` invokes earlier-module and new suites against that isolated service. `run_remaining_browser_regressions.py` uses the isolated frontend on 18444. Additional verification: `test_ownership_browser.mjs`, `test_dashboard_reports.mjs`, `test_remaining_storage.mjs`, `verify_remaining_preservation.py`. The dashboard/report test reads development only; it does not mutate business data.
+
+Historical quarantine custody remains 67 records. Typed compatibility tables expose original department/manager links and booking history without invented native identities; existing stock compatibility remains essential to balance calculations. Missing checklist actors and historical media bytes are unresolved. The Developer Console remains its explicitly labelled browser simulation. Shared SQL.js infrastructure and old browser/source datasets are retained for recovery, not retired.

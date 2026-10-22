@@ -154,3 +154,6 @@ Latest implementation: [44 - Purchases, Inventory and Stock](44-PURCHASES-INVENT
 
 
 Latest financial integration: [45 ? Invoices, Payments and Financial Workflows](45-INVOICES-PAYMENTS-FINANCIAL-WORKFLOWS.md). Existing invoice edits, full-payment settlement, closure and financial documents now use the PostgreSQL slice. Imported financial records remain immutable, all 51 discrepancies are preserved, and partial-payment/write-off workflows were explicitly excluded to retain approved behavior. See the report for tests, document/visual comparisons and remaining boundaries. No deployment or persistence retirement occurred.
+
+
+Latest remaining-module integration: [46 - Remaining Modules and Historical Exceptions](46-REMAINING-MODULES-HISTORICAL-EXCEPTIONS.md). Bookings/check-in, execution/QC/follow-ups, users, configuration, teams/catalog/task lists, CRM and current vehicle ownership edits use PostgreSQL. Dashboard/export checks read PostgreSQL projections. Original source records and all 51 financial discrepancies remain preserved. Historical quarantine, explicitly simulated developer state and strict visual/unit-test limitations remain documented; this is not full migration signoff or persistence retirement.

@@ -60,8 +60,8 @@ def write_vehicle(c,u,data,id=None):
         if not data[field].strip(): fail('Vehicle '+field+' is required.',422)
     data={**data,'number':data['number'].strip().upper(),'make':data['make'].strip(),'model':data['model'].strip(),'color':data['color'].strip()}
     if c.scalar(text('SELECT id FROM vehicles WHERE upper(number)=:n AND archived_at IS NULL AND id<>:id'),{'n':data['number'],'id':id or 0}):fail('A vehicle with this number already exists.',409)
-    if old and old['customer_id']!=data['customer_id'] and c.scalar(text('SELECT EXISTS(SELECT 1 FROM visits WHERE vehicle_id=:id)'),{'id':id}):
-        fail('Vehicle has visit history. Customer reassignment requires an explicit ownership-transfer workflow.',409)
+    # The approved vehicle editor changes the current owner only. Visits keep their
+    # original customer_id; operational_audit retains both owners and the actor.
     values={**data,'id':id,'t':TENANT,'b':BRANCH,'a':u['user_id'],'engine_no':data.get('engine_no') if data.get('engine_no') is not None else ((old or {}).get('engine_no') or '')}
     sql=('UPDATE vehicles SET customer_id=:customer_id,number=:number,make=:make,model=:model,color=:color,km=:km,engine_no=:engine_no,updated_by=:a,updated_at=now(),version=version+1 WHERE id=:id RETURNING *' if old else
       'INSERT INTO vehicles(tenant_id,branch_id,customer_id,number,make,model,color,km,engine_no,created_by,updated_by) VALUES(:t,:b,:customer_id,:number,:make,:model,:color,:km,:engine_no,:a,:a) RETURNING *')
@@ -105,7 +105,7 @@ def project(c,source):
     media_ids=set(c.scalars(text('SELECT media_id FROM slice_media_content'))) if source=='photos' else set()
     actors={str(r['platform_user_id']):r['id'] for r in c.execute(text('SELECT id,platform_user_id FROM workshop_user_profiles')).mappings() if r['platform_user_id']}
     result=[]
-    for raw in c.execute(text('SELECT * FROM '+spec['table']+(' WHERE archived_at IS NULL' if source in ('purchase_order_lines','inward_purchase_lines') else ''))).mappings():
+    for raw in c.execute(text('SELECT * FROM '+spec['table']+(' WHERE archived_at IS NULL' if source in ('purchase_order_lines','inward_purchase_lines','sales_quotation_lines') else ''))).mappings():
         history=raw.get('historical_values') or {}; value={}
         for field,target in spec['columns'].items():
             v=raw.get(target)
@@ -140,8 +140,11 @@ def project(c,source):
 
 @router.get('/operations/projection')
 def projection(request:Request):
+    from bookings import projection as booking_projection
+    from administration import users
+    from catalog_workflows import teams
     with business(request,snapshot=True) as (c,_):
-        return {'customers':[customer(r) for r in c.execute(text('SELECT * FROM customers ORDER BY id')).mappings()], 'vehicles':[vehicle(r) for r in c.execute(text('SELECT * FROM vehicles ORDER BY id')).mappings()], 'document_snapshots':[r['values'] for r in c.execute(text("SELECT values FROM document_snapshots WHERE availability='READY' AND values ? 'jobNo' ORDER BY id")).mappings()], **{name:project(c,name) for name in MAPPING}}
+        return {'customers':[customer(r) for r in c.execute(text('SELECT * FROM customers ORDER BY id')).mappings()], 'users':users(c), 'vehicles':[vehicle(r) for r in c.execute(text('SELECT * FROM vehicles ORDER BY id')).mappings()], 'document_snapshots':[r['values'] for r in c.execute(text("SELECT values FROM document_snapshots WHERE availability='READY' AND values ? 'jobNo' ORDER BY id")).mappings()], **{name:project(c,name) for name in MAPPING}, **booking_projection(c), **teams(c)}
 
 @router.get('/jobs')
 def jobs(request:Request):
@@ -201,39 +204,42 @@ def intake(value:Intake,request:Request):
     with command(request,d) as (c,u,replay,save):
         if u['role'] not in ('admin','reception','service'):fail('Reception intake is not permitted for this role.',403)
         if replay:return replay
-        for field in ('customerName','mobile','vehicleNo','make','model','fuel','requestedWork'):
-            if not d[field].strip():fail(field+' is required.',422)
-        if d['fuelLevelUnit'] and not d['fuelLevelValue'].strip():fail('Enter the fuel or battery level.',422)
-        if d['fuelLevelUnit'] not in ('','bars','%','litres','Other'):fail('Invalid fuel level unit.',422)
-        try:marks=json.loads(d['damageMarks'])
-        except ValueError:fail('Invalid damage marks.',422)
-        if not isinstance(marks,list):fail('Invalid damage marks.',422)
-        advisor=actor(c,d['advisorId'],'service') if d['advisorId'] else None
-        if u['role']=='service' and d['advisorId']!=u['profile_id']:fail('Advisors may create only their own jobs.',403)
-        technician=actor(c,6,'tech') # Existing approved fixture technician, never fabricated.
-        # Share the customer lock with the existing Customers API; all changes below commit together.
-        c.execute(text('SELECT pg_advisory_xact_lock(hashtext(:t))'),{'t':TENANT+':customers'})
-        cid=d['customerId'] or c.scalar(text('SELECT id FROM customers WHERE mobile=:m AND archived_at IS NULL'),{'m':d['mobile']})
-        if cid:
-            cust=row(c,'customers',cid)
-            if cust['archived_at']:fail('Customer is archived.',422)
-            if c.scalar(text('SELECT id FROM customers WHERE mobile=:m AND archived_at IS NULL AND id<>:id'),{'m':d['mobile'].strip(),'id':cid}):fail('A customer with this mobile already exists.',409)
-            c.execute(text('UPDATE customers SET name=:n,mobile=:m,type=:type,address=coalesce(:address,address),updated_at=now(),updated_by=:a,version=version+1 WHERE id=:id'),{'id':cid,'n':d['customerName'].strip(),'m':d['mobile'].strip(),'type':d['customerType'].strip() or 'Individual','address':d['address'],'a':u['user_id']})
-        else:
-            cid=insert(c,'customers',{'name':d['customerName'].strip(),'mobile':d['mobile'].strip(),'type':d['customerType'].strip() or 'Individual','address':d['address'] or '', 'created_by':u['user_id'],'updated_by':u['user_id']})['id']
-        vid=d['vehicleId'] or c.scalar(text('SELECT id FROM vehicles WHERE upper(number)=:n AND archived_at IS NULL'),{'n':d['vehicleNo'].strip().upper()})
-        old=row(c,'vehicles',vid) if vid else None
-        if old and old['customer_id']!=cid:fail('Selected vehicle does not belong to the customer.',422)
-        odo=d['odoReading'] if d['odoReading'] is not None else d['km']
-        v=write_vehicle(c,u,{'customer_id':cid,'number':d['vehicleNo'],'make':d['make'],'model':d['model'],'color':d['color'],'km':d['km'],'engine_no':d['engineNo'],'version':old['version'] if old else None},vid)
-        visit=insert(c,'visits',{'customer_id':cid,'vehicle_id':v['id'],'advisor_id':advisor,'received_by':u['user_id'],'received_at':datetime.now(timezone.utc),'fuel':d['fuel'],'odo_reading':odo,'fuel_level_value':d['fuelLevelValue'],'fuel_level_unit':d['fuelLevelUnit'],'keys':d['keys'],'accessories':d['accessories'],'requested_work':d['requestedWork'],'photos_note':'Reception intake'})
-        job=insert(c,'job_cards',{'job_no':f"JC-{datetime.now(timezone.utc).year}-{1247+visit['id']:06d}",'visit_id':visit['id'],'advisor_id':advisor,'technician_id':6,'status':'NEW','sub_status':'Gather Requirements','work_list':d['requestedWork'],'promised_text':'Tomorrow 6:00 PM','qc_status':'Pending','washing_needed':0,'closed_at':'','advisor_notes':'','customer_instructions':d['requestedWork'],'internal_instructions':'','service_type':d['serviceType'],'pickup_drop':d['pickupDrop'],'estimated_delivery':d['estimatedDelivery'] or None,'damage_marks':d['damageMarks'],'assignment_state':'ASSIGNED_TO_ADVISOR' if advisor else 'AWAITING_ADVISOR_ASSIGNMENT','created_by':u['user_id'],'updated_by':u['user_id']})
-        cycle(c,job)
-        insert(c,'technician_tasks',{'job_card_id':job['id'],'assigned_to':technician,'title':d['requestedWork'].split(',')[0] or 'Workshop inspection','status':'PENDING','ui_status':'Pending','notes':'Created at reception check-in.','created_by':u['user_id'],'updated_by':u['user_id']})
-        for label in ('Edges checked','Surface cleaned','Customer items verified'):insert(c,'qc_checks',{'job_card_id':job['id'],'label':label,'passed':0,'created_by':u['user_id']})
-        insert(c,'job_media',{'job_card_id':job['id'],'label':'Reception intake','category':'Reception','src':'','created_by':u['user_id'],'updated_by':u['user_id']})
-        history(c,job,'Visit received and job card opened')
-        return save({'id':job['id'],'job_no':job['job_no'],'visit_id':visit['id'],'customer_id':cid,'vehicle_id':v['id']})
+        return save(create_intake(c,u,d))
+
+def create_intake(c,u,d):
+    for field in ('customerName','mobile','vehicleNo','make','model','fuel','requestedWork'):
+        if not d[field].strip():fail(field+' is required.',422)
+    if d['fuelLevelUnit'] and not d['fuelLevelValue'].strip():fail('Enter the fuel or battery level.',422)
+    if d['fuelLevelUnit'] not in ('','bars','%','litres','Other'):fail('Invalid fuel level unit.',422)
+    try:marks=json.loads(d['damageMarks'])
+    except ValueError:fail('Invalid damage marks.',422)
+    if not isinstance(marks,list):fail('Invalid damage marks.',422)
+    advisor=actor(c,d['advisorId'],'service') if d['advisorId'] else None
+    if u['role']=='service' and d['advisorId']!=u['profile_id']:fail('Advisors may create only their own jobs.',403)
+    technician=actor(c,6,'tech') # Existing approved fixture technician, never fabricated.
+    # Share the customer lock with the existing Customers API; all changes below commit together.
+    c.execute(text('SELECT pg_advisory_xact_lock(hashtext(:t))'),{'t':TENANT+':customers'})
+    cid=d['customerId'] or c.scalar(text('SELECT id FROM customers WHERE mobile=:m AND archived_at IS NULL'),{'m':d['mobile']})
+    if cid:
+        cust=row(c,'customers',cid)
+        if cust['archived_at']:fail('Customer is archived.',422)
+        if c.scalar(text('SELECT id FROM customers WHERE mobile=:m AND archived_at IS NULL AND id<>:id'),{'m':d['mobile'].strip(),'id':cid}):fail('A customer with this mobile already exists.',409)
+        c.execute(text('UPDATE customers SET name=:n,mobile=:m,type=:type,address=coalesce(:address,address),updated_at=now(),updated_by=:a,version=version+1 WHERE id=:id'),{'id':cid,'n':d['customerName'].strip(),'m':d['mobile'].strip(),'type':d['customerType'].strip() or 'Individual','address':d['address'],'a':u['user_id']})
+    else:
+        cid=insert(c,'customers',{'name':d['customerName'].strip(),'mobile':d['mobile'].strip(),'type':d['customerType'].strip() or 'Individual','address':d['address'] or '', 'created_by':u['user_id'],'updated_by':u['user_id']})['id']
+    vid=d['vehicleId'] or c.scalar(text('SELECT id FROM vehicles WHERE upper(number)=:n AND archived_at IS NULL'),{'n':d['vehicleNo'].strip().upper()})
+    old=row(c,'vehicles',vid) if vid else None
+    if old and old['customer_id']!=cid:fail('Selected vehicle does not belong to the customer.',422)
+    odo=d['odoReading'] if d['odoReading'] is not None else d['km']
+    v=write_vehicle(c,u,{'customer_id':cid,'number':d['vehicleNo'],'make':d['make'],'model':d['model'],'color':d['color'],'km':d['km'],'engine_no':d['engineNo'],'version':old['version'] if old else None},vid)
+    visit=insert(c,'visits',{'customer_id':cid,'vehicle_id':v['id'],'advisor_id':advisor,'received_by':u['user_id'],'received_at':datetime.now(timezone.utc),'fuel':d['fuel'],'odo_reading':odo,'fuel_level_value':d['fuelLevelValue'],'fuel_level_unit':d['fuelLevelUnit'],'keys':d['keys'],'accessories':d['accessories'],'requested_work':d['requestedWork'],'photos_note':'Reception intake'})
+    job=insert(c,'job_cards',{'job_no':f"JC-{datetime.now(timezone.utc).year}-{1247+visit['id']:06d}",'visit_id':visit['id'],'advisor_id':advisor,'technician_id':6,'status':'NEW','sub_status':'Gather Requirements','work_list':d['requestedWork'],'promised_text':'Tomorrow 6:00 PM','qc_status':'Pending','washing_needed':0,'closed_at':'','advisor_notes':'','customer_instructions':d['requestedWork'],'internal_instructions':'','service_type':d['serviceType'],'pickup_drop':d['pickupDrop'],'estimated_delivery':d['estimatedDelivery'] or None,'damage_marks':d['damageMarks'],'assignment_state':'ASSIGNED_TO_ADVISOR' if advisor else 'AWAITING_ADVISOR_ASSIGNMENT','created_by':u['user_id'],'updated_by':u['user_id']})
+    cycle(c,job)
+    insert(c,'technician_tasks',{'job_card_id':job['id'],'assigned_to':technician,'title':d['requestedWork'].split(',')[0] or 'Workshop inspection','status':'PENDING','ui_status':'Pending','notes':'Created at reception check-in.','created_by':u['user_id'],'updated_by':u['user_id']})
+    for label in ('Edges checked','Surface cleaned','Customer items verified'):insert(c,'qc_checks',{'job_card_id':job['id'],'label':label,'passed':0,'created_by':u['user_id']})
+    insert(c,'job_media',{'job_card_id':job['id'],'label':'Reception intake','category':'Reception','src':'','created_by':u['user_id'],'updated_by':u['user_id']})
+    history(c,job,'Visit received and job card opened')
+    return {'id':job['id'],'job_no':job['job_no'],'visit_id':visit['id'],'customer_id':cid,'vehicle_id':v['id']}
 
 class JobChange(BaseModel):
     model_config=ConfigDict(extra='forbid')

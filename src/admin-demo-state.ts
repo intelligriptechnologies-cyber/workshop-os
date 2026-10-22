@@ -1,3 +1,4 @@
+const customersApiEnabled = import.meta.env?.VITE_CUSTOMERS_API === "true";
 import type { Role } from "./types";
 import { DEFAULT_TEMPLATE_VERSION, findUnsupportedPlaceholders, seedReportTemplates, type CompanyAssets, type ReportCategory, type ReportTemplate } from "./report-templates";
 
@@ -561,7 +562,15 @@ function hydrateState(value: unknown): AdminDemoState | undefined {
   };
 }
 
+let serverConfiguration: AdminDemoState | undefined;
+export function hydrateAdminConfiguration(state: AdminDemoState) {
+  const changed=JSON.stringify(serverConfiguration)!==JSON.stringify(state);
+  serverConfiguration = clone(state);
+  if(changed && typeof window !== 'undefined')window.dispatchEvent(new Event('workshop-configuration-loaded'));
+}
+
 export function loadAdminDemoState(storage: SessionStorageLike | undefined = browserSessionStorage(), now: Date | string = new Date()): AdminDemoState {
+  if (customersApiEnabled) return clone(serverConfiguration ?? createDefaultAdminDemoState());
   if (!storage) return createDefaultAdminDemoState(now);
   try {
     const raw = storage.getItem(ADMIN_DEMO_STORAGE_KEY) ?? storage.getItem(LEGACY_ADMIN_DEMO_STORAGE_KEY);
@@ -574,6 +583,7 @@ export function loadAdminDemoState(storage: SessionStorageLike | undefined = bro
 }
 
 export function saveAdminDemoState(state: AdminDemoState, storage: SessionStorageLike | undefined = browserSessionStorage(), now: Date | string = new Date()): AdminDemoState {
+  if (customersApiEnabled) throw new Error("Administration changes require the PostgreSQL API.");
   const retained = enforceLogRetention({ ...state, version: ADMIN_DEMO_STATE_VERSION }, now);
   storage?.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(retained));
   return retained;

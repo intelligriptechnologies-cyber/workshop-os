@@ -85,7 +85,7 @@ from types import SimpleNamespace
 from operations import insert
 from sqlalchemy import text
 from sqlalchemy.exc import IntegrityError,DBAPIError
-request_context=SimpleNamespace(cookies=c.cookies,method='GET',headers={})
+request_context=SimpleNamespace(cookies=c.cookies,method='GET',headers={},url=SimpleNamespace(path='/api/v1/operations/projection'))
 try:
  with business(request_context) as (connection,user):
   metadata=insert(connection,'job_media',dict(job_card_id=j,label='Rolled-back integrity fixture',category='Before Work',src='',created_by=user['user_id'],updated_by=user['user_id']))

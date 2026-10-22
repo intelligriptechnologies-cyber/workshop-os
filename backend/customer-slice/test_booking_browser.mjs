@@ -1,0 +1,26 @@
+import { chromium } from 'playwright';
+import fs from 'node:fs/promises';
+const browser=await chromium.launch();
+const checks=[]; const check=(name,ok)=>{if(!ok)throw Error(name);checks.push(name);};
+const ctx=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:1440,height:900}});
+ctx.setDefaultTimeout(12000);const p=await ctx.newPage(); const errors=[];p.on('pageerror',e=>errors.push(e.message));
+const login=async(page,role)=>{await page.goto('https://localhost:18444/login');await page.getByLabel('Emulate User:').selectOption(role+'@example.com');await page.getByRole('button',{name:'Login',exact:true}).click();await page.locator('.role-nav').waitFor();};
+const post=async(page,path,body)=>page.evaluate(async({path,body})=>{const csrf=decodeURIComponent(document.cookie.split('; ').find(s=>s.startsWith('workshopos_csrf=')).split('=')[1]);const r=await fetch('/api/v1'+path,{method:'POST',headers:{'Content-Type':'application/json','X-Workshopos-Csrf':csrf,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify(body)});if(!r.ok)throw Error(await r.text());return r.json();},{path,body});
+try {
+ await login(p,'admin');await p.getByRole('button',{name:'Advance Bookings',exact:true}).click();
+ await p.getByRole('button',{name:'Admin control: set daily booking limits'}).click();let d=p.getByRole('dialog');await d.getByLabel('Service Work booking capacity').fill('100');await d.getByLabel('General Checkup / Follow-up booking capacity').fill('100');await d.getByRole('button',{name:'Save limits',exact:true}).click();await d.waitFor({state:'hidden'});check('capacity save through approved dialog',true);
+ await p.getByRole('button',{name:'Create Booking',exact:true}).click();d=p.getByRole('dialog');const stamp=Date.now(),name='Booking browser '+stamp;
+ for(const [label,value] of [['Customer name',name],['Mobile',String(stamp)],['Vehicle number','UI'+stamp],['Make','Test'],['Model','Model'],['Requested work','Browser inspection']])await d.getByLabel(label,{exact:true}).fill(value);
+ const day=await d.getByLabel('Booking date',{exact:true}).inputValue();await d.getByRole('button',{name:'Save Booking',exact:true}).click();await d.waitFor({state:'hidden'});await p.getByText(name,{exact:true}).waitFor();check('calendar create and refresh',true);
+ await p.reload();await p.locator('.role-nav').waitFor();await p.getByRole('button',{name:'Advance Bookings',exact:true}).click();await p.getByText(name,{exact:true}).waitFor();check('booking survives reload',true);
+ const second=await browser.newContext({ignoreHTTPSErrors:true});second.setDefaultTimeout(12000);const r=await second.newPage();await login(r,'reception');await r.getByRole('button',{name:'Advance Bookings',exact:true}).click();await r.getByText(name,{exact:true}).waitFor();check('independent reception session sees booking',true);
+ let b=await p.evaluate(async name=>(await(await fetch('/api/v1/operations/projection')).json()).bookings.find(b=>b.customer_name===name),name);
+ const today=new Date().toISOString().slice(0,10);await post(p,'/bookings/command',{operation:'capacity',values:{bookingDate:today,serviceWork:100,generalCheckupFollowup:100}});
+ await post(p,`/bookings/${b.id}/command`,{operation:'reschedule',version:b.version,values:{bookingDate:today,arrivalWindow:'Morning',note:'Browser check-in fixture'}});
+ await r.reload();await r.locator('.role-nav').waitFor();await r.getByRole('button',{name:'Advance Bookings',exact:true}).click();await fs.writeFile('backend/customer-slice/artifacts/booking-reception-debug.txt',await r.locator('body').innerText());await r.screenshot({path:'backend/customer-slice/artifacts/booking-reception-debug.png'});
+ const row=r.locator('.expected-booking-row').filter({hasText:name});await row.getByRole('button',{name:/check.in/i}).click();d=r.getByRole('dialog');await d.getByLabel('ODO meter reading (km)').fill('25');await d.locator('.field-pair input').fill('4');await d.getByRole('button',{name:'Create Visit and Job Card',exact:true}).click();await d.waitFor({state:'hidden'});check('existing check-in dialog commits',true);
+ b=await r.evaluate(async name=>(await(await fetch('/api/v1/operations/projection')).json()).bookings.find(b=>b.customer_name===name),name);check('arrival and linked job persisted',b.status==='Arrived'&&b.job_card_id>145&&b.visit_id);
+ const storage=await r.evaluate(async()=>{const module=await import('/src/db.ts');const api=await import('/src/operations-api.ts');const proj=await api.operationsApi.read();const db=await module.openWorkshopDb(proj.customers,proj);module.persist(db);let guarded=false;try{db.run("update bookings set customer_name='Forbidden'");}catch{guarded=true;}return {guarded,cache:localStorage.getItem('workshopos.sqlite.remaining-api.v1')!==null};});
+ check('booking API cache and write guard',storage.guarded&&storage.cache);check('no browser errors',errors.length===0);await second.close();
+ await fs.writeFile('backend/customer-slice/artifacts/booking-browser-tests.json',JSON.stringify({passed:checks.length,checks},null,2));console.log(checks.length,'booking browser checks passed');
+} catch(e){await p.screenshot({path:'backend/customer-slice/artifacts/booking-browser-failure.png'});throw e;} finally {await browser.close();}
