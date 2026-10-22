@@ -1,0 +1,45 @@
+import {chromium} from 'playwright';
+import fs from 'node:fs/promises';
+import {randomUUID} from 'node:crypto';
+const browser=await chromium.launch();const ctx=await browser.newContext({ignoreHTTPSErrors:true,viewport:{width:1440,height:900}});
+const p=await ctx.newPage();p.setDefaultTimeout(30000);const checks=[];const errors=[];p.on('pageerror',e=>errors.push(e.message));
+const dir='backend/customer-slice/artifacts';
+const check=(name,ok)=>{if(!ok)throw Error(name);checks.push(name);console.log(name)};
+async function login(page,role='admin'){await page.goto('https://localhost:18444/login');await page.getByLabel('Emulate User:').selectOption(role+'@example.com');await page.getByRole('button',{name:'Login',exact:true}).click();await page.locator('.role-nav').waitFor();}
+async function projection(){return p.evaluate(async()=> (await fetch('/api/v1/operations/projection')).json());}
+async function command(path,body){return p.evaluate(async({path,body})=>{const csrf=document.cookie.split('; ').find(x=>x.startsWith('workshopos_csrf='))?.split('=')[1];const r=await fetch('/api/v1'+path,{method:'POST',headers:{'Content-Type':'application/json','x-workshopos-csrf':csrf,'Idempotency-Key':crypto.randomUUID()},body:JSON.stringify(body)});const data=await r.json();if(!r.ok)throw Error(JSON.stringify(data));return data;},{path,body});}
+async function transition(j,target){const job=(await projection()).job_cards.find(x=>x.id===j);return command('/jobs/'+j+'/command',{version:job.version,operation:'status',values:{target,note:'Financial browser acceptance'}});}
+async function tick(j){let state=await projection();const cycle=state.checklist_cycles.filter(x=>x.job_card_id===j).sort((a,b)=>b.id-a.id)[0];for(const original of state.checklist_items.filter(x=>x.checklist_cycle_id===cycle.id).sort((a,b)=>a.sort_order-b.sort_order)){const item=(await projection()).checklist_items.find(x=>x.id===original.id);if(!item.checked_at&&item.label!=='Payment Received')await command('/jobs/checklist/'+item.id,{version:item.version,checked:true});}}
+async function openJob(number){await p.getByRole('button',{name:'Manage',exact:true}).click();await p.getByRole('tab',{name:'Job Cards',exact:true}).click();await p.getByLabel('Search job cards').fill(number);await p.getByRole('button',{name:'Edit',exact:true}).click();await p.getByRole('dialog').getByRole('tab',{name:'Documents',exact:true}).click();}
+try{
+ await login(p);
+ const j=await command('/reception/intake',{customerName:'Finance UI '+randomUUID().slice(0,8),mobile:randomUUID().slice(0,16),vehicleNo:'FU'+randomUUID().slice(0,8),make:'Test',model:'Model',color:'Blue',km:10,fuel:'4 bars',fuelLevelValue:'4',fuelLevelUnit:'bars',requestedWork:'Financial browser acceptance',advisorId:2});
+ const estimate=await command('/jobs/'+j.id+'/estimate',{version:null,discount:0,gst_rate:18,notes:'',items:[{kind:'Service',description:'UI financial labour',qty:2,rate:500,gst_type:'CGST+SGST',gst_rate:18}]});
+ await command('/jobs/'+j.id+'/estimate/approve',{version:estimate.version,note:'Approved',snapshot:{templateId:'test',html:'<html><body>Estimate</body></html>',values:{},lines:[]}});await transition(j.id,'IN_PROGRESS');
+ await p.reload();await p.locator('.role-nav').waitFor();await openJob(j.job_no);
+ await p.getByRole('button',{name:'Create Invoice',exact:true}).click();let editor=p.getByRole('dialog',{name:'Create Invoice',exact:true});
+ check('approved estimate prefill',await editor.getByLabel('Invoice item 1 description',{exact:true}).inputValue()==='UI financial labour');
+ await editor.getByRole('button',{name:'Add Item',exact:true}).click();await editor.getByLabel('Invoice item 2 description',{exact:true}).fill('UI financial part');await editor.getByLabel('Invoice item 2 type',{exact:true}).selectOption('Material');await editor.getByLabel('Invoice item 2 rate',{exact:true}).fill('500');await editor.getByLabel('Invoice item 2 GST type',{exact:true}).selectOption('No GST');await editor.getByLabel('Invoice discount',{exact:true}).fill('100');
+ check('visible mixed GST discount parity',(await editor.getByLabel('Invoice totals').innerText()).includes('1,568'));
+ let response=p.waitForResponse(r=>r.url().endsWith('/financial/jobs/'+j.id+'/invoice'));
+ await editor.getByRole('button',{name:'Save Invoice',exact:true}).click();let r=await response;check('existing create dialog saves '+await r.text(),r.status()===200);await editor.waitFor({state:'hidden'});
+ await p.getByRole('group',{name:'Invoice actions',exact:true}).getByRole('button',{name:'Edit',exact:true}).click();editor=p.getByRole('dialog',{name:'Edit Invoice',exact:true});
+ await editor.getByLabel('Invoice item 1 description',{exact:true}).fill('UI financial labour edited');await editor.getByLabel('Invoice edit note').fill('Customer approved line edit');response=p.waitForResponse(r=>r.url().includes('/financial/invoices/')&&r.request().method()==='PUT');await editor.getByRole('button',{name:'Update Invoice',exact:true}).click();r=await response;check('existing editor saves '+await r.text(),r.status()===200);await editor.waitFor({state:'hidden'});
+ const invoice=(await projection()).invoices.find(x=>x.job_card_id===j.id&&!x.voided_at);check('PostgreSQL total equals preview',invoice.total===1568);
+ await p.keyboard.press('Escape');await tick(j.id);await transition(j.id,'COMPLETED');await tick(j.id);
+ await p.reload();await p.locator('.role-nav').waitFor();await p.getByRole('button',{name:'Manage',exact:true}).click();await p.getByRole('tab',{name:'Invoices',exact:true}).click();await p.getByLabel('Search invoices').fill(j.job_no);await p.getByRole('button',{name:'Quick Mark Paid',exact:true}).click();
+ const paymentDialog=p.getByRole('dialog',{name:'Quick Mark Paid',exact:true});check('payment amount remains read-only',await paymentDialog.getByLabel('Payment amount').isDisabled());
+ await paymentDialog.getByLabel('Payment mode',{exact:true}).selectOption('Other');await paymentDialog.getByLabel('Other payment detail').fill('Test transfer');await paymentDialog.getByLabel('Payment reference (optional)').count().then(()=>{});
+ await paymentDialog.getByLabel('Payment reference',{exact:true}).fill('BROWSER-FINANCE');response=p.waitForResponse(r=>r.url().endsWith('/financial/invoices/'+invoice.id+'/payment'));
+ await paymentDialog.getByRole('button',{name:'Confirm Payment',exact:true}).click();r=await response;check('full payment committed '+await r.text(),r.status()===200);await paymentDialog.waitFor({state:'hidden'});
+ let state=await projection();check('settlement and closure persisted',state.invoices.find(x=>x.id===invoice.id).status==='Cleared'&&state.job_cards.find(x=>x.id===j.id).main_status==='CLOSED');
+ check('receipt gate and full allocation',state.payments.filter(x=>x.invoice_id===invoice.id).length===1&&state.payments.find(x=>x.invoice_id===invoice.id).amount===1568&&state.receipts.some(x=>x.invoice_id===invoice.id)&&state.gate_passes.some(x=>x.invoice_id===invoice.id));
+ const snapshots=state.document_snapshots.filter(x=>x.jobId===j.id&&['invoice','payment-receipt','gate-pass'].includes(x.kind));check('three approved-renderer snapshots',snapshots.length===3&&snapshots.find(x=>x.kind==='invoice').html.includes('UI financial labour edited'));
+ await p.keyboard.press('Escape');await p.reload();await p.locator('.role-nav').waitFor();await openJob(j.job_no);
+ for(const kind of ['Invoice','Payment Receipt','Gate Pass']){
+  const group=p.getByRole('group',{name:kind+' actions',exact:true});const popup=p.waitForEvent('popup');await group.getByRole('button',{name:'Print',exact:true}).click();const print=await popup;await print.waitForLoadState();const html=await print.content();const stored=snapshots.find(x=>x.kind===({'Invoice':'invoice','Payment Receipt':'payment-receipt','Gate Pass':'gate-pass'}[kind]));check(kind+' prints frozen template',html.includes(stored.number));await fs.writeFile(dir+'/financial-'+kind.replaceAll(' ','-')+'.html',html);await print.close();
+  const downloading=p.waitForEvent('download');await group.getByRole('button',{name:'Download PDF',exact:true}).click();const download=await downloading;const file=dir+'/financial-'+kind.replaceAll(' ','-')+'.pdf';await download.saveAs(file);check(kind+' PDF download',(await fs.readFile(file)).subarray(0,4).toString()==='%PDF');
+ }
+ const other=await browser.newContext({ignoreHTTPSErrors:true});const page=await other.newPage();await login(page,'accounts');const visible=await page.evaluate(async id=>{const s=await(await fetch('/api/v1/operations/projection')).json();return s.invoices.find(x=>x.id===id).status},invoice.id);check('independent accounts session settlement',visible==='Cleared');await other.close();
+ check('no browser exceptions',errors.length===0);await fs.writeFile(dir+'/financial-browser-tests.json',JSON.stringify({passed:checks.length,checks,job:j,invoiceId:invoice.id},null,2));console.log(checks.length,'financial browser checks passed');
+}catch(e){await p.screenshot({path:dir+'/financial-browser-failure.png'});throw e}finally{await browser.close()}

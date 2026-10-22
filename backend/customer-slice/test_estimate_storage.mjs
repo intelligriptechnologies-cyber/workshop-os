@@ -5,7 +5,7 @@ await c.addInitScript(value=>{if(!localStorage.getItem('storage-test-seeded')){l
 const p=await c.newPage();const checks=[];const check=(name,ok)=>{if(!ok)throw Error(name);checks.push(name)};
 try{
  await p.goto('https://localhost:18444/login');await p.getByLabel('Emulate User:').selectOption('admin@example.com');await p.getByRole('button',{name:'Login',exact:true}).click();await p.locator('.role-nav').waitFor();
- const values=await p.evaluate(()=>({old:localStorage.getItem('workshopos.sqlite.operations-api.v1'),current:localStorage.getItem('workshopos.sqlite.stock-api.v1'),documents:sessionStorage.getItem('workshopos.documentSnapshots.v1')}));
+ const values=await p.evaluate(()=>({old:localStorage.getItem('workshopos.sqlite.operations-api.v1'),current:localStorage.getItem('workshopos.sqlite.financial-api.v1'),documents:sessionStorage.getItem('workshopos.documentSnapshots.v1')}));
  check('prior operations browser source preserved byte-for-byte',values.old===encoded);check('prior browser document snapshots preserved',values.documents==='[]');
  const SQL=await initSqlJs();const db=new SQL.Database(Buffer.from(values.current,'base64'));
  for(const table of ['customers','vehicles','visits','job_cards','estimates','estimate_items','material_approvals','material_approval_events','photos','invoices','invoice_items','payments','receipts','gate_passes'])check('no persisted '+table+' business rows',db.exec('SELECT count(*) FROM '+table)[0].values[0][0]===0);

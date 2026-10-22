@@ -351,13 +351,20 @@ class ChecklistChange(BaseModel):
 @router.post('/jobs/checklist/{item_id}')
 def checklist(item_id:int,value:ChecklistChange,request:Request):
     with command(request,value.model_dump()) as (c,u,replay,save):
-        item=row(c,'job_checklist_items',item_id);j=row(c,'job_cards',item['job_card_id']);job_access(u,j)
+        item=row(c,'job_checklist_items',item_id);j=row(c,'job_cards',item['job_card_id'])
+        if item['label']=='Payment Received' and not value.notApplicable:
+            from financial_workflows import billing
+            billing(u)
+            if replay:return replay
+            if value.checked:fail('Use the full financial payment command with document snapshots.',409)
+            if j['archived_at'] or j['status']!='COMPLETED':fail('This job card is read-only.',409)
+            if c.scalar(text('SELECT EXISTS(SELECT 1 FROM payments WHERE job_card_id=:j AND voided_at IS NULL)'),{'j':j['id']}):fail('Void the payment with a reason to untick Payment Received.',409)
+        else:job_access(u,j)
         if replay:return replay
         mutable(item,value.version)
         latest=c.scalar(text('SELECT max(id) FROM job_checklist_cycles WHERE job_card_id=:id'),{'id':j['id']})
         if item['stage']!=j['status'] or item['cycle_id']!=latest:fail('This checklist is read-only in the current job status.',409)
         label=item['label'];checked=value.checked;na=value.notApplicable
-        if label=='Payment Received':fail('Payment and handover are not integrated in this slice.',409)
         if na and checked and label=='Remind Customer for Sharing Google Review/Feedback':fail('The Google review reminder cannot be marked N/A.',422)
         if na and checked and label in ('Material Requested','Material Issued') and c.scalar(text('SELECT EXISTS(SELECT 1 FROM material_requests WHERE job_card_id=:id AND archived_at IS NULL)'),{'id':j['id']}):fail('N/A requires a job without material rows.',409)
         if na and checked and item['checked_at'] and not item['na_at']:fail('Untick the item before marking it N/A.',409)

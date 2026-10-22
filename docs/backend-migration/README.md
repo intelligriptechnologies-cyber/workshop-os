@@ -151,3 +151,6 @@ Final checks: [documentation validation](evidence-final-verification.md) and [ba
 The initial audit above is historical. See [41 ? Customers/authentication](41-FIRST-POSTGRESQL-CUSTOMERS-SLICE.md), [42 ? Vehicles, Reception and Jobs](42-VEHICLES-RECEPTION-JOBS-SLICE.md), and [43 ? Estimates, Approvals and Job Documents](43-ESTIMATES-APPROVALS-JOB-DOCUMENTS-SLICE.md) for implemented local slices and their limitations. No production/staging deployment or original persistence retirement has occurred.
 
 Latest implementation: [44 - Purchases, Inventory and Stock](44-PURCHASES-INVENTORY-STOCK-SLICE.md). Existing screens use the PostgreSQL slice; report 44 records concurrency, stock reconciliation, visual results and the retained historical-native-ledger/dormant-screen limits. No deployment or persistence retirement occurred.
+
+
+Latest financial integration: [45 ? Invoices, Payments and Financial Workflows](45-INVOICES-PAYMENTS-FINANCIAL-WORKFLOWS.md). Existing invoice edits, full-payment settlement, closure and financial documents now use the PostgreSQL slice. Imported financial records remain immutable, all 51 discrepancies are preserved, and partial-payment/write-off workflows were explicitly excluded to retain approved behavior. See the report for tests, document/visual comparisons and remaining boundaries. No deployment or persistence retirement occurred.

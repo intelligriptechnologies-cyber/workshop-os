@@ -1,3 +1,4 @@
+import { billingApi } from "./billing-api";
 import { runStock } from './stock-api';
 import { estimateDocumentsApi, runDocumentCommand } from './estimate-documents-api';
 import { operationsApi, attachOperationalVersions } from "./operations-api";
@@ -754,6 +755,8 @@ function App() {
   useEffect(() => {
     if (!customersApiEnabled) return;
     const expire = () => { customerRefresh.current++; setUser(undefined); setState(undefined); setActiveMenuItem(""); history.replaceState(null, "", "/login"); };
+    let pendingClosed: number | undefined;
+    const jobClosed = (event:Event) => { pendingClosed = (event as CustomEvent<number>).detail; };
     const jobCreated = (event:Event) => { pendingJobNotification.current = (event as CustomEvent<number>).detail; };
     const refresh = async () => {
       if (!user || !db) return;
@@ -773,19 +776,26 @@ function App() {
           const payload = renderJobCardNotification("created", created, loadAdminDemoState().businessSettings);
           deliverJobCardNotificationStub(payload, deliveryMessage => setJobCardNotification({payload, deliveryMessage}));
         }
+        const closed = next.jobs.find(v => v.job.id === pendingClosed && v.job.main_status === "CLOSED");
+        if (closed) {
+          pendingClosed = undefined;
+          const payload = renderJobCardNotification("closed", closed, loadAdminDemoState().businessSettings);
+          deliverJobCardNotificationStub(payload, deliveryMessage => setJobCardNotification({payload, deliveryMessage}));
+        }
         setState({ ...next, vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !v.archived_at), archived_vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !!v.archived_at), customers: rows.filter(r => !r.archived_at), archived_customers: rows.filter(r => !!r.archived_at) });
         if (location.pathname === "/login") history.replaceState(null, "", "/");
         window.dispatchEvent(new Event('workshop-projection-refreshed'));
       } catch (error) { if (apiErrorMessage(error) !== "AUTHENTICATION_REQUIRED") window.alert(apiErrorMessage(error)); }
     };
     window.addEventListener("workshop-job-created", jobCreated);
+    window.addEventListener("workshop-job-closed", jobClosed);
     window.addEventListener("workshop-session-expired", expire);
     window.addEventListener("workshop-customers-changed", refresh);
     window.addEventListener("focus", refresh);
     window.addEventListener("popstate", refresh);
     void refresh();
     const timer = window.setInterval(refresh, 30000);
-    return () => { window.removeEventListener("workshop-job-created", jobCreated); window.clearInterval(timer); window.removeEventListener("workshop-session-expired", expire); window.removeEventListener("workshop-customers-changed", refresh); window.removeEventListener("focus", refresh); window.removeEventListener("popstate", refresh); };
+    return () => { window.removeEventListener("workshop-job-closed", jobClosed); window.removeEventListener("workshop-job-created", jobCreated); window.clearInterval(timer); window.removeEventListener("workshop-session-expired", expire); window.removeEventListener("workshop-customers-changed", refresh); window.removeEventListener("focus", refresh); window.removeEventListener("popstate", refresh); };
   }, [user, db, activeMenuItem]);
 
   useEffect(() => {
@@ -12482,6 +12492,7 @@ function JobLifecyclePanel({
     );
   };
   const toggle = (item: ChecklistItem, checked: boolean) => {
+    if (customersApiEnabled && item.label === "Payment Received" && checked) { void runDocumentCommand(() => billingApi.pay(view, {mode:"Cash",otherDetail:"",reference:"",notes:"Recorded by ticking Payment Received"}), setError); return; }
     if (customersApiEnabled) { void operationsApi.checklist(item, checked).catch(error => setError(apiErrorMessage(error))); return; }
     setError("");
     mutate(

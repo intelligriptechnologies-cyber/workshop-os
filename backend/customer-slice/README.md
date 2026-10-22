@@ -1,6 +1,6 @@
 # Local authentication and Customers slice
 
-This is the isolated Stage 6 slice, not a production deployment. It reuses the Stage 4A candidate image/password hashing and the verified import rehearsal. Authentication, Customers, Vehicles, Reception intake and core Jobs, Estimates, material Approvals and job documents/media now use PostgreSQL. See `../../docs/backend-migration/44-PURCHASES-INVENTORY-STOCK-SLICE.md` for current scope, verification and blocked boundaries. The original Customers-only verification below remains historical evidence.
+This is the isolated Stage 6 slice, not a production deployment. It reuses the Stage 4A candidate image/password hashing and the verified import rehearsal. Authentication, Customers, Vehicles, Reception intake and core Jobs, Estimates, material Approvals and job documents/media, Purchases/Stock and Invoices/full-payment financial workflows now use PostgreSQL. See `../../docs/backend-migration/45-INVOICES-PAYMENTS-FINANCIAL-WORKFLOWS.md` for current scope, verification and blocked boundaries. The original Customers-only verification below remains historical evidence.
 
 ## Run
 
@@ -40,7 +40,7 @@ Comparison requires Pillow; browser checks use the existing Playwright dependenc
 
 ## Boundary
 
-No browser token storage or silent business-data fallback. Memory-only PostgreSQL projections support existing linked views. New snapshots use `workshopos.sqlite.stock-api.v1` and omit integrated rows; prior storage keys and original SQLite files are retained. Receive Vehicle now uses an atomic backend transaction. Unintegrated linked writes fail closed, including booking check-in, financial writes and task editing. Local user edits do not update server accounts.
+No browser token storage or silent business-data fallback. Memory-only PostgreSQL projections support existing linked views. New snapshots use `workshopos.sqlite.financial-api.v1` and omit integrated rows; prior storage keys and original SQLite files are retained. Receive Vehicle now uses an atomic backend transaction. Unintegrated linked writes fail closed, including booking check-in and task editing. Historical financial writes require explicit correction approval and remain blocked. Local user edits do not update server accounts.
 
 Migrations preserve import custody, identity, financial values and all other imported historical rows. Customer edits are versioned and audited; archive is supported, hard delete is not. Membership version changes invalidate sessions. Runtime uses limited auth grants and a separate non-owner RLS business role.
 
@@ -49,7 +49,7 @@ Production packaging/readiness, finalized lifetime policy, remaining 67 quaranti
 
 ## Estimates / approvals / documents batch
 
-Current Alembic head: `20261022_0046` (purchase/stock precision). For existing slice volumes, apply migrations without restoring data:
+Current Alembic head: `20261022_0047` (audited financial workflows). For existing slice volumes, apply migrations without restoring data:
 
 ```powershell
 docker compose --env-file backend/customer-slice/.local.env -f backend/customer-slice/compose.yaml run --rm setup python /slice/migrate_slice.py test
@@ -87,3 +87,24 @@ python backend/customer-slice/verify_stock_preservation.py
 ```
 
 Mutating suites use only the disposable test database. Visual comparison uses preserved development records and the read-only approved build on port 18445. Existing records, volumes, browser source keys and backup dumps are retained. No commit or deployment is part of this batch.
+
+
+## Invoices / payments / financial verification
+
+Existing invoice and payment controls use `/api/v1/financial` with the same session/CSRF protection. The approved workflow posts one full invoice total and closes the job atomically with receipt, gate pass and frozen original-renderer documents. Imported financial records stay read-only; do not recalculate their 51 historical discrepancies. Existing source database volumes and previous browser cache keys remain preserved.
+
+```powershell
+docker compose --env-file backend/customer-slice/.local.env -f backend/customer-slice/compose.yaml exec -T api-test python /slice/test_financial_workflows.py
+docker compose --env-file backend/customer-slice/.local.env -f backend/customer-slice/compose.yaml exec -T api-test python /slice/test_financial_materials.py
+docker compose --env-file backend/customer-slice/.local.env -f backend/customer-slice/compose.yaml exec -T api-test python /slice/test_financial_database.py
+node backend/customer-slice/test_financial_browser.mjs
+node backend/customer-slice/test_financial_edges_browser.mjs
+node backend/customer-slice/test_financial_storage.mjs
+node backend/customer-slice/test_financial_visual.mjs
+python backend/customer-slice/compare_financial_visual.py
+python backend/customer-slice/verify_financial_preservation.py
+```
+
+Financial tests add disposable native records; they never reset a database. If the existing approval regression has exhausted eligible requests, `financial_test_support.py` creates two new test-only eligible jobs/material requests through authenticated APIs. Database guard tests require native invoices from the financial suites. Visual tests read preserved dev data and the approved baseline on port 18445; three tiny Accounts rasterization differences remain a strict-comparison failure, not a replacement baseline.
+
+Rollback: retain `artifacts/pre-finance-20261022-122301/{dev,test}.dump`, restore into a separate database, and reconcile subsequent audited writes. Never downgrade destructively, replace a populated volume, or run mutation suites against development. See report 45 and its evidence summary for complete scope and limitations.

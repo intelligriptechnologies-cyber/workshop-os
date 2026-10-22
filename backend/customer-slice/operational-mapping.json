@@ -689,5 +689,21 @@
     "actors": [
       "created_by"
     ]
+  },
+  "invoice_events": {
+    "table": "legacy_invoice_events",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "invoice_id": "invoice_id",
+      "kind": "kind",
+      "by_user": "by_user",
+      "at": "at",
+      "note": "note",
+      "old_total": "old_total",
+      "new_total": "new_total",
+      "detail": "detail"
+    },
+    "actors": []
   }
 }

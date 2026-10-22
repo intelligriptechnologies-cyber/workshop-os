@@ -12,6 +12,7 @@ export const operationsApi={
  async command<T>(path:string,body:unknown,method='POST'):Promise<T>{
   const signature=JSON.stringify([path,body]);const key=keys.get(signature)??crypto.randomUUID();keys.set(signature,key);
   const result=await request<T>(path,{method,headers:{'Idempotency-Key':key},body:JSON.stringify(body)});keys.delete(signature);
+  if((result as {closed?:boolean}).closed) window.dispatchEvent(new CustomEvent('workshop-job-closed',{detail:(result as {job_id:number}).job_id}));
   if(path==='/reception/intake') window.dispatchEvent(new CustomEvent('workshop-job-created',{detail:(result as {id:number}).id}));
   window.dispatchEvent(new Event('workshop-customers-changed'));return result;
  },
@@ -34,6 +35,8 @@ export function attachOperationalVersions(state: {jobs:JobView[];archived_jobs:J
   for(const item of view.checklist_items)Object.assign(item,{version:projection.checklist_items?.find(r=>r.id===item.id)?.version});
   for(const item of view.photos ?? [])Object.assign(item,projection.photos?.find(r=>r.id===item.id));
   if(view.estimate)Object.assign(view.estimate,{version:projection.estimates?.find(r=>r.id===view.estimate!.id)?.version});
+  if(view.invoice)Object.assign(view.invoice,{version:projection.invoices?.find(r=>r.id===view.invoice!.id)?.version});
+  for(const payment of view.payment_history ?? view.payments)Object.assign(payment,{version:projection.payments?.find(r=>r.id===payment.id)?.version});
   if(view.material_approval)Object.assign(view.material_approval,{version:projection.material_approvals?.find(r=>r.id===view.material_approval!.id)?.version});
  }
 }

@@ -1,3 +1,6 @@
+import { customersApiEnabled } from "./customer-api";
+import { billingApi } from "./billing-api";
+import { runDocumentCommand } from "./estimate-documents-api";
 import type { Database } from "sql.js";
 import { Check, Eye, Plus } from "lucide-react";
 import { Fragment, useMemo, useState, type FormEvent, type KeyboardEvent } from "react";
@@ -223,13 +226,13 @@ function BillingDetail({ record, actor, mutate, readOnly = false }: { record: Bi
     {invoice && totals && <div className="invoice-totals" aria-label="Invoice summary"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(invoice.total)}</strong></span></div>}
     {invoice?.voided_at && <p className="permission-note">Invoice voided on {invoice.voided_at}: {invoice.void_reason}</p>}
     {payment?.voided_at && <p className="permission-note">Payment voided on {payment.voided_at}: {payment.void_reason}</p>}
-    {!readOnly && record.kind === "unpaid" && invoice && (canAct ? <RecordPaymentForm invoice={invoice} actor={actor} mutate={mutate} /> : <p className="permission-note">Only the Owner and Accounts can record payment.</p>)}
-    {!readOnly && payment && !payment.voided_at && actor.role === "admin" && <InlineVoid label="Void Payment" hint="Voiding reopens the Invoice and voids the Receipt." onVoid={(db, reason) => voidPaymentForActor(db, payment.id, actor.id, reason)} mutate={mutate} />}
-    {!readOnly && !payment && invoice && actor.role === "admin" && canVoidCurrentInvoice(actor, view) && <InlineVoid label="Void Invoice" hint="Voiding unlocks the material rows this invoice billed." onVoid={(db, reason) => voidInvoiceForActor(db, invoice.id, actor.id, reason)} mutate={mutate} />}
+    {!readOnly && record.kind === "unpaid" && invoice && (canAct ? <RecordPaymentForm view={view} actor={actor} mutate={mutate} /> : <p className="permission-note">Only the Owner and Accounts can record payment.</p>)}
+    {!readOnly && payment && !payment.voided_at && actor.role === "admin" && <InlineVoid label="Void Payment" hint="Voiding reopens the Invoice and voids the Receipt." onVoid={(db, reason) => customersApiEnabled ? billingApi.voidPayment(payment.id, reason) : voidPaymentForActor(db, payment.id, actor.id, reason)} mutate={mutate} />}
+    {!readOnly && !payment && invoice && actor.role === "admin" && canVoidCurrentInvoice(actor, view) && <InlineVoid label="Void Invoice" hint="Voiding unlocks the material rows this invoice billed." onVoid={(db, reason) => customersApiEnabled ? billingApi.voidInvoice(view, reason) : voidInvoiceForActor(db, invoice.id, actor.id, reason)} mutate={mutate} />}
   </div>;
 }
 
-function InlineVoid({ label, hint, onVoid, mutate }: { label: string; hint: string; onVoid: (db: Database, reason: string) => void; mutate: Mutate }) {
+function InlineVoid({ label, hint, onVoid, mutate }: { label: string; hint: string; onVoid: (db: Database, reason: string) => void | Promise<unknown>; mutate: Mutate }) {
   const [open, setOpen] = useState(false);
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
@@ -238,6 +241,7 @@ function InlineVoid({ label, hint, onVoid, mutate }: { label: string; hint: stri
     event.preventDefault();
     setError("");
     if (!reason.trim()) { setError("A reason is required."); return; }
+    if (customersApiEnabled) { void runDocumentCommand(() => Promise.resolve(onVoid(undefined as unknown as Database, reason)), setError); return; }
     mutate((db) => onVoid(db, reason), setError);
   };
   return <form className="billing-dialog-form" onSubmit={submit} aria-label={label}>
@@ -249,7 +253,8 @@ function InlineVoid({ label, hint, onVoid, mutate }: { label: string; hint: stri
 }
 
 /** Record Payment: mode + reference; the amount is always the invoice total. */
-function RecordPaymentForm({ invoice, actor, mutate }: { invoice: { id: number; total: number }; actor: User; mutate: Mutate }) {
+function RecordPaymentForm({ view, actor, mutate, onSaved }: { view: JobView; actor: User; mutate: Mutate; onSaved?: () => void }) {
+  const invoice=view.invoice!;
   const [mode, setMode] = useState<PaymentMode>("UPI");
   const [otherDetail, setOtherDetail] = useState("");
   const [reference, setReference] = useState("");
@@ -258,6 +263,7 @@ function RecordPaymentForm({ invoice, actor, mutate }: { invoice: { id: number; 
   const record = (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (customersApiEnabled) { void runDocumentCommand(() => billingApi.pay(view, { mode, otherDetail, reference, notes }), setError, onSaved); return; }
     mutate((db) => { recordPaymentForActor(db, invoice.id, actor.id, { mode, otherDetail, reference, notes }); }, setError);
   };
   return <form className="billing-dialog-form" onSubmit={record} aria-label="Quick mark paid">
@@ -309,6 +315,7 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (customersApiEnabled) { void runDocumentCommand(() => action === "create" ? billingApi.create(selected, { tallyInvoiceNo: tally, discount, notes, items }) : billingApi.save(selected, { tallyInvoiceNo: tally, discount, notes, items, note: editNote }), setError, onClose); return; }
     const ok = mutate((db) => action === "create"
       ? createInvoiceForActor(db, selected.job.id, actor.id, { tallyInvoiceNo: tally, discount, notes, items })
       : saveInvoiceForActor(db, invoice!.id, actor.id, { tallyInvoiceNo: tally, discount, notes, items, note: editNote }), setError);
@@ -330,7 +337,7 @@ export function InvoiceDialog({ action, view, candidates = [], fixedJob = false,
 
 function PaymentDialog({ view, actor, mutate, onClose }: { view: JobView; actor: User; mutate: Mutate; onClose: () => void }) {
   const invoice = view.invoice!;
-  return <Dialog title="Quick Mark Paid" subtitle={`${view.job.job_no} · ${invoice.invoice_no}`} onClose={onClose} footer={null}><RecordPaymentForm invoice={invoice} actor={actor} mutate={(action, onError) => {
+  return <Dialog title="Quick Mark Paid" subtitle={`${view.job.job_no} · ${invoice.invoice_no}`} onClose={onClose} footer={null}><RecordPaymentForm view={view} actor={actor} onSaved={onClose} mutate={(action, onError) => {
     const ok = mutate(action, onError);
     if (ok) onClose();
     return ok;
@@ -358,17 +365,18 @@ export function JobInvoicePanel({ view, actor, mutate, onOpen, onEstimate }: { v
     <div className="table-wrap"><table aria-label="Invoice lines"><thead><tr><th>Type</th><th>Description</th><th>Qty</th><th>Rate</th><th>GST type</th><th>GST %</th><th>Amount</th></tr></thead><tbody>{view.invoice_items.map((item) => <tr key={item.id}><td>{item.kind}</td><td>{item.description}</td><td>{item.qty}</td><td>{money(item.rate)}</td><td>{item.gst_type ?? (item.gst_rate === 0 ? "No GST" : "CGST+SGST")}</td><td>{item.gst_rate ?? invoice.gst_rate}%</td><td>{money(item.qty * item.rate)}</td></tr>)}</tbody></table></div>
     {warning && <p className="permission-note" role="status">{warning}</p>}
     <div className="invoice-totals" aria-label="Invoice summary"><span>Subtotal <strong>{money(totals.subtotal)}</strong></span><span>Discount <strong>{money(totals.discount)}</strong></span><span>GST <strong>{money(totals.gst)}</strong></span><span>Total <strong>{money(invoice.total)}</strong></span></div>
-    {voiding && <VoidReasonDialog title="Void Invoice?" subtitle={`${view.job.job_no} · Unlocks the material rows it billed`} mutate={mutate} onClose={() => setVoiding(false)} action={(db, reason) => voidInvoiceForActor(db, invoice.id, actor.id, reason)} />}
+    {voiding && <VoidReasonDialog title="Void Invoice?" subtitle={`${view.job.job_no} · Unlocks the material rows it billed`} mutate={mutate} onClose={() => setVoiding(false)} action={(db, reason) => customersApiEnabled ? billingApi.voidInvoice(view, reason) : voidInvoiceForActor(db, invoice.id, actor.id, reason)} />}
   </section>;
 }
 
-function VoidReasonDialog({ title, subtitle, action, onClose, mutate }: { title: string; subtitle: string; action: (db: Database, reason: string) => void; onClose: () => void; mutate: Mutate }) {
+function VoidReasonDialog({ title, subtitle, action, onClose, mutate }: { title: string; subtitle: string; action: (db: Database, reason: string) => void | Promise<unknown>; onClose: () => void; mutate: Mutate }) {
   const [reason, setReason] = useState("");
   const [error, setError] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
     if (!reason.trim()) { setError("A reason is required."); return; }
+    if (customersApiEnabled) { void runDocumentCommand(() => Promise.resolve(action(undefined as unknown as Database, reason)), setError, onClose); return; }
     if (mutate((db) => action(db, reason), setError)) onClose();
   };
   return <Dialog title={title} subtitle={subtitle} onClose={onClose} footer={<button className="danger-action" type="submit" form="void-reason-dialog-form">Void</button>}><form id="void-reason-dialog-form" className="billing-dialog-form" onSubmit={submit}>
@@ -390,9 +398,9 @@ export function JobPaymentPanel({ view, actor, mutate }: { view: JobView; actor:
   return <section className="editor-block job-card-payment" aria-label="Job payment">
     <div className="panel-actions"><div><h3>{invoice.invoice_no}</h3><p>{invoice.status} · Total {money(invoice.total)}</p></div>{payment && actor.role === "admin" && <button type="button" className="danger-action" onClick={() => setVoiding(true)}>Void Payment</button>}</div>
     {payment ? <div className="table-wrap"><table aria-label="Payment"><thead><tr><th>Receipt</th><th>Mode</th><th>Reference</th><th>Amount</th></tr></thead><tbody><tr><td>{receipt?.receipt_no ?? "-"}</td><td>{payment.mode === "Other" ? `Other (${payment.other_detail})` : payment.mode}</td><td>{payment.reference || "-"}</td><td>{money(payment.amount)}</td></tr></tbody></table></div>
-      : canAct ? <RecordPaymentForm invoice={invoice} actor={actor} mutate={mutate} />
+      : canAct ? <RecordPaymentForm view={view} actor={actor} mutate={mutate} />
         : <p className="permission-note">{terminal ? `This job is ${view.job.main_status} and read-only.` : "Only the Owner and Accounts can record payment."}</p>}
     {voided.length > 0 && <div className="table-wrap"><table aria-label="Voided payments"><thead><tr><th>Mode</th><th>Reference</th><th>Amount</th><th>Void reason</th></tr></thead><tbody>{voided.map((item) => <tr key={item.id}><td>{item.mode}</td><td>{item.reference || "-"}</td><td>{money(item.amount)}</td><td>{item.void_reason}</td></tr>)}</tbody></table></div>}
-    {voiding && payment && <VoidReasonDialog title="Void Payment?" subtitle={`${view.job.job_no} · Reopens the Invoice and voids the Receipt`} mutate={mutate} onClose={() => setVoiding(false)} action={(db, reason) => voidPaymentForActor(db, payment.id, actor.id, reason)} />}
+    {voiding && payment && <VoidReasonDialog title="Void Payment?" subtitle={`${view.job.job_no} · Reopens the Invoice and voids the Receipt`} mutate={mutate} onClose={() => setVoiding(false)} action={(db, reason) => customersApiEnabled ? billingApi.voidPayment(payment.id, reason) : voidPaymentForActor(db, payment.id, actor.id, reason)} />}
   </section>;
 }

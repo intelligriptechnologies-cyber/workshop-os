@@ -225,3 +225,6 @@ app.include_router(estimate_documents_router)
 
 from purchase_stock import router as purchase_stock_router
 app.include_router(purchase_stock_router)
+
+from financial_workflows import router as financial_router
+app.include_router(financial_router)
