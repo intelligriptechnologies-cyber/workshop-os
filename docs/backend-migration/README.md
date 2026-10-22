@@ -145,3 +145,9 @@ Readiness is **conditional**, not full signoff. Review the gap register before a
 Additional evidence: [field register](evidence-field-register.md), [all SQLite copies](evidence-all-databases.md), [record differences](evidence-database-differences.md), [relationship/index checks](evidence-data-integrity.md).
 
 Final checks: [documentation validation](evidence-final-verification.md) and [baseline hashes](evidence-baseline-hashes.md). All primary-document and screenshot links resolve; control IDs are unique; the shipped SQLite hash is unchanged.
+
+## Current implemented slices (2026-10-22)
+
+The initial audit above is historical. See [41 ? Customers/authentication](41-FIRST-POSTGRESQL-CUSTOMERS-SLICE.md), [42 ? Vehicles, Reception and Jobs](42-VEHICLES-RECEPTION-JOBS-SLICE.md), and [43 ? Estimates, Approvals and Job Documents](43-ESTIMATES-APPROVALS-JOB-DOCUMENTS-SLICE.md) for implemented local slices and their limitations. No production/staging deployment or original persistence retirement has occurred.
+
+Latest implementation: [44 - Purchases, Inventory and Stock](44-PURCHASES-INVENTORY-STOCK-SLICE.md). Existing screens use the PostgreSQL slice; report 44 records concurrency, stock reconciliation, visual results and the retained historical-native-ledger/dormant-screen limits. No deployment or persistence retirement occurred.

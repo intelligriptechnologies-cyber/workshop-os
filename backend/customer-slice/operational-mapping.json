@@ -170,5 +170,524 @@
       "advisor_id",
       "received_by"
     ]
+  },
+  "estimate_items": {
+    "table": "estimate_lines",
+    "columns": {
+      "id": "id",
+      "estimate_id": "estimate_id",
+      "kind": "kind",
+      "description": "description",
+      "qty": "quantity",
+      "rate": "rate",
+      "gst_type": "gst_type",
+      "gst_rate": "gst_rate",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "task_list_item_id": "task_list_item_id"
+    },
+    "actors": []
+  },
+  "estimates": {
+    "table": "estimates",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "status": "status",
+      "discount": "discount",
+      "gst_rate": "gst_rate",
+      "approval_note": "approval_note",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "gate_passes": {
+    "table": "legacy_gate_passes",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "invoice_id": "invoice_id",
+      "gate_pass_no": "gate_pass_no",
+      "voided_at": "voided_at",
+      "void_reason": "void_reason",
+      "created_at": "created_at"
+    },
+    "actors": []
+  },
+  "invoice_items": {
+    "table": "invoice_lines",
+    "columns": {
+      "id": "id",
+      "invoice_id": "invoice_id",
+      "kind": "kind",
+      "description": "description",
+      "qty": "quantity",
+      "rate": "rate",
+      "gst_type": "gst_type",
+      "gst_rate": "gst_rate",
+      "material_row_id": "material_row_id",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "invoices": {
+    "table": "invoices",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "invoice_no": "invoice_no",
+      "tally_invoice_no": "tally_invoice_no",
+      "discount": "discount",
+      "gst_rate": "gst_rate",
+      "subtotal": "subtotal",
+      "gst_amount": "gst_amount",
+      "total": "total",
+      "status": "status",
+      "notes": "notes",
+      "document_available": "document_available",
+      "document_generated_at": "document_generated_at",
+      "voided_at": "voided_at",
+      "void_reason": "void_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "job_task_list_items": {
+    "table": "job_service_tasks",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "service_catalog_item_id": "catalogue_item_id",
+      "name": "name",
+      "base_rate": "base_rate",
+      "done": "done",
+      "archived_at": "archived_at",
+      "archived_reason": "archive_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "gst_rate": "gst_rate"
+    },
+    "actors": []
+  },
+  "material_approval_events": {
+    "table": "material_approval_events",
+    "columns": {
+      "id": "id",
+      "approval_id": "approval_id",
+      "job_card_id": "job_card_id",
+      "action": "action",
+      "actor_id": "actor_id",
+      "at": "at",
+      "note": "note",
+      "revision": "revision"
+    },
+    "actors": []
+  },
+  "material_approvals": {
+    "table": "material_approvals",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "status": "status",
+      "submitted_by": "submitted_by",
+      "submitted_at": "submitted_at",
+      "reviewed_by": "reviewed_by",
+      "reviewed_at": "reviewed_at",
+      "rejection_reason": "rejection_reason",
+      "revision": "revision"
+    },
+    "actors": []
+  },
+  "material_requests": {
+    "table": "material_requests",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "item_id": "item_id",
+      "requested_qty": "requested_qty",
+      "issued_qty": "issued_qty",
+      "used_qty": "used_qty",
+      "returned_qty": "returned_qty",
+      "wasted_qty": "wasted_qty",
+      "status": "status",
+      "invoiced_in": "invoiced_in",
+      "note": "note",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "payments": {
+    "table": "payments",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "invoice_id": "invoice_id",
+      "amount": "amount",
+      "mode": "mode",
+      "other_detail": "other_detail",
+      "reference": "reference",
+      "notes": "notes",
+      "voided_at": "voided_at",
+      "void_reason": "void_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "receipts": {
+    "table": "legacy_receipts",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "invoice_id": "invoice_id",
+      "receipt_no": "receipt_no",
+      "voided_at": "voided_at",
+      "void_reason": "void_reason",
+      "created_at": "created_at"
+    },
+    "actors": []
+  },
+  "inventory": {
+    "table": "catalogue_items",
+    "columns": {
+      "id": "id",
+      "sku": "sku",
+      "category": "category",
+      "name": "name",
+      "unit": "unit",
+      "stock_qty": "stock_qty",
+      "low_stock_qty": "low_stock_qty",
+      "selling_price": "selling_price",
+      "archived_at": "archived_at",
+      "archived_reason": "archive_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "inward_purchase_attachments": {
+    "table": "inward_purchase_attachments",
+    "columns": {
+      "id": "id",
+      "purchase_id": "purchase_id",
+      "original_name": "original_name",
+      "mime_type": "mime_type",
+      "byte_size": "byte_size",
+      "storage_key": "storage_key",
+      "document_url": "document_url",
+      "uploaded_by": "uploaded_by",
+      "uploaded_at": "uploaded_at"
+    },
+    "actors": []
+  },
+  "inward_purchase_events": {
+    "table": "inward_purchase_events",
+    "columns": {
+      "id": "id",
+      "purchase_id": "purchase_id",
+      "kind": "kind",
+      "actor_id": "actor_id",
+      "at": "at",
+      "note": "note"
+    },
+    "actors": []
+  },
+  "inward_purchase_lines": {
+    "table": "inward_purchase_lines",
+    "columns": {
+      "id": "id",
+      "purchase_id": "purchase_id",
+      "item_id": "item_id",
+      "received_qty": "received_qty",
+      "unit_cost": "unit_cost",
+      "discount": "discount",
+      "gst_rate": "gst_rate",
+      "subtotal": "subtotal",
+      "gst_amount": "gst_amount",
+      "total": "total",
+      "purchase_order_line_id": "purchase_order_line_id"
+    },
+    "actors": []
+  },
+  "inward_purchase_revision_lines": {
+    "table": "inward_purchase_revision_lines",
+    "columns": {
+      "id": "id",
+      "revision_id": "revision_id",
+      "item_id": "item_id",
+      "received_qty": "received_qty",
+      "unit_cost": "unit_cost",
+      "discount": "discount",
+      "gst_rate": "gst_rate",
+      "subtotal": "subtotal",
+      "gst_amount": "gst_amount",
+      "total": "total"
+    },
+    "actors": []
+  },
+  "inward_purchase_revisions": {
+    "table": "inward_purchase_revisions",
+    "columns": {
+      "id": "id",
+      "purchase_id": "purchase_id",
+      "revision_no": "revision_no",
+      "reason": "reason",
+      "revised_by": "revised_by",
+      "revised_at": "revised_at"
+    },
+    "actors": []
+  },
+  "inward_purchases": {
+    "table": "inward_purchases",
+    "columns": {
+      "id": "id",
+      "supplier_id": "supplier_id",
+      "supplier_invoice_no": "supplier_invoice_no",
+      "invoice_date": "invoice_date",
+      "po_number": "po_number",
+      "status": "status",
+      "subtotal": "subtotal",
+      "discount_total": "discount_total",
+      "gst_total": "gst_total",
+      "total": "total",
+      "created_by": "created_by",
+      "submitted_by": "submitted_by",
+      "submitted_at": "submitted_at",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "purchase_order_id": "purchase_order_id",
+      "approved_by": "approved_by",
+      "approved_at": "approved_at"
+    },
+    "actors": []
+  },
+  "local_purchases": {
+    "table": "local_purchases",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "item_description": "item_description",
+      "quantity": "quantity",
+      "unit": "unit",
+      "unit_cost": "unit_cost",
+      "vendor": "vendor",
+      "bill_reference": "bill_reference",
+      "note": "note",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "material_events": {
+    "table": "material_events",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "material_row_id": "material_row_id",
+      "kind": "kind",
+      "by_user": "by_user",
+      "at": "at",
+      "note": "note",
+      "old_item_id": "old_item_id",
+      "old_qty": "old_qty",
+      "new_item_id": "new_item_id",
+      "new_qty": "new_qty"
+    },
+    "actors": []
+  },
+  "material_movements": {
+    "table": "legacy_material_movements",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "item_id": "item_id",
+      "direction": "direction",
+      "qty": "qty",
+      "note": "note",
+      "created_at": "created_at"
+    },
+    "actors": []
+  },
+  "material_purchase_requests": {
+    "table": "material_purchase_requests",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "item_name": "item_name",
+      "quantity": "quantity",
+      "unit": "unit",
+      "status": "status",
+      "mapped_inventory_item_id": "mapped_inventory_item_id",
+      "material_request_id": "material_request_id",
+      "local_purchase_id": "local_purchase_id",
+      "completed_by": "completed_by",
+      "completed_at": "completed_at",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "purchase_order_confirmations": {
+    "table": "purchase_order_delivery_confirmations",
+    "columns": {
+      "id": "id",
+      "purchase_order_id": "purchase_order_id",
+      "purchase_order_line_id": "purchase_order_line_id",
+      "accepted_qty": "accepted_qty",
+      "returned_qty": "returned_qty",
+      "damaged_qty": "damaged_qty",
+      "wasted_qty": "wasted_qty",
+      "confirmed_by": "confirmed_by",
+      "confirmed_at": "confirmed_at"
+    },
+    "actors": [
+      "confirmed_by"
+    ]
+  },
+  "purchase_order_lines": {
+    "table": "purchase_order_lines",
+    "columns": {
+      "id": "id",
+      "purchase_order_id": "purchase_order_id",
+      "item_id": "item_id",
+      "ordered_qty": "ordered_qty",
+      "unit_cost": "unit_cost",
+      "discount": "discount",
+      "gst_rate": "gst_rate",
+      "subtotal": "subtotal",
+      "gst_amount": "gst_amount",
+      "total": "total",
+      "item_name": "item_name",
+      "unit": "unit",
+      "source_purchase_order_line_id": "source_purchase_order_line_id"
+    },
+    "actors": []
+  },
+  "purchase_order_quotations": {
+    "table": "purchase_order_quotations",
+    "columns": {
+      "id": "id",
+      "purchase_order_id": "purchase_order_id",
+      "purchase_order_line_id": "purchase_order_line_id",
+      "supplier_name": "supplier_name",
+      "quote_date": "quote_date",
+      "quoted_qty": "quoted_qty",
+      "unit_cost": "unit_cost",
+      "notes": "notes",
+      "created_by": "created_by",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": []
+  },
+  "purchase_order_receipt_lines": {
+    "table": "purchase_order_delivery_receipt_lines",
+    "columns": {
+      "id": "id",
+      "purchase_order_receipt_id": "receipt_id",
+      "purchase_order_line_id": "purchase_order_line_id",
+      "delivered_qty": "delivered_qty"
+    },
+    "actors": []
+  },
+  "purchase_order_receipts": {
+    "table": "purchase_order_delivery_receipts",
+    "columns": {
+      "id": "id",
+      "purchase_order_id": "purchase_order_id",
+      "received_by": "received_by",
+      "received_at": "received_at",
+      "note": "note"
+    },
+    "actors": [
+      "received_by"
+    ]
+  },
+  "purchase_orders": {
+    "table": "purchase_orders",
+    "columns": {
+      "id": "id",
+      "supplier_id": "supplier_id",
+      "po_number": "po_number",
+      "order_date": "order_date",
+      "notes": "notes",
+      "status": "ui_status",
+      "subtotal": "subtotal",
+      "discount_total": "discount_total",
+      "gst_total": "gst_total",
+      "total": "total",
+      "created_by": "created_by",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "source_purchase_order_id": "source_purchase_order_id"
+    },
+    "actors": [
+      "created_by"
+    ]
+  },
+  "stock_inwards": {
+    "table": "stock_inwards",
+    "columns": {
+      "id": "id",
+      "item_id": "item_id",
+      "qty": "qty",
+      "note": "note",
+      "purchase_order_id": "purchase_order_id",
+      "purchase_order_line_id": "purchase_order_line_id",
+      "ledger_id": "ledger_id",
+      "received_by": "received_by",
+      "received_at": "received_at"
+    },
+    "actors": [
+      "received_by"
+    ]
+  },
+  "stock_ledger": {
+    "table": "stock_ledger",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "material_row_id": "material_row_id",
+      "item_id": "item_id",
+      "qty": "qty",
+      "type": "type",
+      "by_user": "by_user",
+      "at": "at",
+      "note": "note",
+      "inward_purchase_line_id": "inward_purchase_line_id"
+    },
+    "actors": []
+  },
+  "suppliers": {
+    "table": "suppliers",
+    "columns": {
+      "id": "id",
+      "name": "name",
+      "contact_name": "contact_name",
+      "phone": "phone",
+      "email": "email",
+      "gstin": "gstin",
+      "status": "status",
+      "created_by": "created_by",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": [
+      "created_by"
+    ]
   }
 }

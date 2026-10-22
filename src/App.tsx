@@ -1,3 +1,5 @@
+import { runStock } from './stock-api';
+import { estimateDocumentsApi, runDocumentCommand } from './estimate-documents-api';
 import { operationsApi, attachOperationalVersions } from "./operations-api";
 import { customerApi, customersApiEnabled, CustomerApiError, demoPassword, type CustomerLinks } from "./customer-api";
 import { replaceCustomerProjection } from "./db";
@@ -773,6 +775,7 @@ function App() {
         }
         setState({ ...next, vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !v.archived_at), archived_vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !!v.archived_at), customers: rows.filter(r => !r.archived_at), archived_customers: rows.filter(r => !!r.archived_at) });
         if (location.pathname === "/login") history.replaceState(null, "", "/");
+        window.dispatchEvent(new Event('workshop-projection-refreshed'));
       } catch (error) { if (apiErrorMessage(error) !== "AUTHENTICATION_REQUIRED") window.alert(apiErrorMessage(error)); }
     };
     window.addEventListener("workshop-job-created", jobCreated);
@@ -5414,6 +5417,7 @@ function PurchaseOrdersWorkspace({
           : { sku: line.sku, category: line.category, name: line.name, unit: line.unit, low_stock_qty: line.low_stock_qty, selling_price: line.selling_price },
       })),
     };
+    if (customersApiEnabled) { void runStock("po-approve",selected,input,window.alert,()=>setDialog("view")); return; }
     if (mutate((db) => approvePurchaseRequestForActor(db, selected.id, actor.id, input))) setDialog("view");
   };
   const valid =
@@ -5440,6 +5444,7 @@ function PurchaseOrdersWorkspace({
           : { item_id: line.item_id ?? 0, ordered_qty: line.ordered_qty },
       ),
     };
+    if (customersApiEnabled) { void runStock("po-save",selected,input,window.alert,(id)=>{setSelectedId(id);setDialog("view");}); return; }
     let id = selectedId;
     if (
       mutate((db) => {
@@ -5799,7 +5804,7 @@ function PurchaseOrdersWorkspace({
                       type="button"
                       className="danger-action"
                       onClick={() =>
-                        mutate((db) =>
+                        customersApiEnabled ? void runStock("po-cancel",selected) : mutate((db) =>
                           cancelPurchaseRequestForActor(db, selected.id, actor.id),
                         )
                       }
@@ -5813,7 +5818,7 @@ function PurchaseOrdersWorkspace({
                   type="button"
                   className="primary-action"
                   onClick={() =>
-                    mutate((db) =>
+                    customersApiEnabled ? void runStock("po-issue",selected) : mutate((db) =>
                       issuePurchaseOrderForActor(db, selected.id, actor.id),
                     )
                   }
@@ -5836,7 +5841,7 @@ function PurchaseOrdersWorkspace({
                   type="button"
                   className="primary-action"
                   onClick={() =>
-                    mutate((db) =>
+                    customersApiEnabled ? void runStock("po-close",selected) : mutate((db) =>
                       closePurchaseOrderForActor(db, selected.id, actor.id),
                     )
                   }
@@ -5854,7 +5859,7 @@ function PurchaseOrdersWorkspace({
                   type="button"
                   className="danger-action"
                   onClick={() =>
-                    mutate((db) =>
+                    customersApiEnabled ? void runStock("po-legacy-cancel",selected) : mutate((db) =>
                       setPurchaseOrderStatusForActor(
                         db,
                         selected.id,
@@ -5873,7 +5878,7 @@ function PurchaseOrdersWorkspace({
                 <button
                   type="button"
                   onClick={() =>
-                    mutate((db) =>
+                    customersApiEnabled ? void runStock("po-legacy-close",selected) : mutate((db) =>
                       setPurchaseOrderStatusForActor(
                         db,
                         selected.id,
@@ -6012,6 +6017,7 @@ function PurchaseOrdersWorkspace({
           onClose={close}
           footer={<button type="button" className="primary-action" onClick={() => {
             const lines = receiptLines.filter((line) => line.delivered_qty > 0);
+            if (customersApiEnabled) { void runStock("po-receive",selected,{lines},window.alert,()=>setDialog("view")); return; }
             if (mutate((db) => recordPurchaseOrderReceiptForActor(db, selected.id, actor.id, { lines }))) setDialog("view");
           }}>Save delivery</button>}
         >
@@ -6035,6 +6041,7 @@ function PurchaseOrdersWorkspace({
           subtitle="Every delivered unit must be accepted, returned, damaged, or wasted before this PO can move to confirmation."
           onClose={close}
           footer={<button type="button" className="primary-action" onClick={() => {
+            if (customersApiEnabled) { void runStock("po-confirm",selected,{lines:confirmationLines},window.alert,()=>setDialog("view")); return; }
             if (mutate((db) => confirmPurchaseOrderForActor(db, selected.id, actor.id, { lines: confirmationLines }))) setDialog("view");
           }}>Confirm quantities</button>}
         >
@@ -6176,7 +6183,7 @@ function PreviousPriceReview({ state, order, lines, actor, mutate }: { state: Wo
           <header><strong>{line.item_id ? `${item?.sku ?? "SKU"} · ${item?.name ?? line.item_name}` : line.item_name}</strong><span>{line.item_id ? `Stock: ${item?.stock_qty ?? 0} ${item?.unit ?? line.unit}` : "N/A"}</span></header>
           {line.item_id ? history.length ? <div className="table-wrap"><table aria-label={`Previous purchases for ${item?.name ?? line.item_name}`}><thead><tr><th>Supplier</th><th>Date</th><th>Pre-GST price</th><th>Qty</th></tr></thead><tbody>{history.map(({ line: pastLine, order: pastOrder }) => <tr key={pastLine.id}><td>{state.suppliers.find((supplier) => supplier.id === pastOrder.supplier_id)?.name ?? "Supplier unavailable"}</td><td>{pastOrder.order_date}</td><td>{money(pastLine.unit_cost)}</td><td>{pastLine.ordered_qty}</td></tr>)}</tbody></table></div> : <p className="empty-state">No completed purchase history.</p> : <p className="empty-state">N/A — New Item Request; no purchase history.</p>}
           <div className="quotation-review"><div className="receipt-lines-heading"><strong>Supplier quotations <span className="muted">(optional)</span></strong><button type="button" onClick={() => quotationLineId === line.id ? setQuotationLineId(undefined) : beginQuotation(line)}>{quotationLineId === line.id ? "Cancel quotation" : "Add quotation"}</button></div>
-            {quotationLineId === line.id && <div className="quotation-form"><label>Supplier name<input aria-label={`Quotation supplier for ${line.id}`} value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label><label>Quote date<input aria-label={`Quotation date for ${line.id}`} type="date" value={quoteDate} onChange={(event) => setQuoteDate(event.target.value)} /></label><label>Qty<input aria-label={`Quotation quantity for ${line.id}`} type="number" min="0.01" value={quotedQty} onChange={(event) => setQuotedQty(Number(event.target.value))} /></label><label>Pre-GST unit price<input aria-label={`Quotation price for ${line.id}`} type="number" min="0" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label><label className="quotation-notes">Notes<input aria-label={`Quotation notes for ${line.id}`} value={notes} onChange={(event) => setNotes(event.target.value)} /></label><button type="button" className="primary-action" onClick={() => mutate((db) => { savePurchaseOrderQuotationForActor(db, order.id, actor.id, { purchase_order_line_id: line.id, supplier_name: supplierName, quote_date: quoteDate, quoted_qty: quotedQty, unit_cost: unitCost, notes }); setQuotationLineId(undefined); })}>Save quotation</button></div>}
+            {quotationLineId === line.id && <div className="quotation-form"><label>Supplier name<input aria-label={`Quotation supplier for ${line.id}`} value={supplierName} onChange={(event) => setSupplierName(event.target.value)} /></label><label>Quote date<input aria-label={`Quotation date for ${line.id}`} type="date" value={quoteDate} onChange={(event) => setQuoteDate(event.target.value)} /></label><label>Qty<input aria-label={`Quotation quantity for ${line.id}`} type="number" min="0.01" value={quotedQty} onChange={(event) => setQuotedQty(Number(event.target.value))} /></label><label>Pre-GST unit price<input aria-label={`Quotation price for ${line.id}`} type="number" min="0" value={unitCost} onChange={(event) => setUnitCost(Number(event.target.value))} /></label><label className="quotation-notes">Notes<input aria-label={`Quotation notes for ${line.id}`} value={notes} onChange={(event) => setNotes(event.target.value)} /></label><button type="button" className="primary-action" onClick={() => customersApiEnabled ? void runStock("po-quote",order,{purchase_order_line_id:line.id,supplier_name:supplierName,quote_date:quoteDate,quoted_qty:quotedQty,unit_cost:unitCost,notes},window.alert,()=>setQuotationLineId(undefined)) : mutate((db) => { savePurchaseOrderQuotationForActor(db, order.id, actor.id, { purchase_order_line_id: line.id, supplier_name: supplierName, quote_date: quoteDate, quoted_qty: quotedQty, unit_cost: unitCost, notes }); setQuotationLineId(undefined); })}>Save quotation</button></div>}
             {quotations.length ? <ul className="quotation-list">{quotations.map((quote) => <li key={quote.id}><strong>{quote.supplier_name}</strong> · {quote.quote_date} · {money(quote.unit_cost)} pre-GST × {quote.quoted_qty}{quote.notes ? ` · ${quote.notes}` : ""}</li>)}</ul> : <p className="muted">No quotations recorded. This is optional.</p>}
           </div>
         </article>;
@@ -7050,6 +7057,7 @@ function InwardPurchasesWorkspace({
     ]);
   };
   const saveDraft = () => {
+    if (customersApiEnabled) { void runStock("inward-save",record,draftInput(),setError,(id)=>{setRecordId(id);setAttachments([]);setDialog("edit");}); return; }
     let newId = recordId;
     if (
       mutate((db) => {
@@ -7068,6 +7076,7 @@ function InwardPurchasesWorkspace({
     }
   };
   const sendForApproval = () => {
+    if (customersApiEnabled && record) { void runStock("inward-send",record,{},setError,close); return; }
     if (!recordId) {
       setError("Save the purchase draft before sending it for PO approval.");
       return;
@@ -7081,6 +7090,7 @@ function InwardPurchasesWorkspace({
       close();
   };
   const receive = () => {
+    if (customersApiEnabled && record) { void runStock("inward-receive",record,draftInput(),setError,close); return; }
     if (
       recordId &&
       mutate(
@@ -7097,6 +7107,7 @@ function InwardPurchasesWorkspace({
       close();
   };
   const approve = () => {
+    if (customersApiEnabled && record) { void runStock("inward-approve",record,{},setError,close); return; }
     if (
       recordId &&
       mutate(
@@ -7107,6 +7118,7 @@ function InwardPurchasesWorkspace({
       close();
   };
   const revise = () => {
+    if (customersApiEnabled && record) { void runStock("inward-revise",record,{reason:revisionReason,lines:lines.map(({key:_key,...line})=>line)},setError,close); return; }
     if (
       recordId &&
       mutate(
@@ -7891,6 +7903,7 @@ function SupplierMasterWorkspace({
   };
   const save = (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
+    if (customersApiEnabled) { void runStock("supplier-save",selected,draft,window.alert,closeDialog); return; }
     const saved = selected
       ? mutate((db) => updateSupplierForActor(db, selected.id, actor.id, draft))
       : mutate((db) => {
@@ -7960,6 +7973,7 @@ function SupplierMasterWorkspace({
                   type="button"
                   className="danger-action"
                   onClick={() => {
+                    if (customersApiEnabled) { void runStock("supplier-archive",selected,{},window.alert,closeDialog); return; }
                     if (
                       mutate((db) =>
                         archiveSupplierForActor(db, selected.id, actor.id),
@@ -9276,6 +9290,7 @@ function MaterialApprovalQueue({
   const decide = (decision: "Approved" | "Rejected") => {
     if (!reviewing) return;
     setError("");
+    if (customersApiEnabled) { void runDocumentCommand(()=>estimateDocumentsApi.material(reviewing,decision,reason),setError,()=>{setReviewing(undefined);setReason("");}); return; }
     if (
       mutate(
         (db) =>
@@ -12524,7 +12539,7 @@ function JobLifecyclePanel({
             <button
               type="button"
               className="primary-action"
-              onClick={() =>
+              onClick={() => customersApiEnabled ? void runDocumentCommand(()=>estimateDocumentsApi.material(view,"resubmit"),setError) :
                 mutate(
                   (db) =>
                     resubmitMaterialApprovalForActor(db, view.job.id, actor.id),
@@ -12741,11 +12756,13 @@ function ApproveEstimateDialog({
   mutate: Mutate;
   onClose: () => void;
 }) {
+  const apiView = useRef(view).current;
   const [note, setNote] = useState("Customer approved");
   const [error, setError] = useState("");
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (customersApiEnabled) { void runDocumentCommand(()=>estimateDocumentsApi.approve(apiView,note),setError,onClose); return; }
     if (
       mutate(
         (db) => approveEstimateForActor(db, view.job.id, actor.id, note),
@@ -12896,6 +12913,7 @@ function EstimateDialog({
   mutate: Mutate;
   onClose: () => void;
 }) {
+  const apiView = useRef(view).current;
   const [items, setItems] = useState<EstimateDraftRow[]>(
     view.estimate_items.map((item) => ({
       key: `saved-${item.id}`,
@@ -12918,6 +12936,7 @@ function EstimateDialog({
   const save = (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (customersApiEnabled) { void runDocumentCommand(()=>estimateDocumentsApi.save(apiView,{discount,gst_rate:view.estimate?.gst_rate ?? 18,notes,items}),setError,onClose); return; }
     if (
       mutate(
         (db) =>
@@ -13251,7 +13270,7 @@ function JobMediaPanel({
         : "After Photos can be added or changed only while the job is IN_PROGRESS or COMPLETED.";
   const rows = view.photos.filter(
     (photo) =>
-      photo.src &&
+      (photo.src || (customersApiEnabled && (photo as Photo & {availability?:string}).availability === "UNAVAILABLE")) &&
       (galleryFilter === "All Photos" || photo.category === galleryFilter),
   );
   const galleryFilterId =
@@ -13286,6 +13305,13 @@ function JobMediaPanel({
       setError("Choose an image to upload.");
       return;
     }
+    if (customersApiEnabled) {
+      void runDocumentCommand(()=>estimateDocumentsApi.upload(view,{label,category:uploadPhase,...prepared}),setError,()=>{
+        setLabel("");setPrepared(undefined);
+        const input=document.getElementById(`job-media-file-${view.job.id}`) as HTMLInputElement|null;
+        if(input)input.value="";
+      }); return;
+    }
     if (
       mutate(
         (db) =>
@@ -13314,7 +13340,7 @@ function JobMediaPanel({
         <PanelTitle
           icon={<Camera />}
           title="Photos / Media"
-          subtitle="Compressed images stay in this browser session"
+          subtitle={customersApiEnabled ? "Images are stored securely with this job" : "Compressed images stay in this browser session"}
         />
       )}
       <div
@@ -13392,8 +13418,8 @@ function JobMediaPanel({
                 </label>
               </div>
               <p className="field-help" id={`job-media-help-${view.job.id}`}>
-                JPEG, PNG, or WebP; maximum input 10 MB. Images are compressed
-                below 1 MB and are not stored outside this session.
+                JPEG, PNG, or WebP; maximum input 10 MB. Images are compressed{" "}
+                {customersApiEnabled ? "below 1 MB and stored securely with this job." : "below 1 MB and are not stored outside this session."}
               </p>
               {prepared && (
                 <p className="media-ready" aria-live="polite">
@@ -13422,7 +13448,7 @@ function JobMediaPanel({
           <div className="job-media-gallery" data-testid="job-media-gallery">
             {rows.map((photo) => (
               <article className="job-media-card" key={photo.id}>
-                <img src={photo.src} alt={photo.label} />
+                {photo.src ? <img src={photo.src} alt={photo.label} /> : <p className="permission-note">Original media unavailable</p>}
                 <div>
                   <strong>{photo.label}</strong>
                   <span>
@@ -13493,6 +13519,7 @@ function JobMediaPanel({
               onSubmit={(event) => {
                 event.preventDefault();
                 setError("");
+                if (customersApiEnabled) { void runDocumentCommand(()=>estimateDocumentsApi.archiveMedia(archiveTarget,archiveReason),setError,()=>setArchiveTarget(undefined)); return; }
                 if (
                   mutate(
                     (db) =>
@@ -13541,6 +13568,7 @@ function MediaMetadataDialog({
   mutate: Mutate;
   onClose: () => void;
 }) {
+  const apiPhoto = useRef(photo).current;
   const [label, setLabel] = useState(photo.label);
   const [category, setCategory] = useState<JobMediaCategory>(
     photo.category === "After Work" ? "After Work" : "Before Work",
@@ -13565,6 +13593,7 @@ function MediaMetadataDialog({
         id="media-metadata-form"
         onSubmit={(event) => {
           event.preventDefault();
+          if (customersApiEnabled) { void runDocumentCommand(()=>estimateDocumentsApi.editMedia(apiPhoto,label,category),setError,onClose); return; }
           if (
             mutate(
               (db) =>
@@ -14024,6 +14053,7 @@ function ReleaseMaterialDialog({
   const available = item?.stock_qty ?? 0;
   const confirm = () => {
     setError("");
+    if (customersApiEnabled) { void runStock("material-release",row.request,{},setError,onClose); return; }
     if (
       mutate(
         (db) => releaseMaterialRowForActor(db, row.request.id, actor.id),
@@ -14092,6 +14122,7 @@ function MaterialApprovalSubmitDialog({
   const [error, setError] = useState("");
   const submit = () => {
     setError("");
+    if (customersApiEnabled) { void runDocumentCommand(()=>estimateDocumentsApi.material(row.view,"submit","",row.request.id),setError,onClose); return; }
     if (
       mutate(
         (db) => submitMaterialApprovalForActor(db, row.request.id, actor.id),
@@ -14185,6 +14216,7 @@ function ReconcileEditor({
       );
       return;
     }
+    if (customersApiEnabled) { void runStock("material-reconcile",request,{used:usedQty,returned:returnedQty,wasted:wastedQty},setError,onClose); return; }
     if (
       mutate(
         (db) =>
@@ -14358,6 +14390,7 @@ function QuickAddStock({
   const submit = (event: FormEvent) => {
     event.preventDefault();
     setError("");
+    if (customersApiEnabled) { void runStock(addingNew?"inventory-create":"stock-in",addingNew?undefined:inventory.find(i=>i.id===selectedId),addingNew?{...draft,stock_qty:0,inward_qty:inwardQty}:{qty:inwardQty,note:"Quick inward",purchase_order_line_id:purchaseOrderLineId||undefined},setError,()=>{setInwardQty(1);setAddingNew(false);setDraft(emptyInventoryItem());setPurchaseOrderId(0);setPurchaseOrderLineId(0);onSaved?.();}); return; }
     const saved = mutate(
       (db) =>
         addingNew
@@ -14627,6 +14660,7 @@ function EditStockDetailsDialog({
   const [confirmingArchive, setConfirmingArchive] = useState(false);
   const save = (event: FormEvent) => {
     event.preventDefault();
+    if (customersApiEnabled) { void runStock("inventory-save",item,draft,window.alert,onClose); return; }
     if (mutate((db) => updateInventoryItem(db, item.id, draft))) onClose();
   };
   const archive = () => {
@@ -14634,6 +14668,7 @@ function EditStockDetailsDialog({
       setConfirmingArchive(true);
       return;
     }
+    if (customersApiEnabled) { void runStock("inventory-archive",item,{reason:"Archived from stock details"},window.alert,onClose); return; }
     if (
       mutate((db) =>
         archiveInventoryItem(db, item.id, "Archived from stock details"),
@@ -14786,6 +14821,7 @@ function InventoryEditor({
       className={embedded ? "" : "desk-panel"}
       onSubmit={(event) => {
         event.preventDefault();
+        if (customersApiEnabled) { void runStock(draft.id?"inventory-save":"inventory-create",draft.id?draft:undefined,draft); return; }
         mutate((db) =>
           draft.id
             ? updateInventoryItem(db, draft.id, draft)
@@ -14901,7 +14937,7 @@ function InventoryEditor({
           <button
             type="button"
             onClick={() =>
-              mutate((db) =>
+              customersApiEnabled ? void runStock("stock-in",draft,{qty:movementQty,note:"Manual stock-in"}) : mutate((db) =>
                 stockIn(db, draft.id, movementQty, "Manual stock-in"),
               )
             }
@@ -14913,7 +14949,7 @@ function InventoryEditor({
           <button
             type="button"
             onClick={() =>
-              mutate((db) =>
+              customersApiEnabled ? void runStock("stock-adjust",draft,{qty:movementQty,note:"Manual adjustment"}) : mutate((db) =>
                 adjustStock(db, draft.id, movementQty, "Manual adjustment"),
               )
             }
@@ -14926,7 +14962,7 @@ function InventoryEditor({
             type="button"
             className="danger-action"
             onClick={() =>
-              mutate((db) =>
+              customersApiEnabled ? void runStock("inventory-archive",draft,{reason:"Archived inventory item"}) : mutate((db) =>
                 archiveInventoryItem(db, draft.id, "Archived inventory item"),
               )
             }
@@ -16467,7 +16503,7 @@ function JobTaskListPanel({
             type="button"
             className="primary-action"
             onClick={() =>
-              run((db) =>
+              customersApiEnabled ? void runDocumentCommand(()=>estimateDocumentsApi.prefill(view),setError) : run((db) =>
                 prefillEstimateFromTaskListForActor(db, view.job.id, actor.id),
               )
             }

@@ -1,0 +1,27 @@
+import {chromium} from 'playwright';import fs from 'node:fs/promises';
+const browser=await chromium.launch();const dir='backend/customer-slice/artifacts';const wasm=await fs.readFile('node_modules/sql.js/dist/sql-wasm.wasm');
+for(const [label,url] of [['baseline','http://127.0.0.1:18445'],['slice','https://localhost:18443']]){
+ const c=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:'block',viewport:{width:1440,height:900}});await c.route(url+'/__document_capture',r=>r.fulfill({contentType:'text/html',body:'<!doctype html><html></html>'}));await c.addInitScript(()=>{window.print=()=>{window.__printRequested=true}});const p=await c.newPage();
+ if(label==='baseline'){await c.route('**/api/v1/auth/config',r=>r.fulfill({json:{mode:'local',allowDemo:true}}));await c.route('**/sql-wasm.wasm',r=>r.fulfill({body:wasm,contentType:'application/wasm'}))}
+ await p.goto(url);await p.getByLabel('Emulate User:').selectOption('admin@example.com');await p.getByRole('button',{name:'Login',exact:true}).click();await p.locator('.role-nav').waitFor();
+ const shot=async name=>{await p.mouse.move(0,0);await p.waitForTimeout(700);await p.screenshot({animations:'disabled',path:dir+'/'+label+'-estimate-'+name+'.png'})};
+ await p.getByRole('button',{name:/^Approvals/}).click();await shot('approvals-empty');
+ await p.getByRole('button',{name:'Manage',exact:true}).click();await p.getByRole('tab',{name:'Job Cards',exact:true}).click();await p.getByLabel('Search job cards').fill('JC-2026-002001');await p.getByRole('button',{name:'Edit',exact:true}).click();await p.getByRole('dialog').getByRole('tab',{name:'Documents',exact:true}).click();await shot('documents');
+ await p.getByRole('group',{name:'Estimate actions',exact:true}).getByRole('button',{name:'Edit',exact:true}).click();await shot('editor');await p.keyboard.press('Escape');
+ await p.getByRole('group',{name:'Estimate actions',exact:true}).getByRole('button',{name:'Approve Estimate',exact:true}).click();await shot('approval-dialog');await p.keyboard.press('Escape');
+ // Capture print output without changing the historical record or templates.
+ for(const kind of ['Job Card','Estimate']){
+  const popup=p.waitForEvent('popup');await p.getByRole('group',{name:kind+' actions',exact:true}).getByRole('button',{name:'Print',exact:true}).click();const page=await popup;await page.waitForLoadState();await page.evaluate(async()=>{await document.fonts.ready;await Promise.race([Promise.all([...document.images].map(i=>i.decode().catch(()=>{}))),new Promise(r=>setTimeout(r,5000))])});console.log(label,kind,await page.evaluate(()=>[...document.images].map(i=>({src:i.src,width:i.naturalWidth,complete:i.complete}))));await page.waitForTimeout(700);await fs.writeFile(dir+'/'+label+'-'+kind.replaceAll(' ','-')+'.html',await page.content());const html=await page.content();await page.close();
+  const rendered=await c.newPage();await rendered.setViewportSize({width:900,height:720});await rendered.goto(url+'/__document_capture');await rendered.setContent(html);await rendered.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode()))});await rendered.screenshot({fullPage:true,path:dir+'/'+label+'-estimate-print-'+kind.replaceAll(' ','-')+'.png'});await rendered.close();
+ }
+ await p.getByRole('dialog').getByRole('tab',{name:'Photos / Media',exact:true}).click();await shot('media-authorized-difference');
+ await p.keyboard.press('Escape');await p.getByLabel('Search job cards').fill('JC-2026-002014');await p.getByRole('button',{name:'Edit',exact:true}).click();await p.getByRole('dialog').getByRole('tab',{name:'Documents',exact:true}).click();
+ for(const kind of ['Invoice','Payment Receipt','Gate Pass']){
+  const popup=p.waitForEvent('popup');await p.getByRole('group',{name:kind+' actions',exact:true}).getByRole('button',{name:'Print',exact:true}).click();const page=await popup;await page.waitForLoadState();const html=await page.content();await fs.writeFile(dir+'/'+label+'-'+kind.replaceAll(' ','-')+'.html',html);await page.close();const rendered=await c.newPage();await rendered.setViewportSize({width:900,height:720});await rendered.goto(url+'/__document_capture');await rendered.setContent(html);await rendered.evaluate(async()=>{await document.fonts.ready;await Promise.all([...document.images].map(i=>i.decode()))});await rendered.screenshot({fullPage:true,path:dir+'/'+label+'-estimate-print-'+kind.replaceAll(' ','-')+'.png'});await rendered.close();
+ }
+ await c.close();console.log(label+' estimate states captured');
+ const s=await browser.newContext({ignoreHTTPSErrors:true,serviceWorkers:'block',viewport:{width:1440,height:900}});const sp=await s.newPage();
+ if(label==='baseline'){await s.route('**/api/v1/auth/config',r=>r.fulfill({json:{mode:'local',allowDemo:true}}));await s.route('**/sql-wasm.wasm',r=>r.fulfill({body:wasm,contentType:'application/wasm'}))}
+ await sp.goto(url);await sp.getByLabel('Emulate User:').selectOption('service@example.com');await sp.getByRole('button',{name:'Login',exact:true}).click();await sp.locator('.role-nav').waitFor();await sp.getByRole('button',{name:'Estimate',exact:true}).click();if(await sp.getByRole('button',{name:'Clear',exact:true}).count())await sp.getByRole('button',{name:'Clear',exact:true}).click();await sp.waitForTimeout(700);await sp.mouse.move(0,0);await sp.screenshot({animations:'disabled',path:dir+'/'+label+'-estimate-list.png'});await s.close();
+}
+await browser.close();

@@ -102,9 +102,10 @@ TRANSITIONS={'NEW':['IN_PROGRESS','CANCELLED'],'IN_PROGRESS':['COMPLETED','HOLD'
 
 def project(c,source):
     spec=MAPPING[source]
+    media_ids=set(c.scalars(text('SELECT media_id FROM slice_media_content'))) if source=='photos' else set()
     actors={str(r['platform_user_id']):r['id'] for r in c.execute(text('SELECT id,platform_user_id FROM workshop_user_profiles')).mappings() if r['platform_user_id']}
     result=[]
-    for raw in c.execute(text('SELECT * FROM '+spec['table'])).mappings():
+    for raw in c.execute(text('SELECT * FROM '+spec['table']+(' WHERE archived_at IS NULL' if source in ('purchase_order_lines','inward_purchase_lines') else ''))).mappings():
         history=raw.get('historical_values') or {}; value={}
         for field,target in spec['columns'].items():
             v=raw.get(target)
@@ -119,13 +120,28 @@ def project(c,source):
             if isinstance(v,bool):v=int(v)
             value[field]=v
         if source=='job_cards' and raw.get('promised_text'):value['promised_at']=raw['promised_text']
+        if source=='estimates':value['status']={'DRAFT':'Draft','APPROVED':'Approved','DECLINED':'Rejected'}[raw['status']]
+        if source=='material_movements':value['job_card_id']=value.get('job_card_id') or 0
+        if source=='stock_ledger':
+            value['job_card_id']=value.get('job_card_id') or 0;value['material_row_id']=value.get('material_row_id') or 0
+        if source=='photos':
+            available=raw['id'] in media_ids
+            value['original_src']=value['src']
+            value['availability']='READY' if available else 'UNAVAILABLE' if raw.get('history_source_sha') or value['src'] else 'EMPTY'
+            # Never fetch an unverified historical URL or claim a fabricated file.
+            value['src']=f"/api/v1/media/{raw['id']}/content" if available else ''
+        if source in ('purchase_orders','purchase_order_lines'):
+            for field in ('supplier_id','item_id'):
+                if field in value and value[field] is None:value[field]=0
         value['version']=raw['version'];result.append(value)
+    if source in ('stock_ledger','stock_inwards'):
+        result += [dict(r['values'],version=1) for r in c.execute(text('SELECT values FROM slice_historical_stock WHERE source_table=:s'),{'s':source}).mappings()]
     return result
 
 @router.get('/operations/projection')
 def projection(request:Request):
     with business(request,snapshot=True) as (c,_):
-        return {'customers':[customer(r) for r in c.execute(text('SELECT * FROM customers ORDER BY id')).mappings()], 'vehicles':[vehicle(r) for r in c.execute(text('SELECT * FROM vehicles ORDER BY id')).mappings()], **{name:project(c,name) for name in MAPPING}}
+        return {'customers':[customer(r) for r in c.execute(text('SELECT * FROM customers ORDER BY id')).mappings()], 'vehicles':[vehicle(r) for r in c.execute(text('SELECT * FROM vehicles ORDER BY id')).mappings()], 'document_snapshots':[r['values'] for r in c.execute(text("SELECT values FROM document_snapshots WHERE availability='READY' AND values ? 'jobNo' ORDER BY id")).mappings()], **{name:project(c,name) for name in MAPPING}}
 
 @router.get('/jobs')
 def jobs(request:Request):
@@ -278,6 +294,7 @@ def job_command(job_id:int,value:JobChange,request:Request):
             j=dict(update_fields(c,'job_cards',job_id,fields))
         elif op=='status':
             target=d.get('target');note=d.get('note','').strip()
+            if target not in ('CANCELLED','HOLD') and c.scalar(text("SELECT EXISTS(SELECT 1 FROM material_approvals WHERE job_card_id=:j AND status IN ('Pending','Rejected'))"),{'j':job_id}):fail('Resolve the material approval before resuming this job.',409)
             if not note:fail('A confirmation note is required.',422)
             if target not in TRANSITIONS[j['status']]:fail('This status transition is not permitted.',409)
             if target=='COMPLETED' and not c.scalar(text('SELECT EXISTS(SELECT 1 FROM invoices WHERE job_card_id=:id AND voided_at IS NULL)'),{'id':job_id}):fail('Create an Invoice before completing the job.',409)

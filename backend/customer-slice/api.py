@@ -220,3 +220,8 @@ def archive(customer_id:int,value:ArchiveInput,request:Request): return change(r
 
 from operations import router as operations_router
 app.include_router(operations_router)
+from estimate_documents import router as estimate_documents_router
+app.include_router(estimate_documents_router)
+
+from purchase_stock import router as purchase_stock_router
+app.include_router(purchase_stock_router)

@@ -156,10 +156,12 @@ let SQL: SqlJsStatic | undefined;
 const externalCustomerDatabases = new WeakSet<Database>();
 const CUSTOMER_SLICE_STORAGE_KEY = 'workshopos.sqlite.customers-api.v1';
 const OPERATIONS_STORAGE_KEY = 'workshopos.sqlite.operations-api.v1';
+const STOCK_STORAGE_KEY = 'workshopos.sqlite.stock-api.v1';
+const ESTIMATES_STORAGE_KEY = 'workshopos.sqlite.estimates-api.v1';
 
 const projectionTables = new WeakMap<Database, string[]>();
 type OperationalProjection = Record<string, Array<Record<string, unknown>>>;
-const allowedProjectionTables = new Set(['vehicles','visits','job_cards','checklist_cycles','checklist_items','status_history','tasks','qc_checks','photos','advisor_attendance']);
+const allowedProjectionTables = new Set(["vehicles", "advisor_attendance", "checklist_cycles", "checklist_items", "job_cards", "photos", "qc_checks", "status_history", "tasks", "visits", "estimate_items", "estimates", "gate_passes", "invoice_items", "invoices", "job_task_list_items", "material_approval_events", "material_approvals", "material_requests", "payments", "receipts", "inventory", "inward_purchase_attachments", "inward_purchase_events", "inward_purchase_lines", "inward_purchase_revision_lines", "inward_purchase_revisions", "inward_purchases", "local_purchases", "material_events", "material_movements", "material_purchase_requests", "purchase_order_confirmations", "purchase_order_lines", "purchase_order_quotations", "purchase_order_receipt_lines", "purchase_order_receipts", "purchase_orders", "stock_inwards", "stock_ledger", "suppliers"]);
 
 export function replaceCustomerProjection(db: Database, customers: Customer[], projection?: OperationalProjection) {
   const tables = ['customers', ...Object.keys(projection ?? {}).filter(t => allowedProjectionTables.has(t))];
@@ -178,13 +180,18 @@ export function replaceCustomerProjection(db: Database, customers: Customer[], p
     db.run('release savepoint remote_projection');
   } catch(error) { db.run('rollback to savepoint remote_projection'); db.run('release savepoint remote_projection'); throw error; }
   projectionTables.set(db,tables);
+  installProjectionGuards(db);
+}
+
+function installProjectionGuards(db: Database) {
+  const tables = projectionTables.get(db) ?? ['customers'];
   const linkedTables = (db.exec("select name from sqlite_master where type='table' and name not like 'sqlite_%'")[0]?.values ?? []).map(r=>String(r[0])).filter(table => (db.exec(`pragma table_info(${table})`)[0]?.values ?? []).some(r => ['job_card_id','estimate_id','invoice_id','receipt_id','payment_id'].includes(String(r[1]))));
-  for(const table of new Set([...tables,...linkedTables])) for(const op of ['insert','update','delete']) db.run(`create temp trigger guard_${table}_${op} before ${op} on ${table} begin select raise(abort,'This operation requires the PostgreSQL API.'); end`);
+  for(const table of new Set([...tables,...linkedTables])) for(const op of ['insert','update','delete']) db.run(`create temp trigger if not exists guard_${table}_${op} before ${op} on ${table} begin select raise(abort,'This operation requires the PostgreSQL API.'); end`);
 }
 
 export async function openWorkshopDb(remoteCustomers?: Customer[], projection?: OperationalProjection) {
   SQL ??= await initSqlJs({ locateFile: () => wasmUrl });
-  const saved = remoteCustomers ? (projection ? localStorage.getItem(OPERATIONS_STORAGE_KEY) : null) ?? localStorage.getItem(CUSTOMER_SLICE_STORAGE_KEY) ??
+  const saved = remoteCustomers ? (projection ? localStorage.getItem(STOCK_STORAGE_KEY) ?? localStorage.getItem(ESTIMATES_STORAGE_KEY) ?? localStorage.getItem(OPERATIONS_STORAGE_KEY) : null) ?? localStorage.getItem(CUSTOMER_SLICE_STORAGE_KEY) ??
     localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('workshopos.sqlite.v1') :
     localStorage.getItem(STORAGE_KEY) ??
     localStorage.getItem("workshopos.sqlite.v1");
@@ -229,14 +236,19 @@ export function persist(db: Database) {
   binary.forEach((byte: number) => {
     encoded += String.fromCharCode(byte);
   });
-  localStorage.setItem(externalCustomerDatabases.has(db) ? (projectionTables.get(db)?.includes("job_cards") ? OPERATIONS_STORAGE_KEY : CUSTOMER_SLICE_STORAGE_KEY) : STORAGE_KEY, btoa(encoded));
+  localStorage.setItem(externalCustomerDatabases.has(db) ? (projectionTables.get(db)?.includes("inventory") ? STOCK_STORAGE_KEY : projectionTables.get(db)?.includes("estimates") ? ESTIMATES_STORAGE_KEY : projectionTables.get(db)?.includes("job_cards") ? OPERATIONS_STORAGE_KEY : CUSTOMER_SLICE_STORAGE_KEY) : STORAGE_KEY, btoa(encoded));
 }
 
 export function exportPersistableDatabase(
   db: Database,
   cloneDatabase: (bytes: Uint8Array) => Database,
 ) {
-  const clone = cloneDatabase(db.export());
+  // SQL.js export closes/reopens its connection, discarding TEMP triggers.
+  // Reinstall the write boundary on the live connection before returning it.
+  let binary: Uint8Array;
+  try { binary = db.export(); }
+  finally { if (externalCustomerDatabases.has(db)) installProjectionGuards(db); }
+  const clone = cloneDatabase(binary);
   try {
     if (externalCustomerDatabases.has(db)) for (const table of projectionTables.get(db) ?? ['customers']) clone.run(`delete from ${table}`);
     // Image payloads deliberately live only in the active SQL.js session database.
