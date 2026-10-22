@@ -1,0 +1,63 @@
+name: workshopos-stage4b
+x-db: &db
+  image: postgres:17-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+  healthcheck:
+    test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+    interval: 3s
+    timeout: 3s
+    retries: 20
+services:
+  schema-dev:
+    <<: *db
+    environment:
+      POSTGRES_DB: stage4b_dev
+      POSTGRES_USER: stage4b_dev_owner
+      POSTGRES_PASSWORD: ${DEV_PASSWORD:?run prepare.py}
+    volumes: [dev-data:/var/lib/postgresql/data]
+    networks: [dev]
+  schema-test:
+    <<: *db
+    environment:
+      POSTGRES_DB: stage4b_test
+      POSTGRES_USER: stage4b_test_owner
+      POSTGRES_PASSWORD: ${TEST_PASSWORD:?run prepare.py}
+    volumes: [test-data:/var/lib/postgresql/data]
+    networks: [test]
+  migrate-test:
+    image: workshopos-stage4a-api:50c8aab
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONPATH: /workspace:/schema
+      STAGE4B_SCOPE: test
+      WORKSHOPOS_ENVIRONMENT: stage4b
+      WORKSHOPOS_DATABASE_URL: postgresql+psycopg://stage4b_test_owner:${TEST_PASSWORD:?run prepare.py}@schema-test:5432/stage4b_test
+    volumes: ["./run.py:/schema/run.py:ro", "./versions:/schema/versions:ro", "./tests:/schema/tests:ro", "./schema-contract.json:/schema/schema-contract.json:ro", "./artifacts:/artifacts"]
+    networks: [test]
+    depends_on:
+      schema-test: {condition: service_healthy}
+    command: [python, /schema/run.py, validate]
+  migrate-dev:
+    image: workshopos-stage4a-api:50c8aab
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONPATH: /workspace:/schema
+      STAGE4B_SCOPE: dev
+      WORKSHOPOS_ENVIRONMENT: stage4b
+      WORKSHOPOS_DATABASE_URL: postgresql+psycopg://stage4b_dev_owner:${DEV_PASSWORD:?run prepare.py}@schema-dev:5432/stage4b_dev
+    volumes: ["./run.py:/schema/run.py:ro", "./versions:/schema/versions:ro", "./tests:/schema/tests:ro", "./schema-contract.json:/schema/schema-contract.json:ro", "./artifacts:/artifacts"]
+    networks: [dev]
+    depends_on:
+      schema-dev: {condition: service_healthy}
+    command: [python, /schema/run.py, upgrade]
+volumes:
+  dev-data:
+  test-data:
+networks:
+  dev: {internal: true}
+  test: {internal: true}

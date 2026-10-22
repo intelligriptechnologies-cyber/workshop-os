@@ -1,0 +1,812 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nManagement Hub\n\nAdmin master data and workflow controls\n\nLarge demo dataset\n120 customers, 132 vehicles, 144 jobs and 288 offline media records.\nLoad Large Demo Dataset\nUsers\nCustomers\nVehicles\nSuppliers\nJob Cards\nEstimates\nInvoices\nPayments\nDelivery\nSearch\nMonth-Year\nAll months\nOctober 2026\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nStatus\nAll\nPending\nPartial\nCleared\nClear\nDownload\nShowing 1 to 10 of 52\nPer page\n10\n20\n50\n1\n2\n3\n4\n5\n6\nCreated\tJob\tInvoice\tCustomer\tTotal\tStatus\tActions\n2 Oct 2026, 7:31 am\tJC-2026-002138\tINV-09038\tDemo Customer 006\t9440\tPending\t\nView\nDownload\nPrint\n\n27 Aug 2026, 8:30 pm\tJC-2026-002016\tINV-2026-00016\tDemo Customer 016\t7080\tCleared\t\nView\nDownload\nPrint\n\n26 Aug 2026, 6:30 pm\tJC-2026-002032\tINV-2026-00032\tDemo Customer 032\t10620\tCleared\t\nView\nDownload\nPrint\n\n25 Aug 2026, 4:30 pm\tJC-2026-002048\tINV-2026-00048\tDemo Customer 048\t3540\tCleared\t\nView\nDownload\nPrint\n\n24 Aug 2026, 2:30 pm\tJC-2026-002064\tINV-2026-00064\tDemo Customer 064\t7080\tCleared\t\nView\nDownload\nPrint\n\n23 Aug 2026, 9:30 pm\tJC-2026-002080\tINV-2026-00080\tDemo Customer 080\t10620\tCleared\t\nView\nDownload\nPrint\n\n22 Aug 2026, 7:30 pm\tJC-2026-002096\tINV-2026-00096\tDemo Customer 096\t3540\tCleared\t\nView\nDownload\nPrint\n\n21 Aug 2026, 5:30 pm\tJC-2026-002112\tINV-2026-00112\tDemo Customer 112\t7080\tCleared\t\nView\nDownload\nPrint\n\n20 Aug 2026, 3:30 pm\tJC-2026-002128\tINV-2026-00128\tDemo Customer 008\t10620\tCleared\t\nView\nDownload\nPrint\n\n19 Aug 2026, 1:30 pm\tJC-2026-002144\tINV-2026-00144\tDemo Customer 012\t3540\tCleared\t\nView\nDownload\nPrint\n1\n2\n3\n4\n5\n6\nView Invoice\n\nJC-2026-002138 · OD07DM1006\n\nTally invoice number\nFlat discount (₹)\nInvoice items\nKIND\nDESCRIPTION\nQUANTITY\nRATE\nGST TYPE\nGST RATE\nACTION\nService\nMaterial\nCGST+SGST\nIGST\nNo GST\nInvoice item 1 GST rate\nService\nMaterial\nCGST+SGST\nIGST\nNo GST\nInvoice item 2 GST rate\nSubtotal\n₹8,000\nDiscount\n₹0\nGST\n₹1,440\nTotal\n₹9,440\nNotes\nGo Back",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Dashboard",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Advance Bookings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Approvals (0)",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Data Flow",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Cards",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Purchase Orders",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Manage",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Admin Console",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Leads",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotations",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotation Settings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Load Large Demo Dataset",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Users",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Customers",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Vehicles",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Suppliers",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Cards",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Estimates",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Invoices",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Payments",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Delivery",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search invoices",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoices Month-Year filter",
+      "text": "All months\nOctober 2026\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All months",
+        "October 2026",
+        "August 2026",
+        "July 2026",
+        "June 2026",
+        "May 2026",
+        "April 2026",
+        "March 2026"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoices status filter",
+      "text": "All\nPending\nPartial\nCleared",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All",
+        "Pending",
+        "Partial",
+        "Cleared"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoices records per page",
+      "text": "10\n20\n50",
+      "value": "10",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "10",
+        "20",
+        "50"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 5",
+      "text": "5",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 6",
+      "text": "6",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 5",
+      "text": "5",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 6",
+      "text": "6",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Tally invoice number",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Invoice discount",
+      "text": "",
+      "value": "0",
+      "required": false,
+      "disabled": true,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoice item 1 type",
+      "text": "Service\nMaterial",
+      "value": "Service",
+      "required": false,
+      "disabled": true,
+      "options": [
+        "Service",
+        "Material"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Invoice item 1 description",
+      "text": "",
+      "value": "Paint correction",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Invoice item 1 quantity",
+      "text": "",
+      "value": "1",
+      "required": false,
+      "disabled": true,
+      "min": "0.01",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Invoice item 1 rate",
+      "text": "",
+      "value": "8000",
+      "required": false,
+      "disabled": true,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoice item 1 GST type",
+      "text": "CGST+SGST\nIGST\nNo GST",
+      "value": "CGST+SGST",
+      "required": false,
+      "disabled": true,
+      "options": [
+        "CGST+SGST",
+        "IGST",
+        "No GST"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Invoice item 1 GST rate",
+      "text": "",
+      "value": "18%",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoice item 2 type",
+      "text": "Service\nMaterial",
+      "value": "Material",
+      "required": false,
+      "disabled": true,
+      "options": [
+        "Service",
+        "Material"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Invoice item 2 description",
+      "text": "",
+      "value": "Gloss PPF roll",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Invoice item 2 quantity",
+      "text": "",
+      "value": "2",
+      "required": false,
+      "disabled": true,
+      "min": "0.01",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Invoice item 2 rate",
+      "text": "",
+      "value": "0",
+      "required": false,
+      "disabled": true,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Invoice item 2 GST type",
+      "text": "CGST+SGST\nIGST\nNo GST",
+      "value": "CGST+SGST",
+      "required": false,
+      "disabled": true,
+      "options": [
+        "CGST+SGST",
+        "IGST",
+        "No GST"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Invoice item 2 GST rate",
+      "text": "",
+      "value": "18%",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Notes",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

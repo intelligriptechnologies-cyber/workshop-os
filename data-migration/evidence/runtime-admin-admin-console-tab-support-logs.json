@@ -1,0 +1,487 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nAdmin Console\n\nOwner/Admin configuration for this demo session\n\nUsers\nTeam Structure\nService Task\nRoles & Page Access\nBusiness Settings\nApp Theme\nCompany Settings\nReport Templates\nInventory Import\nSupport & Logs\nSupport & Logs\nRefresh\nDaily Operational Logs\nFeature Activity\nRetention Settings\nSearch\nDate from\nDate to\nLevel\nAll levels\ninfo\nwarning\nerror\nArea\nAll areas\nAccounts\nInventory\nJobs\nClear\nDownload\nClear Logs\nShowing 1 to 3 of 3\nPer page\n10\n20\n50\n1\nTimestamp\tLevel\tArea\tFeature\tMessage\tUser\tReference\n21/10/2026, 3:06:24 am\tinfo\tJobs\tJob Card\tJob card JC-2026-002144 opened\tService Advisor\tJC-2026-002144\n21/10/2026, 2:53:24 am\twarning\tInventory\tStock\tGloss PPF roll reached its low-stock threshold\tStore\tPPF-ROLL\n21/10/2026, 2:40:24 am\tinfo\tAccounts\tPayment\tPayment recorded for a completed job\tAccounts\tUnavailable\n1",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Users",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Team Structure",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Service Task",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Roles & Page Access",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Business Settings",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "App Theme",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Company Settings",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Report Templates",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Inventory Import",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Support & Logs",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Refresh",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Daily Operational Logs",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Feature Activity",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Retention Settings",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search logs",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Date from",
+      "title": "",
+      "type": "date",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Date to",
+      "title": "",
+      "type": "date",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All levels\ninfo\nwarning\nerror",
+      "label": "Level\nAll levels\ninfo\nwarning\nerror",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All levels",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "info",
+          "value": "info",
+          "selected": false
+        },
+        {
+          "text": "warning",
+          "value": "warning",
+          "selected": false
+        },
+        {
+          "text": "error",
+          "value": "error",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All areas\nAccounts\nInventory\nJobs",
+      "label": "Area\nAll areas\nAccounts\nInventory\nJobs",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All areas",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "Accounts",
+          "value": "Accounts",
+          "selected": false
+        },
+        {
+          "text": "Inventory",
+          "value": "Inventory",
+          "selected": false
+        },
+        {
+          "text": "Jobs",
+          "value": "Jobs",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear Logs",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Log records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

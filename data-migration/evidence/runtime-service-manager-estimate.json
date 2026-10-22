@@ -1,0 +1,257 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nService Department Manager\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nSearch\nLogout\n\nService Department Manager\n\nDepartment queue for routing and advisor handoffs.\ngeneral.service.manager@example.com\nEstimates\n\nJobs assigned to you\n\nSearch\nReceived date\nMonth-Year\nAll months\nClear\nDownload\nShowing 0 to 0 of 0\nPer page\n10\n20\n50\n1\nNo matching records\nClear filters\n1",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "My Queue",
+      "title": "My Queue",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Card",
+      "title": "Job Card",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Estimate",
+      "title": "Estimate",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Follow-ups",
+      "title": "Follow-ups",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search estimates",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Estimates received date",
+      "title": "",
+      "type": "date",
+      "value": "2026-10-21",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All months",
+      "label": "Estimates month-year",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All months",
+          "value": "",
+          "selected": true
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Estimates records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear filters",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

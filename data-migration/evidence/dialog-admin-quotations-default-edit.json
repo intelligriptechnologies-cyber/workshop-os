@@ -1,0 +1,391 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nQuotations\n\nLocal, frozen quotation documents and lifecycle.\n\nNew Quotation\nEdit quotation\n\nQT-000001 · Draft\n\nLead\nSelect lead\nwe · 42314\nValid until\nTemplate\nStandard Quotation (Active)\nMarron Template\nYellow Template\nDiscount\nCustomer notes\nLine items\nAdd Item\nCATALOG DESCRIPTION\nQUANTITY\nRATE\nGST RATE\nACTION\nCatalog description for line 1\nRemove\nCatalog description for line 2\nRemove\nSUBTOTAL\n₹930.00\nDISCOUNT\n₹0.00\nGST\n₹167.40\nTOTAL\n₹1,097.40\nSave quotation\nGo Back\nSearch quotations\nCreated date\nCreated month/year\nClear\nNumber\tLead\tStatus\tAmount\tCreated\tValid until\tActions\nQT-000001\twe\tDRAFT\t₹1097.40\t2026-10-06\t—\t\nView details\nEdit\nDownload PDF\nPrint\nMark sent\nAccept",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Dashboard",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Advance Bookings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Approvals (0)",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Data Flow",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Cards",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Purchase Orders",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Manage",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Admin Console",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Leads",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotations",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotation Settings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "New Quotation",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Lead\nSelect lead\nwe · 42314",
+      "text": "Select lead\nwe · 42314",
+      "value": "1",
+      "required": true,
+      "disabled": false,
+      "options": [
+        "Select lead",
+        "we · 42314"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Valid until",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Template\nStandard Quotation (Active)\nMarron Template\nYellow Template",
+      "text": "Standard Quotation (Active)\nMarron Template\nYellow Template",
+      "value": "template-quotation-yellow",
+      "required": true,
+      "disabled": false,
+      "options": [
+        "Standard Quotation (Active)",
+        "Marron Template",
+        "Yellow Template"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Discount",
+      "text": "",
+      "value": "0",
+      "required": false,
+      "disabled": false,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Customer notes",
+      "text": "",
+      "value": "eee",
+      "required": false,
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Add Item",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Catalog description for line 1",
+      "text": "",
+      "value": "Tyre Cleaning",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Quantity for line 1",
+      "text": "",
+      "value": "1",
+      "required": true,
+      "disabled": false,
+      "min": "0.001",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Rate for line 1",
+      "text": "",
+      "value": "580",
+      "required": true,
+      "disabled": false,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "GST rate for line 1",
+      "text": "",
+      "value": "18",
+      "required": true,
+      "disabled": false,
+      "min": "0",
+      "max": "100"
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Remove quotation item 1",
+      "text": "Remove",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Catalog description for line 2",
+      "text": "",
+      "value": "Water Cleaning",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Quantity for line 2",
+      "text": "",
+      "value": "1",
+      "required": true,
+      "disabled": false,
+      "min": "0.001",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "Rate for line 2",
+      "text": "",
+      "value": "350",
+      "required": true,
+      "disabled": false,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "GST rate for line 2",
+      "text": "",
+      "value": "18",
+      "required": true,
+      "disabled": false,
+      "min": "0",
+      "max": "100"
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Remove quotation item 2",
+      "text": "Remove",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Save quotation",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search quotations",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Quotation created date",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "month",
+      "label": "Quotation created month/year",
+      "text": "",
+      "value": "2026-10",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View details",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download PDF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Mark sent",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Accept",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

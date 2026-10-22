@@ -1,0 +1,988 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nAdmin Console\n\nOwner/Admin configuration for this demo session\n\nUsers\nTeam Structure\nService Task\nRoles & Page Access\nBusiness Settings\nApp Theme\nCompany Settings\nReport Templates\nInventory Import\nSupport & Logs\nRoles & Page Access\nAdd Role\nSearch\nStatus\nAll statuses\nActive\nArchived\nClear\nDownload\nShowing 1 to 7 of 7\nPer page\n10\n20\n50\n1\nOwner/Admin\nOwner/Admin workspace access · active · built-in\nEdit\nArchive\nService Advisor\nService Advisor workspace access · active · built-in\nEdit\nArchive\nService Department Manager\nService Department Manager workspace access · active · built-in\nEdit\nArchive\nReception\nReception workspace access · active · built-in\nEdit\nArchive\nAccounts\nAccounts workspace access · active · built-in\nEdit\nArchive\nStore\nStore workspace access · active · built-in\nEdit\nArchive\nTechnician\nTechnician workspace access · active · built-in\nEdit\nArchive\nPage Access · Owner/Admin\n\nAdmin Console access is always protected for Owner/Admin\n\nSearch pages\nSelect All\nClear All\nReset to Saved\nSave Changes\nFront Desk\nReceive Vehicle\nToday Queue\nAdvance Bookings\nCustomers\nVehicles\nSearch\nWorkshop\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nMy Tasks\nWork Update\nQC Prep\nInventory\nMaterial Requests\nIssue Material\nReconcile\nStock\nApprovals\nPurchase Orders\nFinance\nReady To Invoice\nInvoice\nPayment\nDelivery\nSales CRM\nLeads\nQuotations\nQuotation Settings\nAdministration\nDashboard\nData Flow\nJob Cards\nManage\nAdmin Console\nNavigation preview\nAdvance Bookings\nSearch\nEstimate\nFollow-ups\nMedia\nMaterial Requests\nIssue Material\nReconcile\nStock\nApprovals\nPurchase Orders\nLeads\nQuotations\nQuotation Settings\nDashboard\nData Flow\nJob Cards\nManage\nAdmin Console\n1",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Users",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Team Structure",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Service Task",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Roles & Page Access",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Business Settings",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "App Theme",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Company Settings",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Report Templates",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Inventory Import",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Support & Logs",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Add Role",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search roles",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All statuses\nActive\nArchived",
+      "label": "Filter roles by status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All statuses",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "Active",
+          "value": "active",
+          "selected": false
+        },
+        {
+          "text": "Archived",
+          "value": "archived",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Role records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Owner/Admin\nOwner/Admin workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "Owner/Admin cannot be archived",
+      "type": "submit",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Service Advisor\nService Advisor workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Service Department Manager\nService Department Manager workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reception\nReception workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Accounts\nAccounts workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Store\nStore workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Technician\nTechnician workspace access · active · built-in",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Archive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search pages",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Select All",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear All",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reset to Saved",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Save Changes",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Front Desk",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Receive Vehicle",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Today Queue",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Advance Bookings",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Customers",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Vehicles",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Workshop",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "My Queue",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Job Card",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Estimate",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Follow-ups",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Media",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "My Tasks",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Work Update",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "QC Prep",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Inventory",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Material Requests",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Issue Material",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Reconcile",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Stock",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Approvals",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Purchase Orders",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Finance",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Ready To Invoice",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Invoice",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Payment",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Delivery",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Sales CRM",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Leads",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Quotations",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Quotation Settings",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Administration",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Dashboard",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Data Flow",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Job Cards",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Manage",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Admin Console",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": true,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

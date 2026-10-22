@@ -1,0 +1,124 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nStore\nMaterial Requests\nIssue Material\nReconcile\nStock\nPurchase Orders\nSearch\nLogout\n\nStore\n\nIssue counter for accountable material movement.\nSearch category\nSelect a category\nJob Card\nStock\nClear category\nstore@example.com\nSearch\nPlease select a category to activate search\nChoose Job Card, Customer, Vehicle, Invoice or Stock above to see results.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Material Requests",
+      "title": "Material Requests",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Issue Material",
+      "title": "Issue Material",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "Reconcile",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Stock",
+      "title": "Stock",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Select a category\nJob Card\nStock",
+      "label": "Search category",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Select a category",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "Job Card",
+          "value": "job",
+          "selected": false
+        },
+        {
+          "text": "Stock",
+          "value": "stock",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear category",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search records",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    }
+  ]
+}

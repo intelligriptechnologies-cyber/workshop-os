@@ -1,0 +1,403 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nSales Leads\n\nLocal CRM inquiries, follow-ups, and site visits.\n\nDownload\nAdd Lead\nSearch leads\nStatus\nAll statuses\nNew\nQualified\nQuotation sent\nWon\nLost\nCreated month/year\nClear\nEdit Lead\nName\nPhone\nCompany\nCompany not entered\nOff\nEmail\nEmail not entered\nOff\nAddress\nService interest\nStage\nNew\nQualified\nQuotation sent\nWon\nLost\nTemperature\nHot\nWarm\nCold\nFollow-up date\nSite visit completed\nOff\nSite visit date\nNotes\nSave Changes\nGo Back\nLead\tContact\tStage\tTemperature\tFollow-up\tSite visit\tActions\nwe\n123123\t42314\n123!@asdd.dd\t\nNew\nQualified\nQuotation sent\nWon\nLost\n\t\nHot\nWarm\nCold\n\t\t\nYes\nNo\n\t\nEdit",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Dashboard",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Advance Bookings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Approvals (0)",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Data Flow",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Cards",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Purchase Orders",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Manage",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Admin Console",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Leads",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotations",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotation Settings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Lead",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search leads",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Lead status filter",
+      "text": "All statuses\nNew\nQualified\nQuotation sent\nWon\nLost",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All statuses",
+        "New",
+        "Qualified",
+        "Quotation sent",
+        "Won",
+        "Lost"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "month",
+      "label": "Lead created month/year",
+      "text": "",
+      "value": "2026-10",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Name",
+      "text": "",
+      "value": "we",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Phone",
+      "text": "",
+      "value": "42314",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Company",
+      "text": "",
+      "value": "123123",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Company not entered",
+      "text": "Company not entered\nOff",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "email",
+      "label": "Email",
+      "text": "",
+      "value": "123!@asdd.dd",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Email not entered",
+      "text": "Email not entered\nOff",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Address",
+      "text": "",
+      "value": "3123",
+      "required": false,
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Service interest",
+      "text": "",
+      "value": "213123",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Stage\nNew\nQualified\nQuotation sent\nWon\nLost",
+      "text": "New\nQualified\nQuotation sent\nWon\nLost",
+      "value": "QUOTATION_SENT",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "New",
+        "Qualified",
+        "Quotation sent",
+        "Won",
+        "Lost"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Temperature\nHot\nWarm\nCold",
+      "text": "Hot\nWarm\nCold",
+      "value": "HOT",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Hot",
+        "Warm",
+        "Cold"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Follow-up date",
+      "text": "",
+      "value": "2026-10-06",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Site visit completed",
+      "text": "Site visit completed\nOff",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Site visit date",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Notes",
+      "text": "",
+      "value": "323",
+      "required": false,
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Save Changes",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Stage for we",
+      "text": "New\nQualified\nQuotation sent\nWon\nLost",
+      "value": "QUOTATION_SENT",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "New",
+        "Qualified",
+        "Quotation sent",
+        "Won",
+        "Lost"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Temperature for we",
+      "text": "Hot\nWarm\nCold",
+      "value": "HOT",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Hot",
+        "Warm",
+        "Cold"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Follow-up for we",
+      "text": "",
+      "value": "2026-10-06",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Site visit for we",
+      "text": "Yes\nNo",
+      "value": "no",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Yes",
+        "No"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

@@ -1,0 +1,81 @@
+name: workshopos-stage4a
+x-api: &api
+  image: workshopos-stage4a-api:50c8aab
+  build: .
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop: [ALL]
+x-db: &db
+  image: postgres:17-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+  healthcheck:
+    test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+    interval: 3s
+    timeout: 3s
+    retries: 20
+  security_opt:
+    - no-new-privileges:true
+services:
+  db-dev:
+    <<: *db
+    environment:
+      POSTGRES_DB: stage4a_dev
+      POSTGRES_USER: stage4a_dev_owner
+      POSTGRES_PASSWORD: ${DEV_OWNER_PASSWORD:?run prepare.py}
+      RUNTIME_USER: stage4a_dev_runtime
+      RUNTIME_PASSWORD: ${DEV_RUNTIME_PASSWORD:?run prepare.py}
+    volumes:
+      - dev-data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/01-runtime.sh:ro
+    networks: [dev]
+  db-test:
+    <<: *db
+    environment:
+      POSTGRES_DB: stage4a_test
+      POSTGRES_USER: stage4a_test_owner
+      POSTGRES_PASSWORD: ${TEST_OWNER_PASSWORD:?run prepare.py}
+      RUNTIME_USER: stage4a_test_runtime
+      RUNTIME_PASSWORD: ${TEST_RUNTIME_PASSWORD:?run prepare.py}
+    volumes:
+      - test-data:/var/lib/postgresql/data
+      - ./init-db.sh:/docker-entrypoint-initdb.d/01-runtime.sh:ro
+    networks: [test]
+  api:
+    <<: *api
+    environment:
+      STAGE4A_SCOPE: dev
+      WORKSHOPOS_ENVIRONMENT: stage4a
+      WORKSHOPOS_AUTH_MODE: database
+      WORKSHOPOS_ALLOW_DEMO_AUTH: "false"
+      WORKSHOPOS_DATABASE_URL: postgresql+psycopg://stage4a_dev_runtime:${DEV_RUNTIME_PASSWORD:?run prepare.py}@db-dev:5432/stage4a_dev
+    ports: ["127.0.0.1:18184:8000"]
+    depends_on:
+      db-dev: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/readyz', timeout=3)"]
+      interval: 5s
+      timeout: 4s
+      retries: 12
+    networks: [dev, api-host]
+  tests:
+    <<: *api
+    profiles: [test]
+    environment:
+      STAGE4A_SCOPE: test
+      WORKSHOPOS_ENVIRONMENT: stage4a
+      WORKSHOPOS_AUTH_MODE: database
+      WORKSHOPOS_ALLOW_DEMO_AUTH: "false"
+      WORKSHOPOS_DATABASE_URL: postgresql+psycopg://stage4a_test_runtime:${TEST_RUNTIME_PASSWORD:?run prepare.py}@db-test:5432/stage4a_test
+    command: [python, -m, pytest, -q, -p, no:cacheprovider, foundation_tests]
+    depends_on:
+      db-test: {condition: service_healthy}
+    networks: [test]
+volumes:
+  dev-data:
+  test-data:
+networks:
+  dev: {internal: true}
+  test: {internal: true}
+  api-host: {}

@@ -1,0 +1,273 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nStore\nMaterial Requests\nIssue Material\nReconcile\nStock\nPurchase Orders\nSearch\nLogout\n\nStore\n\nIssue counter for accountable material movement.\nSearch category\nSelect a category\nJob Card\nStock\nClear category\nstore@example.com\nSearch\nShowing 1 to 4 of 4\nPer page\n10\n20\n50\n1\nSKU\tItem\tCategory\tQuantity\tUnit\tMinimum quantity\tStock status\tActions\nLEATHER SEAT COVER1\tleather seat cover1\t33\t3\t4\t5\tLow stock\tView\nCERAMIC-1L\tCeramic coating\tDetailing\t79\tlitre\t10\tIn stock\tView\nPPF-ROLL\tGloss PPF roll\tPPF\t500\tmetre\t40\tIn stock\tView\nPAINT-CLEAR\tClear coat\tPaint\t60\tlitre\t8\tIn stock\tView\n1",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Material Requests",
+      "title": "Material Requests",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Issue Material",
+      "title": "Issue Material",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "Reconcile",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Stock",
+      "title": "Stock",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Select a category\nJob Card\nStock",
+      "label": "Search category",
+      "title": "",
+      "type": "select-one",
+      "value": "stock",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Select a category",
+          "value": "",
+          "selected": false
+        },
+        {
+          "text": "Job Card",
+          "value": "job",
+          "selected": false
+        },
+        {
+          "text": "Stock",
+          "value": "stock",
+          "selected": true
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear category",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search records",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

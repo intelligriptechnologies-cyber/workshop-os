@@ -1,0 +1,363 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nStore\nMaterial Requests\nIssue Material\nReconcile\nStock\nPurchase Orders\nSearch\nLogout\n\nStore\n\nIssue counter for accountable material movement.\nstore@example.com\n\nMATERIALS REQUEST\n\nMaterial procurement triage\n\nChoose the next safe action for each demand. Procurement starts only as a Purchase Request.\n\nAvailable to issue\n8\n\nExisting SKUs have enough stock for their outstanding requested quantity.\n\nOpen Issue Material\nExisting-SKU procurement\n0\n\nExisting SKUs are short. Create a Purchase Request; do not add stock directly.\n\nCreate Purchase Request\nNew Item Requests\n0\n\nNew Item Requests are the uncatalogued lines already recorded on open Purchase Requests.\n\nCreate New Item Request\nMaterial Requests\n\nSearch, filter and export the current list\n\nDate\nMonth-Year\nAll months\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nFebruary 2026\nJanuary 2026\nStatus\nAll states\nPending\nPartially issued\nIssued\nReconciled\nItem\nClear\nDownload\nShowing 0 to 0 of 0\nPer page\n10\n20\n50\n1\nNo matching records\n\nAdjust the search or clear the filters.\n\nClear filters\n1\nProcurement and issue workflow",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Material Requests",
+      "title": "Material Requests",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Issue Material",
+      "title": "Issue Material",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "Reconcile",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Stock",
+      "title": "Stock",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Open Issue Material",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create Purchase Request",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create New Item Request",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Material Requests record date",
+      "title": "",
+      "type": "date",
+      "value": "2026-10-21",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All months\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nFebruary 2026\nJanuary 2026",
+      "label": "Material Requests record month",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All months",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "August 2026",
+          "value": "2026-08",
+          "selected": false
+        },
+        {
+          "text": "July 2026",
+          "value": "2026-07",
+          "selected": false
+        },
+        {
+          "text": "June 2026",
+          "value": "2026-06",
+          "selected": false
+        },
+        {
+          "text": "May 2026",
+          "value": "2026-05",
+          "selected": false
+        },
+        {
+          "text": "April 2026",
+          "value": "2026-04",
+          "selected": false
+        },
+        {
+          "text": "March 2026",
+          "value": "2026-03",
+          "selected": false
+        },
+        {
+          "text": "February 2026",
+          "value": "2026-02",
+          "selected": false
+        },
+        {
+          "text": "January 2026",
+          "value": "2026-01",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All states\nPending\nPartially issued\nIssued\nReconciled",
+      "label": "Status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All states",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "Pending",
+          "value": "Pending",
+          "selected": false
+        },
+        {
+          "text": "Partially issued",
+          "value": "Partially issued",
+          "selected": false
+        },
+        {
+          "text": "Issued",
+          "value": "Issued",
+          "selected": false
+        },
+        {
+          "text": "Reconciled",
+          "value": "Reconciled",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Item",
+      "title": "",
+      "type": "text",
+      "value": "All items",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Material Requests records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear filters",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Procurement and issue workflow",
+      "title": ""
+    }
+  ]
+}

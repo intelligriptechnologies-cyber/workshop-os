@@ -1,0 +1,530 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nService Advisor\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nSearch\nLogout\n\nService Advisor\n\nCommand queue for estimates, approvals and customer updates.\nservice@example.com\nMy Queue\n\nOpen advisor jobs\n\nView Job JC-2026-002141\n\nOD10DM1009 · Demo Customer 009\n\nDetails\nTask List\nBody Mark\nMaterials\nDocuments\nPhotos / Media\nInvoice\nPayment\nCustomer\nDemo Customer 009 / 8100000009\nVehicle\nOD10DM1009 / Hyundai Creta\nJob Card\nJC-2026-002141\nStatus\nCOMPLETED / Remind Customer for Sharing Google Review/Feedback\nRequested work\nCeramic coating\nWork completed\nCeramic coating\nAdvisor\nService advisor 1\nTechnician\nTechnician Bay\nJob sheet\nService type\n—\nPickup / Drop\n—\nEstimated Delivery Date\nSave\nFuel\nHalf\nAccessories\nMats\nEngine number\n—\nAddress\n—\nCurrent Documents\n\nOnly active records are available\n\nJob Card\nJC-2026-002141 - ready\nDownload PDF\nPrint\nEstimate\nEST-JC-2026-002141 - frozen\nEdit\nDownload PDF\nPrint\nInvoice\nINV-2026-00141 - ready\nEdit\nDownload PDF\nPrint\nPayment Receipt\nPayment Receipt not created - created when a payment is recorded\nGate Pass\nGate Pass not created - created when the job is closed\nGo Back\nSearch\nStatus\nAll statuses\nNEW\nIN_PROGRESS\nCOMPLETED\nCLOSED\nClear\nDownload\nShowing 1 to 10 of 36\nPer page\n10\n20\n50\n1\n2\n3\n4\nJob Card\tVehicle\tCustomer\tStatus\tWorkflow\tActions\nJC-2026-002141\tOD10DM1009\tDemo Customer 009\tCOMPLETED · Remind Customer for Sharing Google Review/Feedback\tRemind Customer for Sharing Google Review/Feedback\t\nView\nEdit\n\nJC-2026-002138\tOD07DM1006\tDemo Customer 006\tIN PROGRESS · QC Pending\tQC Pending\t\nView\nEdit\n\nJC-2026-002135\tOD04DM1003\tDemo Customer 003\tIN PROGRESS · Work Started\tWork Started\t\nView\nEdit\n\nJC-2026-002132\tOD13DM1132\tDemo Customer 012\tIN PROGRESS · Material Requested\tMaterial Requested\t\nView\nEdit\n\nJC-2026-002129\tOD10DM1129\tDemo Customer 009\tNEW · Get Confirmation\tGet Confirmation\t\nView\nEdit\n\nJC-2026-002123\tOD04DM1123\tDemo Customer 003\tCOMPLETED · Remind Customer for Sharing Google Review/Feedback\tRemind Customer for Sharing Google Review/Feedback\t\nView\nEdit\n\nJC-2026-002120\tOD01DM1120\tDemo Customer 120\tIN PROGRESS · Follow-up Needed\tFollow-up Needed\t\nView\nEdit\n\nJC-2026-002117\tOD28DM1117\tDemo Customer 117\tIN PROGRESS · Material Issued\tMaterial Issued\t\nView\nEdit\n\nJC-2026-002114\tOD25DM1114\tDemo Customer 114\tNEW · Create Estimate\tCreate Estimate\t\nView\nEdit\n\nJC-2026-002105\tOD16DM1105\tDemo Customer 105\tIN PROGRESS · Photos Shared\tPhotos Shared\t\nView\nEdit\n1\n2\n3\n4",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "My Queue",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Card",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Estimate",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Follow-ups",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Details",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Task List",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Body Mark",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Materials",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Documents",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Photos / Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Invoice",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Payment",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Estimated Delivery Date",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Save",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download PDF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download PDF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download PDF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search my queue",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "My Queue status",
+      "text": "All statuses\nNEW\nIN_PROGRESS\nCOMPLETED\nCLOSED",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All statuses",
+        "NEW",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CLOSED"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "My Queue records per page",
+      "text": "10\n20\n50",
+      "value": "10",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "10",
+        "20",
+        "50"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

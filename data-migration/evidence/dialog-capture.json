@@ -1,0 +1,561 @@
+{
+  "at": "2026-10-20T21:43:24.912Z",
+  "visited": [
+    {
+      "key": "reception-today-queue-default-create-new-visit",
+      "role": "reception",
+      "page": "Today Queue",
+      "tab": null,
+      "action": "Create New Visit",
+      "screenshot": "screenshots/dialog-reception-today-queue-default-create-new-visit.png",
+      "evidence": "evidence/dialog-reception-today-queue-default-create-new-visit.json"
+    },
+    {
+      "key": "reception-advance-bookings-default-create-booking",
+      "role": "reception",
+      "page": "Advance Bookings",
+      "tab": null,
+      "action": " Create Booking",
+      "screenshot": "screenshots/dialog-reception-advance-bookings-default-create-booking.png",
+      "evidence": "evidence/dialog-reception-advance-bookings-default-create-booking.json"
+    },
+    {
+      "key": "reception-customers-default-add-customer",
+      "role": "reception",
+      "page": "Customers",
+      "tab": null,
+      "action": "Add Customer",
+      "screenshot": "screenshots/dialog-reception-customers-default-add-customer.png",
+      "evidence": "evidence/dialog-reception-customers-default-add-customer.json"
+    },
+    {
+      "key": "reception-customers-default-view",
+      "role": "reception",
+      "page": "Customers",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-reception-customers-default-view.png",
+      "evidence": "evidence/dialog-reception-customers-default-view.json"
+    },
+    {
+      "key": "reception-customers-default-edit",
+      "role": "reception",
+      "page": "Customers",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-reception-customers-default-edit.png",
+      "evidence": "evidence/dialog-reception-customers-default-edit.json"
+    },
+    {
+      "key": "reception-vehicles-default-add-vehicle",
+      "role": "reception",
+      "page": "Vehicles",
+      "tab": null,
+      "action": "Add Vehicle",
+      "screenshot": "screenshots/dialog-reception-vehicles-default-add-vehicle.png",
+      "evidence": "evidence/dialog-reception-vehicles-default-add-vehicle.json"
+    },
+    {
+      "key": "reception-vehicles-default-view",
+      "role": "reception",
+      "page": "Vehicles",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-reception-vehicles-default-view.png",
+      "evidence": "evidence/dialog-reception-vehicles-default-view.json"
+    },
+    {
+      "key": "reception-vehicles-default-edit",
+      "role": "reception",
+      "page": "Vehicles",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-reception-vehicles-default-edit.png",
+      "evidence": "evidence/dialog-reception-vehicles-default-edit.json"
+    },
+    {
+      "key": "service-my-queue-default-view",
+      "role": "service",
+      "page": "My Queue",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-service-my-queue-default-view.png",
+      "evidence": "evidence/dialog-service-my-queue-default-view.json"
+    },
+    {
+      "key": "service-my-queue-default-edit",
+      "role": "service",
+      "page": "My Queue",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-service-my-queue-default-edit.png",
+      "evidence": "evidence/dialog-service-my-queue-default-edit.json"
+    },
+    {
+      "key": "service-job-card-default-view",
+      "role": "service",
+      "page": "Job Card",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-service-job-card-default-view.png",
+      "evidence": "evidence/dialog-service-job-card-default-view.json"
+    },
+    {
+      "key": "service-job-card-default-edit",
+      "role": "service",
+      "page": "Job Card",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-service-job-card-default-edit.png",
+      "evidence": "evidence/dialog-service-job-card-default-edit.json"
+    },
+    {
+      "key": "service-follow-ups-default-view",
+      "role": "service",
+      "page": "Follow-ups",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-service-follow-ups-default-view.png",
+      "evidence": "evidence/dialog-service-follow-ups-default-view.json"
+    },
+    {
+      "key": "service-follow-ups-default-add-follow-up",
+      "role": "service",
+      "page": "Follow-ups",
+      "tab": null,
+      "action": "Add Follow-up",
+      "screenshot": "screenshots/dialog-service-follow-ups-default-add-follow-up.png",
+      "evidence": "evidence/dialog-service-follow-ups-default-add-follow-up.json"
+    },
+    {
+      "key": "store-material-requests-default-create-new-item-request",
+      "role": "store",
+      "page": "Material Requests",
+      "tab": null,
+      "action": "Create New Item Request",
+      "screenshot": "screenshots/dialog-store-material-requests-default-create-new-item-request.png",
+      "evidence": "evidence/dialog-store-material-requests-default-create-new-item-request.json"
+    },
+    {
+      "key": "store-stock-default-edit",
+      "role": "store",
+      "page": "Stock",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-store-stock-default-edit.png",
+      "evidence": "evidence/dialog-store-stock-default-edit.json"
+    },
+    {
+      "key": "store-stock-inventory-list-edit",
+      "role": "store",
+      "page": "Stock",
+      "tab": "Inventory List",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-store-stock-inventory-list-edit.png",
+      "evidence": "evidence/dialog-store-stock-inventory-list-edit.json"
+    },
+    {
+      "key": "store-purchase-orders-default-new-purchase-request",
+      "role": "store",
+      "page": "Purchase Orders",
+      "tab": null,
+      "action": " New Purchase Request",
+      "screenshot": "screenshots/dialog-store-purchase-orders-default-new-purchase-request.png",
+      "evidence": "evidence/dialog-store-purchase-orders-default-new-purchase-request.json"
+    },
+    {
+      "key": "accounts-ready-to-invoice-default-view",
+      "role": "accounts",
+      "page": "Ready To Invoice",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-accounts-ready-to-invoice-default-view.png",
+      "evidence": "evidence/dialog-accounts-ready-to-invoice-default-view.json"
+    },
+    {
+      "key": "accounts-invoice-default-view",
+      "role": "accounts",
+      "page": "Invoice",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-accounts-invoice-default-view.png",
+      "evidence": "evidence/dialog-accounts-invoice-default-view.json"
+    },
+    {
+      "key": "admin-advance-bookings-default-create-booking",
+      "role": "admin",
+      "page": "Advance Bookings",
+      "tab": null,
+      "action": " Create Booking",
+      "screenshot": "screenshots/dialog-admin-advance-bookings-default-create-booking.png",
+      "evidence": "evidence/dialog-admin-advance-bookings-default-create-booking.json"
+    },
+    {
+      "key": "admin-job-cards-default-add-job-card",
+      "role": "admin",
+      "page": "Job Cards",
+      "tab": null,
+      "action": "Add Job Card",
+      "screenshot": "screenshots/dialog-admin-job-cards-default-add-job-card.png",
+      "evidence": "evidence/dialog-admin-job-cards-default-add-job-card.json"
+    },
+    {
+      "key": "admin-job-cards-default-view",
+      "role": "admin",
+      "page": "Job Cards",
+      "tab": null,
+      "action": "View",
+      "screenshot": "screenshots/dialog-admin-job-cards-default-view.png",
+      "evidence": "evidence/dialog-admin-job-cards-default-view.json"
+    },
+    {
+      "key": "admin-job-cards-default-edit",
+      "role": "admin",
+      "page": "Job Cards",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-job-cards-default-edit.png",
+      "evidence": "evidence/dialog-admin-job-cards-default-edit.json"
+    },
+    {
+      "key": "admin-purchase-orders-default-new-purchase-request",
+      "role": "admin",
+      "page": "Purchase Orders",
+      "tab": null,
+      "action": " New Purchase Request",
+      "screenshot": "screenshots/dialog-admin-purchase-orders-default-new-purchase-request.png",
+      "evidence": "evidence/dialog-admin-purchase-orders-default-new-purchase-request.json"
+    },
+    {
+      "key": "admin-manage-default-add-user",
+      "role": "admin",
+      "page": "Manage",
+      "tab": null,
+      "action": "Add User",
+      "screenshot": "screenshots/dialog-admin-manage-default-add-user.png",
+      "evidence": "evidence/dialog-admin-manage-default-add-user.json"
+    },
+    {
+      "key": "admin-manage-default-edit",
+      "role": "admin",
+      "page": "Manage",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-manage-default-edit.png",
+      "evidence": "evidence/dialog-admin-manage-default-edit.json"
+    },
+    {
+      "key": "admin-manage-users-add-user",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Users",
+      "action": "Add User",
+      "screenshot": "screenshots/dialog-admin-manage-users-add-user.png",
+      "evidence": "evidence/dialog-admin-manage-users-add-user.json"
+    },
+    {
+      "key": "admin-manage-users-edit",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Users",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-manage-users-edit.png",
+      "evidence": "evidence/dialog-admin-manage-users-edit.json"
+    },
+    {
+      "key": "admin-manage-customers-add-customer",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Customers",
+      "action": "Add Customer",
+      "screenshot": "screenshots/dialog-admin-manage-customers-add-customer.png",
+      "evidence": "evidence/dialog-admin-manage-customers-add-customer.json"
+    },
+    {
+      "key": "admin-manage-customers-view",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Customers",
+      "action": "View",
+      "screenshot": "screenshots/dialog-admin-manage-customers-view.png",
+      "evidence": "evidence/dialog-admin-manage-customers-view.json"
+    },
+    {
+      "key": "admin-manage-customers-edit",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Customers",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-manage-customers-edit.png",
+      "evidence": "evidence/dialog-admin-manage-customers-edit.json"
+    },
+    {
+      "key": "admin-manage-vehicles-add-vehicle",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Vehicles",
+      "action": "Add Vehicle",
+      "screenshot": "screenshots/dialog-admin-manage-vehicles-add-vehicle.png",
+      "evidence": "evidence/dialog-admin-manage-vehicles-add-vehicle.json"
+    },
+    {
+      "key": "admin-manage-vehicles-view",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Vehicles",
+      "action": "View",
+      "screenshot": "screenshots/dialog-admin-manage-vehicles-view.png",
+      "evidence": "evidence/dialog-admin-manage-vehicles-view.json"
+    },
+    {
+      "key": "admin-manage-vehicles-edit",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Vehicles",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-manage-vehicles-edit.png",
+      "evidence": "evidence/dialog-admin-manage-vehicles-edit.json"
+    },
+    {
+      "key": "admin-manage-suppliers-add-new-supplier",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Suppliers",
+      "action": "Add new supplier",
+      "screenshot": "screenshots/dialog-admin-manage-suppliers-add-new-supplier.png",
+      "evidence": "evidence/dialog-admin-manage-suppliers-add-new-supplier.json"
+    },
+    {
+      "key": "admin-manage-suppliers-edit",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Suppliers",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-manage-suppliers-edit.png",
+      "evidence": "evidence/dialog-admin-manage-suppliers-edit.json"
+    },
+    {
+      "key": "admin-manage-job-cards-add-job-card",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Job Cards",
+      "action": "Add Job Card",
+      "screenshot": "screenshots/dialog-admin-manage-job-cards-add-job-card.png",
+      "evidence": "evidence/dialog-admin-manage-job-cards-add-job-card.json"
+    },
+    {
+      "key": "admin-manage-job-cards-view",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Job Cards",
+      "action": "View",
+      "screenshot": "screenshots/dialog-admin-manage-job-cards-view.png",
+      "evidence": "evidence/dialog-admin-manage-job-cards-view.json"
+    },
+    {
+      "key": "admin-manage-job-cards-edit",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Job Cards",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-manage-job-cards-edit.png",
+      "evidence": "evidence/dialog-admin-manage-job-cards-edit.json"
+    },
+    {
+      "key": "admin-manage-invoices-view",
+      "role": "admin",
+      "page": "Manage",
+      "tab": "Invoices",
+      "action": "View",
+      "screenshot": "screenshots/dialog-admin-manage-invoices-view.png",
+      "evidence": "evidence/dialog-admin-manage-invoices-view.json"
+    },
+    {
+      "key": "admin-admin-console-default-add-user",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": null,
+      "action": "Add User",
+      "screenshot": "screenshots/dialog-admin-admin-console-default-add-user.png",
+      "evidence": "evidence/dialog-admin-admin-console-default-add-user.json"
+    },
+    {
+      "key": "admin-admin-console-default-edit",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-admin-console-default-edit.png",
+      "evidence": "evidence/dialog-admin-admin-console-default-edit.json"
+    },
+    {
+      "key": "admin-admin-console-users-add-user",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": "Users",
+      "action": "Add User",
+      "screenshot": "screenshots/dialog-admin-admin-console-users-add-user.png",
+      "evidence": "evidence/dialog-admin-admin-console-users-add-user.json"
+    },
+    {
+      "key": "admin-admin-console-users-edit",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": "Users",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-admin-console-users-edit.png",
+      "evidence": "evidence/dialog-admin-admin-console-users-edit.json"
+    },
+    {
+      "key": "admin-admin-console-service-task-add-service-task",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": "Service Task",
+      "action": "Add Service Task",
+      "screenshot": "screenshots/dialog-admin-admin-console-service-task-add-service-task.png",
+      "evidence": "evidence/dialog-admin-admin-console-service-task-add-service-task.json"
+    },
+    {
+      "key": "admin-admin-console-service-task-edit",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": "Service Task",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-admin-console-service-task-edit.png",
+      "evidence": "evidence/dialog-admin-admin-console-service-task-edit.json"
+    },
+    {
+      "key": "admin-admin-console-roles-page-access-add-role",
+      "role": "admin",
+      "page": "Admin Console",
+      "tab": "Roles & Page Access",
+      "action": "Add Role",
+      "screenshot": "screenshots/dialog-admin-admin-console-roles-page-access-add-role.png",
+      "evidence": "evidence/dialog-admin-admin-console-roles-page-access-add-role.json"
+    },
+    {
+      "key": "admin-leads-default-add-lead",
+      "role": "admin",
+      "page": "Leads",
+      "tab": null,
+      "action": "Add Lead",
+      "screenshot": "screenshots/dialog-admin-leads-default-add-lead.png",
+      "evidence": "evidence/dialog-admin-leads-default-add-lead.json"
+    },
+    {
+      "key": "admin-leads-default-edit",
+      "role": "admin",
+      "page": "Leads",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-leads-default-edit.png",
+      "evidence": "evidence/dialog-admin-leads-default-edit.json"
+    },
+    {
+      "key": "admin-quotations-default-new-quotation",
+      "role": "admin",
+      "page": "Quotations",
+      "tab": null,
+      "action": "New Quotation",
+      "screenshot": "screenshots/dialog-admin-quotations-default-new-quotation.png",
+      "evidence": "evidence/dialog-admin-quotations-default-new-quotation.json"
+    },
+    {
+      "key": "admin-quotations-default-edit",
+      "role": "admin",
+      "page": "Quotations",
+      "tab": null,
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-quotations-default-edit.png",
+      "evidence": "evidence/dialog-admin-quotations-default-edit.json"
+    },
+    {
+      "key": "admin-quotation-settings-users-add-user",
+      "role": "admin",
+      "page": "Quotation Settings",
+      "tab": "Users",
+      "action": "Add User",
+      "screenshot": "screenshots/dialog-admin-quotation-settings-users-add-user.png",
+      "evidence": "evidence/dialog-admin-quotation-settings-users-add-user.json"
+    },
+    {
+      "key": "admin-quotation-settings-users-edit",
+      "role": "admin",
+      "page": "Quotation Settings",
+      "tab": "Users",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-quotation-settings-users-edit.png",
+      "evidence": "evidence/dialog-admin-quotation-settings-users-edit.json"
+    },
+    {
+      "key": "admin-quotation-settings-service-task-add-service-task",
+      "role": "admin",
+      "page": "Quotation Settings",
+      "tab": "Service Task",
+      "action": "Add Service Task",
+      "screenshot": "screenshots/dialog-admin-quotation-settings-service-task-add-service-task.png",
+      "evidence": "evidence/dialog-admin-quotation-settings-service-task-add-service-task.json"
+    },
+    {
+      "key": "admin-quotation-settings-service-task-edit",
+      "role": "admin",
+      "page": "Quotation Settings",
+      "tab": "Service Task",
+      "action": "Edit",
+      "screenshot": "screenshots/dialog-admin-quotation-settings-service-task-edit.png",
+      "evidence": "evidence/dialog-admin-quotation-settings-service-task-edit.json"
+    },
+    {
+      "key": "admin-quotation-settings-roles-page-access-add-role",
+      "role": "admin",
+      "page": "Quotation Settings",
+      "tab": "Roles & Page Access",
+      "action": "Add Role",
+      "screenshot": "screenshots/dialog-admin-quotation-settings-roles-page-access-add-role.png",
+      "evidence": "evidence/dialog-admin-quotation-settings-roles-page-access-add-role.json"
+    }
+  ],
+  "skipped": [
+    {
+      "key": "service-media-default-view",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "store-material-requests-default-create-purchase-request",
+      "reason": "not visible/enabled"
+    },
+    {
+      "key": "admin-media-default-view",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-admin-console-team-structure-create-department",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-admin-console-roles-page-access-edit",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-admin-console-report-templates-new-template",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-quotation-settings-default-new-template",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-quotation-settings-team-structure-create-department",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-quotation-settings-roles-page-access-edit",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    },
+    {
+      "key": "admin-quotation-settings-report-templates-new-template",
+      "reason": "Action did not open an ARIA dialog; inline or native outcome not asserted"
+    }
+  ],
+  "errors": []
+}

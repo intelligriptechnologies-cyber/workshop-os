@@ -1,0 +1,962 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nData Flow\n\nSelect a job\n\nVisit month\nAll months\nOctober 2026\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nFebruary 2026\nJanuary 2026\nVisit date\nAll dates\n2 Oct 2026\n27 Aug 2026\n26 Aug 2026\n25 Aug 2026\n24 Aug 2026\n23 Aug 2026\n22 Aug 2026\n21 Aug 2026\n20 Aug 2026\n19 Aug 2026\n14 Aug 2026\n13 Aug 2026\n12 Aug 2026\n11 Aug 2026\n10 Aug 2026\n9 Aug 2026\n8 Aug 2026\n7 Aug 2026\n6 Aug 2026\n22 Jul 2026\n21 Jul 2026\n20 Jul 2026\n19 Jul 2026\n18 Jul 2026\n17 Jul 2026\n16 Jul 2026\n15 Jul 2026\n14 Jul 2026\n9 Jul 2026\n8 Jul 2026\n7 Jul 2026\n6 Jul 2026\n5 Jul 2026\n4 Jul 2026\n3 Jul 2026\n2 Jul 2026\n1 Jul 2026\n27 Jun 2026\n26 Jun 2026\n25 Jun 2026\n24 Jun 2026\n23 Jun 2026\n17 Jun 2026\n16 Jun 2026\n15 Jun 2026\n14 Jun 2026\n13 Jun 2026\n12 Jun 2026\n11 Jun 2026\n10 Jun 2026\n9 Jun 2026\n4 Jun 2026\n3 Jun 2026\n2 Jun 2026\n1 Jun 2026\n26 May 2026\n25 May 2026\n24 May 2026\n23 May 2026\n22 May 2026\n21 May 2026\n20 May 2026\n19 May 2026\n18 May 2026\n12 May 2026\n11 May 2026\n10 May 2026\n9 May 2026\n8 May 2026\n7 May 2026\n6 May 2026\n5 May 2026\n4 May 2026\n27 Apr 2026\n26 Apr 2026\n21 Apr 2026\n20 Apr 2026\n19 Apr 2026\n18 Apr 2026\n17 Apr 2026\n16 Apr 2026\n15 Apr 2026\n14 Apr 2026\n13 Apr 2026\n7 Apr 2026\n6 Apr 2026\n5 Apr 2026\n4 Apr 2026\n3 Apr 2026\n2 Apr 2026\n1 Apr 2026\n27 Mar 2026\n26 Mar 2026\n25 Mar 2026\n24 Mar 2026\n23 Mar 2026\n22 Mar 2026\n21 Mar 2026\n16 Mar 2026\n15 Mar 2026\n14 Mar 2026\n13 Mar 2026\n12 Mar 2026\n11 Mar 2026\n10 Mar 2026\n9 Mar 2026\n8 Mar 2026\n2 Mar 2026\n1 Mar 2026\n24 Feb 2026\n23 Feb 2026\n22 Feb 2026\n21 Feb 2026\n20 Feb 2026\n19 Feb 2026\n18 Feb 2026\n17 Feb 2026\n16 Feb 2026\n11 Feb 2026\n10 Feb 2026\n9 Feb 2026\n8 Feb 2026\n7 Feb 2026\n6 Feb 2026\n5 Feb 2026\n4 Feb 2026\n3 Feb 2026\n27 Jan 2026\n26 Jan 2026\n25 Jan 2026\n19 Jan 2026\n18 Jan 2026\n17 Jan 2026\n16 Jan 2026\n15 Jan 2026\n14 Jan 2026\n13 Jan 2026\n12 Jan 2026\n11 Jan 2026\n6 Jan 2026\n5 Jan 2026\n4 Jan 2026\n3 Jan 2026\n2 Jan 2026\n1 Jan 2026\nFind a job\nClear\nSelect a job to view its data flow.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All months\nOctober 2026\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nFebruary 2026\nJanuary 2026",
+      "label": "Visit month",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All months",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "October 2026",
+          "value": "2026-10",
+          "selected": false
+        },
+        {
+          "text": "August 2026",
+          "value": "2026-08",
+          "selected": false
+        },
+        {
+          "text": "July 2026",
+          "value": "2026-07",
+          "selected": false
+        },
+        {
+          "text": "June 2026",
+          "value": "2026-06",
+          "selected": false
+        },
+        {
+          "text": "May 2026",
+          "value": "2026-05",
+          "selected": false
+        },
+        {
+          "text": "April 2026",
+          "value": "2026-04",
+          "selected": false
+        },
+        {
+          "text": "March 2026",
+          "value": "2026-03",
+          "selected": false
+        },
+        {
+          "text": "February 2026",
+          "value": "2026-02",
+          "selected": false
+        },
+        {
+          "text": "January 2026",
+          "value": "2026-01",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All dates\n2 Oct 2026\n27 Aug 2026\n26 Aug 2026\n25 Aug 2026\n24 Aug 2026\n23 Aug 2026\n22 Aug 2026\n21 Aug 2026\n20 Aug 2026\n19 Aug 2026\n14 Aug 2026\n13 Aug 2026\n12 Aug 2026\n11 Aug 2026\n10 Aug 2026\n9 Aug 2026\n8 Aug 2026\n7 Aug 2026\n6 Aug 2026\n22 Jul 2026\n21 Jul 2026\n20 Jul 2026\n19 Jul 2026\n18 Jul 2026\n17 Jul 2026\n16 Jul 2026\n15 Jul 2026\n14 Jul 2026\n9 Jul 2026\n8 Jul 2026\n7 Jul 2026\n6 Jul 2026\n5 Jul 2026\n4 Jul 2026\n3 Jul 2026\n2 Jul 2026\n1 Jul 2026\n27 Jun 2026\n26 Jun 2026\n25 Jun 2026\n24 Jun 2026\n23 Jun 2026\n17 Jun 2026\n16 Jun 2026\n15 Jun 2026\n14 Jun 2026\n13 Jun 2026\n12 Jun 2026\n11 Jun 2026\n10 Jun 2026\n9 Jun 2026\n4 Jun 2026\n3 Jun 2026\n2 Jun 2026\n1 Jun 2026\n26 May 2026\n25 May 2026\n24 May 2026\n23 May 2026\n22 May 2026\n21 May 2026\n20 May 2026\n19 May 2026\n18 May 2026\n12 May 2026\n11 May 2026\n10 May 2026\n9 May 2026\n8 May 2026\n7 May 2026\n6 May 2026\n5 May 2026\n4 May 2026\n27 Apr 2026\n26 Apr 2026\n21 Apr 2026\n20 Apr 2026\n19 Apr 2026\n18 Apr 2026\n17 Apr 2026\n16 Apr 2026\n15 Apr 2026\n14 Apr 2026\n13 Apr 2026\n7 Apr 2026\n6 Apr 2026\n5 Apr 2026\n4 Apr 2026\n3 Apr 2026\n2 Apr 2026\n1 Apr 2026\n27 Mar 2026\n26 Mar 2026\n25 Mar 2026\n24 Mar 2026\n23 Mar 2026\n22 Mar 2026\n21 Mar 2026\n16 Mar 2026\n15 Mar 2026\n14 Mar 2026\n13 Mar 2026\n12 Mar 2026\n11 Mar 2026\n10 Mar 2026\n9 Mar 2026\n8 Mar 2026\n2 Mar 2026\n1 Mar 2026\n24 Feb 2026\n23 Feb 2026\n22 Feb 2026\n21 Feb 2026\n20 Feb 2026\n19 Feb 2026\n18 Feb 2026\n17 Feb 2026\n16 Feb 2026\n11 Feb 2026\n10 Feb 2026\n9 Feb 2026\n8 Feb 2026\n7 Feb 2026\n6 Feb 2026\n5 Feb 2026\n4 Feb 2026\n3 Feb 2026\n27 Jan 2026\n26 Jan 2026\n25 Jan 2026\n19 Jan 2026\n18 Jan 2026\n17 Jan 2026\n16 Jan 2026\n15 Jan 2026\n14 Jan 2026\n13 Jan 2026\n12 Jan 2026\n11 Jan 2026\n6 Jan 2026\n5 Jan 2026\n4 Jan 2026\n3 Jan 2026\n2 Jan 2026\n1 Jan 2026",
+      "label": "Visit date",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All dates",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "2 Oct 2026",
+          "value": "2026-10-02",
+          "selected": false
+        },
+        {
+          "text": "27 Aug 2026",
+          "value": "2026-08-27",
+          "selected": false
+        },
+        {
+          "text": "26 Aug 2026",
+          "value": "2026-08-26",
+          "selected": false
+        },
+        {
+          "text": "25 Aug 2026",
+          "value": "2026-08-25",
+          "selected": false
+        },
+        {
+          "text": "24 Aug 2026",
+          "value": "2026-08-24",
+          "selected": false
+        },
+        {
+          "text": "23 Aug 2026",
+          "value": "2026-08-23",
+          "selected": false
+        },
+        {
+          "text": "22 Aug 2026",
+          "value": "2026-08-22",
+          "selected": false
+        },
+        {
+          "text": "21 Aug 2026",
+          "value": "2026-08-21",
+          "selected": false
+        },
+        {
+          "text": "20 Aug 2026",
+          "value": "2026-08-20",
+          "selected": false
+        },
+        {
+          "text": "19 Aug 2026",
+          "value": "2026-08-19",
+          "selected": false
+        },
+        {
+          "text": "14 Aug 2026",
+          "value": "2026-08-14",
+          "selected": false
+        },
+        {
+          "text": "13 Aug 2026",
+          "value": "2026-08-13",
+          "selected": false
+        },
+        {
+          "text": "12 Aug 2026",
+          "value": "2026-08-12",
+          "selected": false
+        },
+        {
+          "text": "11 Aug 2026",
+          "value": "2026-08-11",
+          "selected": false
+        },
+        {
+          "text": "10 Aug 2026",
+          "value": "2026-08-10",
+          "selected": false
+        },
+        {
+          "text": "9 Aug 2026",
+          "value": "2026-08-09",
+          "selected": false
+        },
+        {
+          "text": "8 Aug 2026",
+          "value": "2026-08-08",
+          "selected": false
+        },
+        {
+          "text": "7 Aug 2026",
+          "value": "2026-08-07",
+          "selected": false
+        },
+        {
+          "text": "6 Aug 2026",
+          "value": "2026-08-06",
+          "selected": false
+        },
+        {
+          "text": "22 Jul 2026",
+          "value": "2026-07-22",
+          "selected": false
+        },
+        {
+          "text": "21 Jul 2026",
+          "value": "2026-07-21",
+          "selected": false
+        },
+        {
+          "text": "20 Jul 2026",
+          "value": "2026-07-20",
+          "selected": false
+        },
+        {
+          "text": "19 Jul 2026",
+          "value": "2026-07-19",
+          "selected": false
+        },
+        {
+          "text": "18 Jul 2026",
+          "value": "2026-07-18",
+          "selected": false
+        },
+        {
+          "text": "17 Jul 2026",
+          "value": "2026-07-17",
+          "selected": false
+        },
+        {
+          "text": "16 Jul 2026",
+          "value": "2026-07-16",
+          "selected": false
+        },
+        {
+          "text": "15 Jul 2026",
+          "value": "2026-07-15",
+          "selected": false
+        },
+        {
+          "text": "14 Jul 2026",
+          "value": "2026-07-14",
+          "selected": false
+        },
+        {
+          "text": "9 Jul 2026",
+          "value": "2026-07-09",
+          "selected": false
+        },
+        {
+          "text": "8 Jul 2026",
+          "value": "2026-07-08",
+          "selected": false
+        },
+        {
+          "text": "7 Jul 2026",
+          "value": "2026-07-07",
+          "selected": false
+        },
+        {
+          "text": "6 Jul 2026",
+          "value": "2026-07-06",
+          "selected": false
+        },
+        {
+          "text": "5 Jul 2026",
+          "value": "2026-07-05",
+          "selected": false
+        },
+        {
+          "text": "4 Jul 2026",
+          "value": "2026-07-04",
+          "selected": false
+        },
+        {
+          "text": "3 Jul 2026",
+          "value": "2026-07-03",
+          "selected": false
+        },
+        {
+          "text": "2 Jul 2026",
+          "value": "2026-07-02",
+          "selected": false
+        },
+        {
+          "text": "1 Jul 2026",
+          "value": "2026-07-01",
+          "selected": false
+        },
+        {
+          "text": "27 Jun 2026",
+          "value": "2026-06-27",
+          "selected": false
+        },
+        {
+          "text": "26 Jun 2026",
+          "value": "2026-06-26",
+          "selected": false
+        },
+        {
+          "text": "25 Jun 2026",
+          "value": "2026-06-25",
+          "selected": false
+        },
+        {
+          "text": "24 Jun 2026",
+          "value": "2026-06-24",
+          "selected": false
+        },
+        {
+          "text": "23 Jun 2026",
+          "value": "2026-06-23",
+          "selected": false
+        },
+        {
+          "text": "17 Jun 2026",
+          "value": "2026-06-17",
+          "selected": false
+        },
+        {
+          "text": "16 Jun 2026",
+          "value": "2026-06-16",
+          "selected": false
+        },
+        {
+          "text": "15 Jun 2026",
+          "value": "2026-06-15",
+          "selected": false
+        },
+        {
+          "text": "14 Jun 2026",
+          "value": "2026-06-14",
+          "selected": false
+        },
+        {
+          "text": "13 Jun 2026",
+          "value": "2026-06-13",
+          "selected": false
+        },
+        {
+          "text": "12 Jun 2026",
+          "value": "2026-06-12",
+          "selected": false
+        },
+        {
+          "text": "11 Jun 2026",
+          "value": "2026-06-11",
+          "selected": false
+        },
+        {
+          "text": "10 Jun 2026",
+          "value": "2026-06-10",
+          "selected": false
+        },
+        {
+          "text": "9 Jun 2026",
+          "value": "2026-06-09",
+          "selected": false
+        },
+        {
+          "text": "4 Jun 2026",
+          "value": "2026-06-04",
+          "selected": false
+        },
+        {
+          "text": "3 Jun 2026",
+          "value": "2026-06-03",
+          "selected": false
+        },
+        {
+          "text": "2 Jun 2026",
+          "value": "2026-06-02",
+          "selected": false
+        },
+        {
+          "text": "1 Jun 2026",
+          "value": "2026-06-01",
+          "selected": false
+        },
+        {
+          "text": "26 May 2026",
+          "value": "2026-05-26",
+          "selected": false
+        },
+        {
+          "text": "25 May 2026",
+          "value": "2026-05-25",
+          "selected": false
+        },
+        {
+          "text": "24 May 2026",
+          "value": "2026-05-24",
+          "selected": false
+        },
+        {
+          "text": "23 May 2026",
+          "value": "2026-05-23",
+          "selected": false
+        },
+        {
+          "text": "22 May 2026",
+          "value": "2026-05-22",
+          "selected": false
+        },
+        {
+          "text": "21 May 2026",
+          "value": "2026-05-21",
+          "selected": false
+        },
+        {
+          "text": "20 May 2026",
+          "value": "2026-05-20",
+          "selected": false
+        },
+        {
+          "text": "19 May 2026",
+          "value": "2026-05-19",
+          "selected": false
+        },
+        {
+          "text": "18 May 2026",
+          "value": "2026-05-18",
+          "selected": false
+        },
+        {
+          "text": "12 May 2026",
+          "value": "2026-05-12",
+          "selected": false
+        },
+        {
+          "text": "11 May 2026",
+          "value": "2026-05-11",
+          "selected": false
+        },
+        {
+          "text": "10 May 2026",
+          "value": "2026-05-10",
+          "selected": false
+        },
+        {
+          "text": "9 May 2026",
+          "value": "2026-05-09",
+          "selected": false
+        },
+        {
+          "text": "8 May 2026",
+          "value": "2026-05-08",
+          "selected": false
+        },
+        {
+          "text": "7 May 2026",
+          "value": "2026-05-07",
+          "selected": false
+        },
+        {
+          "text": "6 May 2026",
+          "value": "2026-05-06",
+          "selected": false
+        },
+        {
+          "text": "5 May 2026",
+          "value": "2026-05-05",
+          "selected": false
+        },
+        {
+          "text": "4 May 2026",
+          "value": "2026-05-04",
+          "selected": false
+        },
+        {
+          "text": "27 Apr 2026",
+          "value": "2026-04-27",
+          "selected": false
+        },
+        {
+          "text": "26 Apr 2026",
+          "value": "2026-04-26",
+          "selected": false
+        },
+        {
+          "text": "21 Apr 2026",
+          "value": "2026-04-21",
+          "selected": false
+        },
+        {
+          "text": "20 Apr 2026",
+          "value": "2026-04-20",
+          "selected": false
+        },
+        {
+          "text": "19 Apr 2026",
+          "value": "2026-04-19",
+          "selected": false
+        },
+        {
+          "text": "18 Apr 2026",
+          "value": "2026-04-18",
+          "selected": false
+        },
+        {
+          "text": "17 Apr 2026",
+          "value": "2026-04-17",
+          "selected": false
+        },
+        {
+          "text": "16 Apr 2026",
+          "value": "2026-04-16",
+          "selected": false
+        },
+        {
+          "text": "15 Apr 2026",
+          "value": "2026-04-15",
+          "selected": false
+        },
+        {
+          "text": "14 Apr 2026",
+          "value": "2026-04-14",
+          "selected": false
+        },
+        {
+          "text": "13 Apr 2026",
+          "value": "2026-04-13",
+          "selected": false
+        },
+        {
+          "text": "7 Apr 2026",
+          "value": "2026-04-07",
+          "selected": false
+        },
+        {
+          "text": "6 Apr 2026",
+          "value": "2026-04-06",
+          "selected": false
+        },
+        {
+          "text": "5 Apr 2026",
+          "value": "2026-04-05",
+          "selected": false
+        },
+        {
+          "text": "4 Apr 2026",
+          "value": "2026-04-04",
+          "selected": false
+        },
+        {
+          "text": "3 Apr 2026",
+          "value": "2026-04-03",
+          "selected": false
+        },
+        {
+          "text": "2 Apr 2026",
+          "value": "2026-04-02",
+          "selected": false
+        },
+        {
+          "text": "1 Apr 2026",
+          "value": "2026-04-01",
+          "selected": false
+        },
+        {
+          "text": "27 Mar 2026",
+          "value": "2026-03-27",
+          "selected": false
+        },
+        {
+          "text": "26 Mar 2026",
+          "value": "2026-03-26",
+          "selected": false
+        },
+        {
+          "text": "25 Mar 2026",
+          "value": "2026-03-25",
+          "selected": false
+        },
+        {
+          "text": "24 Mar 2026",
+          "value": "2026-03-24",
+          "selected": false
+        },
+        {
+          "text": "23 Mar 2026",
+          "value": "2026-03-23",
+          "selected": false
+        },
+        {
+          "text": "22 Mar 2026",
+          "value": "2026-03-22",
+          "selected": false
+        },
+        {
+          "text": "21 Mar 2026",
+          "value": "2026-03-21",
+          "selected": false
+        },
+        {
+          "text": "16 Mar 2026",
+          "value": "2026-03-16",
+          "selected": false
+        },
+        {
+          "text": "15 Mar 2026",
+          "value": "2026-03-15",
+          "selected": false
+        },
+        {
+          "text": "14 Mar 2026",
+          "value": "2026-03-14",
+          "selected": false
+        },
+        {
+          "text": "13 Mar 2026",
+          "value": "2026-03-13",
+          "selected": false
+        },
+        {
+          "text": "12 Mar 2026",
+          "value": "2026-03-12",
+          "selected": false
+        },
+        {
+          "text": "11 Mar 2026",
+          "value": "2026-03-11",
+          "selected": false
+        },
+        {
+          "text": "10 Mar 2026",
+          "value": "2026-03-10",
+          "selected": false
+        },
+        {
+          "text": "9 Mar 2026",
+          "value": "2026-03-09",
+          "selected": false
+        },
+        {
+          "text": "8 Mar 2026",
+          "value": "2026-03-08",
+          "selected": false
+        },
+        {
+          "text": "2 Mar 2026",
+          "value": "2026-03-02",
+          "selected": false
+        },
+        {
+          "text": "1 Mar 2026",
+          "value": "2026-03-01",
+          "selected": false
+        },
+        {
+          "text": "24 Feb 2026",
+          "value": "2026-02-24",
+          "selected": false
+        },
+        {
+          "text": "23 Feb 2026",
+          "value": "2026-02-23",
+          "selected": false
+        },
+        {
+          "text": "22 Feb 2026",
+          "value": "2026-02-22",
+          "selected": false
+        },
+        {
+          "text": "21 Feb 2026",
+          "value": "2026-02-21",
+          "selected": false
+        },
+        {
+          "text": "20 Feb 2026",
+          "value": "2026-02-20",
+          "selected": false
+        },
+        {
+          "text": "19 Feb 2026",
+          "value": "2026-02-19",
+          "selected": false
+        },
+        {
+          "text": "18 Feb 2026",
+          "value": "2026-02-18",
+          "selected": false
+        },
+        {
+          "text": "17 Feb 2026",
+          "value": "2026-02-17",
+          "selected": false
+        },
+        {
+          "text": "16 Feb 2026",
+          "value": "2026-02-16",
+          "selected": false
+        },
+        {
+          "text": "11 Feb 2026",
+          "value": "2026-02-11",
+          "selected": false
+        },
+        {
+          "text": "10 Feb 2026",
+          "value": "2026-02-10",
+          "selected": false
+        },
+        {
+          "text": "9 Feb 2026",
+          "value": "2026-02-09",
+          "selected": false
+        },
+        {
+          "text": "8 Feb 2026",
+          "value": "2026-02-08",
+          "selected": false
+        },
+        {
+          "text": "7 Feb 2026",
+          "value": "2026-02-07",
+          "selected": false
+        },
+        {
+          "text": "6 Feb 2026",
+          "value": "2026-02-06",
+          "selected": false
+        },
+        {
+          "text": "5 Feb 2026",
+          "value": "2026-02-05",
+          "selected": false
+        },
+        {
+          "text": "4 Feb 2026",
+          "value": "2026-02-04",
+          "selected": false
+        },
+        {
+          "text": "3 Feb 2026",
+          "value": "2026-02-03",
+          "selected": false
+        },
+        {
+          "text": "27 Jan 2026",
+          "value": "2026-01-27",
+          "selected": false
+        },
+        {
+          "text": "26 Jan 2026",
+          "value": "2026-01-26",
+          "selected": false
+        },
+        {
+          "text": "25 Jan 2026",
+          "value": "2026-01-25",
+          "selected": false
+        },
+        {
+          "text": "19 Jan 2026",
+          "value": "2026-01-19",
+          "selected": false
+        },
+        {
+          "text": "18 Jan 2026",
+          "value": "2026-01-18",
+          "selected": false
+        },
+        {
+          "text": "17 Jan 2026",
+          "value": "2026-01-17",
+          "selected": false
+        },
+        {
+          "text": "16 Jan 2026",
+          "value": "2026-01-16",
+          "selected": false
+        },
+        {
+          "text": "15 Jan 2026",
+          "value": "2026-01-15",
+          "selected": false
+        },
+        {
+          "text": "14 Jan 2026",
+          "value": "2026-01-14",
+          "selected": false
+        },
+        {
+          "text": "13 Jan 2026",
+          "value": "2026-01-13",
+          "selected": false
+        },
+        {
+          "text": "12 Jan 2026",
+          "value": "2026-01-12",
+          "selected": false
+        },
+        {
+          "text": "11 Jan 2026",
+          "value": "2026-01-11",
+          "selected": false
+        },
+        {
+          "text": "6 Jan 2026",
+          "value": "2026-01-06",
+          "selected": false
+        },
+        {
+          "text": "5 Jan 2026",
+          "value": "2026-01-05",
+          "selected": false
+        },
+        {
+          "text": "4 Jan 2026",
+          "value": "2026-01-04",
+          "selected": false
+        },
+        {
+          "text": "3 Jan 2026",
+          "value": "2026-01-03",
+          "selected": false
+        },
+        {
+          "text": "2 Jan 2026",
+          "value": "2026-01-02",
+          "selected": false
+        },
+        {
+          "text": "1 Jan 2026",
+          "value": "2026-01-01",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Find a job",
+      "title": "",
+      "type": "search",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

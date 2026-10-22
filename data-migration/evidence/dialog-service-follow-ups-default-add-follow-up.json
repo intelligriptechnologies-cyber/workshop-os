@@ -1,0 +1,409 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nService Advisor\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nSearch\nLogout\n\nService Advisor\n\nCommand queue for estimates, approvals and customer updates.\nservice@example.com\nFollow-ups\n\nCustomer contact and service coordination\n\nJob card\nJC-2026-002141\nCustomer\nDemo Customer 009\n8100000009\nVehicle\nOD10DM1009\nHyundai Creta\nCurrent job status\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nVehicle details\nRequested materials (1)\nEstimate · Approved\nHistory\n1 saved\nOpen\nCustomer progress update\nCreated 4 May 2026, 7:30 pm\n0\nEdit\n0\nAdd follow-up\nNote\nOutcome\nOptional\nMark this follow-up done\nSave Follow-up\nSave & Add Another\nGo Back\nFollow-ups\n\nJobs assigned to you\n\nSearch\nReceived date\nMonth-Year\nAll months\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nFebruary 2026\nJanuary 2026\nClear\nDownload\nShowing 1 to 10 of 48\nPer page\n10\n20\n50\n1\n2\n3\n4\n5\nJob Card\tVehicle\tCustomer\tEstimate Status\tFollow-up Status\tActions\nJC-2026-002144\tOD13DM1012\tDemo Customer 012\tApproved\tDone(1)\t\nView\n\nJC-2026-002141\tOD10DM1009\tDemo Customer 009\tApproved\tPending (0/1)\t\nAdd Follow-up\n\nJC-2026-002138\tOD07DM1006\tDemo Customer 006\tApproved\tPending (0/1)\t\nAdd Follow-up\n\nJC-2026-002135\tOD04DM1003\tDemo Customer 003\tApproved\tPending (0/1)\t\nAdd Follow-up\n\nJC-2026-002132\tOD13DM1132\tDemo Customer 012\tApproved\tPending (0/1)\t\nAdd Follow-up\n\nJC-2026-002129\tOD10DM1129\tDemo Customer 009\tDraft\tPending (0/0)\t\nAdd Follow-up\n\nJC-2026-002126\tOD07DM1126\tDemo Customer 006\tApproved\tDone(1)\t\nView\n\nJC-2026-002123\tOD04DM1123\tDemo Customer 003\tApproved\tPending (0/1)\t\nAdd Follow-up\n\nJC-2026-002120\tOD01DM1120\tDemo Customer 120\tApproved\tPending (0/1)\t\nAdd Follow-up\n\nJC-2026-002117\tOD28DM1117\tDemo Customer 117\tApproved\tPending (0/1)\t\nAdd Follow-up\n1\n2\n3\n4\n5",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "My Queue",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Card",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Estimate",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Follow-ups",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Note",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Outcome\nOptional",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Mark this follow-up done",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Save Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Save & Add Another",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search follow-ups",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Follow-ups received date",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Follow-ups month-year",
+      "text": "All months\nAugust 2026\nJuly 2026\nJune 2026\nMay 2026\nApril 2026\nMarch 2026\nFebruary 2026\nJanuary 2026",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All months",
+        "August 2026",
+        "July 2026",
+        "June 2026",
+        "May 2026",
+        "April 2026",
+        "March 2026",
+        "February 2026",
+        "January 2026"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Follow-ups records per page",
+      "text": "10\n20\n50",
+      "value": "10",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "10",
+        "20",
+        "50"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 5",
+      "text": "5",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Follow-up",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 5",
+      "text": "5",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

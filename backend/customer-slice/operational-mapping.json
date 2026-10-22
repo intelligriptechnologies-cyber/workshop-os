@@ -1,0 +1,174 @@
+{
+  "advisor_attendance": {
+    "table": "advisor_attendance",
+    "columns": {
+      "user_id": "user_id",
+      "date": "date",
+      "present": "present"
+    },
+    "actors": []
+  },
+  "checklist_cycles": {
+    "table": "job_checklist_cycles",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "stage": "stage",
+      "cycle_number": "cycle_number",
+      "started_at": "started_at",
+      "completed_at": "completed_at"
+    },
+    "actors": []
+  },
+  "checklist_items": {
+    "table": "job_checklist_items",
+    "columns": {
+      "id": "id",
+      "checklist_cycle_id": "cycle_id",
+      "job_card_id": "job_card_id",
+      "stage": "stage",
+      "cycle_number": "cycle_number",
+      "item_key": "item_key",
+      "label": "label",
+      "sort_order": "sort_order",
+      "checked_by": "checked_by",
+      "checked_at": "checked_at",
+      "started_at": "started_at",
+      "completed_at": "completed_at",
+      "required": "required",
+      "na_at": "na_at",
+      "na_by": "na_by"
+    },
+    "actors": [
+      "checked_by",
+      "na_by"
+    ]
+  },
+  "job_cards": {
+    "table": "job_cards",
+    "columns": {
+      "id": "id",
+      "job_no": "job_no",
+      "visit_id": "visit_id",
+      "advisor_id": "advisor_id",
+      "technician_id": "technician_id",
+      "main_status": "status",
+      "sub_status": "sub_status",
+      "work_list": "work_list",
+      "promised_at": "promised_at",
+      "qc_status": "qc_status",
+      "washing_needed": "washing_needed",
+      "closed_at": "closed_at",
+      "service_type": "service_type",
+      "pickup_drop": "pickup_drop",
+      "estimated_delivery": "estimated_delivery",
+      "damage_marks": "damage_marks",
+      "damage_marks_recorded_at": "damage_marks_recorded_at",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "advisor_notes": "advisor_notes",
+      "customer_instructions": "customer_instructions",
+      "internal_instructions": "internal_instructions",
+      "delivery_by": "delivery_by",
+      "final_km": "final_km",
+      "acknowledgement": "acknowledgement"
+    },
+    "actors": [
+      "advisor_id"
+    ]
+  },
+  "photos": {
+    "table": "job_media",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "label": "label",
+      "src": "src",
+      "archived_at": "archived_at",
+      "archived_reason": "archive_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "category": "category",
+      "mime_type": "mime_type",
+      "byte_size": "byte_size",
+      "original_name": "original_name",
+      "width": "width",
+      "height": "height"
+    },
+    "actors": []
+  },
+  "qc_checks": {
+    "table": "qc_checks",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "label": "label",
+      "passed": "passed",
+      "fail_reason": "fail_reason",
+      "archived_at": "archived_at"
+    },
+    "actors": []
+  },
+  "status_history": {
+    "table": "legacy_job_status_history",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "main_status": "main_status",
+      "sub_status": "sub_status",
+      "note": "note",
+      "created_at": "created_at"
+    },
+    "actors": []
+  },
+  "tasks": {
+    "table": "technician_tasks",
+    "columns": {
+      "id": "id",
+      "job_card_id": "job_card_id",
+      "technician_id": "assigned_to",
+      "title": "title",
+      "status": "ui_status",
+      "notes": "notes",
+      "archived_at": "archived_at",
+      "archived_reason": "archived_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at",
+      "started_at": "started_at",
+      "paused_at": "paused_at",
+      "completed_at": "completed_at"
+    },
+    "actors": [
+      "technician_id"
+    ]
+  },
+  "visits": {
+    "table": "visits",
+    "columns": {
+      "id": "id",
+      "customer_id": "customer_id",
+      "vehicle_id": "vehicle_id",
+      "advisor_id": "advisor_id",
+      "received_by": "received_by",
+      "received_at": "received_at",
+      "fuel": "fuel",
+      "odo_reading": "odo_reading",
+      "fuel_level_value": "fuel_level_value",
+      "fuel_level_unit": "fuel_level_unit",
+      "keys": "keys",
+      "accessories": "accessories",
+      "requested_work": "requested_work",
+      "photos_note": "photos_note",
+      "archived_at": "archived_at",
+      "archived_reason": "archive_reason",
+      "created_at": "created_at",
+      "updated_at": "updated_at"
+    },
+    "actors": [
+      "advisor_id",
+      "received_by"
+    ]
+  }
+}

@@ -1,0 +1,725 @@
+{
+  "url": "http://127.0.0.1:5187",
+  "browser": "153.0.8010.12",
+  "at": "2026-10-20T21:40:42.824Z",
+  "pages": [
+    {
+      "role": "public",
+      "title": "login",
+      "screenshot": "screenshots/public-login.png",
+      "evidence": "evidence/runtime-public-login.json"
+    },
+    {
+      "role": "reception",
+      "title": "Today Queue",
+      "screenshot": "screenshots/reception-today-queue.png",
+      "evidence": "evidence/runtime-reception-today-queue.json"
+    },
+    {
+      "role": "reception",
+      "title": "Advance Bookings",
+      "screenshot": "screenshots/reception-advance-bookings.png",
+      "evidence": "evidence/runtime-reception-advance-bookings.json"
+    },
+    {
+      "role": "reception",
+      "title": "Customers",
+      "screenshot": "screenshots/reception-customers.png",
+      "evidence": "evidence/runtime-reception-customers.json"
+    },
+    {
+      "role": "reception",
+      "title": "Vehicles",
+      "screenshot": "screenshots/reception-vehicles.png",
+      "evidence": "evidence/runtime-reception-vehicles.json"
+    },
+    {
+      "role": "reception",
+      "title": "Search",
+      "screenshot": "screenshots/reception-search.png",
+      "evidence": "evidence/runtime-reception-search.json"
+    },
+    {
+      "role": "reception",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/reception-search-category-job-card.png",
+      "evidence": "evidence/runtime-reception-search-category-job-card.json"
+    },
+    {
+      "role": "reception",
+      "title": "Search-category-Customer",
+      "screenshot": "screenshots/reception-search-category-customer.png",
+      "evidence": "evidence/runtime-reception-search-category-customer.json"
+    },
+    {
+      "role": "reception",
+      "title": "Search-category-Vehicle",
+      "screenshot": "screenshots/reception-search-category-vehicle.png",
+      "evidence": "evidence/runtime-reception-search-category-vehicle.json"
+    },
+    {
+      "role": "service",
+      "title": "My Queue",
+      "screenshot": "screenshots/service-my-queue.png",
+      "evidence": "evidence/runtime-service-my-queue.json"
+    },
+    {
+      "role": "service",
+      "title": "Job Card",
+      "screenshot": "screenshots/service-job-card.png",
+      "evidence": "evidence/runtime-service-job-card.json"
+    },
+    {
+      "role": "service",
+      "title": "Estimate",
+      "screenshot": "screenshots/service-estimate.png",
+      "evidence": "evidence/runtime-service-estimate.json"
+    },
+    {
+      "role": "service",
+      "title": "Follow-ups",
+      "screenshot": "screenshots/service-follow-ups.png",
+      "evidence": "evidence/runtime-service-follow-ups.json"
+    },
+    {
+      "role": "service",
+      "title": "Media",
+      "screenshot": "screenshots/service-media.png",
+      "evidence": "evidence/runtime-service-media.json"
+    },
+    {
+      "role": "service",
+      "title": "Search",
+      "screenshot": "screenshots/service-search.png",
+      "evidence": "evidence/runtime-service-search.json"
+    },
+    {
+      "role": "service",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/service-search-category-job-card.png",
+      "evidence": "evidence/runtime-service-search-category-job-card.json"
+    },
+    {
+      "role": "service",
+      "title": "Search-category-Customer",
+      "screenshot": "screenshots/service-search-category-customer.png",
+      "evidence": "evidence/runtime-service-search-category-customer.json"
+    },
+    {
+      "role": "service",
+      "title": "Search-category-Vehicle",
+      "screenshot": "screenshots/service-search-category-vehicle.png",
+      "evidence": "evidence/runtime-service-search-category-vehicle.json"
+    },
+    {
+      "role": "service",
+      "title": "Search-category-Invoice",
+      "screenshot": "screenshots/service-search-category-invoice.png",
+      "evidence": "evidence/runtime-service-search-category-invoice.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "My Queue",
+      "screenshot": "screenshots/service-manager-my-queue.png",
+      "evidence": "evidence/runtime-service-manager-my-queue.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Job Card",
+      "screenshot": "screenshots/service-manager-job-card.png",
+      "evidence": "evidence/runtime-service-manager-job-card.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Estimate",
+      "screenshot": "screenshots/service-manager-estimate.png",
+      "evidence": "evidence/runtime-service-manager-estimate.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Follow-ups",
+      "screenshot": "screenshots/service-manager-follow-ups.png",
+      "evidence": "evidence/runtime-service-manager-follow-ups.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Media",
+      "screenshot": "screenshots/service-manager-media.png",
+      "evidence": "evidence/runtime-service-manager-media.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Search",
+      "screenshot": "screenshots/service-manager-search.png",
+      "evidence": "evidence/runtime-service-manager-search.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/service-manager-search-category-job-card.png",
+      "evidence": "evidence/runtime-service-manager-search-category-job-card.json"
+    },
+    {
+      "role": "service_manager",
+      "title": "Search-category-Invoice",
+      "screenshot": "screenshots/service-manager-search-category-invoice.png",
+      "evidence": "evidence/runtime-service-manager-search-category-invoice.json"
+    },
+    {
+      "role": "store",
+      "title": "Material Requests",
+      "screenshot": "screenshots/store-material-requests.png",
+      "evidence": "evidence/runtime-store-material-requests.json"
+    },
+    {
+      "role": "store",
+      "title": "Issue Material",
+      "screenshot": "screenshots/store-issue-material.png",
+      "evidence": "evidence/runtime-store-issue-material.json"
+    },
+    {
+      "role": "store",
+      "title": "Reconcile",
+      "screenshot": "screenshots/store-reconcile.png",
+      "evidence": "evidence/runtime-store-reconcile.json"
+    },
+    {
+      "role": "store",
+      "title": "Stock",
+      "screenshot": "screenshots/store-stock.png",
+      "evidence": "evidence/runtime-store-stock.json"
+    },
+    {
+      "role": "store",
+      "title": "Stock-tab-Inventory List",
+      "screenshot": "screenshots/store-stock-tab-inventory-list.png",
+      "evidence": "evidence/runtime-store-stock-tab-inventory-list.json"
+    },
+    {
+      "role": "store",
+      "title": "Stock-tab-Low Stock",
+      "screenshot": "screenshots/store-stock-tab-low-stock.png",
+      "evidence": "evidence/runtime-store-stock-tab-low-stock.json"
+    },
+    {
+      "role": "store",
+      "title": "Stock-tab-Stock Movements",
+      "screenshot": "screenshots/store-stock-tab-stock-movements.png",
+      "evidence": "evidence/runtime-store-stock-tab-stock-movements.json"
+    },
+    {
+      "role": "store",
+      "title": "Purchase Orders",
+      "screenshot": "screenshots/store-purchase-orders.png",
+      "evidence": "evidence/runtime-store-purchase-orders.json"
+    },
+    {
+      "role": "store",
+      "title": "Search",
+      "screenshot": "screenshots/store-search.png",
+      "evidence": "evidence/runtime-store-search.json"
+    },
+    {
+      "role": "store",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/store-search-category-job-card.png",
+      "evidence": "evidence/runtime-store-search-category-job-card.json"
+    },
+    {
+      "role": "store",
+      "title": "Search-category-Stock",
+      "screenshot": "screenshots/store-search-category-stock.png",
+      "evidence": "evidence/runtime-store-search-category-stock.json"
+    },
+    {
+      "role": "tech",
+      "title": "My Tasks",
+      "screenshot": "screenshots/tech-my-tasks.png",
+      "evidence": "evidence/runtime-tech-my-tasks.json"
+    },
+    {
+      "role": "tech",
+      "title": "Work Update",
+      "screenshot": "screenshots/tech-work-update.png",
+      "evidence": "evidence/runtime-tech-work-update.json"
+    },
+    {
+      "role": "tech",
+      "title": "QC Prep",
+      "screenshot": "screenshots/tech-qc-prep.png",
+      "evidence": "evidence/runtime-tech-qc-prep.json"
+    },
+    {
+      "role": "tech",
+      "title": "Search",
+      "screenshot": "screenshots/tech-search.png",
+      "evidence": "evidence/runtime-tech-search.json"
+    },
+    {
+      "role": "tech",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/tech-search-category-job-card.png",
+      "evidence": "evidence/runtime-tech-search-category-job-card.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Ready To Invoice",
+      "screenshot": "screenshots/accounts-ready-to-invoice.png",
+      "evidence": "evidence/runtime-accounts-ready-to-invoice.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Invoice",
+      "screenshot": "screenshots/accounts-invoice.png",
+      "evidence": "evidence/runtime-accounts-invoice.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Payment",
+      "screenshot": "screenshots/accounts-payment.png",
+      "evidence": "evidence/runtime-accounts-payment.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Delivery",
+      "screenshot": "screenshots/accounts-delivery.png",
+      "evidence": "evidence/runtime-accounts-delivery.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Search",
+      "screenshot": "screenshots/accounts-search.png",
+      "evidence": "evidence/runtime-accounts-search.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/accounts-search-category-job-card.png",
+      "evidence": "evidence/runtime-accounts-search-category-job-card.json"
+    },
+    {
+      "role": "accounts",
+      "title": "Search-category-Invoice",
+      "screenshot": "screenshots/accounts-search-category-invoice.png",
+      "evidence": "evidence/runtime-accounts-search-category-invoice.json"
+    },
+    {
+      "role": "admin",
+      "title": "Dashboard",
+      "screenshot": "screenshots/admin-dashboard.png",
+      "evidence": "evidence/runtime-admin-dashboard.json"
+    },
+    {
+      "role": "admin",
+      "title": "Advance Bookings",
+      "screenshot": "screenshots/admin-advance-bookings.png",
+      "evidence": "evidence/runtime-admin-advance-bookings.json"
+    },
+    {
+      "role": "admin",
+      "title": "Approvals (0)",
+      "screenshot": "screenshots/admin-approvals-0.png",
+      "evidence": "evidence/runtime-admin-approvals-0.json"
+    },
+    {
+      "role": "admin",
+      "title": "Data Flow",
+      "screenshot": "screenshots/admin-data-flow.png",
+      "evidence": "evidence/runtime-admin-data-flow.json"
+    },
+    {
+      "role": "admin",
+      "title": "Job Cards",
+      "screenshot": "screenshots/admin-job-cards.png",
+      "evidence": "evidence/runtime-admin-job-cards.json"
+    },
+    {
+      "role": "admin",
+      "title": "Media",
+      "screenshot": "screenshots/admin-media.png",
+      "evidence": "evidence/runtime-admin-media.json"
+    },
+    {
+      "role": "admin",
+      "title": "Purchase Orders",
+      "screenshot": "screenshots/admin-purchase-orders.png",
+      "evidence": "evidence/runtime-admin-purchase-orders.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage",
+      "screenshot": "screenshots/admin-manage.png",
+      "evidence": "evidence/runtime-admin-manage.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Users",
+      "screenshot": "screenshots/admin-manage-tab-users.png",
+      "evidence": "evidence/runtime-admin-manage-tab-users.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Customers",
+      "screenshot": "screenshots/admin-manage-tab-customers.png",
+      "evidence": "evidence/runtime-admin-manage-tab-customers.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Vehicles",
+      "screenshot": "screenshots/admin-manage-tab-vehicles.png",
+      "evidence": "evidence/runtime-admin-manage-tab-vehicles.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Suppliers",
+      "screenshot": "screenshots/admin-manage-tab-suppliers.png",
+      "evidence": "evidence/runtime-admin-manage-tab-suppliers.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Job Cards",
+      "screenshot": "screenshots/admin-manage-tab-job-cards.png",
+      "evidence": "evidence/runtime-admin-manage-tab-job-cards.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Estimates",
+      "screenshot": "screenshots/admin-manage-tab-estimates.png",
+      "evidence": "evidence/runtime-admin-manage-tab-estimates.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Invoices",
+      "screenshot": "screenshots/admin-manage-tab-invoices.png",
+      "evidence": "evidence/runtime-admin-manage-tab-invoices.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Payments",
+      "screenshot": "screenshots/admin-manage-tab-payments.png",
+      "evidence": "evidence/runtime-admin-manage-tab-payments.json"
+    },
+    {
+      "role": "admin",
+      "title": "Manage-tab-Delivery",
+      "screenshot": "screenshots/admin-manage-tab-delivery.png",
+      "evidence": "evidence/runtime-admin-manage-tab-delivery.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search",
+      "screenshot": "screenshots/admin-search.png",
+      "evidence": "evidence/runtime-admin-search.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Job Card",
+      "screenshot": "screenshots/admin-search-category-job-card.png",
+      "evidence": "evidence/runtime-admin-search-category-job-card.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Invoice",
+      "screenshot": "screenshots/admin-search-category-invoice.png",
+      "evidence": "evidence/runtime-admin-search-category-invoice.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Customer",
+      "screenshot": "screenshots/admin-search-category-customer.png",
+      "evidence": "evidence/runtime-admin-search-category-customer.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Vehicle",
+      "screenshot": "screenshots/admin-search-category-vehicle.png",
+      "evidence": "evidence/runtime-admin-search-category-vehicle.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Payments",
+      "screenshot": "screenshots/admin-search-category-payments.png",
+      "evidence": "evidence/runtime-admin-search-category-payments.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Material Requests",
+      "screenshot": "screenshots/admin-search-category-material-requests.png",
+      "evidence": "evidence/runtime-admin-search-category-material-requests.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Issue Material",
+      "screenshot": "screenshots/admin-search-category-issue-material.png",
+      "evidence": "evidence/runtime-admin-search-category-issue-material.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Reconcile Stock",
+      "screenshot": "screenshots/admin-search-category-reconcile-stock.png",
+      "evidence": "evidence/runtime-admin-search-category-reconcile-stock.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Stock",
+      "screenshot": "screenshots/admin-search-category-stock.png",
+      "evidence": "evidence/runtime-admin-search-category-stock.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Estimate",
+      "screenshot": "screenshots/admin-search-category-estimate.png",
+      "evidence": "evidence/runtime-admin-search-category-estimate.json"
+    },
+    {
+      "role": "admin",
+      "title": "Search-category-Follow-ups",
+      "screenshot": "screenshots/admin-search-category-follow-ups.png",
+      "evidence": "evidence/runtime-admin-search-category-follow-ups.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console",
+      "screenshot": "screenshots/admin-admin-console.png",
+      "evidence": "evidence/runtime-admin-admin-console.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Users",
+      "screenshot": "screenshots/admin-admin-console-tab-users.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-users.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Team Structure",
+      "screenshot": "screenshots/admin-admin-console-tab-team-structure.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-team-structure.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Service Task",
+      "screenshot": "screenshots/admin-admin-console-tab-service-task.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-service-task.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Roles & Page Access",
+      "screenshot": "screenshots/admin-admin-console-tab-roles-page-access.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-roles-page-access.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Business Settings",
+      "screenshot": "screenshots/admin-admin-console-tab-business-settings.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-business-settings.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-App Theme",
+      "screenshot": "screenshots/admin-admin-console-tab-app-theme.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-app-theme.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Company Settings",
+      "screenshot": "screenshots/admin-admin-console-tab-company-settings.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-company-settings.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Report Templates",
+      "screenshot": "screenshots/admin-admin-console-tab-report-templates.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-report-templates.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Inventory Import",
+      "screenshot": "screenshots/admin-admin-console-tab-inventory-import.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-inventory-import.json"
+    },
+    {
+      "role": "admin",
+      "title": "Admin Console-tab-Support & Logs",
+      "screenshot": "screenshots/admin-admin-console-tab-support-logs.png",
+      "evidence": "evidence/runtime-admin-admin-console-tab-support-logs.json"
+    },
+    {
+      "role": "admin",
+      "title": "Leads",
+      "screenshot": "screenshots/admin-leads.png",
+      "evidence": "evidence/runtime-admin-leads.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotations",
+      "screenshot": "screenshots/admin-quotations.png",
+      "evidence": "evidence/runtime-admin-quotations.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings",
+      "screenshot": "screenshots/admin-quotation-settings.png",
+      "evidence": "evidence/runtime-admin-quotation-settings.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Users",
+      "screenshot": "screenshots/admin-quotation-settings-tab-users.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-users.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Team Structure",
+      "screenshot": "screenshots/admin-quotation-settings-tab-team-structure.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-team-structure.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Service Task",
+      "screenshot": "screenshots/admin-quotation-settings-tab-service-task.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-service-task.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Roles & Page Access",
+      "screenshot": "screenshots/admin-quotation-settings-tab-roles-page-access.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-roles-page-access.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Business Settings",
+      "screenshot": "screenshots/admin-quotation-settings-tab-business-settings.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-business-settings.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-App Theme",
+      "screenshot": "screenshots/admin-quotation-settings-tab-app-theme.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-app-theme.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Company Settings",
+      "screenshot": "screenshots/admin-quotation-settings-tab-company-settings.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-company-settings.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Report Templates",
+      "screenshot": "screenshots/admin-quotation-settings-tab-report-templates.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-report-templates.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Inventory Import",
+      "screenshot": "screenshots/admin-quotation-settings-tab-inventory-import.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-inventory-import.json"
+    },
+    {
+      "role": "admin",
+      "title": "Quotation Settings-tab-Support & Logs",
+      "screenshot": "screenshots/admin-quotation-settings-tab-support-logs.png",
+      "evidence": "evidence/runtime-admin-quotation-settings-tab-support-logs.json"
+    },
+    {
+      "role": "developer",
+      "title": "Tenants",
+      "screenshot": "screenshots/developer-tenants.png",
+      "evidence": "evidence/runtime-developer-tenants.json"
+    },
+    {
+      "role": "developer",
+      "title": "Communications",
+      "screenshot": "screenshots/developer-communications.png",
+      "evidence": "evidence/runtime-developer-communications.json"
+    },
+    {
+      "role": "developer",
+      "title": "Billing",
+      "screenshot": "screenshots/developer-billing.png",
+      "evidence": "evidence/runtime-developer-billing.json"
+    }
+  ],
+  "errors": [],
+  "dialogs": [],
+  "reception": {
+    "user": "reception@example.com",
+    "nav": [
+      "Today Queue",
+      "Advance Bookings",
+      "Customers",
+      "Vehicles",
+      "Search"
+    ]
+  },
+  "service": {
+    "user": "service@example.com",
+    "nav": [
+      "My Queue",
+      "Job Card",
+      "Estimate",
+      "Follow-ups",
+      "Media",
+      "Search"
+    ]
+  },
+  "service_manager": {
+    "user": "general.service.manager@example.com",
+    "nav": [
+      "My Queue",
+      "Job Card",
+      "Estimate",
+      "Follow-ups",
+      "Media",
+      "Search"
+    ]
+  },
+  "store": {
+    "user": "store@example.com",
+    "nav": [
+      "Material Requests",
+      "Issue Material",
+      "Reconcile",
+      "Stock",
+      "Purchase Orders",
+      "Search"
+    ]
+  },
+  "tech": {
+    "user": "tech@example.com",
+    "nav": [
+      "My Tasks",
+      "Work Update",
+      "QC Prep",
+      "Search"
+    ]
+  },
+  "accounts": {
+    "user": "accounts@example.com",
+    "nav": [
+      "Ready To Invoice",
+      "Invoice",
+      "Payment",
+      "Delivery",
+      "Search"
+    ]
+  },
+  "admin": {
+    "user": "admin@example.com",
+    "nav": [
+      "Dashboard",
+      "Advance Bookings",
+      "Approvals (0)",
+      "Data Flow",
+      "Job Cards",
+      "Media",
+      "Purchase Orders",
+      "Manage",
+      "Search",
+      "Admin Console",
+      "Leads",
+      "Quotations",
+      "Quotation Settings"
+    ]
+  }
+}

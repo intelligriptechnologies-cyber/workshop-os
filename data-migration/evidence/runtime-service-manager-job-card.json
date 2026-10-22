@@ -1,0 +1,363 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nService Department Manager\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nSearch\nLogout\n\nService Department Manager\n\nDepartment queue for routing and advisor handoffs.\ngeneral.service.manager@example.com\nJob Cards\n\nJobs assigned to you\n\nSearch\nMain status\nAll statuses\nNEW\nIN_PROGRESS\nCOMPLETED\nCANCELLED\nCLOSED\nWorkflow\nAll workflows\nEstimated Delivery Date\nEstimated Delivery Month-Year\nAll months\nOctober 2026\nSort\nNewest\nOldest\nEstimated delivery (soonest)\nEstimated delivery (latest)\nAmount (high to low)\nAmount (low to high)\nClear\nDownload\nShowing 0 to 0 of 0\nPer page\n10\n20\n50\n1\nNo matching records\nClear filters\n1",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "My Queue",
+      "title": "My Queue",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Card",
+      "title": "Job Card",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Estimate",
+      "title": "Estimate",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Follow-ups",
+      "title": "Follow-ups",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search job cards",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All statuses\nNEW\nIN_PROGRESS\nCOMPLETED\nCANCELLED\nCLOSED",
+      "label": "Main status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All statuses",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "NEW",
+          "value": "NEW",
+          "selected": false
+        },
+        {
+          "text": "IN_PROGRESS",
+          "value": "IN_PROGRESS",
+          "selected": false
+        },
+        {
+          "text": "COMPLETED",
+          "value": "COMPLETED",
+          "selected": false
+        },
+        {
+          "text": "CANCELLED",
+          "value": "CANCELLED",
+          "selected": false
+        },
+        {
+          "text": "CLOSED",
+          "value": "CLOSED",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All workflows",
+      "label": "Workflow status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All workflows",
+          "value": "ALL",
+          "selected": true
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Estimated delivery date",
+      "title": "",
+      "type": "date",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All months\nOctober 2026",
+      "label": "Estimated delivery month-year",
+      "title": "",
+      "type": "select-one",
+      "value": "2026-10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All months",
+          "value": "",
+          "selected": false
+        },
+        {
+          "text": "October 2026",
+          "value": "2026-10",
+          "selected": true
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "Newest\nOldest\nEstimated delivery (soonest)\nEstimated delivery (latest)\nAmount (high to low)\nAmount (low to high)",
+      "label": "Sort results",
+      "title": "",
+      "type": "select-one",
+      "value": "newest",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Newest",
+          "value": "newest",
+          "selected": true
+        },
+        {
+          "text": "Oldest",
+          "value": "oldest",
+          "selected": false
+        },
+        {
+          "text": "Estimated delivery (soonest)",
+          "value": "delivery-soonest",
+          "selected": false
+        },
+        {
+          "text": "Estimated delivery (latest)",
+          "value": "delivery-latest",
+          "selected": false
+        },
+        {
+          "text": "Amount (high to low)",
+          "value": "amount-high",
+          "selected": false
+        },
+        {
+          "text": "Amount (low to high)",
+          "value": "amount-low",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Job Cards records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear filters",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

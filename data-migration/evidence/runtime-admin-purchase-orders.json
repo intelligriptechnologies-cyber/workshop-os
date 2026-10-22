@@ -1,0 +1,254 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nPurchase Orders\n\nOrdering commitments; stock is recorded only through Stock Inward.\n\nNew Purchase Request\nSearch\nStatus\nAll statuses\nPO Request\nPO Request Approved\nPO Issued\nPO Received\nPO Confirmation\nDraft\nSent\nPartially Received\nReady to Close\nClosed\nCancelled\nClear\nPO\tDate\tSupplier\tOrdered\tReceived\tTotal\tStatus\tActions\nPO-WOS-A-00002\t2026-10-02\tSupplier 1\t45\t1\tRs 3,015\tClosed\t\nProcess\n\nPO-WOS-A-00001\t2026-10-01\tSupplier 1\t3\t3\tRs 1,572\tClosed\t\nProcess",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "New Purchase Request",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search purchase orders",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All statuses\nPO Request\nPO Request Approved\nPO Issued\nPO Received\nPO Confirmation\nDraft\nSent\nPartially Received\nReady to Close\nClosed\nCancelled",
+      "label": "Purchase order status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All statuses",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "PO Request",
+          "value": "PO Request",
+          "selected": false
+        },
+        {
+          "text": "PO Request Approved",
+          "value": "PO Request Approved",
+          "selected": false
+        },
+        {
+          "text": "PO Issued",
+          "value": "PO Issued",
+          "selected": false
+        },
+        {
+          "text": "PO Received",
+          "value": "PO Received",
+          "selected": false
+        },
+        {
+          "text": "PO Confirmation",
+          "value": "PO Confirmation",
+          "selected": false
+        },
+        {
+          "text": "Draft",
+          "value": "Draft",
+          "selected": false
+        },
+        {
+          "text": "Sent",
+          "value": "Sent",
+          "selected": false
+        },
+        {
+          "text": "Partially Received",
+          "value": "Partially Received",
+          "selected": false
+        },
+        {
+          "text": "Ready to Close",
+          "value": "Ready to Close",
+          "selected": false
+        },
+        {
+          "text": "Closed",
+          "value": "Closed",
+          "selected": false
+        },
+        {
+          "text": "Cancelled",
+          "value": "Cancelled",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Process",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Process",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

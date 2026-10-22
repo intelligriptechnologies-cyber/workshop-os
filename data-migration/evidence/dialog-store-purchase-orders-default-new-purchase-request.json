@@ -1,0 +1,239 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nStore\nMaterial Requests\nIssue Material\nReconcile\nStock\nPurchase Orders\nSearch\nLogout\n\nStore\n\nIssue counter for accountable material movement.\nstore@example.com\nPurchase Orders\n\nOrdering commitments; stock is recorded only through Stock Inward.\n\nNew Purchase Request\nSearch\nStatus\nAll statuses\nPO Request\nPO Request Approved\nPO Issued\nPO Received\nPO Confirmation\nDraft\nSent\nPartially Received\nReady to Close\nClosed\nCancelled\nClear\nPO\tDate\tSupplier\tOrdered\tReceived\tTotal\tStatus\tActions\nPO-WOS-A-00002\t2026-10-02\tSupplier 1\t45\t1\tRs 3,015\tClosed\t\nProcess\n\nPO-WOS-A-00001\t2026-10-01\tSupplier 1\t3\t3\tRs 1,572\tClosed\t\nProcess\nNew Purchase Request\n\nPO number is assigned automatically. Supplier and pricing are completed by Admin after review.\n\nPO number\nOrder date\nNotes\nSupplier\nOrder lines\nAdd line\nItem type\nExisting inventory SKU\nNew item request\nin stock: 3 4\nQty\nRemove\nCreate request\nGo Back",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Material Requests",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Issue Material",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Reconcile",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Stock",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Purchase Orders",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "New Purchase Request",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search purchase orders",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Purchase order status",
+      "text": "All statuses\nPO Request\nPO Request Approved\nPO Issued\nPO Received\nPO Confirmation\nDraft\nSent\nPartially Received\nReady to Close\nClosed\nCancelled",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All statuses",
+        "PO Request",
+        "PO Request Approved",
+        "PO Issued",
+        "PO Received",
+        "PO Confirmation",
+        "Draft",
+        "Sent",
+        "Partially Received",
+        "Ready to Close",
+        "Closed",
+        "Cancelled"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Process",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Process",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "PO number",
+      "text": "",
+      "value": "PO-WOS-A-00003",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "PO order date",
+      "text": "",
+      "value": "2026-10-20",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "PO notes",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "PO supplier",
+      "text": "",
+      "value": "Assigned by Admin after request",
+      "required": false,
+      "disabled": true,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Add line",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Item type\nExisting inventory SKU\nNew item request",
+      "text": "Existing inventory SKU\nNew item request",
+      "value": "inventory",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Existing inventory SKU",
+        "New item request"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "PO line 1 item",
+      "text": "",
+      "value": "leather seat cover1",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "PO line 1 quantity",
+      "text": "",
+      "value": "1",
+      "required": false,
+      "disabled": false,
+      "min": "0.01",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Remove",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Create request",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

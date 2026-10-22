@@ -1,0 +1,593 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nAdvance Bookings\n\nPlan customer arrivals by date. Advisor assignment happens only after check-in.\n\nCreate Booking\nOctober 2026\nSun\nMon\nTue\nWed\nThu\nFri\nSat\n27\nSW 0/8 · C 0/4\n28\nSW 0/8 · C 0/4\n29\nSW 0/8 · C 0/4\n30\nSW 1/8 · C 0/4\n1\nSW 0/8 · C 0/4\n2\nSW 0/8 · C 0/4\n3\nSW 0/8 · C 0/4\n4\nSW 0/8 · C 0/4\n5\nSW 0/8 · C 0/4\n6\nSW 0/8 · C 0/4\n7\nSW 0/8 · C 0/4\n8\nSW 0/8 · C 0/4\n9\nSW 0/8 · C 0/4\n10\nSW 1/8 · C 0/4\n11\nSW 0/8 · C 0/4\n12\nSW 0/8 · C 0/4\n13\nSW 0/8 · C 0/4\n14\nSW 0/8 · C 0/4\n15\nSW 0/8 · C 0/4\n16\nSW 0/8 · C 0/4\n17\nSW 0/8 · C 0/4\n18\nSW 0/8 · C 0/4\n19\nSW 0/8 · C 0/4\n20\nSW 0/8 · C 0/4\n21\nSW 0/8 · C 0/4\n22\nSW 0/8 · C 0/4\n23\nSW 0/8 · C 0/4\n24\nSW 0/8 · C 0/4\n25\nSW 0/8 · C 0/4\n26\nSW 0/8 · C 0/4\n27\nSW 0/8 · C 0/4\n28\nSW 0/8 · C 0/4\n29\nSW 0/8 · C 0/4\n30\nSW 0/8 · C 0/4\n31\nSW 0/8 · C 0/4\n1\nSW 0/8 · C 0/4\n2\nSW 0/8 · C 0/4\n3\nSW 0/8 · C 0/4\n4\nSW 0/8 · C 0/4\n5\nSW 0/8 · C 0/4\n6\nSW 0/8 · C 0/4\n7\nSW 0/8 · C 0/4\n\n SW = Service Work · C = General Checkup / Follow-up.\n\nThursday, 22 October 2026\n\nService Work: 0/8 · 8 remaining\n\nGeneral Checkup / Follow-up: 0/4 · 4 remaining\n\nAdmin: Set limits\n\nNo advance bookings for this day.\n\nCreate advance booking\n\nBooking for Thursday, 22 October 2026\n\nCustomer name\nMobile\nVehicle number\nMake\nModel\nColor\nBooking date\nService type\nService Work\nGeneral Checkup / Follow-up\nArrival window\nNot set\nMorning\nAfternoon\nEvening\nRequested work\nSave Booking\nCancel\nGo Back\nExpected Today\n\n2026-10-20 · customers yet to arrive at reception\n\n0 expected\nFollow-up status\nAll expected\nNeeds follow-up\nCall logged\n0 shown\nNo customers match this filter.\nBookings checked in, cancelled, rescheduled away, or marked no-show do not appear here.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Dashboard",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Advance Bookings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Approvals (0)",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Data Flow",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Cards",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Purchase Orders",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Manage",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Admin Console",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Leads",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotations",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotation Settings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Create Booking",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous month",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next month",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "27\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "28\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "29\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "30\nSW 1/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "1\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "2\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "3\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "4\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "5\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "6\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "7\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "8\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "9\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "10\nSW 1/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "11\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "12\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "13\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "14\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "15\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "16\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "17\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "18\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "19\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "20\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "21\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "22\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "23\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "24\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "25\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "26\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "27\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "28\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "29\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "30\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "31\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "1\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "2\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "3\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "4\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "5\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "6\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "7\nSW 0/8 · C 0/4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Admin control: set daily booking limits",
+      "text": "Admin: Set limits",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Customer name",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Mobile",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Vehicle number",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Make",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Model",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Color",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Booking date",
+      "text": "",
+      "value": "2026-10-22",
+      "required": true,
+      "disabled": false,
+      "min": "2026-10-22",
+      "max": "2027-01-31"
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Service type\nService Work\nGeneral Checkup / Follow-up",
+      "text": "Service Work\nGeneral Checkup / Follow-up",
+      "value": "Service Work",
+      "required": true,
+      "disabled": false,
+      "options": [
+        "Service Work",
+        "General Checkup / Follow-up"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Arrival window\nNot set\nMorning\nAfternoon\nEvening",
+      "text": "Not set\nMorning\nAfternoon\nEvening",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Not set",
+        "Morning",
+        "Afternoon",
+        "Evening"
+      ]
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Requested work",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Save Booking",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Cancel",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Expected today follow-up status",
+      "text": "All expected\nNeeds follow-up\nCall logged",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All expected",
+        "Needs follow-up",
+        "Call logged"
+      ]
+    }
+  ]
+}

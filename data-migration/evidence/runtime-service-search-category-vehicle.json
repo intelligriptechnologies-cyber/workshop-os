@@ -1,0 +1,545 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nService Advisor\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nSearch\nLogout\n\nService Advisor\n\nCommand queue for estimates, approvals and customer updates.\nSearch category\nSelect a category\nJob Card\nCustomer\nVehicle\nInvoice\nClear category\nservice@example.com\nVehicles\n\nBrowse and manage vehicles\n\nSearch\nServed month\nAll months\n2026-10\n2026-08\n2026-07\n2026-06\n2026-05\n2026-04\n2026-03\n2026-02\n2026-01\nSort\nAlphabetical\nRecent\nClear\nDownload\nGrid\nTable\nShowing 1 to 10 of 132\nPer page\n10\n20\n50\n1\n2\n3\n4\n5\n…\n14\nOD01DM1030\nToyota Fortuner\n\nGrey\n\nCustomer\nDemo Customer 030\nKM\n14,510\nView\nOD01DM1060\nMaruti Brezza\n\nGrey\n\nCustomer\nDemo Customer 060\nKM\n24,020\nView\nOD01DM1090\nMahindra Thar\n\nGrey\n\nCustomer\nDemo Customer 090\nKM\n33,530\nView\nOD01DM1120\nBMW X1\n\nGrey\n\nCustomer\nDemo Customer 120\nKM\n43,040\nView\nOD02DM1001\nHyundai Creta\n\nWhite\n\nCustomer\nDemo Customer 001\nKM\n5,317\nView\nOD02DM1031\nKia Seltos\n\nWhite\n\nCustomer\nDemo Customer 031\nKM\n14,827\nView\nOD02DM1061\nHonda City\n\nWhite\n\nCustomer\nDemo Customer 061\nKM\n24,337\nView\nOD02DM1091\nTata Nexon\n\nWhite\n\nCustomer\nDemo Customer 091\nKM\n33,847\nView\nOD02DM1121\nHyundai Creta\n\nWhite\n\nCustomer\nDemo Customer 001\nKM\n43,357\nView\nOD03DM1002\nMahindra Thar\n\nBlack\n\nCustomer\nDemo Customer 002\nKM\n5,634\nView\n1\n2\n3\n4\n5\n…\n14",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "My Queue",
+      "title": "My Queue",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Card",
+      "title": "Job Card",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Estimate",
+      "title": "Estimate",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Follow-ups",
+      "title": "Follow-ups",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Select a category\nJob Card\nCustomer\nVehicle\nInvoice",
+      "label": "Search category",
+      "title": "",
+      "type": "select-one",
+      "value": "vehicle",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Select a category",
+          "value": "",
+          "selected": false
+        },
+        {
+          "text": "Job Card",
+          "value": "job",
+          "selected": false
+        },
+        {
+          "text": "Customer",
+          "value": "customer",
+          "selected": false
+        },
+        {
+          "text": "Vehicle",
+          "value": "vehicle",
+          "selected": true
+        },
+        {
+          "text": "Invoice",
+          "value": "invoice",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear category",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show filters",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search records",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All months\n2026-10\n2026-08\n2026-07\n2026-06\n2026-05\n2026-04\n2026-03\n2026-02\n2026-01",
+      "label": "Vehicle served month",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All months",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "2026-10",
+          "value": "2026-10",
+          "selected": false
+        },
+        {
+          "text": "2026-08",
+          "value": "2026-08",
+          "selected": false
+        },
+        {
+          "text": "2026-07",
+          "value": "2026-07",
+          "selected": false
+        },
+        {
+          "text": "2026-06",
+          "value": "2026-06",
+          "selected": false
+        },
+        {
+          "text": "2026-05",
+          "value": "2026-05",
+          "selected": false
+        },
+        {
+          "text": "2026-04",
+          "value": "2026-04",
+          "selected": false
+        },
+        {
+          "text": "2026-03",
+          "value": "2026-03",
+          "selected": false
+        },
+        {
+          "text": "2026-02",
+          "value": "2026-02",
+          "selected": false
+        },
+        {
+          "text": "2026-01",
+          "value": "2026-01",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "Alphabetical\nRecent",
+      "label": "Sort results",
+      "title": "",
+      "type": "select-one",
+      "value": "alphabetical",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Alphabetical",
+          "value": "alphabetical",
+          "selected": true
+        },
+        {
+          "text": "Recent",
+          "value": "recent",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Grid",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Table",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2",
+      "label": "Page 2",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3",
+      "label": "Page 3",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4",
+      "label": "Page 4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5",
+      "label": "Page 5",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "14",
+      "label": "Page 14",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2",
+      "label": "Page 2",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3",
+      "label": "Page 3",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4",
+      "label": "Page 4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5",
+      "label": "Page 5",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "14",
+      "label": "Page 14",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

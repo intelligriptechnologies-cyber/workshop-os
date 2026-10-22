@@ -1,0 +1,4 @@
+.local.env
+.generated/
+artifacts/
+__pycache__/

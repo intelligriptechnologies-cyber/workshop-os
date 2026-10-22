@@ -1,0 +1,330 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nSales Leads\n\nLocal CRM inquiries, follow-ups, and site visits.\n\nDownload\nAdd Lead\nSearch leads\nStatus\nAll statuses\nNew\nQualified\nQuotation sent\nWon\nLost\nCreated month/year\nClear\nLead\tContact\tStage\tTemperature\tFollow-up\tSite visit\tActions\nwe\n123123\t42314\n123!@asdd.dd\t\nNew\nQualified\nQuotation sent\nWon\nLost\n\t\nHot\nWarm\nCold\n\t\t\nYes\nNo\n\t\nEdit",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Add Lead",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search leads",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All statuses\nNew\nQualified\nQuotation sent\nWon\nLost",
+      "label": "Lead status filter",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All statuses",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "New",
+          "value": "NEW",
+          "selected": false
+        },
+        {
+          "text": "Qualified",
+          "value": "QUALIFIED",
+          "selected": false
+        },
+        {
+          "text": "Quotation sent",
+          "value": "QUOTATION_SENT",
+          "selected": false
+        },
+        {
+          "text": "Won",
+          "value": "WON",
+          "selected": false
+        },
+        {
+          "text": "Lost",
+          "value": "LOST",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Lead created month/year",
+      "title": "",
+      "type": "month",
+      "value": "2026-10",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "New\nQualified\nQuotation sent\nWon\nLost",
+      "label": "Stage for we",
+      "title": "",
+      "type": "select-one",
+      "value": "QUOTATION_SENT",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "New",
+          "value": "NEW",
+          "selected": false
+        },
+        {
+          "text": "Qualified",
+          "value": "QUALIFIED",
+          "selected": false
+        },
+        {
+          "text": "Quotation sent",
+          "value": "QUOTATION_SENT",
+          "selected": true
+        },
+        {
+          "text": "Won",
+          "value": "WON",
+          "selected": false
+        },
+        {
+          "text": "Lost",
+          "value": "LOST",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "Hot\nWarm\nCold",
+      "label": "Temperature for we",
+      "title": "",
+      "type": "select-one",
+      "value": "HOT",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Hot",
+          "value": "HOT",
+          "selected": true
+        },
+        {
+          "text": "Warm",
+          "value": "WARM",
+          "selected": false
+        },
+        {
+          "text": "Cold",
+          "value": "COLD",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Follow-up for we",
+      "title": "",
+      "type": "date",
+      "value": "2026-10-06",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Yes\nNo",
+      "label": "Site visit for we",
+      "title": "",
+      "type": "select-one",
+      "value": "no",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Yes",
+          "value": "yes",
+          "selected": false
+        },
+        {
+          "text": "No",
+          "value": "no",
+          "selected": true
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

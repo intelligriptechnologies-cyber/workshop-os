@@ -1,3 +1,6 @@
+import { operationsApi, attachOperationalVersions } from "./operations-api";
+import { customerApi, customersApiEnabled, CustomerApiError, demoPassword, type CustomerLinks } from "./customer-api";
+import { replaceCustomerProjection } from "./db";
 import {
   Banknote,
   Boxes,
@@ -564,6 +567,7 @@ const apiErrors: Record<string, string> = {
 };
 
 function apiErrorMessage(error: unknown) {
+  if (error instanceof CustomerApiError) return error.message === "INVALID_CREDENTIALS" ? "Invalid email or password" : error.message;
   const code =
     error instanceof AdminApiError
       ? error.code
@@ -623,6 +627,8 @@ function App() {
     () => loadDeveloperControlPlane(),
   );
   const [authConfig, setAuthConfig] = useState<AuthConfig>();
+  const customerRefresh = useRef(0);
+  const pendingJobNotification = useRef<number | undefined>(undefined);
   const [authLoading, setAuthLoading] = useState(true);
   const currentAdminState = useMemo(
     () => loadAdminDemoState(),
@@ -640,6 +646,7 @@ function App() {
   }, [activeMenuItem, currentAdminState, user]);
 
   useEffect(() => {
+    if (customersApiEnabled) return;
     openWorkshopDb().then((database) => {
       setDb(database);
       const next = readState(database);
@@ -683,6 +690,31 @@ function App() {
   }, [appTheme]);
 
   useEffect(() => {
+    if (customersApiEnabled) {
+      let live = true;
+      const bootstrap = async () => {
+        try {
+          const config = await customerApi.config();
+          if (!live) return;
+          setAuthConfig({ mode: "local", allowDemo: config.allowDemo });
+          const session = await customerApi.session();
+          const projection = await operationsApi.read();
+          const rows = await customerApi.list(projection.customers as unknown as Awaited<ReturnType<typeof customerApi.list>>);
+          const database = await openWorkshopDb(rows, projection);
+          if (!live) { database.close(); return; }
+          setDb(database);
+          const next = readState(database);
+          attachOperationalVersions(next, projection);
+          setState({ ...next, vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !v.archived_at), archived_vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !!v.archived_at), customers: rows.filter(r => !r.archived_at), archived_customers: rows.filter(r => !!r.archived_at) });
+          setUser({ ...session.user, password: "" });
+          if (location.pathname === "/login") history.replaceState(null, "", "/");
+        } catch (error) {
+          if (live) setLoginError(apiErrorMessage(error) === "AUTHENTICATION_REQUIRED" ? "" : apiErrorMessage(error));
+        } finally { if (live) setAuthLoading(false); }
+      };
+      void bootstrap();
+      return () => { live = false; };
+    }
     loadAuthConfig()
       .then(async (config) => {
         setAuthConfig(config);
@@ -716,6 +748,42 @@ function App() {
       })
       .finally(() => setAuthLoading(false));
   }, []);
+
+  useEffect(() => {
+    if (!customersApiEnabled) return;
+    const expire = () => { customerRefresh.current++; setUser(undefined); setState(undefined); setActiveMenuItem(""); history.replaceState(null, "", "/login"); };
+    const jobCreated = (event:Event) => { pendingJobNotification.current = (event as CustomEvent<number>).detail; };
+    const refresh = async () => {
+      if (!user || !db) return;
+      const generation = ++customerRefresh.current;
+      try {
+        const currentSession = await customerApi.session();
+        if (currentSession.user.role !== user.role) setUser({ ...currentSession.user, password: "" });
+        const projection = await operationsApi.read();
+          const rows = await customerApi.list(projection.customers as unknown as Awaited<ReturnType<typeof customerApi.list>>);
+        if (generation !== customerRefresh.current) return;
+        replaceCustomerProjection(db, rows, projection);
+        const next = readState(db);
+        attachOperationalVersions(next, projection);
+        const created = next.jobs.find(v => v.job.id === pendingJobNotification.current);
+        if (created) {
+          pendingJobNotification.current = undefined;
+          const payload = renderJobCardNotification("created", created, loadAdminDemoState().businessSettings);
+          deliverJobCardNotificationStub(payload, deliveryMessage => setJobCardNotification({payload, deliveryMessage}));
+        }
+        setState({ ...next, vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !v.archived_at), archived_vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !!v.archived_at), customers: rows.filter(r => !r.archived_at), archived_customers: rows.filter(r => !!r.archived_at) });
+        if (location.pathname === "/login") history.replaceState(null, "", "/");
+      } catch (error) { if (apiErrorMessage(error) !== "AUTHENTICATION_REQUIRED") window.alert(apiErrorMessage(error)); }
+    };
+    window.addEventListener("workshop-job-created", jobCreated);
+    window.addEventListener("workshop-session-expired", expire);
+    window.addEventListener("workshop-customers-changed", refresh);
+    window.addEventListener("focus", refresh);
+    window.addEventListener("popstate", refresh);
+    void refresh();
+    const timer = window.setInterval(refresh, 30000);
+    return () => { window.removeEventListener("workshop-job-created", jobCreated); window.clearInterval(timer); window.removeEventListener("workshop-session-expired", expire); window.removeEventListener("workshop-customers-changed", refresh); window.removeEventListener("focus", refresh); window.removeEventListener("popstate", refresh); };
+  }, [user, db, activeMenuItem]);
 
   useEffect(() => {
     const moveRailToggle = (clientY: number) => {
@@ -840,8 +908,11 @@ function App() {
   const mutate: Mutate = (action, onError) => {
     if (!db) return false;
     try {
+      if (customersApiEnabled) db.run("savepoint local_boundary");
       action(db);
+      if (customersApiEnabled) db.run("release savepoint local_boundary");
     } catch (error) {
+      if (customersApiEnabled) { db.run("rollback to savepoint local_boundary"); db.run("release savepoint local_boundary"); }
       const message = error instanceof Error ? error.message : "Action failed";
       if (onError) onError(message);
       else window.alert(message);
@@ -849,13 +920,14 @@ function App() {
     }
     persist(db);
     const next = readState(db);
+    if (customersApiEnabled) attachOperationalVersions(next);
     if (action === loadLargeDemoDataset) clearDocumentSnapshots();
     syncDocumentSnapshots(
       action === loadLargeDemoDataset ? undefined : state?.jobs,
       next.jobs,
       loadAdminDemoState(),
     );
-    setState(next);
+    setState(customersApiEnabled && state ? { ...next, customers: state.customers, archived_customers: state.archived_customers } : next);
     if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
     if (action !== loadLargeDemoDataset) {
       const previousJobs = state?.jobs ?? [];
@@ -890,7 +962,26 @@ function App() {
     return true;
   };
 
-  const handleLogin = (email: string, password: string) => {
+  const handleLogin = async (email: string, password: string) => {
+    if (customersApiEnabled) {
+      setAuthLoading(true);
+      try {
+        const session = await customerApi.login(email, password);
+        const projection = await operationsApi.read();
+          const rows = await customerApi.list(projection.customers as unknown as Awaited<ReturnType<typeof customerApi.list>>);
+        const database = db ?? await openWorkshopDb(rows, projection);
+        replaceCustomerProjection(database, rows, projection);
+        setDb(database);
+        const next = readState(database);
+        attachOperationalVersions(next, projection);
+        setState({ ...next, vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !v.archived_at), archived_vehicles: (projection.vehicles as unknown as Vehicle[]).filter(v => !!v.archived_at), customers: rows.filter(r => !r.archived_at), archived_customers: rows.filter(r => !!r.archived_at) });
+        setUser({ ...session.user, password: "" });
+        setActiveMenuItem(""); setLoginError("");
+        history.replaceState(null, "", "/");
+      } catch (error) { setLoginError(apiErrorMessage(error)); }
+      finally { setAuthLoading(false); }
+      return;
+    }
     if (!state) return;
     if (
       authConfig?.mode === "local" &&
@@ -916,7 +1007,14 @@ function App() {
     setLoginError("");
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
+    if (customersApiEnabled) {
+      try { await customerApi.logout(); }
+      catch (error) { window.alert("Server logout could not be confirmed. Retry when connected."); setLoginError("Server logout could not be confirmed. Retry when connected."); }
+      customerRefresh.current++;
+      setState(undefined);
+      history.replaceState(null, "", "/login");
+    }
     if (authConfig?.mode === "cognito") {
       endCognitoSession(authConfig);
       return;
@@ -969,7 +1067,7 @@ function App() {
     railToggleStartY.current = event.clientY;
   };
 
-  if (!state || authLoading)
+  if (authLoading || (user && !state) || (!customersApiEnabled && !state))
     return <div className="loading">Loading WorkshopOS...</div>;
   const returnToDeveloper = () => {
     setUser(undefined);
@@ -1015,6 +1113,8 @@ function App() {
         error={loginError}
       />
     );
+
+  if (!state) return <div className="loading">Loading WorkshopOS...</div>;
 
   // Reads the (session-storage backed) Admin Console role/page-access state fresh on every
   // render so a role's permitted pages here reflect the latest Roles & Page Access save made
@@ -1374,7 +1474,7 @@ function LoginScreen({
   error: string;
 }) {
   const [email, setEmail] = useState("admin@example.com");
-  const [password, setPassword] = useState("admin123");
+  const [password, setPassword] = useState(() => customersApiEnabled ? demoPassword("admin@example.com") : "admin123");
   return (
     <main className="login-screen">
       <section className="login-panel">
@@ -1397,7 +1497,7 @@ function LoginScreen({
               Continue with Cognito
             </button>
           </div>
-        ) : config?.mode === "local" && !config.allowDemo ? (
+        ) : config?.mode === "local" && !config.allowDemo && !customersApiEnabled ? (
           <div className="cognito-login">
             <p className="error-text">
               Authentication is not configured for this deployment. Contact your
@@ -1435,7 +1535,7 @@ function LoginScreen({
             Emulate User:
             <select
               value={email}
-              onChange={(event) => setEmail(event.target.value)}
+              onChange={(event) => { setEmail(event.target.value); if (customersApiEnabled) setPassword(demoPassword(event.target.value)); }}
             >
               {demoLogins.map((item) => (
                 <option key={item} value={item}>
@@ -2678,7 +2778,7 @@ function Reception({
             <div className="reception-archive-zone">
               <button
                 className="danger-action"
-                onClick={() =>
+                onClick={() => customersApiEnabled ? void operationsApi.job(selected.job, "archive", {reason:"Cancelled at reception"}).catch(error => window.alert(apiErrorMessage(error))) :
                   mutate((db) =>
                     cancelJobCard(
                       db,
@@ -2863,7 +2963,7 @@ function AdvisorAttendancePanel({
                 }
                 aria-label={`Mark ${advisor.name} ${isPresent ? "away" : "present"}`}
                 aria-pressed={isPresent}
-                onClick={() =>
+                onClick={() => customersApiEnabled ? void operationsApi.attendance(advisor.id, today, !isPresent).catch(error => window.alert(apiErrorMessage(error))) :
                   mutate((db) =>
                     setAdvisorPresent(db, advisor.id, !isPresent, today),
                   )
@@ -3165,7 +3265,7 @@ function CreateVisitDialog({
       odoReading: String(vehicle.km),
     }));
   };
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
     if (
@@ -3196,6 +3296,32 @@ function CreateVisitDialog({
       form.fuelLevelUnit === "Other"
         ? form.fuelLevelValue
         : `${form.fuelLevelValue} ${form.fuelLevelUnit}`;
+    if (customersApiEnabled) {
+      try { const created = await operationsApi.intake({
+          customerId: form.customerId || undefined,
+          vehicleId: form.vehicleId || undefined,
+          customerName: form.customerName,
+          mobile: form.mobile,
+          customerType: form.customerType,
+          vehicleNo: form.vehicleNo,
+          make: form.make,
+          model: form.model,
+          color: form.color,
+          km: odoReading,
+          odoReading,
+          fuel,
+          fuelLevelValue: form.fuelLevelValue,
+          fuelLevelUnit: form.fuelLevelUnit,
+          keys: form.keys,
+          accessories: form.accessories,
+          requestedWork: form.requestedWork,
+          advisorId: form.advisorId || undefined,
+          receptionId: actor.id,
+          damageMarks: serializeDamageMarks(marks),
+        }); onCreated(created.id, created.job_no); }
+      catch(error) { setError(apiErrorMessage(error)); }
+      return;
+    }
     let jobId = 0;
     let jobNo = "";
     if (
@@ -9396,7 +9522,7 @@ function Admin({
               <LinkedRecords view={selected} />
               <button
                 className="danger-action"
-                onClick={() =>
+                onClick={() => customersApiEnabled ? void operationsApi.job(selected.job, "archive", {reason:"Cancelled by admin"}).catch(error => window.alert(apiErrorMessage(error))) :
                   mutate((db) =>
                     cancelJobCard(db, selected.job.id, "Cancelled by admin"),
                   )
@@ -10172,7 +10298,7 @@ function CustomerManager({
                       }
                       onArchive={
                         !archivedOnly
-                          ? () =>
+                          ? () => customersApiEnabled ? void customerApi.archive(customer.id, "Archived by Admin").catch(error => window.alert(apiErrorMessage(error))) :
                               mutate((db) =>
                                 archiveCustomer(
                                   db,
@@ -10395,7 +10521,7 @@ function VehicleManager({
                       }
                       onArchive={
                         !archivedOnly
-                          ? () =>
+                          ? () => customersApiEnabled ? void operationsApi.archiveVehicle(vehicle.id, "Archived by Admin").catch(error => window.alert(apiErrorMessage(error))) :
                               mutate((db) =>
                                 archiveVehicle(
                                   db,
@@ -10515,7 +10641,7 @@ function VisitJobManager({
           onClose={() => setRecord(undefined)}
           onAdminArchive={
             !archivedOnly
-              ? () =>
+              ? () => customersApiEnabled ? operationsApi.job(dialogJob.job, "archive", {reason:"Admin override: archived from Management Hub"}).then(() => true).catch(error => { window.alert(apiErrorMessage(error)); return false; }) :
                   mutate((db) =>
                     cancelJobCard(
                       db,
@@ -11661,11 +11787,20 @@ function CustomerEditor({
   embedded?: boolean;
   onSaved?: () => void;
 }) {
+  const saving = useRef(false);
   return (
     <form
       className={embedded ? "" : "desk-panel"}
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
+        if (customersApiEnabled) {
+          if (saving.current) return;
+          saving.current = true;
+          try { const saved = await customerApi.save(value); setValue(saved); onSaved?.(); }
+          catch (error) { window.alert(apiErrorMessage(error)); }
+          finally { saving.current = false; }
+          return;
+        }
         if (
           mutate((db) =>
             value.id
@@ -11724,7 +11859,7 @@ function CustomerEditor({
           <button
             type="button"
             className="danger-action"
-            onClick={() =>
+            onClick={() => customersApiEnabled ? void customerApi.archive(value.id, "Archived from customer master").catch(error => window.alert(apiErrorMessage(error))) :
               mutate((db) =>
                 archiveCustomer(db, value.id, "Archived from customer master"),
               )
@@ -11757,8 +11892,9 @@ function VehicleMasterPanel({
   return (
     <form
       className={embedded ? "" : "desk-panel"}
-      onSubmit={(event) => {
+      onSubmit={async (event) => {
         event.preventDefault();
+        if (customersApiEnabled) { try { await operationsApi.saveVehicle(draft); onSaved?.(); } catch(error) { window.alert(apiErrorMessage(error)); } return; }
         if (
           mutate((db) =>
             draft.id
@@ -11870,7 +12006,7 @@ function VehicleMasterPanel({
           <button
             type="button"
             className="danger-action"
-            onClick={() =>
+            onClick={() => customersApiEnabled ? void operationsApi.archiveVehicle(draft.id, "Archived from vehicle master").catch(error => window.alert(apiErrorMessage(error))) :
               mutate((db) =>
                 archiveVehicle(db, draft.id, "Archived from vehicle master"),
               )
@@ -12044,9 +12180,14 @@ function JobEditor({
   return (
     <>
       <form
-        onSubmit={(event) => {
+        onSubmit={async (event) => {
           event.preventDefault();
           setError("");
+          if (customersApiEnabled) {
+            try { await operationsApi.job(view.job, "details", draft); onSaveResult(true); }
+            catch(error) { setError(apiErrorMessage(error)); onSaveResult(false); }
+            return;
+          }
           const ok = mutate(
             (db) => saveJobDetailsForActor(db, view.job.id, actor.id, draft),
             setError,
@@ -12312,6 +12453,7 @@ function JobLifecyclePanel({
   const firstOpen = items.findIndex((item) => !item.checked_at);
   const remaining = items.filter((item) => !item.checked_at);
   const toggleNotApplicable = (item: ChecklistItem, notApplicable: boolean) => {
+    if (customersApiEnabled) { void operationsApi.checklist(item, notApplicable, true).catch(error => setError(apiErrorMessage(error))); return; }
     setError("");
     mutate(
       (db) =>
@@ -12325,16 +12467,22 @@ function JobLifecyclePanel({
     );
   };
   const toggle = (item: ChecklistItem, checked: boolean) => {
+    if (customersApiEnabled) { void operationsApi.checklist(item, checked).catch(error => setError(apiErrorMessage(error))); return; }
     setError("");
     mutate(
       (db) => setChecklistItemCheckedForActor(db, item.id, actor.id, checked),
       setError,
     );
   };
-  const confirm = (event: FormEvent) => {
+  const confirm = async (event: FormEvent) => {
     event.preventDefault();
     if (!note.trim()) {
       setError("A confirmation note is required.");
+      return;
+    }
+    if (customersApiEnabled && target) {
+      try { await operationsApi.job(view.job, "status", {target,note}); setTarget(undefined); setNote(""); setError(""); }
+      catch(error) { setError(apiErrorMessage(error)); }
       return;
     }
     if (
@@ -15699,7 +15847,7 @@ function AddJobCardDialog({
       }
     }
   }, [state.customers, state.vehicles, awaiting]); // eslint-disable-line react-hooks/exhaustive-deps
-  const submit = (event: FormEvent) => {
+  const submit = async (event: FormEvent) => {
     event.preventDefault();
     setError("");
     if (!customer || !vehicle) {
@@ -15723,6 +15871,31 @@ function AddJobCardDialog({
       form.fuelLevelUnit === "Other"
         ? form.fuelLevelValue
         : `${form.fuelLevelValue} ${form.fuelLevelUnit}`;
+    if (customersApiEnabled) {
+      try { const created = await operationsApi.intake({
+            customerId: customer.id,
+            vehicleId: vehicle.id,
+            customerName: customer.name,
+            mobile: customer.mobile,
+            customerType: customer.type,
+            vehicleNo: vehicle.number,
+            make: vehicle.make,
+            model: vehicle.model,
+            color: vehicle.color,
+            km: odoReading,
+            odoReading,
+            fuel,
+            fuelLevelValue: form.fuelLevelValue,
+            fuelLevelUnit: form.fuelLevelUnit,
+            keys: form.keys,
+            accessories: form.accessories,
+            requestedWork: form.requestedWork,
+            advisorId,
+            receptionId: actor.id,
+          }); onClose(); }
+      catch(error) { setError(apiErrorMessage(error)); }
+      return;
+    }
     if (
       mutate(
         (db) =>
@@ -15962,7 +16135,8 @@ function JobBodyMarkPanel({
   );
   const [error, setError] = useState("");
   const [saved, setSaved] = useState(true);
-  const save = () => {
+  const save = async () => {
+    if (customersApiEnabled) { try { await operationsApi.job(view.job, "damage", {marks}); setSaved(true); } catch(error) { setError(apiErrorMessage(error)); } return; }
     setError("");
     if (
       mutate(
@@ -16029,13 +16203,13 @@ function JobRecordDialog({
   actor: User;
   mode: "view" | "edit";
   onClose: () => void;
-  onAdminArchive?: () => boolean;
+  onAdminArchive?: () => boolean | Promise<boolean>;
   historical?: boolean;
 }) {
   const [tab, setTab] = useState<JobCardTabKey>("details");
   const [documentEditor, setDocumentEditor] = useState<DocumentEditor>();
   const { saved, onSaveResult } = useJobDetailsSaveNotice();
-  const archive = () => {
+  const archive = async () => {
     if (
       !onAdminArchive ||
       !window.confirm(
@@ -16043,7 +16217,7 @@ function JobRecordDialog({
       )
     )
       return;
-    if (onAdminArchive()) onClose();
+    if (await onAdminArchive()) onClose();
   };
   const panelId = `job-record-${view.job.id}-${tab}`;
   if (historical)
@@ -16501,10 +16675,17 @@ function CustomerRecordDialog({
   onClose: () => void;
 }) {
   const [draft, setDraft] = useState(customer);
-  const vehicles = [...state.vehicles, ...state.archived_vehicles].filter(
+  const [links, setLinks] = useState<CustomerLinks>();
+  useEffect(() => {
+    if (!customersApiEnabled) return;
+    let live = true;
+    customerApi.detail(customer.id).then(result => { if (live) setLinks(result); }).catch(error => window.alert(apiErrorMessage(error)));
+    return () => { live = false; };
+  }, [customer.id]);
+  const vehicles = customersApiEnabled ? links?.vehicles ?? [] : [...state.vehicles, ...state.archived_vehicles].filter(
     (vehicle) => vehicle.customer_id === customer.id,
   );
-  const jobs = [...state.jobs, ...state.archived_jobs].filter(
+  const jobs = customersApiEnabled ? (links?.jobs ?? []).map(j => ({job:j,vehicle:{number:j.vehicle_number}})) : [...state.jobs, ...state.archived_jobs].filter(
     (view) => view.customer.id === customer.id,
   );
   return (
@@ -16740,7 +16921,7 @@ function VisitEditor({
           className="primary-action"
           disabled={!advisorId || advisorId === view.job.advisor_id}
           onClick={() =>
-            mutate((db) => assignAdvisor(db, view.job.id, advisorId))
+            customersApiEnabled ? void operationsApi.assign(view.job, advisorId).catch(error => window.alert(apiErrorMessage(error))) : mutate((db) => assignAdvisor(db, view.job.id, advisorId))
           }
         >
           {view.job.advisor_id ? "Update Advisor" : "Assign Advisor"}
@@ -16797,7 +16978,7 @@ function DuplicateCustomerEditor({
       <div className="action-row">
         <button
           disabled={!value.id}
-          onClick={() =>
+          onClick={() => customersApiEnabled ? void customerApi.save(value).then(setValue).catch(error => window.alert(apiErrorMessage(error))) :
             mutate((db) =>
               updateCustomer(db, value.id, {
                 name: value.name,
@@ -16812,7 +16993,7 @@ function DuplicateCustomerEditor({
         <button
           className="danger-action"
           disabled={!value.id}
-          onClick={() =>
+          onClick={() => customersApiEnabled ? void customerApi.archive(value.id, "Archived from customer desk").catch(error => window.alert(apiErrorMessage(error))) :
             mutate((db) =>
               archiveCustomer(db, value.id, "Archived from customer desk"),
             )
@@ -16905,7 +17086,7 @@ function DuplicateVehicleMasterPanel({
       <div className="action-row">
         <button
           disabled={!value.id}
-          onClick={() =>
+          onClick={() => customersApiEnabled ? void operationsApi.saveVehicle(value).catch(error => window.alert(apiErrorMessage(error))) :
             mutate((db) =>
               updateVehicle(db, value.id, {
                 customer_id: value.customer_id,
@@ -16923,7 +17104,7 @@ function DuplicateVehicleMasterPanel({
         <button
           className="danger-action"
           disabled={!value.id}
-          onClick={() =>
+          onClick={() => customersApiEnabled ? void operationsApi.archiveVehicle(value.id, "Archived from vehicle desk").catch(error => window.alert(apiErrorMessage(error))) :
             mutate((db) =>
               archiveVehicle(db, value.id, "Archived from vehicle desk"),
             )
@@ -18737,6 +18918,17 @@ function EntityResults({
       )
     )
       return;
+    if (customersApiEnabled && kind === "jobs") {
+      const job = [...state.jobs,...state.archived_jobs].find(v => v.job.id === id)?.job;
+      if (job) void operationsApi.job(job, "archive", {reason:"Archived from list"}).catch(error => window.alert(apiErrorMessage(error))); return;
+    }
+    if (customersApiEnabled && kind === "vehicles") {
+      void operationsApi.archiveVehicle(id, "Archived from list").catch(error => window.alert(apiErrorMessage(error))); return;
+    }
+    if (customersApiEnabled && kind === "customers") {
+      void customerApi.archive(id, "Archived from list").catch(error => window.alert(apiErrorMessage(error)));
+      return;
+    }
     mutate((db) =>
       kind === "jobs"
         ? archiveJobCardForActor(db, id, actor.id, "Archived from list")

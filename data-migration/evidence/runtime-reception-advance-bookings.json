@@ -1,0 +1,460 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nReception\nToday Queue\nAdvance Bookings\nCustomers\nVehicles\nSearch\nLogout\n\nReception\n\nIntake desk for visits, customers and new job cards.\nreception@example.com\nAdvance Bookings\n\nPlan customer arrivals by date. Advisor assignment happens only after check-in.\n\nCreate Booking\nOctober 2026\nSun\nMon\nTue\nWed\nThu\nFri\nSat\n27\nSW 0/8 · C 0/4\n28\nSW 0/8 · C 0/4\n29\nSW 0/8 · C 0/4\n30\nSW 1/8 · C 0/4\n1\nSW 0/8 · C 0/4\n2\nSW 0/8 · C 0/4\n3\nSW 0/8 · C 0/4\n4\nSW 0/8 · C 0/4\n5\nSW 0/8 · C 0/4\n6\nSW 0/8 · C 0/4\n7\nSW 0/8 · C 0/4\n8\nSW 0/8 · C 0/4\n9\nSW 0/8 · C 0/4\n10\nSW 1/8 · C 0/4\n11\nSW 0/8 · C 0/4\n12\nSW 0/8 · C 0/4\n13\nSW 0/8 · C 0/4\n14\nSW 0/8 · C 0/4\n15\nSW 0/8 · C 0/4\n16\nSW 0/8 · C 0/4\n17\nSW 0/8 · C 0/4\n18\nSW 0/8 · C 0/4\n19\nSW 0/8 · C 0/4\n20\nSW 0/8 · C 0/4\n21\nSW 0/8 · C 0/4\n22\nSW 0/8 · C 0/4\n23\nSW 0/8 · C 0/4\n24\nSW 0/8 · C 0/4\n25\nSW 0/8 · C 0/4\n26\nSW 0/8 · C 0/4\n27\nSW 0/8 · C 0/4\n28\nSW 0/8 · C 0/4\n29\nSW 0/8 · C 0/4\n30\nSW 0/8 · C 0/4\n31\nSW 0/8 · C 0/4\n1\nSW 0/8 · C 0/4\n2\nSW 0/8 · C 0/4\n3\nSW 0/8 · C 0/4\n4\nSW 0/8 · C 0/4\n5\nSW 0/8 · C 0/4\n6\nSW 0/8 · C 0/4\n7\nSW 0/8 · C 0/4\n\n SW = Service Work · C = General Checkup / Follow-up.\n\nThursday, 22 October 2026\n\nService Work: 0/8 · 8 remaining\n\nGeneral Checkup / Follow-up: 0/4 · 4 remaining\n\nNo advance bookings for this day.\n\nExpected Today\n\n2026-10-20 · customers yet to arrive at reception\n\n0 expected\nFollow-up status\nAll expected\nNeeds follow-up\nCall logged\n0 shown\nNo customers match this filter.\nBookings checked in, cancelled, rescheduled away, or marked no-show do not appear here.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Today Queue",
+      "title": "Today Queue",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Customers",
+      "title": "Customers",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Vehicles",
+      "title": "Vehicles",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create Booking",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous month",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next month",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "27\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "28\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "29\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "30\nSW 1/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "6\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "7\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "8\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "9\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "10\nSW 1/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "11\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "12\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "13\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "14\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "15\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "16\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "17\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "18\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "19\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "20\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "21\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "22\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "23\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "24\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "25\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "26\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "27\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "28\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "29\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "30\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "31\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "6\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "7\nSW 0/8 · C 0/4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All expected\nNeeds follow-up\nCall logged",
+      "label": "Expected today follow-up status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All expected",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "Needs follow-up",
+          "value": "NEEDS_FOLLOW_UP",
+          "selected": false
+        },
+        {
+          "text": "Call logged",
+          "value": "CALLED",
+          "selected": false
+        }
+      ]
+    }
+  ]
+}

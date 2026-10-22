@@ -1,0 +1,224 @@
+{
+  "text": "DEVELOPER CONTROL PLANE · BROWSER DEMO ONLY\n\nDeveloper Console\n Reset demo\nTenants\nCommunications\nBilling\nDemo tenants\nApex Auto Studio\nActive\nCreate tenant\nApex Auto Studio\nName\nBrand Name\nAddress\nContact Name\nEmail\nPhone\nGstin\nTimezone\nCurrency\nInvoice Prefix\nSave company profile\nDisable tenant\nOwner/Admin\nService\nReception\nAccounts\nTechnician\nEmulate tenant",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": " Reset demo",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Tenants",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Communications",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Billing",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Apex Auto Studio\nActive",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "New tenant name",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create tenant",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Name",
+      "title": "",
+      "type": "text",
+      "value": "Apex Auto Studio",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Brand Name",
+      "title": "",
+      "type": "text",
+      "value": "Apex",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Address",
+      "title": "",
+      "type": "text",
+      "value": "14 Workshop Lane, Bengaluru",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Contact Name",
+      "title": "",
+      "type": "text",
+      "value": "Demo Owner",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Email",
+      "title": "",
+      "type": "text",
+      "value": "owner@apex.demo",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Phone",
+      "title": "",
+      "type": "text",
+      "value": "+91 90000 00000",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Gstin",
+      "title": "",
+      "type": "text",
+      "value": "29ABCDE1234F1Z5",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Timezone",
+      "title": "",
+      "type": "text",
+      "value": "Asia/Kolkata",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Currency",
+      "title": "",
+      "type": "text",
+      "value": "INR",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Invoice Prefix",
+      "title": "",
+      "type": "text",
+      "value": "APEX",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Save company profile",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Disable tenant",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Owner/Admin\nService\nReception\nAccounts\nTechnician",
+      "label": "Emulate role",
+      "title": "",
+      "type": "select-one",
+      "value": "admin",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Owner/Admin",
+          "value": "admin",
+          "selected": true
+        },
+        {
+          "text": "Service",
+          "value": "service",
+          "selected": false
+        },
+        {
+          "text": "Reception",
+          "value": "reception",
+          "selected": false
+        },
+        {
+          "text": "Accounts",
+          "value": "accounts",
+          "selected": false
+        },
+        {
+          "text": "Technician",
+          "value": "tech",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Emulate tenant",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

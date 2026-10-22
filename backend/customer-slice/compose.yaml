@@ -1,0 +1,71 @@
+name: workshopos-customer-slice
+services:
+  slice-dev:
+    image: postgres:17-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+    environment:
+      POSTGRES_DB: slice_dev
+      POSTGRES_USER: slice_owner
+      POSTGRES_PASSWORD: ${OWNER_PASSWORD:?required}
+    volumes: [dev-data:/var/lib/postgresql/data]
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U slice_owner -d slice_dev]
+      interval: 2s
+      retries: 30
+  slice-test:
+    image: postgres:17-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+    environment:
+      POSTGRES_DB: slice_test
+      POSTGRES_USER: slice_owner
+      POSTGRES_PASSWORD: ${OWNER_PASSWORD:?required}
+    volumes: [test-data:/var/lib/postgresql/data]
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, pg_isready -U slice_owner -d slice_test]
+      interval: 2s
+      retries: 30
+  setup:
+    image: workshopos-stage4a-api:50c8aab
+    environment:
+      PYTHONPATH: /slice:/workspace:/rehearsal:/tools/import-planner
+      OWNER_PASSWORD: ${OWNER_PASSWORD}
+      RUNTIME_PASSWORD: ${RUNTIME_PASSWORD}
+    volumes:
+      - .:/slice
+      - ../import-rehearsal:/rehearsal:ro
+      - ../schema-validation/versions:/schema/versions:ro
+      - ../import-planner:/tools/import-planner:ro
+      - ../../docs/backend-migration:/evidence:ro
+      - ../../public/workshopos-demo.sqlite:/source/demo.sqlite:ro
+    networks: [isolated]
+    command: [python, /slice/setup.py]
+  api:
+    image: workshopos-stage4a-api:50c8aab
+    environment: &api-env
+      PYTHONPATH: /slice:/workspace
+      SLICE_DATABASE_URL: postgresql+psycopg://slice_auth:${RUNTIME_PASSWORD}@slice-dev:5432/slice_dev
+      SLICE_STAGE: development
+      SLICE_PREFILL: 'true'
+      SLICE_ORIGIN: https://localhost:18443
+      SLICE_SESSION_SECONDS: '28800'
+    volumes: [.:/slice:ro]
+    networks: [isolated, web]
+    ports: ['127.0.0.1:18284:8000']
+    command: [python, -m, uvicorn, api:app, --host, 0.0.0.0, --port, '8000']
+  api-test:
+    image: workshopos-stage4a-api:50c8aab
+    environment:
+      <<: *api-env
+      SLICE_DATABASE_URL: postgresql+psycopg://slice_auth:${RUNTIME_PASSWORD}@slice-test:5432/slice_test
+      SLICE_ORIGIN: https://localhost:18444
+      SLICE_STAGE: test
+    volumes: [.:/slice]
+    networks: [isolated, web]
+    ports: ['127.0.0.1:18285:8000']
+    command: [python, -m, uvicorn, api:app, --host, 0.0.0.0, --port, '8000']
+volumes:
+  dev-data:
+  test-data:
+networks:
+  isolated: {internal: true}
+  web: {}

@@ -1,0 +1,782 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nService Advisor\nMy Queue\nJob Card\nEstimate\nFollow-ups\nMedia\nSearch\nLogout\n\nService Advisor\n\nCommand queue for estimates, approvals and customer updates.\nservice@example.com\nMedia\n\nBefore, after and workshop documentation\n\nSearch\nJob card\nAll job cards\nJC-2026-002144\nJC-2026-002141\nJC-2026-002138\nJC-2026-002135\nJC-2026-002132\nJC-2026-002129\nJC-2026-002126\nJC-2026-002123\nJC-2026-002120\nJC-2026-002117\nJC-2026-002114\nJC-2026-002111\nJC-2026-002108\nJC-2026-002105\nJC-2026-002102\nJC-2026-002099\nJC-2026-002096\nJC-2026-002093\nJC-2026-002090\nJC-2026-002087\nJC-2026-002084\nJC-2026-002081\nJC-2026-002078\nJC-2026-002075\nJC-2026-002072\nJC-2026-002069\nJC-2026-002066\nJC-2026-002063\nJC-2026-002060\nJC-2026-002057\nJC-2026-002054\nJC-2026-002051\nJC-2026-002048\nJC-2026-002045\nJC-2026-002042\nJC-2026-002039\nJC-2026-002036\nJC-2026-002033\nJC-2026-002030\nJC-2026-002027\nJC-2026-002024\nJC-2026-002021\nJC-2026-002018\nJC-2026-002015\nJC-2026-002012\nJC-2026-002009\nJC-2026-002006\nJC-2026-002003\nCategory\nAll categories\nAfter\nBefore\nInspection\nJob Sheet\nProgress\nReceived date\nMonth-Year\nAll months\n2026-08\n2026-07\n2026-06\n2026-05\n2026-04\n2026-03\n2026-02\n2026-01\nClear\nTotal Images\n96\nBefore Images\n19\nAfter Images\n19\nJob Cards\n48\nDownload\nGrid\nTable\nShowing 1 to 10 of 96\nPer page\n10\n20\n50\n1\n2\n3\n4\n5\n…\n10\nBefore\nOD13DM1012\n\nJC-2026-002144 · Before documentation\n\nView\nJob Sheet\nOD13DM1012\n\nJC-2026-002144 · Job Sheet documentation\n\nView\nInspection\nOD10DM1009\n\nJC-2026-002141 · Inspection documentation\n\nView\nAfter\nOD10DM1009\n\nJC-2026-002141 · After documentation\n\nView\nJob Sheet\nOD07DM1006\n\nJC-2026-002138 · Job Sheet documentation\n\nView\nProgress\nOD07DM1006\n\nJC-2026-002138 · Progress documentation\n\nView\nAfter\nOD04DM1003\n\nJC-2026-002135 · After documentation\n\nView\nBefore\nOD04DM1003\n\nJC-2026-002135 · Before documentation\n\nView\nProgress\nOD13DM1132\n\nJC-2026-002132 · Progress documentation\n\nView\nInspection\nOD13DM1132\n\nJC-2026-002132 · Inspection documentation\n\nView\n1\n2\n3\n4\n5\n…\n10",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "My Queue",
+      "title": "My Queue",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Card",
+      "title": "Job Card",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Estimate",
+      "title": "Estimate",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Follow-ups",
+      "title": "Follow-ups",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search media",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Show filters",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All job cards\nJC-2026-002144\nJC-2026-002141\nJC-2026-002138\nJC-2026-002135\nJC-2026-002132\nJC-2026-002129\nJC-2026-002126\nJC-2026-002123\nJC-2026-002120\nJC-2026-002117\nJC-2026-002114\nJC-2026-002111\nJC-2026-002108\nJC-2026-002105\nJC-2026-002102\nJC-2026-002099\nJC-2026-002096\nJC-2026-002093\nJC-2026-002090\nJC-2026-002087\nJC-2026-002084\nJC-2026-002081\nJC-2026-002078\nJC-2026-002075\nJC-2026-002072\nJC-2026-002069\nJC-2026-002066\nJC-2026-002063\nJC-2026-002060\nJC-2026-002057\nJC-2026-002054\nJC-2026-002051\nJC-2026-002048\nJC-2026-002045\nJC-2026-002042\nJC-2026-002039\nJC-2026-002036\nJC-2026-002033\nJC-2026-002030\nJC-2026-002027\nJC-2026-002024\nJC-2026-002021\nJC-2026-002018\nJC-2026-002015\nJC-2026-002012\nJC-2026-002009\nJC-2026-002006\nJC-2026-002003",
+      "label": "Job card filter",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All job cards",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "JC-2026-002144",
+          "value": "144",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002141",
+          "value": "141",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002138",
+          "value": "138",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002135",
+          "value": "135",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002132",
+          "value": "132",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002129",
+          "value": "129",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002126",
+          "value": "126",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002123",
+          "value": "123",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002120",
+          "value": "120",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002117",
+          "value": "117",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002114",
+          "value": "114",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002111",
+          "value": "111",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002108",
+          "value": "108",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002105",
+          "value": "105",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002102",
+          "value": "102",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002099",
+          "value": "99",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002096",
+          "value": "96",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002093",
+          "value": "93",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002090",
+          "value": "90",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002087",
+          "value": "87",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002084",
+          "value": "84",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002081",
+          "value": "81",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002078",
+          "value": "78",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002075",
+          "value": "75",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002072",
+          "value": "72",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002069",
+          "value": "69",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002066",
+          "value": "66",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002063",
+          "value": "63",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002060",
+          "value": "60",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002057",
+          "value": "57",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002054",
+          "value": "54",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002051",
+          "value": "51",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002048",
+          "value": "48",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002045",
+          "value": "45",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002042",
+          "value": "42",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002039",
+          "value": "39",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002036",
+          "value": "36",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002033",
+          "value": "33",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002030",
+          "value": "30",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002027",
+          "value": "27",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002024",
+          "value": "24",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002021",
+          "value": "21",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002018",
+          "value": "18",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002015",
+          "value": "15",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002012",
+          "value": "12",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002009",
+          "value": "9",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002006",
+          "value": "6",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002003",
+          "value": "3",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All categories\nAfter\nBefore\nInspection\nJob Sheet\nProgress",
+      "label": "Media category",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All categories",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "After",
+          "value": "After",
+          "selected": false
+        },
+        {
+          "text": "Before",
+          "value": "Before",
+          "selected": false
+        },
+        {
+          "text": "Inspection",
+          "value": "Inspection",
+          "selected": false
+        },
+        {
+          "text": "Job Sheet",
+          "value": "Job Sheet",
+          "selected": false
+        },
+        {
+          "text": "Progress",
+          "value": "Progress",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Media received date",
+      "title": "",
+      "type": "date",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All months\n2026-08\n2026-07\n2026-06\n2026-05\n2026-04\n2026-03\n2026-02\n2026-01",
+      "label": "Media month-year",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All months",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "2026-08",
+          "value": "2026-08",
+          "selected": false
+        },
+        {
+          "text": "2026-07",
+          "value": "2026-07",
+          "selected": false
+        },
+        {
+          "text": "2026-06",
+          "value": "2026-06",
+          "selected": false
+        },
+        {
+          "text": "2026-05",
+          "value": "2026-05",
+          "selected": false
+        },
+        {
+          "text": "2026-04",
+          "value": "2026-04",
+          "selected": false
+        },
+        {
+          "text": "2026-03",
+          "value": "2026-03",
+          "selected": false
+        },
+        {
+          "text": "2026-02",
+          "value": "2026-02",
+          "selected": false
+        },
+        {
+          "text": "2026-01",
+          "value": "2026-01",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Grid",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Table",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2",
+      "label": "Page 2",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3",
+      "label": "Page 3",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4",
+      "label": "Page 4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5",
+      "label": "Page 5",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "10",
+      "label": "Page 10",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2",
+      "label": "Page 2",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3",
+      "label": "Page 3",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4",
+      "label": "Page 4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5",
+      "label": "Page 5",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "10",
+      "label": "Page 10",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

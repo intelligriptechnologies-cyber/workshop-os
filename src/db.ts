@@ -153,9 +153,39 @@ function checklistStageForSubStatus(subStatus: SubStatus): ChecklistStage {
 
 let SQL: SqlJsStatic | undefined;
 
-export async function openWorkshopDb() {
+const externalCustomerDatabases = new WeakSet<Database>();
+const CUSTOMER_SLICE_STORAGE_KEY = 'workshopos.sqlite.customers-api.v1';
+const OPERATIONS_STORAGE_KEY = 'workshopos.sqlite.operations-api.v1';
+
+const projectionTables = new WeakMap<Database, string[]>();
+type OperationalProjection = Record<string, Array<Record<string, unknown>>>;
+const allowedProjectionTables = new Set(['vehicles','visits','job_cards','checklist_cycles','checklist_items','status_history','tasks','qc_checks','photos','advisor_attendance']);
+
+export function replaceCustomerProjection(db: Database, customers: Customer[], projection?: OperationalProjection) {
+  const tables = ['customers', ...Object.keys(projection ?? {}).filter(t => allowedProjectionTables.has(t))];
+  for (const row of db.exec("select name from sqlite_temp_master where type='trigger' and name like 'guard_%'")[0]?.values ?? []) db.run(`drop trigger ${row[0]}`);
+  db.run('savepoint remote_projection');
+  try {
+    const data: OperationalProjection = { customers: customers as unknown as Array<Record<string,unknown>>, ...projection };
+    for (const table of tables) {
+      const columns = new Set(db.exec(`pragma table_info(${table})`)[0].values.map(row => String(row[1])));
+      db.run(`delete from ${table}`);
+      for (const row of data[table]) {
+        const fields=Object.keys(row).filter(key=>columns.has(key));
+        db.run(`insert into ${table}(${fields.map(f=>`"${f}"`).join(',')}) values(${fields.map(()=>'?').join(',')})`,fields.map(f=>row[f] == null ? null : typeof row[f]==='boolean' ? Number(row[f]) : row[f]) as (string|number|null)[]);
+      }
+    }
+    db.run('release savepoint remote_projection');
+  } catch(error) { db.run('rollback to savepoint remote_projection'); db.run('release savepoint remote_projection'); throw error; }
+  projectionTables.set(db,tables);
+  const linkedTables = (db.exec("select name from sqlite_master where type='table' and name not like 'sqlite_%'")[0]?.values ?? []).map(r=>String(r[0])).filter(table => (db.exec(`pragma table_info(${table})`)[0]?.values ?? []).some(r => ['job_card_id','estimate_id','invoice_id','receipt_id','payment_id'].includes(String(r[1]))));
+  for(const table of new Set([...tables,...linkedTables])) for(const op of ['insert','update','delete']) db.run(`create temp trigger guard_${table}_${op} before ${op} on ${table} begin select raise(abort,'This operation requires the PostgreSQL API.'); end`);
+}
+
+export async function openWorkshopDb(remoteCustomers?: Customer[], projection?: OperationalProjection) {
   SQL ??= await initSqlJs({ locateFile: () => wasmUrl });
-  const saved =
+  const saved = remoteCustomers ? (projection ? localStorage.getItem(OPERATIONS_STORAGE_KEY) : null) ?? localStorage.getItem(CUSTOMER_SLICE_STORAGE_KEY) ??
+    localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('workshopos.sqlite.v1') :
     localStorage.getItem(STORAGE_KEY) ??
     localStorage.getItem("workshopos.sqlite.v1");
   let bytes: Uint8Array;
@@ -180,6 +210,10 @@ export async function openWorkshopDb() {
       );
     }
   }
+  if (remoteCustomers) {
+    externalCustomerDatabases.add(db);
+    replaceCustomerProjection(db, remoteCustomers, projection);
+  }
   persist(db);
   localStorage.setItem(DELIVERY_DATES_MIGRATION_KEY, "1");
   return db;
@@ -195,7 +229,7 @@ export function persist(db: Database) {
   binary.forEach((byte: number) => {
     encoded += String.fromCharCode(byte);
   });
-  localStorage.setItem(STORAGE_KEY, btoa(encoded));
+  localStorage.setItem(externalCustomerDatabases.has(db) ? (projectionTables.get(db)?.includes("job_cards") ? OPERATIONS_STORAGE_KEY : CUSTOMER_SLICE_STORAGE_KEY) : STORAGE_KEY, btoa(encoded));
 }
 
 export function exportPersistableDatabase(
@@ -204,6 +238,7 @@ export function exportPersistableDatabase(
 ) {
   const clone = cloneDatabase(db.export());
   try {
+    if (externalCustomerDatabases.has(db)) for (const table of projectionTables.get(db) ?? ['customers']) clone.run(`delete from ${table}`);
     // Image payloads deliberately live only in the active SQL.js session database.
     clone.run(
       "delete from photos where trim(coalesce(mime_type,''))<>'' or src like 'data:image/%'",
@@ -1238,6 +1273,7 @@ export function createCustomer(
   db: Database,
   payload: Pick<Customer, "name" | "mobile" | "type"> & { address?: string },
 ) {
+  if (externalCustomerDatabases.has(db)) throw new Error('Customer changes require the Customers API.');
   validateCustomer(db, payload);
   return insert(
     db,
@@ -1256,6 +1292,7 @@ export function updateCustomer(
   id: number,
   payload: Pick<Customer, "name" | "mobile" | "type"> & { address?: string },
 ) {
+  if (externalCustomerDatabases.has(db)) throw new Error('Customer changes require the Customers API.');
   validateCustomer(db, payload, id);
   db.run(
     "update customers set name=?, mobile=?, type=?, address=coalesce(?, address), updated_at=datetime('now') where id=?",
@@ -1270,6 +1307,7 @@ export function updateCustomer(
 }
 
 export function archiveCustomer(db: Database, id: number, reason: string) {
+  if (externalCustomerDatabases.has(db)) throw new Error('Customer changes require the Customers API.');
   archive(db, "customers", id, reason);
 }
 

@@ -1,0 +1,33 @@
+from test_api import login,write,check,checks
+from uuid import uuid4
+from pathlib import Path
+import json
+c=login();before=len(checks)
+projection=lambda:c.get('/api/v1/operations/projection').json()
+check('145 imported jobs',sum(j['id']<=145 for j in projection()['job_cards'])==145)
+def job(id):return next(j for j in projection()['job_cards'] if j['id']==id)
+def change(id,op,values,client=c):return write(client,f'/jobs/{id}/command',{'operation':op,'version':job(id)['version'],'values':values})
+body={'customerName':'Intake '+uuid4().hex[:8],'mobile':uuid4().hex[:16],'vehicleNo':'NEW'+uuid4().hex[:10],'make':'Test','model':'Model','color':'Blue','km':10,'fuel':'4 bars','fuelLevelValue':'4','fuelLevelUnit':'bars','requestedWork':'Test inspection','advisorId':2}
+key=str(uuid4());r=write(c,'/reception/intake',body,key=key);check('transactional intake '+r.text[:100],r.status_code==200);made=r.json();id=made['id'];p=projection()
+check('intake repeatability',write(c,'/reception/intake',body,key=key).json()==made)
+check('new job links correct',job(id)['visit_id']==made['visit_id'] and next(v for v in p['visits'] if v['id']==made['visit_id'])['customer_id']==made['customer_id'])
+check('initial artifacts',all(any(r['job_card_id']==id for r in p[t]) for t in ['checklist_cycles','checklist_items','tasks','photos','qc_checks','status_history']))
+check('numbering parity',made['job_no'].endswith(f"{1247+made['visit_id']:06d}"))
+count=len(p['customers']);bad=write(c,'/reception/intake',{**body,'customerName':'Must roll back','mobile':uuid4().hex,'vehicleId':1});check('mismatched association denied',bad.status_code==422);check('failed intake creates nothing',len(projection()['customers'])==count)
+service=login('service');r=change(id,'details',{'work_list':'Updated inspection','address':'Test address','engine_no':'TEST-ENGINE','fuel':'5 bars','accessories':'Test bag'},service);check('linked advisor edits job '+r.text[:100],r.status_code==200)
+p=projection();check('multi-table details persisted',next(v for v in p['vehicles'] if v['id']==made['vehicle_id'])['engine_no']=='TEST-ENGINE' and next(v for v in p['customers'] if v['id']==made['customer_id'])['address']=='Test address')
+tech=login('tech');check('technician denied job details',change(id,'details',{'work_list':'Forbidden'},tech).status_code==403)
+check('lifecycle checklist gate',change(id,'status',{'target':'IN_PROGRESS','note':'Must not bypass'}).status_code==409)
+items=[i for i in p['checklist_items'] if i['job_card_id']==id];first=min(items,key=lambda i:i['sort_order']);last=max(items,key=lambda i:i['sort_order'])
+check('checklist order enforced',write(c,f"/jobs/checklist/{last['id']}",{'version':last['version'],'checked':True}).status_code==409)
+r=write(c,f"/jobs/checklist/{first['id']}",{'version':first['version'],'checked':True});check('gather requirements checklist '+r.text[:100],r.status_code==200)
+check('manual close denied',change(id,'status',{'target':'CLOSED','note':'Forbidden'}).status_code==409)
+check('cancel requires note',change(id,'status',{'target':'CANCELLED','note':''}).status_code==422)
+check('cancel job',change(id,'status',{'target':'CANCELLED','note':'Isolated test complete'}).status_code==200)
+check('terminal job read-only',change(id,'details',{'work_list':'Forbidden'}).status_code==409)
+progress=next(j for j in projection()['job_cards'] if j['id']<=145 and j['main_status']=='IN_PROGRESS' and not j['archived_at'])
+check('hold imported job',change(progress['id'],'status',{'target':'HOLD','note':'Isolated verification'}).status_code==200)
+check('resume imported job',change(progress['id'],'status',{'target':'IN_PROGRESS','note':'Restore original state'}).status_code==200)
+check('historical identifier preserved',job(progress['id'])['job_no']==progress['job_no'])
+check('cross-session job read',any(j['id']==id for j in service.get('/api/v1/jobs').json()))
+Path('/slice/artifacts/intake-job-api-tests.json').write_text(json.dumps({'passed':len(checks)-before,'checks':checks[before:]},indent=2));print(len(checks)-before,'intake/job assertions passed')

@@ -1,0 +1,1201 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nReception\nToday Queue\nAdvance Bookings\nCustomers\nVehicles\nSearch\nLogout\n\nReception\n\nIntake desk for visits, customers and new job cards.\nreception@example.com\nReception Queue\n\n2026-10-20 · all open reception visits\n\nCreate New Visit\n115 open visits\n0 unassigned\nAdvisor availability\n3 of 3 advisors available today\nAll advisors\nService advisor 1\nPresent · 36 open\nPresent\nService advisor AA\nPresent · 40 open\nPresent\nService advisor BB1\nPresent · 39 open\nPresent\nSearch\nStatus\nAll open\nNew\nIn Progress\nCompleted\nUnassigned\nClear\n115 of 115 open jobs\nJC-2026-002081\nOD22DM1081 · Demo Customer 081\nService advisor 1\nNEW · Gather Requirements\nCarry-forward\n292 days old · 2026-01-01\n\nCeramic coating\n\nJC-2026-002065\nOD06DM1065 · Demo Customer 065\nService advisor BB1\nNEW · Gather Requirements\nCarry-forward\n291 days old · 2026-01-02\n\nCeramic coating\n\nJC-2026-002049\nOD20DM1049 · Demo Customer 049\nService advisor AA\nNEW · Gather Requirements\nCarry-forward\n290 days old · 2026-01-03\n\nCeramic coating\n\nJC-2026-002033\nOD04DM1033 · Demo Customer 033\nService advisor 1\nNEW · Gather Requirements\nCarry-forward\n289 days old · 2026-01-04\n\nCeramic coating\n\nJC-2026-002017\nOD18DM1017 · Demo Customer 017\nService advisor BB1\nNEW · Gather Requirements\nCarry-forward\n288 days old · 2026-01-05\n\nCeramic coating\n\nJC-2026-002001\nOD02DM1001 · Demo Customer 001\nService advisor AA\nNEW · Gather Requirements\nCarry-forward\n287 days old · 2026-01-06\n\nCeramic coating\n\nJC-2026-002137\nOD06DM1005 · Demo Customer 005\nService advisor BB1\nIN PROGRESS · Photos Shared\nCarry-forward\n282 days old · 2026-01-11\n\nCeramic coating\n\nJC-2026-002121\nOD02DM1121 · Demo Customer 001\nService advisor AA\nIN PROGRESS · Photos Shared\nCarry-forward\n281 days old · 2026-01-12\n\nCeramic coating\n\nJC-2026-002105\nOD16DM1105 · Demo Customer 105\nService advisor 1\nIN PROGRESS · Photos Shared\nCarry-forward\n280 days old · 2026-01-13\n\nCeramic coating\n\nJC-2026-002089\nOD30DM1089 · Demo Customer 089\nService advisor BB1\nIN PROGRESS · Photos Shared\nCarry-forward\n279 days old · 2026-01-14\n\nCeramic coating\n\nJC-2026-002073\nOD14DM1073 · Demo Customer 073\nService advisor AA\nIN PROGRESS · Photos Shared\nCarry-forward\n278 days old · 2026-01-15\n\nCeramic coating\n\nJC-2026-002057\nOD28DM1057 · Demo Customer 057\nService advisor 1\nIN PROGRESS · Photos Shared\nCarry-forward\n277 days old · 2026-01-16\n\nCeramic coating\n\nJC-2026-002041\nOD12DM1041 · Demo Customer 041\nService advisor BB1\nIN PROGRESS · Photos Shared\nCarry-forward\n276 days old · 2026-01-17\n\nCeramic coating\n\nJC-2026-002025\nOD26DM1025 · Demo Customer 025\nService advisor AA\nIN PROGRESS · Photos Shared\nCarry-forward\n275 days old · 2026-01-18\n\nCeramic coating\n\nJC-2026-002009\nOD10DM1009 · Demo Customer 009\nService advisor 1\nIN PROGRESS · Photos Shared\nCarry-forward\n274 days old · 2026-01-19\n\nCeramic coating\n\nJC-2026-002129\nOD10DM1129 · Demo Customer 009\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n268 days old · 2026-01-25\n\nCeramic coating\n\nJC-2026-002113\nOD24DM1113 · Demo Customer 113\nService advisor BB1\nNEW · Gather Requirements\nCarry-forward\n267 days old · 2026-01-26\n\nCeramic coating\n\nJC-2026-002097\nOD08DM1097 · Demo Customer 097\nService advisor AA\nNEW · Gather Requirements\nCarry-forward\n266 days old · 2026-01-27\n\nCeramic coating\n\nJC-2026-002130\nOD11DM1130 · Demo Customer 010\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n259 days old · 2026-02-03\n\nPaint correction\n\nJC-2026-002114\nOD25DM1114 · Demo Customer 114\nService advisor 1\nNEW · Create Estimate\nCarry-forward\n258 days old · 2026-02-04\n\nPaint correction\n\nJC-2026-002098\nOD09DM1098 · Demo Customer 098\nService advisor BB1\nNEW · Create Estimate\nCarry-forward\n257 days old · 2026-02-05\n\nPaint correction\n\nJC-2026-002082\nOD23DM1082 · Demo Customer 082\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n256 days old · 2026-02-06\n\nPaint correction\n\nJC-2026-002066\nOD07DM1066 · Demo Customer 066\nService advisor 1\nNEW · Create Estimate\nCarry-forward\n255 days old · 2026-02-07\n\nPaint correction\n\nJC-2026-002050\nOD21DM1050 · Demo Customer 050\nService advisor BB1\nNEW · Create Estimate\nCarry-forward\n254 days old · 2026-02-08\n\nPaint correction\n\nJC-2026-002034\nOD05DM1034 · Demo Customer 034\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n253 days old · 2026-02-09\n\nPaint correction\n\nJC-2026-002018\nOD19DM1018 · Demo Customer 018\nService advisor 1\nNEW · Create Estimate\nCarry-forward\n252 days old · 2026-02-10\n\nPaint correction\n\nJC-2026-002002\nOD03DM1002 · Demo Customer 002\nService advisor BB1\nNEW · Create Estimate\nCarry-forward\n251 days old · 2026-02-11\n\nPaint correction\n\nJC-2026-002138\nOD07DM1006 · Demo Customer 006\nService advisor 1\nIN PROGRESS · QC Pending\nCarry-forward\n246 days old · 2026-02-16\n\nPaint correction\n\nJC-2026-002122\nOD03DM1122 · Demo Customer 002\nService advisor BB1\nIN PROGRESS · QC Pending\nCarry-forward\n245 days old · 2026-02-17\n\nPaint correction\n\nJC-2026-002106\nOD17DM1106 · Demo Customer 106\nService advisor AA\nIN PROGRESS · QC Pending\nCarry-forward\n244 days old · 2026-02-18\n\nPaint correction\n\nJC-2026-002090\nOD01DM1090 · Demo Customer 090\nService advisor 1\nIN PROGRESS · QC Pending\nCarry-forward\n243 days old · 2026-02-19\n\nPaint correction\n\nJC-2026-002074\nOD15DM1074 · Demo Customer 074\nService advisor BB1\nIN PROGRESS · QC Pending\nCarry-forward\n242 days old · 2026-02-20\n\nPaint correction\n\nJC-2026-002058\nOD29DM1058 · Demo Customer 058\nService advisor AA\nIN PROGRESS · QC Pending\nCarry-forward\n241 days old · 2026-02-21\n\nPaint correction\n\nJC-2026-002042\nOD13DM1042 · Demo Customer 042\nService advisor 1\nIN PROGRESS · QC Pending\nCarry-forward\n240 days old · 2026-02-22\n\nPaint correction\n\nJC-2026-002026\nOD27DM1026 · Demo Customer 026\nService advisor BB1\nIN PROGRESS · QC Pending\nCarry-forward\n239 days old · 2026-02-23\n\nPaint correction\n\nJC-2026-002010\nOD11DM1010 · Demo Customer 010\nService advisor AA\nIN PROGRESS · QC Pending\nCarry-forward\n238 days old · 2026-02-24\n\nPaint correction\n\nJC-2026-002027\nOD28DM1027 · Demo Customer 027\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n233 days old · 2026-03-01\n\nInterior detailing\n\nJC-2026-002011\nOD12DM1011 · Demo Customer 011\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n232 days old · 2026-03-02\n\nInterior detailing\n\nJC-2026-002131\nOD12DM1131 · Demo Customer 011\nService advisor BB1\nNEW · Get Confirmation\nCarry-forward\n226 days old · 2026-03-08\n\nInterior detailing\n\nJC-2026-002115\nOD26DM1115 · Demo Customer 115\nService advisor AA\nNEW · Get Confirmation\nCarry-forward\n225 days old · 2026-03-09\n\nInterior detailing\n\nJC-2026-002099\nOD10DM1099 · Demo Customer 099\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n224 days old · 2026-03-10\n\nInterior detailing\n\nJC-2026-002083\nOD24DM1083 · Demo Customer 083\nService advisor BB1\nNEW · Get Confirmation\nCarry-forward\n223 days old · 2026-03-11\n\nInterior detailing\n\nJC-2026-002067\nOD08DM1067 · Demo Customer 067\nService advisor AA\nNEW · Get Confirmation\nCarry-forward\n222 days old · 2026-03-12\n\nInterior detailing\n\nJC-2026-002051\nOD22DM1051 · Demo Customer 051\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n221 days old · 2026-03-13\n\nInterior detailing\n\nJC-2026-002035\nOD06DM1035 · Demo Customer 035\nService advisor BB1\nNEW · Get Confirmation\nCarry-forward\n220 days old · 2026-03-14\n\nInterior detailing\n\nJC-2026-002019\nOD20DM1019 · Demo Customer 019\nService advisor AA\nNEW · Get Confirmation\nCarry-forward\n219 days old · 2026-03-15\n\nInterior detailing\n\nJC-2026-002003\nOD04DM1003 · Demo Customer 003\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n218 days old · 2026-03-16\n\nInterior detailing\n\nJC-2026-002139\nOD08DM1007 · Demo Customer 007\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n213 days old · 2026-03-21\n\nInterior detailing\n\nJC-2026-002123\nOD04DM1123 · Demo Customer 003\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n212 days old · 2026-03-22\n\nInterior detailing\n\nJC-2026-002107\nOD18DM1107 · Demo Customer 107\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n211 days old · 2026-03-23\n\nInterior detailing\n\nJC-2026-002091\nOD02DM1091 · Demo Customer 091\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n210 days old · 2026-03-24\n\nInterior detailing\n\nJC-2026-002075\nOD16DM1075 · Demo Customer 075\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n209 days old · 2026-03-25\n\nInterior detailing\n\nJC-2026-002059\nOD30DM1059 · Demo Customer 059\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n208 days old · 2026-03-26\n\nInterior detailing\n\nJC-2026-002043\nOD14DM1043 · Demo Customer 043\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n207 days old · 2026-03-27\n\nInterior detailing\n\nJC-2026-002092\nOD03DM1092 · Demo Customer 092\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n201 days old · 2026-04-02\n\nFull body PPF\n\nJC-2026-002076\nOD17DM1076 · Demo Customer 076\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n200 days old · 2026-04-03\n\nFull body PPF\n\nJC-2026-002044\nOD15DM1044 · Demo Customer 044\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n198 days old · 2026-04-05\n\nFull body PPF\n\nJC-2026-002028\nOD29DM1028 · Demo Customer 028\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n197 days old · 2026-04-06\n\nFull body PPF\n\nJC-2026-002132\nOD13DM1132 · Demo Customer 012\nService advisor 1\nIN PROGRESS · Material Requested\nCarry-forward\n190 days old · 2026-04-13\n\nFull body PPF\n\nJC-2026-002116\nOD27DM1116 · Demo Customer 116\nService advisor BB1\nIN PROGRESS · Material Requested\nCarry-forward\n189 days old · 2026-04-14\n\nFull body PPF\n\nJC-2026-002100\nOD11DM1100 · Demo Customer 100\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n188 days old · 2026-04-15\n\nFull body PPF\n\nJC-2026-002084\nOD25DM1084 · Demo Customer 084\nService advisor 1\nIN PROGRESS · Material Requested\nCarry-forward\n187 days old · 2026-04-16\n\nFull body PPF\n\nJC-2026-002068\nOD09DM1068 · Demo Customer 068\nService advisor BB1\nIN PROGRESS · Material Requested\nCarry-forward\n186 days old · 2026-04-17\n\nFull body PPF\n\nJC-2026-002052\nOD23DM1052 · Demo Customer 052\nService advisor AA\nIN PROGRESS · Material Requested\nCarry-forward\n185 days old · 2026-04-18\n\nFull body PPF\n\nJC-2026-002036\nOD07DM1036 · Demo Customer 036\nService advisor 1\nIN PROGRESS · Material Requested\nCarry-forward\n184 days old · 2026-04-19\n\nFull body PPF\n\nJC-2026-002020\nOD21DM1020 · Demo Customer 020\nService advisor BB1\nIN PROGRESS · Material Requested\nCarry-forward\n183 days old · 2026-04-20\n\nFull body PPF\n\nJC-2026-002004\nOD05DM1004 · Demo Customer 004\nService advisor AA\nIN PROGRESS · Material Requested\nCarry-forward\n182 days old · 2026-04-21\n\nFull body PPF\n\nJC-2026-002140\nOD09DM1008 · Demo Customer 008\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n177 days old · 2026-04-26\n\nFull body PPF\n\nJC-2026-002124\nOD05DM1124 · Demo Customer 004\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n176 days old · 2026-04-27\n\nFull body PPF\n\nJC-2026-002141\nOD10DM1009 · Demo Customer 009\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n169 days old · 2026-05-04\n\nCeramic coating\n\nJC-2026-002125\nOD06DM1125 · Demo Customer 005\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n168 days old · 2026-05-05\n\nCeramic coating\n\nJC-2026-002109\nOD20DM1109 · Demo Customer 109\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n167 days old · 2026-05-06\n\nCeramic coating\n\nJC-2026-002093\nOD04DM1093 · Demo Customer 093\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n166 days old · 2026-05-07\n\nCeramic coating\n\nJC-2026-002077\nOD18DM1077 · Demo Customer 077\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n165 days old · 2026-05-08\n\nCeramic coating\n\nJC-2026-002061\nOD02DM1061 · Demo Customer 061\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n164 days old · 2026-05-09\n\nCeramic coating\n\nJC-2026-002045\nOD16DM1045 · Demo Customer 045\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n163 days old · 2026-05-10\n\nCeramic coating\n\nJC-2026-002029\nOD30DM1029 · Demo Customer 029\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n162 days old · 2026-05-11\n\nCeramic coating\n\nJC-2026-002013\nOD14DM1013 · Demo Customer 013\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n161 days old · 2026-05-12\n\nCeramic coating\n\nJC-2026-002133\nOD02DM1001 · Demo Customer 001\nService advisor AA\nIN PROGRESS · Material Issued\nCarry-forward\n155 days old · 2026-05-18\n\nCeramic coating\n\nJC-2026-002117\nOD28DM1117 · Demo Customer 117\nService advisor 1\nIN PROGRESS · Material Issued\nCarry-forward\n154 days old · 2026-05-19\n\nCeramic coating\n\nJC-2026-002101\nOD12DM1101 · Demo Customer 101\nService advisor BB1\nIN PROGRESS · Material Issued\nCarry-forward\n153 days old · 2026-05-20\n\nCeramic coating\n\nJC-2026-002085\nOD26DM1085 · Demo Customer 085\nService advisor AA\nIN PROGRESS · Material Issued\nCarry-forward\n152 days old · 2026-05-21\n\nCeramic coating\n\nJC-2026-002069\nOD10DM1069 · Demo Customer 069\nService advisor 1\nIN PROGRESS · Material Issued\nCarry-forward\n151 days old · 2026-05-22\n\nCeramic coating\n\nJC-2026-002053\nOD24DM1053 · Demo Customer 053\nService advisor BB1\nIN PROGRESS · Material Issued\nCarry-forward\n150 days old · 2026-05-23\n\nCeramic coating\n\nJC-2026-002037\nOD08DM1037 · Demo Customer 037\nService advisor AA\nIN PROGRESS · Material Issued\nCarry-forward\n149 days old · 2026-05-24\n\nCeramic coating\n\nJC-2026-002021\nOD22DM1021 · Demo Customer 021\nService advisor 1\nIN PROGRESS · Material Issued\nCarry-forward\n148 days old · 2026-05-25\n\nCeramic coating\n\nJC-2026-002005\nOD06DM1005 · Demo Customer 005\nService advisor BB1\nIN PROGRESS · Material Issued\nCarry-forward\n147 days old · 2026-05-26\n\nCeramic coating\n\nJC-2026-002054\nOD25DM1054 · Demo Customer 054\nService advisor 1\nIN PROGRESS · Washing Needed\nCarry-forward\n141 days old · 2026-06-01\n\nPaint correction\n\nJC-2026-002038\nOD09DM1038 · Demo Customer 038\nService advisor BB1\nIN PROGRESS · Washing Needed\nCarry-forward\n140 days old · 2026-06-02\n\nPaint correction\n\nJC-2026-002022\nOD23DM1022 · Demo Customer 022\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n139 days old · 2026-06-03\n\nPaint correction\n\nJC-2026-002006\nOD07DM1006 · Demo Customer 006\nService advisor 1\nIN PROGRESS · Washing Needed\nCarry-forward\n138 days old · 2026-06-04\n\nPaint correction\n\nJC-2026-002134\nOD03DM1002 · Demo Customer 002\nService advisor BB1\nIN PROGRESS · Washing Needed\nCarry-forward\n119 days old · 2026-06-23\n\nPaint correction\n\nJC-2026-002118\nOD29DM1118 · Demo Customer 118\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n118 days old · 2026-06-24\n\nPaint correction\n\nJC-2026-002102\nOD13DM1102 · Demo Customer 102\nService advisor 1\nIN PROGRESS · Washing Needed\nCarry-forward\n117 days old · 2026-06-25\n\nPaint correction\n\nJC-2026-002086\nOD27DM1086 · Demo Customer 086\nService advisor BB1\nIN PROGRESS · Washing Needed\nCarry-forward\n116 days old · 2026-06-26\n\nPaint correction\n\nJC-2026-002070\nOD11DM1070 · Demo Customer 070\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n115 days old · 2026-06-27\n\nPaint correction\n\nJC-2026-002135\nOD04DM1003 · Demo Customer 003\nService advisor 1\nIN PROGRESS · Work Started\nCarry-forward\n111 days old · 2026-07-01\n\nInterior detailing\n\nJC-2026-002119\nOD30DM1119 · Demo Customer 119\nService advisor BB1\nIN PROGRESS · Work Started\nCarry-forward\n110 days old · 2026-07-02\n\nInterior detailing\n\nJC-2026-002103\nOD14DM1103 · Demo Customer 103\nService advisor AA\nIN PROGRESS · Work Started\nCarry-forward\n109 days old · 2026-07-03\n\nInterior detailing\n\nJC-2026-002087\nOD28DM1087 · Demo Customer 087\nService advisor 1\nIN PROGRESS · Work Started\nCarry-forward\n108 days old · 2026-07-04\n\nInterior detailing\n\nJC-2026-002071\nOD12DM1071 · Demo Customer 071\nService advisor BB1\nIN PROGRESS · Work Started\nCarry-forward\n107 days old · 2026-07-05\n\nInterior detailing\n\nJC-2026-002055\nOD26DM1055 · Demo Customer 055\nService advisor AA\nIN PROGRESS · Work Started\nCarry-forward\n106 days old · 2026-07-06\n\nInterior detailing\n\nJC-2026-002039\nOD10DM1039 · Demo Customer 039\nService advisor 1\nIN PROGRESS · Work Started\nCarry-forward\n105 days old · 2026-07-07\n\nInterior detailing\n\nJC-2026-002023\nOD24DM1023 · Demo Customer 023\nService advisor BB1\nIN PROGRESS · Work Started\nCarry-forward\n104 days old · 2026-07-08\n\nInterior detailing\n\nJC-2026-002007\nOD08DM1007 · Demo Customer 007\nService advisor AA\nIN PROGRESS · Work Started\nCarry-forward\n103 days old · 2026-07-09\n\nInterior detailing\n\nJC-2026-002136\nOD05DM1004 · Demo Customer 004\nService advisor AA\nIN PROGRESS · Follow-up Needed\nCarry-forward\n75 days old · 2026-08-06\n\nFull body PPF\n\nJC-2026-002120\nOD01DM1120 · Demo Customer 120\nService advisor 1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n74 days old · 2026-08-07\n\nFull body PPF\n\nJC-2026-002104\nOD15DM1104 · Demo Customer 104\nService advisor BB1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n73 days old · 2026-08-08\n\nFull body PPF\n\nJC-2026-002088\nOD29DM1088 · Demo Customer 088\nService advisor AA\nIN PROGRESS · Follow-up Needed\nCarry-forward\n72 days old · 2026-08-09\n\nFull body PPF\n\nJC-2026-002072\nOD13DM1072 · Demo Customer 072\nService advisor 1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n71 days old · 2026-08-10\n\nFull body PPF\n\nJC-2026-002056\nOD27DM1056 · Demo Customer 056\nService advisor BB1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n70 days old · 2026-08-11\n\nFull body PPF\n\nJC-2026-002040\nOD11DM1040 · Demo Customer 040\nService advisor AA\nIN PROGRESS · Follow-up Needed\nCarry-forward\n69 days old · 2026-08-12\n\nFull body PPF\n\nJC-2026-002024\nOD25DM1024 · Demo Customer 024\nService advisor 1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n68 days old · 2026-08-13\n\nFull body PPF\n\nJC-2026-002008\nOD09DM1008 · Demo Customer 008\nService advisor BB1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n67 days old · 2026-08-14\n\nFull body PPF\n\nJC-2026-001392\nOD04DM1003 · Demo Customer 003\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n18 days old · 2026-10-02\n\nyy\n\nJob Detail\n\nJC-2026-001392\n\nCustomer\nDemo Customer 003 / 8100000003\nVehicle\nOD04DM1003 / Tata Nexon\nJob Card\nJC-2026-001392\nStatus\nNEW / Create Estimate\nAdvisor\nService advisor 1 (Present)\nService advisor AA (Present)\nService advisor BB1 (Present)\nUpdate Advisor\nArchive Visit/Job\nCreate New Visit\n\nLink an existing customer and vehicle, or enter new details\n\nDetails\nBody Mark\nExisting customer\nAdd New Customer\nExisting vehicle\nAdd New Vehicle\nCustomer Name\nMobile\nVehicle Number\nMake\nModel\nColor\nODO meter reading (km)\nFuel / battery level\nbars\n%\nlitres\nOther\nKeys\nAccessories\nAdvisor\nAssign later\nService advisor 1 (Present)\nService advisor AA (Present)\nService advisor BB1 (Present)\nRequested Work\nCreate Visit\nGo Back",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Today Queue",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Advance Bookings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Customers",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Vehicles",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Create New Visit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "All advisors",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Service advisor 1\nPresent · 36 open",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Mark Service advisor 1 away",
+      "text": "Present",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Service advisor AA\nPresent · 40 open",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Mark Service advisor AA away",
+      "text": "Present",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Service advisor BB1\nPresent · 39 open",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Mark Service advisor BB1 away",
+      "text": "Present",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search reception queue",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Reception queue status",
+      "text": "All open\nNew\nIn Progress\nCompleted\nUnassigned",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All open",
+        "New",
+        "In Progress",
+        "Completed",
+        "Unassigned"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002081\nOD22DM1081 · Demo Customer 081\nService advisor 1\nNEW · Gather Requirements\nCarry-forward\n292 days old · 2026-01-01\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002065\nOD06DM1065 · Demo Customer 065\nService advisor BB1\nNEW · Gather Requirements\nCarry-forward\n291 days old · 2026-01-02\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002049\nOD20DM1049 · Demo Customer 049\nService advisor AA\nNEW · Gather Requirements\nCarry-forward\n290 days old · 2026-01-03\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002033\nOD04DM1033 · Demo Customer 033\nService advisor 1\nNEW · Gather Requirements\nCarry-forward\n289 days old · 2026-01-04\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002017\nOD18DM1017 · Demo Customer 017\nService advisor BB1\nNEW · Gather Requirements\nCarry-forward\n288 days old · 2026-01-05\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002001\nOD02DM1001 · Demo Customer 001\nService advisor AA\nNEW · Gather Requirements\nCarry-forward\n287 days old · 2026-01-06\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002137\nOD06DM1005 · Demo Customer 005\nService advisor BB1\nIN PROGRESS · Photos Shared\nCarry-forward\n282 days old · 2026-01-11\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002121\nOD02DM1121 · Demo Customer 001\nService advisor AA\nIN PROGRESS · Photos Shared\nCarry-forward\n281 days old · 2026-01-12\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002105\nOD16DM1105 · Demo Customer 105\nService advisor 1\nIN PROGRESS · Photos Shared\nCarry-forward\n280 days old · 2026-01-13\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002089\nOD30DM1089 · Demo Customer 089\nService advisor BB1\nIN PROGRESS · Photos Shared\nCarry-forward\n279 days old · 2026-01-14\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002073\nOD14DM1073 · Demo Customer 073\nService advisor AA\nIN PROGRESS · Photos Shared\nCarry-forward\n278 days old · 2026-01-15\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002057\nOD28DM1057 · Demo Customer 057\nService advisor 1\nIN PROGRESS · Photos Shared\nCarry-forward\n277 days old · 2026-01-16\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002041\nOD12DM1041 · Demo Customer 041\nService advisor BB1\nIN PROGRESS · Photos Shared\nCarry-forward\n276 days old · 2026-01-17\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002025\nOD26DM1025 · Demo Customer 025\nService advisor AA\nIN PROGRESS · Photos Shared\nCarry-forward\n275 days old · 2026-01-18\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002009\nOD10DM1009 · Demo Customer 009\nService advisor 1\nIN PROGRESS · Photos Shared\nCarry-forward\n274 days old · 2026-01-19\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002129\nOD10DM1129 · Demo Customer 009\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n268 days old · 2026-01-25\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002113\nOD24DM1113 · Demo Customer 113\nService advisor BB1\nNEW · Gather Requirements\nCarry-forward\n267 days old · 2026-01-26\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002097\nOD08DM1097 · Demo Customer 097\nService advisor AA\nNEW · Gather Requirements\nCarry-forward\n266 days old · 2026-01-27\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002130\nOD11DM1130 · Demo Customer 010\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n259 days old · 2026-02-03\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002114\nOD25DM1114 · Demo Customer 114\nService advisor 1\nNEW · Create Estimate\nCarry-forward\n258 days old · 2026-02-04\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002098\nOD09DM1098 · Demo Customer 098\nService advisor BB1\nNEW · Create Estimate\nCarry-forward\n257 days old · 2026-02-05\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002082\nOD23DM1082 · Demo Customer 082\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n256 days old · 2026-02-06\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002066\nOD07DM1066 · Demo Customer 066\nService advisor 1\nNEW · Create Estimate\nCarry-forward\n255 days old · 2026-02-07\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002050\nOD21DM1050 · Demo Customer 050\nService advisor BB1\nNEW · Create Estimate\nCarry-forward\n254 days old · 2026-02-08\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002034\nOD05DM1034 · Demo Customer 034\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n253 days old · 2026-02-09\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002018\nOD19DM1018 · Demo Customer 018\nService advisor 1\nNEW · Create Estimate\nCarry-forward\n252 days old · 2026-02-10\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002002\nOD03DM1002 · Demo Customer 002\nService advisor BB1\nNEW · Create Estimate\nCarry-forward\n251 days old · 2026-02-11\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002138\nOD07DM1006 · Demo Customer 006\nService advisor 1\nIN PROGRESS · QC Pending\nCarry-forward\n246 days old · 2026-02-16\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002122\nOD03DM1122 · Demo Customer 002\nService advisor BB1\nIN PROGRESS · QC Pending\nCarry-forward\n245 days old · 2026-02-17\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002106\nOD17DM1106 · Demo Customer 106\nService advisor AA\nIN PROGRESS · QC Pending\nCarry-forward\n244 days old · 2026-02-18\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002090\nOD01DM1090 · Demo Customer 090\nService advisor 1\nIN PROGRESS · QC Pending\nCarry-forward\n243 days old · 2026-02-19\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002074\nOD15DM1074 · Demo Customer 074\nService advisor BB1\nIN PROGRESS · QC Pending\nCarry-forward\n242 days old · 2026-02-20\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002058\nOD29DM1058 · Demo Customer 058\nService advisor AA\nIN PROGRESS · QC Pending\nCarry-forward\n241 days old · 2026-02-21\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002042\nOD13DM1042 · Demo Customer 042\nService advisor 1\nIN PROGRESS · QC Pending\nCarry-forward\n240 days old · 2026-02-22\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002026\nOD27DM1026 · Demo Customer 026\nService advisor BB1\nIN PROGRESS · QC Pending\nCarry-forward\n239 days old · 2026-02-23\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002010\nOD11DM1010 · Demo Customer 010\nService advisor AA\nIN PROGRESS · QC Pending\nCarry-forward\n238 days old · 2026-02-24\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002027\nOD28DM1027 · Demo Customer 027\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n233 days old · 2026-03-01\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002011\nOD12DM1011 · Demo Customer 011\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n232 days old · 2026-03-02\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002131\nOD12DM1131 · Demo Customer 011\nService advisor BB1\nNEW · Get Confirmation\nCarry-forward\n226 days old · 2026-03-08\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002115\nOD26DM1115 · Demo Customer 115\nService advisor AA\nNEW · Get Confirmation\nCarry-forward\n225 days old · 2026-03-09\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002099\nOD10DM1099 · Demo Customer 099\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n224 days old · 2026-03-10\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002083\nOD24DM1083 · Demo Customer 083\nService advisor BB1\nNEW · Get Confirmation\nCarry-forward\n223 days old · 2026-03-11\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002067\nOD08DM1067 · Demo Customer 067\nService advisor AA\nNEW · Get Confirmation\nCarry-forward\n222 days old · 2026-03-12\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002051\nOD22DM1051 · Demo Customer 051\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n221 days old · 2026-03-13\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002035\nOD06DM1035 · Demo Customer 035\nService advisor BB1\nNEW · Get Confirmation\nCarry-forward\n220 days old · 2026-03-14\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002019\nOD20DM1019 · Demo Customer 019\nService advisor AA\nNEW · Get Confirmation\nCarry-forward\n219 days old · 2026-03-15\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002003\nOD04DM1003 · Demo Customer 003\nService advisor 1\nNEW · Get Confirmation\nCarry-forward\n218 days old · 2026-03-16\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002139\nOD08DM1007 · Demo Customer 007\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n213 days old · 2026-03-21\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002123\nOD04DM1123 · Demo Customer 003\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n212 days old · 2026-03-22\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002107\nOD18DM1107 · Demo Customer 107\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n211 days old · 2026-03-23\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002091\nOD02DM1091 · Demo Customer 091\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n210 days old · 2026-03-24\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002075\nOD16DM1075 · Demo Customer 075\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n209 days old · 2026-03-25\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002059\nOD30DM1059 · Demo Customer 059\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n208 days old · 2026-03-26\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002043\nOD14DM1043 · Demo Customer 043\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n207 days old · 2026-03-27\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002092\nOD03DM1092 · Demo Customer 092\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n201 days old · 2026-04-02\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002076\nOD17DM1076 · Demo Customer 076\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n200 days old · 2026-04-03\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002044\nOD15DM1044 · Demo Customer 044\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n198 days old · 2026-04-05\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002028\nOD29DM1028 · Demo Customer 028\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n197 days old · 2026-04-06\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002132\nOD13DM1132 · Demo Customer 012\nService advisor 1\nIN PROGRESS · Material Requested\nCarry-forward\n190 days old · 2026-04-13\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002116\nOD27DM1116 · Demo Customer 116\nService advisor BB1\nIN PROGRESS · Material Requested\nCarry-forward\n189 days old · 2026-04-14\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002100\nOD11DM1100 · Demo Customer 100\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n188 days old · 2026-04-15\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002084\nOD25DM1084 · Demo Customer 084\nService advisor 1\nIN PROGRESS · Material Requested\nCarry-forward\n187 days old · 2026-04-16\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002068\nOD09DM1068 · Demo Customer 068\nService advisor BB1\nIN PROGRESS · Material Requested\nCarry-forward\n186 days old · 2026-04-17\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002052\nOD23DM1052 · Demo Customer 052\nService advisor AA\nIN PROGRESS · Material Requested\nCarry-forward\n185 days old · 2026-04-18\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002036\nOD07DM1036 · Demo Customer 036\nService advisor 1\nIN PROGRESS · Material Requested\nCarry-forward\n184 days old · 2026-04-19\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002020\nOD21DM1020 · Demo Customer 020\nService advisor BB1\nIN PROGRESS · Material Requested\nCarry-forward\n183 days old · 2026-04-20\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002004\nOD05DM1004 · Demo Customer 004\nService advisor AA\nIN PROGRESS · Material Requested\nCarry-forward\n182 days old · 2026-04-21\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002140\nOD09DM1008 · Demo Customer 008\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n177 days old · 2026-04-26\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002124\nOD05DM1124 · Demo Customer 004\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n176 days old · 2026-04-27\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002141\nOD10DM1009 · Demo Customer 009\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n169 days old · 2026-05-04\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002125\nOD06DM1125 · Demo Customer 005\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n168 days old · 2026-05-05\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002109\nOD20DM1109 · Demo Customer 109\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n167 days old · 2026-05-06\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002093\nOD04DM1093 · Demo Customer 093\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n166 days old · 2026-05-07\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002077\nOD18DM1077 · Demo Customer 077\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n165 days old · 2026-05-08\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002061\nOD02DM1061 · Demo Customer 061\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n164 days old · 2026-05-09\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002045\nOD16DM1045 · Demo Customer 045\nService advisor 1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n163 days old · 2026-05-10\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002029\nOD30DM1029 · Demo Customer 029\nService advisor BB1\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n162 days old · 2026-05-11\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002013\nOD14DM1013 · Demo Customer 013\nService advisor AA\nCOMPLETED · Remind Customer for Sharing Google Review/Feedback\nCarry-forward\n161 days old · 2026-05-12\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002133\nOD02DM1001 · Demo Customer 001\nService advisor AA\nIN PROGRESS · Material Issued\nCarry-forward\n155 days old · 2026-05-18\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002117\nOD28DM1117 · Demo Customer 117\nService advisor 1\nIN PROGRESS · Material Issued\nCarry-forward\n154 days old · 2026-05-19\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002101\nOD12DM1101 · Demo Customer 101\nService advisor BB1\nIN PROGRESS · Material Issued\nCarry-forward\n153 days old · 2026-05-20\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002085\nOD26DM1085 · Demo Customer 085\nService advisor AA\nIN PROGRESS · Material Issued\nCarry-forward\n152 days old · 2026-05-21\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002069\nOD10DM1069 · Demo Customer 069\nService advisor 1\nIN PROGRESS · Material Issued\nCarry-forward\n151 days old · 2026-05-22\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002053\nOD24DM1053 · Demo Customer 053\nService advisor BB1\nIN PROGRESS · Material Issued\nCarry-forward\n150 days old · 2026-05-23\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002037\nOD08DM1037 · Demo Customer 037\nService advisor AA\nIN PROGRESS · Material Issued\nCarry-forward\n149 days old · 2026-05-24\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002021\nOD22DM1021 · Demo Customer 021\nService advisor 1\nIN PROGRESS · Material Issued\nCarry-forward\n148 days old · 2026-05-25\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002005\nOD06DM1005 · Demo Customer 005\nService advisor BB1\nIN PROGRESS · Material Issued\nCarry-forward\n147 days old · 2026-05-26\n\nCeramic coating",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002054\nOD25DM1054 · Demo Customer 054\nService advisor 1\nIN PROGRESS · Washing Needed\nCarry-forward\n141 days old · 2026-06-01\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002038\nOD09DM1038 · Demo Customer 038\nService advisor BB1\nIN PROGRESS · Washing Needed\nCarry-forward\n140 days old · 2026-06-02\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002022\nOD23DM1022 · Demo Customer 022\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n139 days old · 2026-06-03\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002006\nOD07DM1006 · Demo Customer 006\nService advisor 1\nIN PROGRESS · Washing Needed\nCarry-forward\n138 days old · 2026-06-04\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002134\nOD03DM1002 · Demo Customer 002\nService advisor BB1\nIN PROGRESS · Washing Needed\nCarry-forward\n119 days old · 2026-06-23\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002118\nOD29DM1118 · Demo Customer 118\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n118 days old · 2026-06-24\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002102\nOD13DM1102 · Demo Customer 102\nService advisor 1\nIN PROGRESS · Washing Needed\nCarry-forward\n117 days old · 2026-06-25\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002086\nOD27DM1086 · Demo Customer 086\nService advisor BB1\nIN PROGRESS · Washing Needed\nCarry-forward\n116 days old · 2026-06-26\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002070\nOD11DM1070 · Demo Customer 070\nService advisor AA\nIN PROGRESS · Washing Needed\nCarry-forward\n115 days old · 2026-06-27\n\nPaint correction",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002135\nOD04DM1003 · Demo Customer 003\nService advisor 1\nIN PROGRESS · Work Started\nCarry-forward\n111 days old · 2026-07-01\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002119\nOD30DM1119 · Demo Customer 119\nService advisor BB1\nIN PROGRESS · Work Started\nCarry-forward\n110 days old · 2026-07-02\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002103\nOD14DM1103 · Demo Customer 103\nService advisor AA\nIN PROGRESS · Work Started\nCarry-forward\n109 days old · 2026-07-03\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002087\nOD28DM1087 · Demo Customer 087\nService advisor 1\nIN PROGRESS · Work Started\nCarry-forward\n108 days old · 2026-07-04\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002071\nOD12DM1071 · Demo Customer 071\nService advisor BB1\nIN PROGRESS · Work Started\nCarry-forward\n107 days old · 2026-07-05\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002055\nOD26DM1055 · Demo Customer 055\nService advisor AA\nIN PROGRESS · Work Started\nCarry-forward\n106 days old · 2026-07-06\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002039\nOD10DM1039 · Demo Customer 039\nService advisor 1\nIN PROGRESS · Work Started\nCarry-forward\n105 days old · 2026-07-07\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002023\nOD24DM1023 · Demo Customer 023\nService advisor BB1\nIN PROGRESS · Work Started\nCarry-forward\n104 days old · 2026-07-08\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002007\nOD08DM1007 · Demo Customer 007\nService advisor AA\nIN PROGRESS · Work Started\nCarry-forward\n103 days old · 2026-07-09\n\nInterior detailing",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002136\nOD05DM1004 · Demo Customer 004\nService advisor AA\nIN PROGRESS · Follow-up Needed\nCarry-forward\n75 days old · 2026-08-06\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002120\nOD01DM1120 · Demo Customer 120\nService advisor 1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n74 days old · 2026-08-07\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002104\nOD15DM1104 · Demo Customer 104\nService advisor BB1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n73 days old · 2026-08-08\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002088\nOD29DM1088 · Demo Customer 088\nService advisor AA\nIN PROGRESS · Follow-up Needed\nCarry-forward\n72 days old · 2026-08-09\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002072\nOD13DM1072 · Demo Customer 072\nService advisor 1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n71 days old · 2026-08-10\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002056\nOD27DM1056 · Demo Customer 056\nService advisor BB1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n70 days old · 2026-08-11\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002040\nOD11DM1040 · Demo Customer 040\nService advisor AA\nIN PROGRESS · Follow-up Needed\nCarry-forward\n69 days old · 2026-08-12\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002024\nOD25DM1024 · Demo Customer 024\nService advisor 1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n68 days old · 2026-08-13\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-002008\nOD09DM1008 · Demo Customer 008\nService advisor BB1\nIN PROGRESS · Follow-up Needed\nCarry-forward\n67 days old · 2026-08-14\n\nFull body PPF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "JC-2026-001392\nOD04DM1003 · Demo Customer 003\nService advisor AA\nNEW · Create Estimate\nCarry-forward\n18 days old · 2026-10-02\n\nyy",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Advisor\nService advisor 1 (Present)\nService advisor AA (Present)\nService advisor BB1 (Present)",
+      "text": "Service advisor 1 (Present)\nService advisor AA (Present)\nService advisor BB1 (Present)",
+      "value": "7",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Service advisor 1 (Present)",
+        "Service advisor AA (Present)",
+        "Service advisor BB1 (Present)"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Update Advisor",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Archive Visit/Job",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Details",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Body Mark",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Existing customer",
+      "text": "",
+      "value": "Clear customer and vehicle",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Add New Customer",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Existing vehicle",
+      "text": "",
+      "value": "Clear vehicle",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Add New Vehicle",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Customer Name",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Mobile",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Vehicle Number",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Make",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Model",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Color",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "number",
+      "label": "ODO meter reading (km)",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "0",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Fuel / battery level\nbars\n%\nlitres\nOther",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "text": "bars\n%\nlitres\nOther",
+      "value": "bars",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "bars",
+        "%",
+        "litres",
+        "Other"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Keys",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Accessories",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Advisor\nAssign later\nService advisor 1 (Present)\nService advisor AA (Present)\nService advisor BB1 (Present)",
+      "text": "Assign later\nService advisor 1 (Present)\nService advisor AA (Present)\nService advisor BB1 (Present)",
+      "value": "0",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Assign later",
+        "Service advisor 1 (Present)",
+        "Service advisor AA (Present)",
+        "Service advisor BB1 (Present)"
+      ]
+    },
+    {
+      "tag": "TEXTAREA",
+      "type": "textarea",
+      "label": "Requested Work",
+      "text": "",
+      "value": "",
+      "required": true,
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Create Visit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

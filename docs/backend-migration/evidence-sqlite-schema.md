@@ -1,0 +1,5965 @@
+# Shipped SQLite evidence
+
+Read-only immutable connection. Source: public/workshopos-demo.sqlite.
+SHA256: 04c64fc97e977c83d083e1f2c8b195ab5f8a7e8a167ba5b18dbf86a42db945ae
+
+| Entity | Records |
+|---|---:|
+| DATA-advisor_attendance | 2 |
+| DATA-approvals | 0 |
+| DATA-booking_call_logs | 0 |
+| DATA-booking_capacity_limits | 0 |
+| DATA-booking_capacity_overrides | 0 |
+| DATA-booking_events | 2 |
+| DATA-bookings | 2 |
+| DATA-car_segments | 0 |
+| DATA-checklist_cycles | 145 |
+| DATA-checklist_items | 711 |
+| DATA-customers | 121 |
+| DATA-estimate_items | 144 |
+| DATA-estimates | 144 |
+| DATA-followups | 119 |
+| DATA-gate_passes | 27 |
+| DATA-inventory | 4 |
+| DATA-invoice_events | 1 |
+| DATA-invoice_items | 105 |
+| DATA-invoices | 52 |
+| DATA-inward_purchase_attachments | 0 |
+| DATA-inward_purchase_events | 0 |
+| DATA-inward_purchase_lines | 0 |
+| DATA-inward_purchase_revision_lines | 0 |
+| DATA-inward_purchase_revisions | 0 |
+| DATA-inward_purchases | 0 |
+| DATA-job_cards | 145 |
+| DATA-job_task_list_items | 4 |
+| DATA-local_purchases | 0 |
+| DATA-material_approval_events | 0 |
+| DATA-material_approvals | 0 |
+| DATA-material_events | 1 |
+| DATA-material_movements | 3 |
+| DATA-material_purchase_requests | 0 |
+| DATA-material_requests | 117 |
+| DATA-payments | 27 |
+| DATA-photos | 289 |
+| DATA-purchase_order_confirmations | 3 |
+| DATA-purchase_order_lines | 3 |
+| DATA-purchase_order_quotations | 3 |
+| DATA-purchase_order_receipt_lines | 3 |
+| DATA-purchase_order_receipts | 2 |
+| DATA-purchase_orders | 2 |
+| DATA-qc_checks | 435 |
+| DATA-receipts | 27 |
+| DATA-sales_leads | 1 |
+| DATA-sales_quotation_lines | 2 |
+| DATA-sales_quotations | 1 |
+| DATA-service_advisor_teams | 0 |
+| DATA-service_brands | 0 |
+| DATA-service_catalog_items | 3 |
+| DATA-service_department_managers | 2 |
+| DATA-service_departments | 2 |
+| DATA-status_history | 146 |
+| DATA-stock_inwards | 3 |
+| DATA-stock_ledger | 4 |
+| DATA-suppliers | 2 |
+| DATA-tasks | 145 |
+| DATA-users | 10 |
+| DATA-vehicles | 132 |
+| DATA-visits | 145 |
+
+## Integrity
+
+[('ok',)]
+
+Foreign-key check: []
+
+## DATA-advisor_attendance
+
+```sql
+CREATE TABLE advisor_attendance(user_id integer not null, date text not null, present integer not null default 1, primary key(user_id, date))
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "user_id",
+    "INTEGER",
+    1,
+    null,
+    1
+  ],
+  [
+    1,
+    "date",
+    "TEXT",
+    1,
+    null,
+    2
+  ],
+  [
+    2,
+    "present",
+    "INTEGER",
+    1,
+    "1",
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_advisor_attendance_1', 1, 'pk', 0)]
+
+## DATA-approvals
+
+```sql
+CREATE TABLE approvals(id integer primary key, job_card_id integer, approved_by text, note text, created_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "approved_by",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-booking_call_logs
+
+```sql
+CREATE TABLE booking_call_logs(id integer primary key, booking_id integer not null, note text not null, called_by integer not null, called_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "booking_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "note",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "called_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "called_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-booking_capacity_limits
+
+```sql
+CREATE TABLE booking_capacity_limits(booking_date text primary key, capacity integer not null, set_by integer not null, updated_at text not null, service_work_capacity integer, general_checkup_followup_capacity integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "booking_date",
+    "TEXT",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "capacity",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "set_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "service_work_capacity",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "general_checkup_followup_capacity",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_booking_capacity_limits_1', 1, 'pk', 0)]
+
+## DATA-booking_capacity_overrides
+
+```sql
+CREATE TABLE booking_capacity_overrides(id integer primary key, booking_id integer not null, booking_date text not null, reason text not null, approved_by integer not null, approved_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "booking_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "booking_date",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "reason",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "approved_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "approved_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-booking_events
+
+```sql
+CREATE TABLE booking_events(id integer primary key, booking_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null default '', previous_booking_date text, booking_date text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "booking_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "kind",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "actor_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "note",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    6,
+    "previous_booking_date",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "booking_date",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-bookings
+
+```sql
+CREATE TABLE bookings(id integer primary key, customer_id integer, vehicle_id integer, customer_name text not null, mobile text not null, customer_type text not null default 'Individual', vehicle_no text not null, make text not null, model text not null, color text not null default '', requested_work text not null, booking_date text not null, arrival_window text not null default '', status text not null default 'Booked', created_by integer not null, confirmed_at text, arrived_at text, rescheduled_at text, cancelled_at text, no_show_at text, reschedule_reason text, cancellation_reason text, no_show_reason text, created_at text not null, updated_at text not null, visit_id integer, job_card_id integer, service_type text not null default 'Service Work')
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "customer_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "vehicle_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "customer_name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "mobile",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "customer_type",
+    "TEXT",
+    1,
+    "'Individual'",
+    0
+  ],
+  [
+    6,
+    "vehicle_no",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "make",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "model",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    9,
+    "color",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    10,
+    "requested_work",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    11,
+    "booking_date",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    12,
+    "arrival_window",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    13,
+    "status",
+    "TEXT",
+    1,
+    "'Booked'",
+    0
+  ],
+  [
+    14,
+    "created_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    15,
+    "confirmed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    16,
+    "arrived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    17,
+    "rescheduled_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    18,
+    "cancelled_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    19,
+    "no_show_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    20,
+    "reschedule_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    21,
+    "cancellation_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    22,
+    "no_show_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    23,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    24,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    25,
+    "visit_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    26,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    27,
+    "service_type",
+    "TEXT",
+    1,
+    "'Service Work'",
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-car_segments
+
+```sql
+CREATE TABLE car_segments(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "status",
+    "TEXT",
+    1,
+    "'ACTIVE'",
+    0
+  ],
+  [
+    3,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_car_segments_1', 1, 'u', 0)]
+
+## DATA-checklist_cycles
+
+```sql
+CREATE TABLE checklist_cycles(id integer primary key, job_card_id integer not null, stage text not null, cycle_number integer not null, started_at text not null, completed_at text, unique(job_card_id, stage, cycle_number))
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "stage",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "cycle_number",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "started_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "completed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_checklist_cycles_1', 1, 'u', 0)]
+
+## DATA-checklist_items
+
+```sql
+CREATE TABLE checklist_items(id integer primary key, checklist_cycle_id integer not null, job_card_id integer not null, stage text not null, cycle_number integer not null, item_key text not null, label text not null, sort_order integer not null, checked_by integer, checked_at text, started_at text, completed_at text, required integer not null default 1, na_at text, na_by integer, unique(checklist_cycle_id, item_key))
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "checklist_cycle_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "job_card_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "stage",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "cycle_number",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "item_key",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    6,
+    "label",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "sort_order",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "checked_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "checked_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "started_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "completed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "required",
+    "INTEGER",
+    1,
+    "1",
+    0
+  ],
+  [
+    13,
+    "na_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    14,
+    "na_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_checklist_items_1', 1, 'u', 0)]
+
+## DATA-customers
+
+```sql
+CREATE TABLE customers(id integer primary key, name text, mobile text unique, type text, address text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "name",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "mobile",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "type",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "address",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_customers_1', 1, 'u', 0)]
+
+## DATA-estimate_items
+
+```sql
+CREATE TABLE estimate_items(id integer primary key, estimate_id integer, kind text, description text, qty real, rate real, gst_type text, gst_rate real, archived_at text, archived_reason text, created_at text, updated_at text, task_list_item_id integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "estimate_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "kind",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "description",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "rate",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "gst_type",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "gst_rate",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "task_list_item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-estimates
+
+```sql
+CREATE TABLE estimates(id integer primary key, job_card_id integer, status text, discount real, gst_rate real, approval_note text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "discount",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "gst_rate",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "approval_note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-followups
+
+```sql
+CREATE TABLE followups(id integer primary key, job_card_id integer, note text, due_at text, done integer, archived_at text, archived_reason text, created_at text, updated_at text, outcome text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "due_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "done",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "outcome",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-gate_passes
+
+```sql
+CREATE TABLE gate_passes(id integer primary key, job_card_id integer, invoice_id integer, gate_pass_no text, voided_at text, void_reason text, created_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "invoice_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "gate_pass_no",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "voided_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "void_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-inventory
+
+```sql
+CREATE TABLE inventory(id integer primary key, sku text, category text, name text, unit text, stock_qty real, low_stock_qty real, selling_price real default 0, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "sku",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "category",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "name",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "unit",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "stock_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "low_stock_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "selling_price",
+    "REAL",
+    0,
+    "0",
+    0
+  ],
+  [
+    8,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-invoice_events
+
+```sql
+CREATE TABLE invoice_events(id integer primary key, job_card_id integer, invoice_id integer, kind text, by_user integer, at text, note text, old_total real, new_total real, detail text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "invoice_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "kind",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "by_user",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "old_total",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "new_total",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "detail",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-invoice_items
+
+```sql
+CREATE TABLE invoice_items(id integer primary key, invoice_id integer, kind text, description text, qty real, rate real, gst_type text, gst_rate real, material_row_id integer, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "invoice_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "kind",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "description",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "rate",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "gst_type",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "gst_rate",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "material_row_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-invoices
+
+```sql
+CREATE TABLE invoices(id integer primary key, job_card_id integer, invoice_no text, tally_invoice_no text, discount real default 0, gst_rate real default 18, subtotal real default 0, gst_amount real default 0, total real, status text, notes text default '', document_available integer default 1, document_generated_at text, voided_at text, void_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "invoice_no",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "tally_invoice_no",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "discount",
+    "REAL",
+    0,
+    "0",
+    0
+  ],
+  [
+    5,
+    "gst_rate",
+    "REAL",
+    0,
+    "18",
+    0
+  ],
+  [
+    6,
+    "subtotal",
+    "REAL",
+    0,
+    "0",
+    0
+  ],
+  [
+    7,
+    "gst_amount",
+    "REAL",
+    0,
+    "0",
+    0
+  ],
+  [
+    8,
+    "total",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "notes",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    11,
+    "document_available",
+    "INTEGER",
+    0,
+    "1",
+    0
+  ],
+  [
+    12,
+    "document_generated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "voided_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    14,
+    "void_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    15,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    16,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-inward_purchase_attachments
+
+```sql
+CREATE TABLE inward_purchase_attachments(id integer primary key, purchase_id integer not null, original_name text not null, mime_type text not null, byte_size integer not null, storage_key text not null, document_url text not null, uploaded_by integer not null, uploaded_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "original_name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "mime_type",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "byte_size",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "storage_key",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    6,
+    "document_url",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "uploaded_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "uploaded_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-inward_purchase_events
+
+```sql
+CREATE TABLE inward_purchase_events(id integer primary key, purchase_id integer not null, kind text not null, actor_id integer not null, at text not null, note text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "kind",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "actor_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "note",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-inward_purchase_lines
+
+```sql
+CREATE TABLE inward_purchase_lines(id integer primary key, purchase_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null, purchase_order_line_id integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "received_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "unit_cost",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "discount",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    6,
+    "gst_rate",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "subtotal",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "gst_amount",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    9,
+    "total",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    10,
+    "purchase_order_line_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-inward_purchase_revision_lines
+
+```sql
+CREATE TABLE inward_purchase_revision_lines(id integer primary key, revision_id integer not null, item_id integer not null, received_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "revision_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "received_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "unit_cost",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "discount",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    6,
+    "gst_rate",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "subtotal",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "gst_amount",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    9,
+    "total",
+    "REAL",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-inward_purchase_revisions
+
+```sql
+CREATE TABLE inward_purchase_revisions(id integer primary key, purchase_id integer not null, revision_no integer not null, reason text not null, revised_by integer not null, revised_at text not null, unique(purchase_id, revision_no))
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "revision_no",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "reason",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "revised_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "revised_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_inward_purchase_revisions_1', 1, 'u', 0)]
+
+## DATA-inward_purchases
+
+```sql
+CREATE TABLE inward_purchases(id integer primary key, supplier_id integer, supplier_invoice_no text default '', invoice_date text default '', po_number text default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, submitted_by integer, submitted_at text, created_at text not null, updated_at text not null, purchase_order_id integer, approved_by integer, approved_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "supplier_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "supplier_invoice_no",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    3,
+    "invoice_date",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    4,
+    "po_number",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    5,
+    "status",
+    "TEXT",
+    1,
+    "'Draft'",
+    0
+  ],
+  [
+    6,
+    "subtotal",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "discount_total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    8,
+    "gst_total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    9,
+    "total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    10,
+    "created_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    11,
+    "submitted_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "submitted_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    14,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    15,
+    "purchase_order_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    16,
+    "approved_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    17,
+    "approved_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'inward_supplier_invoice_received', 1, 'c', 1)]
+
+## DATA-job_cards
+
+```sql
+CREATE TABLE job_cards(id integer primary key, job_no text unique, visit_id integer, advisor_id integer, technician_id integer, main_status text, sub_status text, work_list text, promised_at text, qc_status text, washing_needed integer, closed_at text, service_type text, pickup_drop text, estimated_delivery text, damage_marks text, damage_marks_recorded_at text, archived_at text, archived_reason text, created_at text, updated_at text, advisor_notes text, customer_instructions text, internal_instructions text, delivery_by text, final_km real, acknowledgement text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_no",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "visit_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "advisor_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "technician_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "main_status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "sub_status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "work_list",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "promised_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "qc_status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "washing_needed",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "closed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "service_type",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "pickup_drop",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    14,
+    "estimated_delivery",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    15,
+    "damage_marks",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    16,
+    "damage_marks_recorded_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    17,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    18,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    19,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    20,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    21,
+    "advisor_notes",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    22,
+    "customer_instructions",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    23,
+    "internal_instructions",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    24,
+    "delivery_by",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    25,
+    "final_km",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    26,
+    "acknowledgement",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_job_cards_1', 1, 'u', 0)]
+
+## DATA-job_task_list_items
+
+```sql
+CREATE TABLE job_task_list_items(id integer primary key, job_card_id integer not null, service_catalog_item_id integer, name text not null, base_rate real not null, done integer not null default 0, archived_at text, archived_reason text, created_at text, updated_at text, gst_rate real not null default 18)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "service_catalog_item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "base_rate",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "done",
+    "INTEGER",
+    1,
+    "0",
+    0
+  ],
+  [
+    6,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "gst_rate",
+    "REAL",
+    1,
+    "18",
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-local_purchases
+
+```sql
+CREATE TABLE local_purchases(id integer primary key, job_card_id integer, item_description text, quantity real, unit text, unit_cost real, vendor text, bill_reference text, note text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_description",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "quantity",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "unit",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "unit_cost",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "vendor",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "bill_reference",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-material_approval_events
+
+```sql
+CREATE TABLE material_approval_events(id integer primary key, approval_id integer not null, job_card_id integer not null, action text not null, actor_id integer not null, at text not null, note text not null, revision integer not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "approval_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "job_card_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "action",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "actor_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    6,
+    "note",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "revision",
+    "INTEGER",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-material_approvals
+
+```sql
+CREATE TABLE material_approvals(id integer primary key, job_card_id integer not null unique, status text not null, submitted_by integer not null, submitted_at text not null, reviewed_by integer, reviewed_at text, rejection_reason text, revision integer not null default 1)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "status",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "submitted_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "submitted_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "reviewed_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "reviewed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "rejection_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "revision",
+    "INTEGER",
+    1,
+    "1",
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_material_approvals_1', 1, 'u', 0)]
+
+## DATA-material_events
+
+```sql
+CREATE TABLE material_events(id integer primary key, job_card_id integer, material_row_id integer, kind text, by_user integer, at text, note text, old_item_id integer, old_qty real, new_item_id integer, new_qty real)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "material_row_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "kind",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "by_user",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "old_item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "old_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "new_item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "new_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-material_movements
+
+```sql
+CREATE TABLE material_movements(id integer primary key, job_card_id integer, item_id integer, direction text, qty real, note text, created_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "direction",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-material_purchase_requests
+
+```sql
+CREATE TABLE material_purchase_requests(id integer primary key, job_card_id integer not null, item_name text not null, quantity real not null, unit text not null, status text not null default 'Pending', mapped_inventory_item_id integer, material_request_id integer, local_purchase_id integer, completed_by integer, completed_at text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "quantity",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "unit",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "status",
+    "TEXT",
+    1,
+    "'Pending'",
+    0
+  ],
+  [
+    6,
+    "mapped_inventory_item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "material_request_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "local_purchase_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "completed_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "completed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-material_requests
+
+```sql
+CREATE TABLE material_requests(id integer primary key, job_card_id integer, item_id integer, requested_qty real, issued_qty real, used_qty real, returned_qty real, wasted_qty real, status text not null default 'Requested', invoiced_in integer, note text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "requested_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "issued_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "used_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "returned_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "wasted_qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "status",
+    "TEXT",
+    1,
+    "'Requested'",
+    0
+  ],
+  [
+    9,
+    "invoiced_in",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    14,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-payments
+
+```sql
+CREATE TABLE payments(id integer primary key, job_card_id integer, invoice_id integer, amount real, mode text, other_detail text default '', reference text, notes text default '', voided_at text, void_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "invoice_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "amount",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "mode",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "other_detail",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    6,
+    "reference",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "notes",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    8,
+    "voided_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "void_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-photos
+
+```sql
+CREATE TABLE photos(id integer primary key, job_card_id integer, label text, src text, archived_at text, archived_reason text, created_at text, updated_at text, category text, mime_type text, byte_size integer, original_name text, width integer, height integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "label",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "src",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "category",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "mime_type",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "byte_size",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "original_name",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "width",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "height",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-purchase_order_confirmations
+
+```sql
+CREATE TABLE purchase_order_confirmations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null unique, accepted_qty real not null, returned_qty real not null, damaged_qty real not null, wasted_qty real not null, confirmed_by integer not null, confirmed_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_order_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "purchase_order_line_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "accepted_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "returned_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "damaged_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    6,
+    "wasted_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "confirmed_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "confirmed_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_purchase_order_confirmations_1', 1, 'u', 0)]
+
+## DATA-purchase_order_lines
+
+```sql
+CREATE TABLE purchase_order_lines(id integer primary key, purchase_order_id integer not null, item_id integer not null, ordered_qty real not null, unit_cost real not null, discount real not null default 0, gst_rate real not null default 0, subtotal real not null, gst_amount real not null, total real not null, item_name text not null default '', unit text not null default '', source_purchase_order_line_id integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_order_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "item_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "ordered_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "unit_cost",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "discount",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    6,
+    "gst_rate",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "subtotal",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "gst_amount",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    9,
+    "total",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    10,
+    "item_name",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    11,
+    "unit",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    12,
+    "source_purchase_order_line_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-purchase_order_quotations
+
+```sql
+CREATE TABLE purchase_order_quotations(id integer primary key, purchase_order_id integer not null, purchase_order_line_id integer not null, supplier_name text not null, quote_date text not null, quoted_qty real not null, unit_cost real not null, notes text not null default '', created_by integer not null, created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_order_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "purchase_order_line_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "supplier_name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "quote_date",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "quoted_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    6,
+    "unit_cost",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "notes",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    8,
+    "created_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    9,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    10,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-purchase_order_receipt_lines
+
+```sql
+CREATE TABLE purchase_order_receipt_lines(id integer primary key, purchase_order_receipt_id integer not null, purchase_order_line_id integer not null, delivered_qty real not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_order_receipt_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "purchase_order_line_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "delivered_qty",
+    "REAL",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-purchase_order_receipts
+
+```sql
+CREATE TABLE purchase_order_receipts(id integer primary key, purchase_order_id integer not null, received_by integer not null, received_at text not null, note text not null default '')
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "purchase_order_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "received_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "received_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "note",
+    "TEXT",
+    1,
+    "''",
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-purchase_orders
+
+```sql
+CREATE TABLE purchase_orders(id integer primary key, supplier_id integer not null, po_number text not null, order_date text not null, notes text not null default '', status text not null default 'Draft', subtotal real not null default 0, discount_total real not null default 0, gst_total real not null default 0, total real not null default 0, created_by integer not null, created_at text not null, updated_at text not null, source_purchase_order_id integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "supplier_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "po_number",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "order_date",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "notes",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    5,
+    "status",
+    "TEXT",
+    1,
+    "'Draft'",
+    0
+  ],
+  [
+    6,
+    "subtotal",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "discount_total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    8,
+    "gst_total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    9,
+    "total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    10,
+    "created_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    11,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    12,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    13,
+    "source_purchase_order_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'purchase_orders_number_unique', 1, 'c', 0)]
+
+## DATA-qc_checks
+
+```sql
+CREATE TABLE qc_checks(id integer primary key, job_card_id integer, label text, passed integer, fail_reason text, archived_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "label",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "passed",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "fail_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-receipts
+
+```sql
+CREATE TABLE receipts(id integer primary key, job_card_id integer, invoice_id integer, receipt_no text, voided_at text, void_reason text, created_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "invoice_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "receipt_no",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "voided_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "void_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-sales_leads
+
+```sql
+CREATE TABLE sales_leads(id integer primary key, display_name text not null, phone text not null, company text not null default '', company_not_entered integer not null default 0, email text not null default '', email_not_entered integer not null default 0, address text not null default '', service_interest text not null default '', notes text not null default '', stage text not null default 'NEW', temperature text not null default 'WARM', follow_up_due text, site_visit_completed integer not null default 0, site_visit_date text, created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "display_name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "phone",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "company",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    4,
+    "company_not_entered",
+    "INTEGER",
+    1,
+    "0",
+    0
+  ],
+  [
+    5,
+    "email",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    6,
+    "email_not_entered",
+    "INTEGER",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "address",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    8,
+    "service_interest",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    9,
+    "notes",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    10,
+    "stage",
+    "TEXT",
+    1,
+    "'NEW'",
+    0
+  ],
+  [
+    11,
+    "temperature",
+    "TEXT",
+    1,
+    "'WARM'",
+    0
+  ],
+  [
+    12,
+    "follow_up_due",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "site_visit_completed",
+    "INTEGER",
+    1,
+    "0",
+    0
+  ],
+  [
+    14,
+    "site_visit_date",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    15,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    16,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-sales_quotation_lines
+
+```sql
+CREATE TABLE sales_quotation_lines(id integer primary key, quotation_id integer not null, line_no integer not null, kind text not null, description text not null, quantity real not null, rate real not null, gst_rate real not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "quotation_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "line_no",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "kind",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "description",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    5,
+    "quantity",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    6,
+    "rate",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    7,
+    "gst_rate",
+    "REAL",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-sales_quotations
+
+```sql
+CREATE TABLE sales_quotations(id integer primary key, lead_id integer not null, quotation_no text not null unique, status text not null default 'DRAFT', valid_until text, customer_notes text not null default '', discount real not null default 0, subtotal real not null default 0, gst_amount real not null default 0, total real not null default 0, template_id text not null, template_html text not null, created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "lead_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "quotation_no",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "status",
+    "TEXT",
+    1,
+    "'DRAFT'",
+    0
+  ],
+  [
+    4,
+    "valid_until",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "customer_notes",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    6,
+    "discount",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    7,
+    "subtotal",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    8,
+    "gst_amount",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    9,
+    "total",
+    "REAL",
+    1,
+    "0",
+    0
+  ],
+  [
+    10,
+    "template_id",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    11,
+    "template_html",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    12,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    13,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_sales_quotations_1', 1, 'u', 0)]
+
+## DATA-service_advisor_teams
+
+```sql
+CREATE TABLE service_advisor_teams(department_id integer not null, manager_id integer not null, advisor_id integer not null unique, primary key(department_id, advisor_id))
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "department_id",
+    "INTEGER",
+    1,
+    null,
+    1
+  ],
+  [
+    1,
+    "manager_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "advisor_id",
+    "INTEGER",
+    1,
+    null,
+    2
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_service_advisor_teams_2', 1, 'pk', 0), (1, 'sqlite_autoindex_service_advisor_teams_1', 1, 'u', 0)]
+
+## DATA-service_brands
+
+```sql
+CREATE TABLE service_brands(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "status",
+    "TEXT",
+    1,
+    "'ACTIVE'",
+    0
+  ],
+  [
+    3,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_service_brands_1', 1, 'u', 0)]
+
+## DATA-service_catalog_items
+
+```sql
+CREATE TABLE service_catalog_items(id integer primary key, name text not null, base_rate real not null, archived_at text, archived_reason text, created_at text, updated_at text, gst_rate real not null default 18, service_department_id integer, brand_id integer, car_segment_id integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "base_rate",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "gst_rate",
+    "REAL",
+    1,
+    "18",
+    0
+  ],
+  [
+    8,
+    "service_department_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "brand_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "car_segment_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-service_department_managers
+
+```sql
+CREATE TABLE service_department_managers(department_id integer not null, manager_id integer not null, primary key(department_id, manager_id))
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "department_id",
+    "INTEGER",
+    1,
+    null,
+    1
+  ],
+  [
+    1,
+    "manager_id",
+    "INTEGER",
+    1,
+    null,
+    2
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_service_department_managers_1', 1, 'pk', 0)]
+
+## DATA-service_departments
+
+```sql
+CREATE TABLE service_departments(id integer primary key, name text not null unique, status text not null default 'ACTIVE', created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "status",
+    "TEXT",
+    1,
+    "'ACTIVE'",
+    0
+  ],
+  [
+    3,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    4,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_service_departments_1', 1, 'u', 0)]
+
+## DATA-status_history
+
+```sql
+CREATE TABLE status_history(id integer primary key, job_card_id integer, main_status text, sub_status text, note text, created_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "main_status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "sub_status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-stock_inwards
+
+```sql
+CREATE TABLE stock_inwards(id integer primary key, item_id integer not null, qty real not null, note text not null default '', purchase_order_id integer, purchase_order_line_id integer, ledger_id integer, received_by integer not null default 0, received_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "item_id",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "qty",
+    "REAL",
+    1,
+    null,
+    0
+  ],
+  [
+    3,
+    "note",
+    "TEXT",
+    1,
+    "''",
+    0
+  ],
+  [
+    4,
+    "purchase_order_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "purchase_order_line_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "ledger_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "received_by",
+    "INTEGER",
+    1,
+    "0",
+    0
+  ],
+  [
+    8,
+    "received_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-stock_ledger
+
+```sql
+CREATE TABLE stock_ledger(id integer primary key, job_card_id integer, material_row_id integer, item_id integer, qty real, type text, by_user integer, at text, note text, inward_purchase_line_id integer)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "material_row_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "item_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "qty",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "type",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "by_user",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "inward_purchase_line_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-suppliers
+
+```sql
+CREATE TABLE suppliers(id integer primary key, name text not null, contact_name text default '', phone text default '', email text default '', gstin text default '', status text not null default 'Active', created_by integer not null, created_at text not null, updated_at text not null)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "name",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    2,
+    "contact_name",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    3,
+    "phone",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    4,
+    "email",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    5,
+    "gstin",
+    "TEXT",
+    0,
+    "''",
+    0
+  ],
+  [
+    6,
+    "status",
+    "TEXT",
+    1,
+    "'Active'",
+    0
+  ],
+  [
+    7,
+    "created_by",
+    "INTEGER",
+    1,
+    null,
+    0
+  ],
+  [
+    8,
+    "created_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ],
+  [
+    9,
+    "updated_at",
+    "TEXT",
+    1,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-tasks
+
+```sql
+CREATE TABLE tasks(id integer primary key, job_card_id integer, technician_id integer, title text, status text, notes text, archived_at text, archived_reason text, created_at text, updated_at text, started_at text, paused_at text, completed_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "job_card_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "technician_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "title",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "status",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "notes",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "started_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "paused_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "completed_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []
+
+## DATA-users
+
+```sql
+CREATE TABLE users(id integer primary key, email text unique, name text, role text, password text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "email",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "name",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "role",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "password",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_users_1', 1, 'u', 0)]
+
+## DATA-vehicles
+
+```sql
+CREATE TABLE vehicles(id integer primary key, customer_id integer, number text unique, make text, model text, color text, km integer, engine_no text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "customer_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "number",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "make",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "model",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "color",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "km",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "engine_no",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: [(0, 'sqlite_autoindex_vehicles_1', 1, 'u', 0)]
+
+## DATA-visits
+
+```sql
+CREATE TABLE visits(id integer primary key, customer_id integer, vehicle_id integer, advisor_id integer, received_by integer, received_at text, fuel text, odo_reading real, fuel_level_value text, fuel_level_unit text, keys text, accessories text, requested_work text, photos_note text, archived_at text, archived_reason text, created_at text, updated_at text)
+```
+
+Columns (cid, name, affinity, notnull, default, PK ordinal):
+```json
+[
+  [
+    0,
+    "id",
+    "INTEGER",
+    0,
+    null,
+    1
+  ],
+  [
+    1,
+    "customer_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    2,
+    "vehicle_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    3,
+    "advisor_id",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    4,
+    "received_by",
+    "INTEGER",
+    0,
+    null,
+    0
+  ],
+  [
+    5,
+    "received_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    6,
+    "fuel",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    7,
+    "odo_reading",
+    "REAL",
+    0,
+    null,
+    0
+  ],
+  [
+    8,
+    "fuel_level_value",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    9,
+    "fuel_level_unit",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    10,
+    "keys",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    11,
+    "accessories",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    12,
+    "requested_work",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    13,
+    "photos_note",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    14,
+    "archived_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    15,
+    "archived_reason",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    16,
+    "created_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ],
+  [
+    17,
+    "updated_at",
+    "TEXT",
+    0,
+    null,
+    0
+  ]
+]
+```
+Foreign keys (id, seq, table, from, to, update, delete, match):
+```json
+[]
+```
+Indexes: []

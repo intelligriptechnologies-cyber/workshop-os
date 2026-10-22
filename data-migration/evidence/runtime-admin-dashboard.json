@@ -1,0 +1,343 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\n\nWORKSHOP COMMAND CENTER\n\nOperational dashboard\n\nLive job flow, customer reach, stock attention and collections.\n\nWednesday, 21 October\nReal-time overview\nWorkshop flow\n\nAll job-card history\n\nActive today\n115\nTotal visits\n145\nIn progress\n63\nClosed\n27\nOn hold\n0\nView active jobs\nCashflow\n\nOctober 2026 collection runway\n\nCashflow month\nOctober 2026\nAugust 2026\nJuly 2026\nJune 2026\nTotal collections\nRs 0\nProjected monthly collection\nRs 0\n21 of 31 calendar days elapsed\nPayments received\n0\nInvoices generated\n1\nCollection runway\n68% elapsed\nView collections\nCustomer reach\n\nAll customers and vehicles served\n\nCustomers served\n120\nVehicles served\n132\nView customers served\nInventory watch\n\nOctober 2026 materials attention\n\nLow-stock items\n1\nPending approvals\n0\nMaterial requests\n0\nMaterials issued\n0\nAttention queue\nView low-stock blockers",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Active today\n115",
+      "label": "Open Active today: 115",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Total visits\n145",
+      "label": "Open Total visits: 145",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "In progress\n63",
+      "label": "Open In progress: 63",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Closed\n27",
+      "label": "Open Closed: 27",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "On hold\n0",
+      "label": "Open On hold: 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View active jobs",
+      "label": "View active jobs",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "October 2026\nAugust 2026\nJuly 2026\nJune 2026",
+      "label": "Cashflow month",
+      "title": "",
+      "type": "select-one",
+      "value": "2026-10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "October 2026",
+          "value": "2026-10",
+          "selected": true
+        },
+        {
+          "text": "August 2026",
+          "value": "2026-08",
+          "selected": false
+        },
+        {
+          "text": "July 2026",
+          "value": "2026-07",
+          "selected": false
+        },
+        {
+          "text": "June 2026",
+          "value": "2026-06",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Total collections\nRs 0",
+      "label": "Open Total collections: Rs 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Projected monthly collection\nRs 0\n21 of 31 calendar days elapsed",
+      "label": "Open Projected monthly collection: Rs 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Payments received\n0",
+      "label": "Open Payments received: 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Invoices generated\n1",
+      "label": "Open Invoices generated: 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View collections",
+      "label": "View collections",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Customers served\n120",
+      "label": "Open Customers served: 120",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Vehicles served\n132",
+      "label": "Open Vehicles served: 132",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View customers served",
+      "label": "View customers served",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Low-stock items\n1",
+      "label": "Open Low-stock items: 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Pending approvals\n0",
+      "label": "Open Pending approvals: 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Material requests\n0",
+      "label": "Open Material requests: 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Materials issued\n0",
+      "label": "Open Materials issued: 0",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "View low-stock blockers",
+      "label": "View low-stock blockers",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

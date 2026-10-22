@@ -1,0 +1,705 @@
+{
+  "pages": [
+    {
+      "key": "front-desk",
+      "label": "Front Desk",
+      "pages": [
+        {
+          "key": "receive-vehicle",
+          "label": "Receive Vehicle"
+        },
+        {
+          "key": "today-queue",
+          "label": "Today Queue"
+        },
+        {
+          "key": "advance-bookings",
+          "label": "Advance Bookings"
+        },
+        {
+          "key": "customers",
+          "label": "Customers"
+        },
+        {
+          "key": "vehicles",
+          "label": "Vehicles"
+        },
+        {
+          "key": "search",
+          "label": "Search"
+        }
+      ]
+    },
+    {
+      "key": "workshop",
+      "label": "Workshop",
+      "pages": [
+        {
+          "key": "my-queue",
+          "label": "My Queue"
+        },
+        {
+          "key": "job-card",
+          "label": "Job Card"
+        },
+        {
+          "key": "estimate",
+          "label": "Estimate"
+        },
+        {
+          "key": "follow-ups",
+          "label": "Follow-ups"
+        },
+        {
+          "key": "media",
+          "label": "Media"
+        },
+        {
+          "key": "my-tasks",
+          "label": "My Tasks"
+        },
+        {
+          "key": "work-update",
+          "label": "Work Update"
+        },
+        {
+          "key": "qc-prep",
+          "label": "QC Prep"
+        }
+      ]
+    },
+    {
+      "key": "inventory",
+      "label": "Inventory",
+      "pages": [
+        {
+          "key": "material-requests",
+          "label": "Material Requests"
+        },
+        {
+          "key": "issue-material",
+          "label": "Issue Material"
+        },
+        {
+          "key": "reconcile",
+          "label": "Reconcile"
+        },
+        {
+          "key": "stock",
+          "label": "Stock"
+        },
+        {
+          "key": "approvals",
+          "label": "Approvals"
+        },
+        {
+          "key": "inward-purchases",
+          "label": "Purchase Orders"
+        }
+      ]
+    },
+    {
+      "key": "finance",
+      "label": "Finance",
+      "pages": [
+        {
+          "key": "ready-to-invoice",
+          "label": "Ready To Invoice"
+        },
+        {
+          "key": "invoice",
+          "label": "Invoice"
+        },
+        {
+          "key": "payment",
+          "label": "Payment"
+        },
+        {
+          "key": "delivery",
+          "label": "Delivery"
+        }
+      ]
+    },
+    {
+      "key": "sales",
+      "label": "Sales CRM",
+      "pages": [
+        {
+          "key": "sales-leads",
+          "label": "Leads"
+        },
+        {
+          "key": "quotations",
+          "label": "Quotations"
+        },
+        {
+          "key": "quotation-settings",
+          "label": "Quotation Settings"
+        }
+      ]
+    },
+    {
+      "key": "administration",
+      "label": "Administration",
+      "pages": [
+        {
+          "key": "dashboard",
+          "label": "Dashboard"
+        },
+        {
+          "key": "data-flow",
+          "label": "Data Flow"
+        },
+        {
+          "key": "jobs",
+          "label": "Job Cards"
+        },
+        {
+          "key": "manage",
+          "label": "Manage"
+        },
+        {
+          "key": "admin-console",
+          "label": "Admin Console"
+        }
+      ]
+    }
+  ],
+  "menus": {
+    "reception": [
+      "today-queue",
+      "advance-bookings",
+      "customers",
+      "vehicles",
+      "search"
+    ],
+    "service": [
+      "my-queue",
+      "job-card",
+      "estimate",
+      "follow-ups",
+      "media",
+      "search"
+    ],
+    "service_manager": [
+      "my-queue",
+      "job-card",
+      "estimate",
+      "follow-ups",
+      "media",
+      "search"
+    ],
+    "store": [
+      "material-requests",
+      "issue-material",
+      "reconcile",
+      "stock",
+      "inward-purchases",
+      "search"
+    ],
+    "tech": [
+      "my-tasks",
+      "work-update",
+      "qc-prep",
+      "search"
+    ],
+    "accounts": [
+      "ready-to-invoice",
+      "invoice",
+      "payment",
+      "delivery",
+      "search"
+    ],
+    "admin": [
+      "dashboard",
+      "advance-bookings",
+      "approvals",
+      "data-flow",
+      "jobs",
+      "media",
+      "inward-purchases",
+      "manage",
+      "search",
+      "sales-leads",
+      "quotations",
+      "quotation-settings",
+      "admin-console"
+    ]
+  },
+  "permissions": {
+    "reception": [
+      "today-queue",
+      "advance-bookings",
+      "customers",
+      "vehicles",
+      "search"
+    ],
+    "service": [
+      "my-queue",
+      "job-card",
+      "estimate",
+      "follow-ups",
+      "media",
+      "search"
+    ],
+    "service_manager": [
+      "my-queue",
+      "job-card",
+      "estimate",
+      "follow-ups",
+      "media",
+      "search"
+    ],
+    "store": [
+      "material-requests",
+      "issue-material",
+      "reconcile",
+      "stock",
+      "inward-purchases",
+      "search"
+    ],
+    "tech": [
+      "my-tasks",
+      "work-update",
+      "qc-prep",
+      "search"
+    ],
+    "accounts": [
+      "ready-to-invoice",
+      "invoice",
+      "payment",
+      "delivery",
+      "search"
+    ],
+    "admin": [
+      "dashboard",
+      "advance-bookings",
+      "approvals",
+      "data-flow",
+      "jobs",
+      "media",
+      "inward-purchases",
+      "manage",
+      "search",
+      "sales-leads",
+      "quotations",
+      "quotation-settings",
+      "admin-console",
+      "material-requests",
+      "issue-material",
+      "reconcile",
+      "stock",
+      "estimate",
+      "follow-ups"
+    ]
+  },
+  "admin": {
+    "version": 2,
+    "roles": [
+      {
+        "id": "admin",
+        "label": "Owner/Admin",
+        "description": "Owner/Admin workspace access",
+        "systemRole": "admin",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      },
+      {
+        "id": "service",
+        "label": "Service Advisor",
+        "description": "Service Advisor workspace access",
+        "systemRole": "service",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      },
+      {
+        "id": "service_manager",
+        "label": "Service Department Manager",
+        "description": "Service Department Manager workspace access",
+        "systemRole": "service_manager",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      },
+      {
+        "id": "reception",
+        "label": "Reception",
+        "description": "Reception workspace access",
+        "systemRole": "reception",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      },
+      {
+        "id": "accounts",
+        "label": "Accounts",
+        "description": "Accounts workspace access",
+        "systemRole": "accounts",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      },
+      {
+        "id": "store",
+        "label": "Store",
+        "description": "Store workspace access",
+        "systemRole": "store",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      },
+      {
+        "id": "tech",
+        "label": "Technician",
+        "description": "Technician workspace access",
+        "systemRole": "tech",
+        "isBuiltIn": true,
+        "status": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z"
+      }
+    ],
+    "rolePageAccess": {
+      "reception": [
+        "today-queue",
+        "advance-bookings",
+        "customers",
+        "vehicles",
+        "search"
+      ],
+      "service": [
+        "my-queue",
+        "job-card",
+        "estimate",
+        "follow-ups",
+        "media",
+        "search"
+      ],
+      "service_manager": [
+        "my-queue",
+        "job-card",
+        "estimate",
+        "follow-ups",
+        "media",
+        "search"
+      ],
+      "store": [
+        "material-requests",
+        "issue-material",
+        "reconcile",
+        "stock",
+        "inward-purchases",
+        "search"
+      ],
+      "tech": [
+        "my-tasks",
+        "work-update",
+        "qc-prep",
+        "search"
+      ],
+      "accounts": [
+        "ready-to-invoice",
+        "invoice",
+        "payment",
+        "delivery",
+        "search"
+      ],
+      "admin": [
+        "dashboard",
+        "advance-bookings",
+        "approvals",
+        "data-flow",
+        "jobs",
+        "media",
+        "inward-purchases",
+        "manage",
+        "search",
+        "sales-leads",
+        "quotations",
+        "quotation-settings",
+        "admin-console",
+        "material-requests",
+        "issue-material",
+        "reconcile",
+        "stock",
+        "estimate",
+        "follow-ups"
+      ]
+    },
+    "businessSettings": {
+      "profile": {
+        "businessName": "WorkshopOS Demo Studio",
+        "legalName": "WorkshopOS Automotive Services",
+        "phone": "+91 98765 43210",
+        "email": "hello@workshopos.demo",
+        "address": "Bhubaneswar, Odisha",
+        "footer": "Thank you for choosing WorkshopOS Demo Studio.",
+        "timezone": "Asia/Kolkata",
+        "currency": "INR"
+      },
+      "branch": {
+        "name": "Main Workshop",
+        "openingTime": "09:00",
+        "closingTime": "19:00",
+        "workingDays": [
+          "Monday",
+          "Tuesday",
+          "Wednesday",
+          "Thursday",
+          "Friday",
+          "Saturday"
+        ],
+        "holidayBehavior": "appointment-only"
+      },
+      "jobs": {
+        "jobNumberPrefix": "JC",
+        "defaultPromisedHours": 48,
+        "requireQc": true,
+        "washingDefault": false,
+        "autoCloseAfterDelivery": true
+      },
+      "pricing": {
+        "estimateValidityDays": 7,
+        "defaultLabourRate": 850,
+        "discountApprovalPercent": 10,
+        "requireEstimateApproval": true
+      },
+      "billing": {
+        "gstin": "21ABCDE1234F1Z5",
+        "bankAccountHolder": "WorkshopOS Automotive Services",
+        "bankName": "State Bank of India",
+        "bankAccountNumber": "001234567890",
+        "bankIfsc": "SBIN0001234",
+        "bankBranch": "Bhubaneswar Main Branch",
+        "upiId": "workshopos@sbi",
+        "defaultGstPercent": 18,
+        "invoicePrefix": "INV",
+        "receiptPrefix": "REC",
+        "gatePassPrefix": "GP",
+        "paymentModes": [
+          "Cash",
+          "Card",
+          "UPI",
+          "Bank Transfer"
+        ]
+      },
+      "inventory": {
+        "defaultUnit": "piece",
+        "lowStockNotifications": true,
+        "requireAdjustmentReason": true
+      },
+      "notifications": {
+        "customerChannels": [
+          "whatsapp",
+          "sms"
+        ],
+        "documentHeader": "WorkshopOS Demo Studio",
+        "estimateTemplate": "Standard Estimate",
+        "invoiceTemplate": "GST Invoice",
+        "jobCardCreatedWhatsAppTemplate": "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been created at {{workshopName}}. Your service advisor is {{serviceAdvisorName}}.",
+        "jobCardCreatedEmailTemplate": "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been created at {{workshopName}}. Your service advisor is {{serviceAdvisorName}}.",
+        "jobCardClosedWhatsAppTemplate": "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been closed at {{workshopName}}.",
+        "jobCardClosedEmailTemplate": "Your job card {{jobCardNo}} for {{vehicleRegistrationNo}} has been closed at {{workshopName}}."
+      },
+      "logRetention": {
+        "operationalDays": 30,
+        "featureDays": 30
+      }
+    },
+    "appTheme": {
+      "fontId": "system",
+      "paletteId": "go-lite"
+    },
+    "logs": [
+      {
+        "id": "log-default-1",
+        "stream": "operational",
+        "timestamp": "2026-10-20T23:55:00.000Z",
+        "level": "info",
+        "area": "Jobs",
+        "feature": "Job Card",
+        "message": "Job card JC-2026-002144 opened",
+        "userId": "service",
+        "userName": "Service Advisor",
+        "referenceId": "JC-2026-002144"
+      },
+      {
+        "id": "log-default-2",
+        "stream": "operational",
+        "timestamp": "2026-10-20T23:42:00.000Z",
+        "level": "warning",
+        "area": "Inventory",
+        "feature": "Stock",
+        "message": "Gloss PPF roll reached its low-stock threshold",
+        "userId": "store",
+        "userName": "Store",
+        "referenceId": "PPF-ROLL"
+      },
+      {
+        "id": "log-default-3",
+        "stream": "operational",
+        "timestamp": "2026-10-20T23:29:00.000Z",
+        "level": "info",
+        "area": "Accounts",
+        "feature": "Payment",
+        "message": "Payment recorded for a completed job",
+        "userId": "accounts",
+        "userName": "Accounts"
+      },
+      {
+        "id": "log-default-4",
+        "stream": "feature",
+        "timestamp": "2026-10-20T23:15:00.000Z",
+        "level": "info",
+        "area": "Administration",
+        "feature": "Business Settings",
+        "message": "Demo business settings reviewed",
+        "userId": "admin",
+        "userName": "Owner/Admin"
+      },
+      {
+        "id": "log-default-5",
+        "stream": "feature",
+        "timestamp": "2026-10-20T23:00:00.000Z",
+        "level": "info",
+        "area": "Authentication",
+        "feature": "Login",
+        "message": "Owner/Admin signed in",
+        "userId": "admin",
+        "userName": "Owner/Admin"
+      }
+    ],
+    "importBatches": [],
+    "sessionInventory": [],
+    "reportTemplates": [
+      {
+        "id": "template-estimate-default",
+        "category": "estimate",
+        "name": "Standard Estimate",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#1f5f99;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">ESTIMATE</h1><div style=\"font-size:11.5px;margin-top:3px\">{{report.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Prepared for</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><table style=\"width:100%;border-collapse:collapse;margin:0 0 12px\"><thead><tr><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:700\">Description</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Qty</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Rate</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Amount</th></tr></thead><tbody>{{#lines}}<tr><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:left;vertical-align:top\">{{line.description}}<br><span style=\"font-size:10px;color:#5d6b79\">{{line.kind}}</span></td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.qty}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.rate}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.amount}}</td></tr>{{/lines}}</tbody></table><div style=\"width:270px;margin-left:auto;margin-bottom:10px\"><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Subtotal</span><span>{{report.subtotal}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Discount</span><span>{{report.discount}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>GST</span><span>{{report.gst}}</span></div><div style=\"display:flex;justify-content:space-between;border-top:2px solid #18222d;font-weight:700;font-size:14px;margin-top:4px;padding-top:6px\"><span>Total</span><span>{{estimate.total}}</span></div></div><p style=\"margin:12px 0;color:#5d6b79\">Valid for 7 days from the date above. Estimate only; final charges are per the Tax Invoice.</p><p style=\"margin:8px 0;color:#5d6b79\">Amount in words: <strong style=\"color:#18222d\">{{report.amount_words}}</strong></p></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": true,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-quotation-default",
+        "category": "quotation",
+        "name": "Standard Quotation",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#1f5f99;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">QUOTATION</h1><div style=\"font-size:11.5px;margin-top:3px\">{{report.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Prepared for</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><table style=\"width:100%;border-collapse:collapse;margin:0 0 12px\"><thead><tr><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:700\">Description</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Qty</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Rate</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Amount</th></tr></thead><tbody>{{#lines}}<tr><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:left;vertical-align:top\">{{line.description}}<br><span style=\"font-size:10px;color:#5d6b79\">{{line.kind}}</span></td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.qty}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.rate}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.amount}}</td></tr>{{/lines}}</tbody></table><div style=\"width:270px;margin-left:auto;margin-bottom:10px\"><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Subtotal</span><span>{{report.subtotal}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Discount</span><span>{{report.discount}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>GST</span><span>{{report.gst}}</span></div><div style=\"display:flex;justify-content:space-between;border-top:2px solid #18222d;font-weight:700;font-size:14px;margin-top:4px;padding-top:6px\"><span>Total</span><span>{{quotation.total}}</span></div></div><p style=\"margin:12px 0;color:#5d6b79\">Valid until {{quotation.valid_until}}.</p><p>{{quotation.notes}}</p><p style=\"margin:8px 0;color:#5d6b79\">Amount in words: <strong style=\"color:#18222d\">{{report.amount_words}}</strong></p></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": true,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-invoice-default",
+        "category": "invoice",
+        "name": "Standard Invoice",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#1f5f99;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">TAX INVOICE</h1><div style=\"font-size:11.5px;margin-top:3px\">{{report.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Bill to</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><table style=\"width:100%;border-collapse:collapse;margin:0 0 12px\"><thead><tr><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:700\">Description</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Qty</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Rate</th><th style=\"background:#1f5f99;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Amount</th></tr></thead><tbody>{{#lines}}<tr><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:left;vertical-align:top\">{{line.description}}<br><span style=\"font-size:10px;color:#5d6b79\">{{line.kind}}</span></td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.qty}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.rate}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.amount}}</td></tr>{{/lines}}</tbody></table><div style=\"width:270px;margin-left:auto;margin-bottom:10px\"><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Subtotal</span><span>{{report.subtotal}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Discount</span><span>{{report.discount}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>GST</span><span>{{report.gst}}</span></div><div style=\"display:flex;justify-content:space-between;border-top:2px solid #18222d;font-weight:700;font-size:14px;margin-top:4px;padding-top:6px\"><span>Total</span><span>{{invoice.total}}</span></div></div><p style=\"margin:8px 0;color:#5d6b79\">Amount in words: <strong style=\"color:#18222d\">{{report.amount_words}}</strong></p><p style=\"margin:4px 0;text-align:right\">Paid: {{invoice.paid}} · Balance: <strong>{{invoice.balance}}</strong></p>{{blocks.payments}}{{blocks.payment_details}}</div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": true,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-gate-pass-default",
+        "category": "gate-pass",
+        "name": "Standard Gate Pass",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#1f5f99;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">GATE PASS</h1><div style=\"font-size:11.5px;margin-top:3px\">{{report.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Released to</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><div style=\"margin:6px 0 14px;padding:14px;border:1.5px solid #18222d;border-radius:6px;text-align:center\"><div style=\"color:#5d6b79;letter-spacing:.06em\">AUTHORISED TO EXIT PREMISES</div><div style=\"font-size:22px;font-weight:700;letter-spacing:.08em;margin:4px 0\">{{vehicle.registration}}</div><div>Released on {{report.date}} · Payment: <strong>{{invoice.status}}</strong></div></div><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Completed work</div>{{job.work_list}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Received by</div><div style=\"height:46px\"></div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px\">Customer signature · {{customer.name}}</div></div></div><div style=\"margin-bottom:6px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Tasks</div>{{blocks.tasks}}</div><div style=\"margin-bottom:6px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Quality checks</div>{{blocks.qc_rows}}</div></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": true,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-job-card-default",
+        "category": "job-card",
+        "name": "Standard Job Card",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#1f5f99;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">JOB CARD</h1><div style=\"font-size:11.5px;margin-top:3px\">{{job.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Customer</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Intake</div>Received: {{dates.received}}<br>Promised: {{dates.promised}}<br>Advisor: {{staff.advisor}}<br>Technician: {{staff.technician}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Work requested / approved</div>{{job.work_list}}</div></div><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Damage diagram</div>{{blocks.damage_diagram}}</div><div style=\"flex:1;min-width:0\"><div style=\"margin-bottom:6px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Tasks</div>{{blocks.tasks}}</div><div style=\"margin-bottom:6px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Quality checks</div>{{blocks.qc_rows}}</div></div></div></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": true,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-payment-receipt-default",
+        "category": "payment-receipt",
+        "name": "Standard Receipt",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#1f5f99;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">PAYMENT RECEIPT</h1><div style=\"font-size:11.5px;margin-top:3px\">{{receipt.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Received from</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><div style=\"margin:6px 0 14px;padding:14px 16px;border:1.5px solid #18222d;border-radius:6px\"><div style=\"color:#5d6b79\">Amount received</div><div style=\"font-size:26px;font-weight:700\">{{invoice.paid}}</div><div style=\"color:#5d6b79\">{{report.amount_words}}</div></div>{{blocks.payments}}<div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Invoice total</div>{{invoice.total}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Balance</div><strong>{{invoice.balance}}</strong></div></div></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": true,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-quotation-marron",
+        "category": "quotation",
+        "name": "Marron Template",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#8b2f3c;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">QUOTATION</h1><div style=\"font-size:11.5px;margin-top:3px\">{{report.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Prepared for</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><table style=\"width:100%;border-collapse:collapse;margin:0 0 12px\"><thead><tr><th style=\"background:#8b2f3c;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:700\">Description</th><th style=\"background:#8b2f3c;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Qty</th><th style=\"background:#8b2f3c;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Rate</th><th style=\"background:#8b2f3c;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Amount</th></tr></thead><tbody>{{#lines}}<tr><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:left;vertical-align:top\">{{line.description}}<br><span style=\"font-size:10px;color:#5d6b79\">{{line.kind}}</span></td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.qty}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.rate}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.amount}}</td></tr>{{/lines}}</tbody></table><div style=\"width:270px;margin-left:auto;margin-bottom:10px\"><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Subtotal</span><span>{{report.subtotal}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Discount</span><span>{{report.discount}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>GST</span><span>{{report.gst}}</span></div><div style=\"display:flex;justify-content:space-between;border-top:2px solid #18222d;font-weight:700;font-size:14px;margin-top:4px;padding-top:6px\"><span>Total</span><span>{{quotation.total}}</span></div></div><p style=\"margin:12px 0;color:#5d6b79\">Valid until {{quotation.valid_until}}.</p><p>{{quotation.notes}}</p><p style=\"margin:8px 0;color:#5d6b79\">Amount in words: <strong style=\"color:#18222d\">{{report.amount_words}}</strong></p></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": false,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      },
+      {
+        "id": "template-quotation-yellow",
+        "category": "quotation",
+        "name": "Yellow Template",
+        "html": "<main style=\"box-sizing:border-box;margin:0;padding:0;width:100%;min-height:1090px;font-family:Arial,sans-serif;font-size:12px;line-height:1.45;color:#18222d;display:flex;flex-direction:column\"><header style=\"box-sizing:border-box;background:#d97706;color:#fff;padding:22px 32px;display:flex;justify-content:space-between;align-items:center;gap:20px\"><div style=\"display:flex;align-items:center;gap:14px;min-width:0;flex:1\">{{blocks.company_logo}}<div style=\"min-width:0\"><div style=\"font-size:16px;font-weight:700\">{{company.name}}</div><div style=\"font-size:10.5px;line-height:1.5\">{{company.address}}<br>{{company.phone}} · {{company.email}} · GSTIN {{company.gstin}}</div></div></div><div style=\"text-align:right;flex:none\"><h1 style=\"margin:0;font-size:24px;letter-spacing:.04em\">QUOTATION</h1><div style=\"font-size:11.5px;margin-top:3px\">{{report.number}} · {{report.date}}</div></div></header><div style=\"box-sizing:border-box;flex:1;padding:20px 32px 26px;display:flex;flex-direction:column\"><div style=\"flex:1\"><div style=\"display:flex;gap:16px;margin-bottom:14px\"><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Prepared for</div><strong>{{customer.name}}</strong><br>{{customer.mobile}}</div><div style=\"flex:1;min-width:0;background:#f4f6f8;border-radius:6px;padding:9px 12px\"><div style=\"font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;color:#5d6b79;margin-bottom:4px\">Vehicle</div><strong>{{vehicle.registration}}</strong> · {{vehicle.description}}<br>{{vehicle.km}} km · Job {{job.number}}</div></div><table style=\"width:100%;border-collapse:collapse;margin:0 0 12px\"><thead><tr><th style=\"background:#d97706;color:#fff;padding:7px 9px;text-align:left;font-size:11px;font-weight:700\">Description</th><th style=\"background:#d97706;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Qty</th><th style=\"background:#d97706;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Rate</th><th style=\"background:#d97706;color:#fff;padding:7px 9px;text-align:right;font-size:11px;font-weight:700\">Amount</th></tr></thead><tbody>{{#lines}}<tr><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:left;vertical-align:top\">{{line.description}}<br><span style=\"font-size:10px;color:#5d6b79\">{{line.kind}}</span></td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.qty}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.rate}}</td><td style=\"border-bottom:1px solid #d5dce3;padding:7px 9px;text-align:right;vertical-align:top\">{{line.amount}}</td></tr>{{/lines}}</tbody></table><div style=\"width:270px;margin-left:auto;margin-bottom:10px\"><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Subtotal</span><span>{{report.subtotal}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>Discount</span><span>{{report.discount}}</span></div><div style=\"display:flex;justify-content:space-between;padding:3px 0\"><span>GST</span><span>{{report.gst}}</span></div><div style=\"display:flex;justify-content:space-between;border-top:2px solid #18222d;font-weight:700;font-size:14px;margin-top:4px;padding-top:6px\"><span>Total</span><span>{{quotation.total}}</span></div></div><p style=\"margin:12px 0;color:#5d6b79\">Valid until {{quotation.valid_until}}.</p><p>{{quotation.notes}}</p><p style=\"margin:8px 0;color:#5d6b79\">Amount in words: <strong style=\"color:#18222d\">{{report.amount_words}}</strong></p></div><div style=\"display:flex;justify-content:space-between;align-items:flex-end;margin-top:26px\"><div>{{blocks.company_stamp}}</div><div style=\"text-align:center\"><div style=\"min-height:44px;display:flex;align-items:flex-end;justify-content:center\">{{blocks.authorized_signature}}</div><div style=\"border-top:1px solid #18222d;padding-top:4px;font-size:11px;width:180px\">Authorised signatory<br>{{company.name}}</div></div></div><p style=\"border-top:1px solid #d5dce3;margin:14px 0 0;padding-top:8px;font-size:10.5px;color:#5d6b79\">{{company.footer}}</p></div></main>",
+        "active": false,
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "updatedAt": "2026-10-21T00:00:00.000Z",
+        "seedVersion": 4
+      }
+    ],
+    "companyAssets": {
+      "logo": null,
+      "stamp": null,
+      "authorizedSignature": null
+    }
+  },
+  "developer": {
+    "version": 1,
+    "tenants": [
+      {
+        "id": "tenant-demo-1",
+        "lifecycle": "active",
+        "createdAt": "2026-10-21T00:00:00.000Z",
+        "profile": {
+          "name": "Apex Auto Studio",
+          "brandName": "Apex",
+          "address": "14 Workshop Lane, Bengaluru",
+          "contactName": "Demo Owner",
+          "email": "owner@apex.demo",
+          "phone": "+91 90000 00000",
+          "gstin": "29ABCDE1234F1Z5",
+          "timezone": "Asia/Kolkata",
+          "currency": "INR",
+          "invoicePrefix": "APEX"
+        }
+      }
+    ],
+    "selectedTenantId": "tenant-demo-1",
+    "communications": {
+      "email": {
+        "active": true,
+        "sender": "WorkshopOS Demo <demo@workshopos.local>"
+      },
+      "whatsapp": {
+        "active": true,
+        "sender": "WorkshopOS Demo"
+      }
+    },
+    "communicationLogs": [],
+    "charges": []
+  }
+}

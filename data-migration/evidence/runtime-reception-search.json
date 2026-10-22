@@ -1,0 +1,121 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nReception\nToday Queue\nAdvance Bookings\nCustomers\nVehicles\nSearch\nLogout\n\nReception\n\nIntake desk for visits, customers and new job cards.\nSearch category\nSelect a category\nJob Card\nCustomer\nVehicle\nClear category\nreception@example.com\nSearch\nPlease select a category to activate search\nChoose Job Card, Customer, Vehicle, Invoice or Stock above to see results.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Today Queue",
+      "title": "Today Queue",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Customers",
+      "title": "Customers",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Vehicles",
+      "title": "Vehicles",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Select a category\nJob Card\nCustomer\nVehicle",
+      "label": "Search category",
+      "title": "",
+      "type": "select-one",
+      "value": "",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Select a category",
+          "value": "",
+          "selected": true
+        },
+        {
+          "text": "Job Card",
+          "value": "job",
+          "selected": false
+        },
+        {
+          "text": "Customer",
+          "value": "customer",
+          "selected": false
+        },
+        {
+          "text": "Vehicle",
+          "value": "vehicle",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear category",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search records",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    }
+  ]
+}

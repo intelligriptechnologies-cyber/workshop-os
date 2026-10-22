@@ -1,0 +1,93 @@
+{
+  "text": "DEVELOPER CONTROL PLANE · BROWSER DEMO ONLY\n\nDeveloper Console\n Reset demo\nTenants\nCommunications\nBilling\nEmail\nChannel active\nDefault sender\nSend simulated test\nWhatsApp\nChannel active\nDefault sender\nSend simulated test\nSimulated delivery log\n\nNo test sends yet.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": " Reset demo",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Tenants",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Communications",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Billing",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Channel active",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Default sender",
+      "title": "",
+      "type": "text",
+      "value": "WorkshopOS Demo <demo@workshopos.local>",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Send simulated test",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Channel active",
+      "title": "",
+      "type": "checkbox",
+      "value": "on",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Default sender",
+      "title": "",
+      "type": "text",
+      "value": "WorkshopOS Demo",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Send simulated test",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

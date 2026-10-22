@@ -1,0 +1,374 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nStore\nMaterial Requests\nIssue Material\nReconcile\nStock\nPurchase Orders\nSearch\nLogout\n\nStore\n\nIssue counter for accountable material movement.\nstore@example.com\nStock\n\nInventory levels, low-stock attention and movement history\n\nInventory List\nLow Stock\nStock Movements\n4\nTotal SKUs\n642\nTotal Units\n1\nLow Stock\n0\nOut of Stock\nStock\n\nSearch, filter and export the current list\n\nSearch\nCategory\nAll categories\n33\nDetailing\nPPF\nPaint\nStock status\nAll stock\nLow stock\nIn stock\nUnit\nAll units\n4\nlitre\nmetre\nClear\nDownload\nShowing 1 to 4 of 4\nPer page\n10\n20\n50\n1\nSKU\tItem\tCategory\tStock\tMinimum\tSell Price\tStatus\tAction\nLEATHER SEAT COVER1\tleather seat cover1\t33\t3 4\t5\tRs 780\tLow stock\tEdit\nCERAMIC-1L\tCeramic coating\tDetailing\t79 litre\t10\tRs 0\tIn stock\tEdit\nPPF-ROLL\tGloss PPF roll\tPPF\t500 metre\t40\tRs 0\tIn stock\tEdit\nPAINT-CLEAR\tClear coat\tPaint\t60 litre\t8\tRs 0\tIn stock\tEdit\n1",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Material Requests",
+      "title": "Material Requests",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Issue Material",
+      "title": "Issue Material",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "Reconcile",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Stock",
+      "title": "Stock",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Inventory List",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Low Stock",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Stock Movements",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search stock",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All categories\n33\nDetailing\nPPF\nPaint",
+      "label": "Stock category",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All categories",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "33",
+          "value": "33",
+          "selected": false
+        },
+        {
+          "text": "Detailing",
+          "value": "Detailing",
+          "selected": false
+        },
+        {
+          "text": "PPF",
+          "value": "PPF",
+          "selected": false
+        },
+        {
+          "text": "Paint",
+          "value": "Paint",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All stock\nLow stock\nIn stock",
+      "label": "Stock status",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All stock",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "Low stock",
+          "value": "LOW",
+          "selected": false
+        },
+        {
+          "text": "In stock",
+          "value": "OK",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All units\n4\nlitre\nmetre",
+      "label": "Stock unit",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All units",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "4",
+          "value": "4",
+          "selected": false
+        },
+        {
+          "text": "litre",
+          "value": "litre",
+          "selected": false
+        },
+        {
+          "text": "metre",
+          "value": "metre",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Stock records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    }
+  ]
+}

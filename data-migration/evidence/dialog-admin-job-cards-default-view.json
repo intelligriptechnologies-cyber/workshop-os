@@ -1,0 +1,764 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nadmin@example.com\nView Job JC-2026-001392\n\nOD04DM1003 · Demo Customer 003\n\nDetails\nTask List\nBody Mark\nMaterials\nDocuments\nPhotos / Media\nInvoice\nPayment\nCustomer\nDemo Customer 003 / 8100000003\nVehicle\nOD04DM1003 / Tata Nexon\nJob Card\nJC-2026-001392\nStatus\nNEW / Create Estimate\nRequested work\nyy\nWork completed\nyy\nAdvisor\nService advisor AA\nTechnician\nTechnician Bay\nJob sheet\nService type\n—\nPickup / Drop\n—\nEstimated Delivery Date\nSave\nFuel\n8 bars\nAccessories\n—\nEngine number\n—\nAddress\n—\nCurrent Documents\n\nOnly active records are available\n\nJob Card\nJC-2026-001392 - ready\nDownload PDF\nPrint\nEstimate\nEstimate not created\nCreate Estimate\nInvoice\nInvoice not created - approve an estimate first\nPayment Receipt\nPayment Receipt not created - created when a payment is recorded\nGate Pass\nGate Pass not created - created when the job is closed\nGo Back\nJob Cards\n\nBrowse and manage job cards\n\nAdd Job Card\nSearch\nMain status\nAll statuses\nNEW\nIN_PROGRESS\nCOMPLETED\nCANCELLED\nCLOSED\nWorkflow\nAll workflows\nCreate Estimate\nDelivered\nFollow-up Needed\nGather Requirements\nGet Confirmation\nInvoice Ready\nMaterial Issued\nMaterial Requested\nPhotos Shared\nQC Pending\nRemind Customer for Sharing Google Review/Feedback\nWashing Needed\nWork Started\nEstimated Delivery Date\nEstimated Delivery Month-Year\nAll months\nOctober 2026\nService advisor\nAll advisors\nService advisor 1\nService advisor AA\nService advisor BB1\nSort\nNewest\nOldest\nEstimated delivery (soonest)\nEstimated delivery (latest)\nAmount (high to low)\nAmount (low to high)\nShow archived only\nClear\nDownload\nGrid\nTable\nShowing 1 to 10 of 91\nPer page\n10\n20\n50\n1\n2\n3\n4\n5\n…\n10\nOD04DM1003\nTata Nexon\nJC-2026-001392\n\nDemo Customer 003 · 8100000003\n\nNEW · Create Estimate\nEst\nInv\nRcpt\nGP\nTotal\nRs 0\nEstimated Delivery Date\n2026-10-09\nView\nEdit\nArchive\nOD07DM1006\nToyota Fortuner\nJC-2026-002138\n\nDemo Customer 006 · 8100000006\n\nIN PROGRESS · QC Pending\nEst\nInv\nRcpt\nGP\nTotal\nRs 9,440\nEstimated Delivery Date\n2026-10-09\nView\nEdit\nArchive\nOD06DM1005\nHonda City\nJC-2026-002137\n\nDemo Customer 005 · 8100000005\n\nIN PROGRESS · Photos Shared\nEst\nInv\nRcpt\nGP\nTotal\nRs 8,555\nEstimated Delivery Date\n2026-10-31\nView\nEdit\nArchive\nOD05DM1004\nMaruti Brezza\nJC-2026-002136\n\nDemo Customer 004 · 8100000004\n\nIN PROGRESS · Follow-up Needed\nEst\nInv\nRcpt\nGP\nTotal\nRs 7,080\nEstimated Delivery Date\n2026-10-13\nView\nEdit\nArchive\nOD04DM1003\nTata Nexon\nJC-2026-002135\n\nDemo Customer 003 · 8100000003\n\nIN PROGRESS · Work Started\nEst\nInv\nRcpt\nGP\nTotal\nRs 6,785\nEstimated Delivery Date\n2026-10-11\nView\nEdit\nArchive\nOD03DM1002\nMahindra Thar\nJC-2026-002134\n\nDemo Customer 002 · 8100000002\n\nIN PROGRESS · Washing Needed\nEst\nInv\nRcpt\nGP\nTotal\nRs 5,900\nEstimated Delivery Date\n2026-10-30\nView\nEdit\nArchive\nOD02DM1001\nHyundai Creta\nJC-2026-002133\n\nDemo Customer 001 · 8100000001\n\nIN PROGRESS · Material Issued\nEst\nInv\nRcpt\nGP\nTotal\nRs 5,015\nEstimated Delivery Date\n2026-10-12\nView\nEdit\nArchive\nOD13DM1132\nMaruti Brezza\nJC-2026-002132\n\nDemo Customer 012 · 8100000012\n\nIN PROGRESS · Material Requested\nEst\nInv\nRcpt\nGP\nTotal\nRs 3,540\nEstimated Delivery Date\n2026-10-10\nView\nEdit\nArchive\nOD12DM1131\nTata Nexon\nJC-2026-002131\n\nDemo Customer 011 · 8100000011\n\nNEW · Get Confirmation\nEst\nInv\nRcpt\nGP\nTotal\nRs 13,865\nEstimated Delivery Date\n2026-10-29\nView\nEdit\nArchive\nOD11DM1130\nMahindra Thar\nJC-2026-002130\n\nDemo Customer 010 · 8100000010\n\nNEW · Create Estimate\nEst\nInv\nRcpt\nGP\nTotal\nRs 12,980\nEstimated Delivery Date\n2026-10-18\nView\nEdit\nArchive\n1\n2\n3\n4\n5\n…\n10",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Hide left menu",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Dashboard",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Advance Bookings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Approvals (0)",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Data Flow",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Job Cards",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Purchase Orders",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Manage",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Search",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Admin Console",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Leads",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotations",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Quotation Settings",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "label": "Logout",
+      "text": "Logout",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Details",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Task List",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Body Mark",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Materials",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Documents",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Photos / Media",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Invoice",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Payment",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Estimated Delivery Date",
+      "text": "",
+      "value": "2026-10-09",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Save",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download PDF",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Print",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Create Estimate",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Go Back",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Add Job Card",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Show filters",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "type": "text",
+      "label": "Search job cards",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Main status",
+      "text": "All statuses\nNEW\nIN_PROGRESS\nCOMPLETED\nCANCELLED\nCLOSED",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All statuses",
+        "NEW",
+        "IN_PROGRESS",
+        "COMPLETED",
+        "CANCELLED",
+        "CLOSED"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Workflow status",
+      "text": "All workflows\nCreate Estimate\nDelivered\nFollow-up Needed\nGather Requirements\nGet Confirmation\nInvoice Ready\nMaterial Issued\nMaterial Requested\nPhotos Shared\nQC Pending\nRemind Customer for Sharing Google Review/Feedback\nWashing Needed\nWork Started",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All workflows",
+        "Create Estimate",
+        "Delivered",
+        "Follow-up Needed",
+        "Gather Requirements",
+        "Get Confirmation",
+        "Invoice Ready",
+        "Material Issued",
+        "Material Requested",
+        "Photos Shared",
+        "QC Pending",
+        "Remind Customer for Sharing Google Review/Feedback",
+        "Washing Needed",
+        "Work Started"
+      ]
+    },
+    {
+      "tag": "INPUT",
+      "type": "date",
+      "label": "Estimated delivery date",
+      "text": "",
+      "value": "",
+      "required": false,
+      "disabled": false,
+      "min": "",
+      "max": ""
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Estimated delivery month-year",
+      "text": "All months\nOctober 2026",
+      "value": "2026-10",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All months",
+        "October 2026"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Service advisor filter",
+      "text": "All advisors\nService advisor 1\nService advisor AA\nService advisor BB1",
+      "value": "ALL",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "All advisors",
+        "Service advisor 1",
+        "Service advisor AA",
+        "Service advisor BB1"
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Sort results",
+      "text": "Newest\nOldest\nEstimated delivery (soonest)\nEstimated delivery (latest)\nAmount (high to low)\nAmount (low to high)",
+      "value": "newest",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "Newest",
+        "Oldest",
+        "Estimated delivery (soonest)",
+        "Estimated delivery (latest)",
+        "Amount (high to low)",
+        "Amount (low to high)"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Show archived only",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Clear",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Download",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Grid",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "submit",
+      "text": "Table",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "type": "select-one",
+      "label": "Records per page",
+      "text": "10\n20\n50",
+      "value": "10",
+      "required": false,
+      "disabled": false,
+      "options": [
+        "10",
+        "20",
+        "50"
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 5",
+      "text": "5",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 10",
+      "text": "10",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "View",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Edit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "text": "Archive",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "First page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Previous page",
+      "text": "",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 1",
+      "text": "1",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 2",
+      "text": "2",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 3",
+      "text": "3",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 4",
+      "text": "4",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 5",
+      "text": "5",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Page 10",
+      "text": "10",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Next page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "type": "button",
+      "label": "Last page",
+      "text": "",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

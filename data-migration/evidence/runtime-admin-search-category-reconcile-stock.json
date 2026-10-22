@@ -1,0 +1,1239 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nOwner/Admin\nDashboard\nAdvance Bookings\nApprovals (0)\nData Flow\nJob Cards\nMedia\nPurchase Orders\nManage\nSearch\nAdmin Console\nSales CRM\nLeads\nQuotations\nQuotation Settings\nLogout\n\nOwner/Admin\n\nControl room for linked workflow, blockers and cash.\nSearch category\nSelect a category\nJob Card\nInvoice\nCustomer\nVehicle\nPayments\nMaterial Requests\nIssue Material\nReconcile Stock\nStock\nEstimate\nFollow-ups\nClear category\nadmin@example.com\nReconcile\n\nSearch, filter and export the current list\n\nSearch\nReconciliation state\nAll states\nMatched\nOpen\nJob\nAll jobs\nJC-2026-002144 · OD13DM1012 · Demo Customer 012\nJC-2026-002143 · OD12DM1011 · Demo Customer 011\nJC-2026-002142 · OD11DM1010 · Demo Customer 010\nJC-2026-002141 · OD10DM1009 · Demo Customer 009\nJC-2026-002140 · OD09DM1008 · Demo Customer 008\nJC-2026-002139 · OD08DM1007 · Demo Customer 007\nJC-2026-002138 · OD07DM1006 · Demo Customer 006\nJC-2026-002137 · OD06DM1005 · Demo Customer 005\nJC-2026-002136 · OD05DM1004 · Demo Customer 004\nJC-2026-002135 · OD04DM1003 · Demo Customer 003\nJC-2026-002134 · OD03DM1002 · Demo Customer 002\nJC-2026-002133 · OD02DM1001 · Demo Customer 001\nJC-2026-002128 · OD09DM1128 · Demo Customer 008\nJC-2026-002127 · OD08DM1127 · Demo Customer 007\nJC-2026-002126 · OD07DM1126 · Demo Customer 006\nJC-2026-002125 · OD06DM1125 · Demo Customer 005\nJC-2026-002124 · OD05DM1124 · Demo Customer 004\nJC-2026-002123 · OD04DM1123 · Demo Customer 003\nJC-2026-002122 · OD03DM1122 · Demo Customer 002\nJC-2026-002121 · OD02DM1121 · Demo Customer 001\nJC-2026-002120 · OD01DM1120 · Demo Customer 120\nJC-2026-002119 · OD30DM1119 · Demo Customer 119\nJC-2026-002118 · OD29DM1118 · Demo Customer 118\nJC-2026-002117 · OD28DM1117 · Demo Customer 117\nJC-2026-002112 · OD23DM1112 · Demo Customer 112\nJC-2026-002111 · OD22DM1111 · Demo Customer 111\nJC-2026-002110 · OD21DM1110 · Demo Customer 110\nJC-2026-002109 · OD20DM1109 · Demo Customer 109\nJC-2026-002108 · OD19DM1108 · Demo Customer 108\nJC-2026-002107 · OD18DM1107 · Demo Customer 107\nJC-2026-002106 · OD17DM1106 · Demo Customer 106\nJC-2026-002105 · OD16DM1105 · Demo Customer 105\nJC-2026-002104 · OD15DM1104 · Demo Customer 104\nJC-2026-002103 · OD14DM1103 · Demo Customer 103\nJC-2026-002102 · OD13DM1102 · Demo Customer 102\nJC-2026-002101 · OD12DM1101 · Demo Customer 101\nJC-2026-002100 · OD11DM1100 · Demo Customer 100\nJC-2026-002096 · OD07DM1096 · Demo Customer 096\nJC-2026-002095 · OD06DM1095 · Demo Customer 095\nJC-2026-002094 · OD05DM1094 · Demo Customer 094\nJC-2026-002093 · OD04DM1093 · Demo Customer 093\nJC-2026-002092 · OD03DM1092 · Demo Customer 092\nJC-2026-002091 · OD02DM1091 · Demo Customer 091\nJC-2026-002090 · OD01DM1090 · Demo Customer 090\nJC-2026-002089 · OD30DM1089 · Demo Customer 089\nJC-2026-002088 · OD29DM1088 · Demo Customer 088\nJC-2026-002087 · OD28DM1087 · Demo Customer 087\nJC-2026-002086 · OD27DM1086 · Demo Customer 086\nJC-2026-002085 · OD26DM1085 · Demo Customer 085\nJC-2026-002080 · OD21DM1080 · Demo Customer 080\nJC-2026-002079 · OD20DM1079 · Demo Customer 079\nJC-2026-002078 · OD19DM1078 · Demo Customer 078\nJC-2026-002077 · OD18DM1077 · Demo Customer 077\nJC-2026-002076 · OD17DM1076 · Demo Customer 076\nJC-2026-002075 · OD16DM1075 · Demo Customer 075\nJC-2026-002074 · OD15DM1074 · Demo Customer 074\nJC-2026-002073 · OD14DM1073 · Demo Customer 073\nJC-2026-002072 · OD13DM1072 · Demo Customer 072\nJC-2026-002071 · OD12DM1071 · Demo Customer 071\nJC-2026-002070 · OD11DM1070 · Demo Customer 070\nJC-2026-002069 · OD10DM1069 · Demo Customer 069\nJC-2026-002064 · OD05DM1064 · Demo Customer 064\nJC-2026-002063 · OD04DM1063 · Demo Customer 063\nJC-2026-002062 · OD03DM1062 · Demo Customer 062\nJC-2026-002061 · OD02DM1061 · Demo Customer 061\nJC-2026-002060 · OD01DM1060 · Demo Customer 060\nJC-2026-002059 · OD30DM1059 · Demo Customer 059\nJC-2026-002058 · OD29DM1058 · Demo Customer 058\nJC-2026-002057 · OD28DM1057 · Demo Customer 057\nJC-2026-002056 · OD27DM1056 · Demo Customer 056\nJC-2026-002055 · OD26DM1055 · Demo Customer 055\nJC-2026-002054 · OD25DM1054 · Demo Customer 054\nJC-2026-002053 · OD24DM1053 · Demo Customer 053\nJC-2026-002048 · OD19DM1048 · Demo Customer 048\nJC-2026-002047 · OD18DM1047 · Demo Customer 047\nJC-2026-002046 · OD17DM1046 · Demo Customer 046\nJC-2026-002045 · OD16DM1045 · Demo Customer 045\nJC-2026-002044 · OD15DM1044 · Demo Customer 044\nJC-2026-002043 · OD14DM1043 · Demo Customer 043\nJC-2026-002042 · OD13DM1042 · Demo Customer 042\nJC-2026-002041 · OD12DM1041 · Demo Customer 041\nJC-2026-002040 · OD11DM1040 · Demo Customer 040\nJC-2026-002039 · OD10DM1039 · Demo Customer 039\nJC-2026-002038 · OD09DM1038 · Demo Customer 038\nJC-2026-002037 · OD08DM1037 · Demo Customer 037\nJC-2026-002032 · OD03DM1032 · Demo Customer 032\nJC-2026-002031 · OD02DM1031 · Demo Customer 031\nJC-2026-002030 · OD01DM1030 · Demo Customer 030\nJC-2026-002029 · OD30DM1029 · Demo Customer 029\nJC-2026-002028 · OD29DM1028 · Demo Customer 028\nJC-2026-002027 · OD28DM1027 · Demo Customer 027\nJC-2026-002026 · OD27DM1026 · Demo Customer 026\nJC-2026-002025 · OD26DM1025 · Demo Customer 025\nJC-2026-002024 · OD25DM1024 · Demo Customer 024\nJC-2026-002023 · OD24DM1023 · Demo Customer 023\nJC-2026-002022 · OD23DM1022 · Demo Customer 022\nJC-2026-002021 · OD22DM1021 · Demo Customer 021\nJC-2026-002016 · OD17DM1016 · Demo Customer 016\nJC-2026-002015 · OD16DM1015 · Demo Customer 015\nJC-2026-002014 · OD15DM1014 · Demo Customer 014\nJC-2026-002013 · OD14DM1013 · Demo Customer 013\nJC-2026-002012 · OD13DM1012 · Demo Customer 012\nJC-2026-002011 · OD12DM1011 · Demo Customer 011\nJC-2026-002010 · OD11DM1010 · Demo Customer 010\nJC-2026-002009 · OD10DM1009 · Demo Customer 009\nJC-2026-002008 · OD09DM1008 · Demo Customer 008\nJC-2026-002007 · OD08DM1007 · Demo Customer 007\nJC-2026-002006 · OD07DM1006 · Demo Customer 006\nJC-2026-002005 · OD06DM1005 · Demo Customer 005\nItem\nAll items\nleather seat cover1\nCeramic coating\nGloss PPF roll\nClear coat\nClear\nDownload\nShowing 1 to 10 of 109\nPer page\n10\n20\n50\n1\n2\n3\n4\n5\n…\n11\nJob Card\tVehicle\tItem / SKU\tRequested\tIssued\tUsed\tReturned\tWasted\tVariance\tState\tAction\nJC-2026-002144\tOD13DM1012\tGloss PPF roll · PPF-ROLL\t2\t2\t1.8\t0.1\t0.1\t-5.551115123125783e-17\tMatched\t\nEdit Reconciliation\n\nJC-2026-002143\tOD12DM1011\tClear coat · PAINT-CLEAR\t2\t2\t1.8\t0.1\t0.1\t-5.551115123125783e-17\tMatched\t\nEdit Reconciliation\n\nJC-2026-002142\tOD11DM1010\tCeramic coating · CERAMIC-1L\t2\t2\t1.8\t0.1\t0.1\t-5.551115123125783e-17\tMatched\t\nEdit Reconciliation\n\nJC-2026-002141\tOD10DM1009\tGloss PPF roll · PPF-ROLL\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n\nJC-2026-002140\tOD09DM1008\tClear coat · PAINT-CLEAR\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n\nJC-2026-002139\tOD08DM1007\tCeramic coating · CERAMIC-1L\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n\nJC-2026-002138\tOD07DM1006\tGloss PPF roll · PPF-ROLL\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n\nJC-2026-002137\tOD06DM1005\tClear coat · PAINT-CLEAR\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n\nJC-2026-002136\tOD05DM1004\tCeramic coating · CERAMIC-1L\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n\nJC-2026-002135\tOD04DM1003\tGloss PPF roll · PPF-ROLL\t2\t2\t1.8\t0\t0\t0.19999999999999996\tOpen\t\nReconcile\n1\n2\n3\n4\n5\n…\n11",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Hide left menu",
+      "title": "Hide left menu",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Dashboard",
+      "title": "Dashboard",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Advance Bookings",
+      "title": "Advance Bookings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Approvals (0)",
+      "title": "Approvals",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Data Flow",
+      "title": "Data Flow",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Job Cards",
+      "title": "Job Cards",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Media",
+      "title": "Media",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Purchase Orders",
+      "title": "Purchase Orders",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Manage",
+      "title": "Manage",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Search",
+      "title": "Search",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Admin Console",
+      "title": "Admin Console",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SUMMARY",
+      "text": "Sales CRM",
+      "title": ""
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Leads",
+      "title": "Leads",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotations",
+      "title": "Quotations",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Quotation Settings",
+      "title": "Quotation Settings",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "Select a category\nJob Card\nInvoice\nCustomer\nVehicle\nPayments\nMaterial Requests\nIssue Material\nReconcile Stock\nStock\nEstimate\nFollow-ups",
+      "label": "Search category",
+      "title": "",
+      "type": "select-one",
+      "value": "reconcile",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "Select a category",
+          "value": "",
+          "selected": false
+        },
+        {
+          "text": "Job Card",
+          "value": "job",
+          "selected": false
+        },
+        {
+          "text": "Invoice",
+          "value": "invoice",
+          "selected": false
+        },
+        {
+          "text": "Customer",
+          "value": "customer",
+          "selected": false
+        },
+        {
+          "text": "Vehicle",
+          "value": "vehicle",
+          "selected": false
+        },
+        {
+          "text": "Payments",
+          "value": "payment",
+          "selected": false
+        },
+        {
+          "text": "Material Requests",
+          "value": "material-requests",
+          "selected": false
+        },
+        {
+          "text": "Issue Material",
+          "value": "issue-material",
+          "selected": false
+        },
+        {
+          "text": "Reconcile Stock",
+          "value": "reconcile",
+          "selected": true
+        },
+        {
+          "text": "Stock",
+          "value": "stock",
+          "selected": false
+        },
+        {
+          "text": "Estimate",
+          "value": "estimate",
+          "selected": false
+        },
+        {
+          "text": "Follow-ups",
+          "value": "follow-ups",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear category",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Logout",
+      "label": "Logout",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Search reconcile",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "All states\nMatched\nOpen",
+      "label": "Reconciliation state",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All states",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "Matched",
+          "value": "Matched",
+          "selected": false
+        },
+        {
+          "text": "Open",
+          "value": "Open",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All jobs\nJC-2026-002144 · OD13DM1012 · Demo Customer 012\nJC-2026-002143 · OD12DM1011 · Demo Customer 011\nJC-2026-002142 · OD11DM1010 · Demo Customer 010\nJC-2026-002141 · OD10DM1009 · Demo Customer 009\nJC-2026-002140 · OD09DM1008 · Demo Customer 008\nJC-2026-002139 · OD08DM1007 · Demo Customer 007\nJC-2026-002138 · OD07DM1006 · Demo Customer 006\nJC-2026-002137 · OD06DM1005 · Demo Customer 005\nJC-2026-002136 · OD05DM1004 · Demo Customer 004\nJC-2026-002135 · OD04DM1003 · Demo Customer 003\nJC-2026-002134 · OD03DM1002 · Demo Customer 002\nJC-2026-002133 · OD02DM1001 · Demo Customer 001\nJC-2026-002128 · OD09DM1128 · Demo Customer 008\nJC-2026-002127 · OD08DM1127 · Demo Customer 007\nJC-2026-002126 · OD07DM1126 · Demo Customer 006\nJC-2026-002125 · OD06DM1125 · Demo Customer 005\nJC-2026-002124 · OD05DM1124 · Demo Customer 004\nJC-2026-002123 · OD04DM1123 · Demo Customer 003\nJC-2026-002122 · OD03DM1122 · Demo Customer 002\nJC-2026-002121 · OD02DM1121 · Demo Customer 001\nJC-2026-002120 · OD01DM1120 · Demo Customer 120\nJC-2026-002119 · OD30DM1119 · Demo Customer 119\nJC-2026-002118 · OD29DM1118 · Demo Customer 118\nJC-2026-002117 · OD28DM1117 · Demo Customer 117\nJC-2026-002112 · OD23DM1112 · Demo Customer 112\nJC-2026-002111 · OD22DM1111 · Demo Customer 111\nJC-2026-002110 · OD21DM1110 · Demo Customer 110\nJC-2026-002109 · OD20DM1109 · Demo Customer 109\nJC-2026-002108 · OD19DM1108 · Demo Customer 108\nJC-2026-002107 · OD18DM1107 · Demo Customer 107\nJC-2026-002106 · OD17DM1106 · Demo Customer 106\nJC-2026-002105 · OD16DM1105 · Demo Customer 105\nJC-2026-002104 · OD15DM1104 · Demo Customer 104\nJC-2026-002103 · OD14DM1103 · Demo Customer 103\nJC-2026-002102 · OD13DM1102 · Demo Customer 102\nJC-2026-002101 · OD12DM1101 · Demo Customer 101\nJC-2026-002100 · OD11DM1100 · Demo Customer 100\nJC-2026-002096 · OD07DM1096 · Demo Customer 096\nJC-2026-002095 · OD06DM1095 · Demo Customer 095\nJC-2026-002094 · OD05DM1094 · Demo Customer 094\nJC-2026-002093 · OD04DM1093 · Demo Customer 093\nJC-2026-002092 · OD03DM1092 · Demo Customer 092\nJC-2026-002091 · OD02DM1091 · Demo Customer 091\nJC-2026-002090 · OD01DM1090 · Demo Customer 090\nJC-2026-002089 · OD30DM1089 · Demo Customer 089\nJC-2026-002088 · OD29DM1088 · Demo Customer 088\nJC-2026-002087 · OD28DM1087 · Demo Customer 087\nJC-2026-002086 · OD27DM1086 · Demo Customer 086\nJC-2026-002085 · OD26DM1085 · Demo Customer 085\nJC-2026-002080 · OD21DM1080 · Demo Customer 080\nJC-2026-002079 · OD20DM1079 · Demo Customer 079\nJC-2026-002078 · OD19DM1078 · Demo Customer 078\nJC-2026-002077 · OD18DM1077 · Demo Customer 077\nJC-2026-002076 · OD17DM1076 · Demo Customer 076\nJC-2026-002075 · OD16DM1075 · Demo Customer 075\nJC-2026-002074 · OD15DM1074 · Demo Customer 074\nJC-2026-002073 · OD14DM1073 · Demo Customer 073\nJC-2026-002072 · OD13DM1072 · Demo Customer 072\nJC-2026-002071 · OD12DM1071 · Demo Customer 071\nJC-2026-002070 · OD11DM1070 · Demo Customer 070\nJC-2026-002069 · OD10DM1069 · Demo Customer 069\nJC-2026-002064 · OD05DM1064 · Demo Customer 064\nJC-2026-002063 · OD04DM1063 · Demo Customer 063\nJC-2026-002062 · OD03DM1062 · Demo Customer 062\nJC-2026-002061 · OD02DM1061 · Demo Customer 061\nJC-2026-002060 · OD01DM1060 · Demo Customer 060\nJC-2026-002059 · OD30DM1059 · Demo Customer 059\nJC-2026-002058 · OD29DM1058 · Demo Customer 058\nJC-2026-002057 · OD28DM1057 · Demo Customer 057\nJC-2026-002056 · OD27DM1056 · Demo Customer 056\nJC-2026-002055 · OD26DM1055 · Demo Customer 055\nJC-2026-002054 · OD25DM1054 · Demo Customer 054\nJC-2026-002053 · OD24DM1053 · Demo Customer 053\nJC-2026-002048 · OD19DM1048 · Demo Customer 048\nJC-2026-002047 · OD18DM1047 · Demo Customer 047\nJC-2026-002046 · OD17DM1046 · Demo Customer 046\nJC-2026-002045 · OD16DM1045 · Demo Customer 045\nJC-2026-002044 · OD15DM1044 · Demo Customer 044\nJC-2026-002043 · OD14DM1043 · Demo Customer 043\nJC-2026-002042 · OD13DM1042 · Demo Customer 042\nJC-2026-002041 · OD12DM1041 · Demo Customer 041\nJC-2026-002040 · OD11DM1040 · Demo Customer 040\nJC-2026-002039 · OD10DM1039 · Demo Customer 039\nJC-2026-002038 · OD09DM1038 · Demo Customer 038\nJC-2026-002037 · OD08DM1037 · Demo Customer 037\nJC-2026-002032 · OD03DM1032 · Demo Customer 032\nJC-2026-002031 · OD02DM1031 · Demo Customer 031\nJC-2026-002030 · OD01DM1030 · Demo Customer 030\nJC-2026-002029 · OD30DM1029 · Demo Customer 029\nJC-2026-002028 · OD29DM1028 · Demo Customer 028\nJC-2026-002027 · OD28DM1027 · Demo Customer 027\nJC-2026-002026 · OD27DM1026 · Demo Customer 026\nJC-2026-002025 · OD26DM1025 · Demo Customer 025\nJC-2026-002024 · OD25DM1024 · Demo Customer 024\nJC-2026-002023 · OD24DM1023 · Demo Customer 023\nJC-2026-002022 · OD23DM1022 · Demo Customer 022\nJC-2026-002021 · OD22DM1021 · Demo Customer 021\nJC-2026-002016 · OD17DM1016 · Demo Customer 016\nJC-2026-002015 · OD16DM1015 · Demo Customer 015\nJC-2026-002014 · OD15DM1014 · Demo Customer 014\nJC-2026-002013 · OD14DM1013 · Demo Customer 013\nJC-2026-002012 · OD13DM1012 · Demo Customer 012\nJC-2026-002011 · OD12DM1011 · Demo Customer 011\nJC-2026-002010 · OD11DM1010 · Demo Customer 010\nJC-2026-002009 · OD10DM1009 · Demo Customer 009\nJC-2026-002008 · OD09DM1008 · Demo Customer 008\nJC-2026-002007 · OD08DM1007 · Demo Customer 007\nJC-2026-002006 · OD07DM1006 · Demo Customer 006\nJC-2026-002005 · OD06DM1005 · Demo Customer 005",
+      "label": "Reconcile job",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All jobs",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "JC-2026-002144 · OD13DM1012 · Demo Customer 012",
+          "value": "144",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002143 · OD12DM1011 · Demo Customer 011",
+          "value": "143",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002142 · OD11DM1010 · Demo Customer 010",
+          "value": "142",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002141 · OD10DM1009 · Demo Customer 009",
+          "value": "141",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002140 · OD09DM1008 · Demo Customer 008",
+          "value": "140",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002139 · OD08DM1007 · Demo Customer 007",
+          "value": "139",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002138 · OD07DM1006 · Demo Customer 006",
+          "value": "138",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002137 · OD06DM1005 · Demo Customer 005",
+          "value": "137",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002136 · OD05DM1004 · Demo Customer 004",
+          "value": "136",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002135 · OD04DM1003 · Demo Customer 003",
+          "value": "135",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002134 · OD03DM1002 · Demo Customer 002",
+          "value": "134",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002133 · OD02DM1001 · Demo Customer 001",
+          "value": "133",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002128 · OD09DM1128 · Demo Customer 008",
+          "value": "128",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002127 · OD08DM1127 · Demo Customer 007",
+          "value": "127",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002126 · OD07DM1126 · Demo Customer 006",
+          "value": "126",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002125 · OD06DM1125 · Demo Customer 005",
+          "value": "125",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002124 · OD05DM1124 · Demo Customer 004",
+          "value": "124",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002123 · OD04DM1123 · Demo Customer 003",
+          "value": "123",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002122 · OD03DM1122 · Demo Customer 002",
+          "value": "122",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002121 · OD02DM1121 · Demo Customer 001",
+          "value": "121",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002120 · OD01DM1120 · Demo Customer 120",
+          "value": "120",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002119 · OD30DM1119 · Demo Customer 119",
+          "value": "119",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002118 · OD29DM1118 · Demo Customer 118",
+          "value": "118",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002117 · OD28DM1117 · Demo Customer 117",
+          "value": "117",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002112 · OD23DM1112 · Demo Customer 112",
+          "value": "112",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002111 · OD22DM1111 · Demo Customer 111",
+          "value": "111",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002110 · OD21DM1110 · Demo Customer 110",
+          "value": "110",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002109 · OD20DM1109 · Demo Customer 109",
+          "value": "109",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002108 · OD19DM1108 · Demo Customer 108",
+          "value": "108",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002107 · OD18DM1107 · Demo Customer 107",
+          "value": "107",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002106 · OD17DM1106 · Demo Customer 106",
+          "value": "106",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002105 · OD16DM1105 · Demo Customer 105",
+          "value": "105",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002104 · OD15DM1104 · Demo Customer 104",
+          "value": "104",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002103 · OD14DM1103 · Demo Customer 103",
+          "value": "103",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002102 · OD13DM1102 · Demo Customer 102",
+          "value": "102",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002101 · OD12DM1101 · Demo Customer 101",
+          "value": "101",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002100 · OD11DM1100 · Demo Customer 100",
+          "value": "100",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002096 · OD07DM1096 · Demo Customer 096",
+          "value": "96",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002095 · OD06DM1095 · Demo Customer 095",
+          "value": "95",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002094 · OD05DM1094 · Demo Customer 094",
+          "value": "94",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002093 · OD04DM1093 · Demo Customer 093",
+          "value": "93",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002092 · OD03DM1092 · Demo Customer 092",
+          "value": "92",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002091 · OD02DM1091 · Demo Customer 091",
+          "value": "91",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002090 · OD01DM1090 · Demo Customer 090",
+          "value": "90",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002089 · OD30DM1089 · Demo Customer 089",
+          "value": "89",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002088 · OD29DM1088 · Demo Customer 088",
+          "value": "88",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002087 · OD28DM1087 · Demo Customer 087",
+          "value": "87",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002086 · OD27DM1086 · Demo Customer 086",
+          "value": "86",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002085 · OD26DM1085 · Demo Customer 085",
+          "value": "85",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002080 · OD21DM1080 · Demo Customer 080",
+          "value": "80",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002079 · OD20DM1079 · Demo Customer 079",
+          "value": "79",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002078 · OD19DM1078 · Demo Customer 078",
+          "value": "78",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002077 · OD18DM1077 · Demo Customer 077",
+          "value": "77",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002076 · OD17DM1076 · Demo Customer 076",
+          "value": "76",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002075 · OD16DM1075 · Demo Customer 075",
+          "value": "75",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002074 · OD15DM1074 · Demo Customer 074",
+          "value": "74",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002073 · OD14DM1073 · Demo Customer 073",
+          "value": "73",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002072 · OD13DM1072 · Demo Customer 072",
+          "value": "72",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002071 · OD12DM1071 · Demo Customer 071",
+          "value": "71",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002070 · OD11DM1070 · Demo Customer 070",
+          "value": "70",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002069 · OD10DM1069 · Demo Customer 069",
+          "value": "69",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002064 · OD05DM1064 · Demo Customer 064",
+          "value": "64",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002063 · OD04DM1063 · Demo Customer 063",
+          "value": "63",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002062 · OD03DM1062 · Demo Customer 062",
+          "value": "62",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002061 · OD02DM1061 · Demo Customer 061",
+          "value": "61",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002060 · OD01DM1060 · Demo Customer 060",
+          "value": "60",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002059 · OD30DM1059 · Demo Customer 059",
+          "value": "59",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002058 · OD29DM1058 · Demo Customer 058",
+          "value": "58",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002057 · OD28DM1057 · Demo Customer 057",
+          "value": "57",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002056 · OD27DM1056 · Demo Customer 056",
+          "value": "56",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002055 · OD26DM1055 · Demo Customer 055",
+          "value": "55",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002054 · OD25DM1054 · Demo Customer 054",
+          "value": "54",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002053 · OD24DM1053 · Demo Customer 053",
+          "value": "53",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002048 · OD19DM1048 · Demo Customer 048",
+          "value": "48",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002047 · OD18DM1047 · Demo Customer 047",
+          "value": "47",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002046 · OD17DM1046 · Demo Customer 046",
+          "value": "46",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002045 · OD16DM1045 · Demo Customer 045",
+          "value": "45",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002044 · OD15DM1044 · Demo Customer 044",
+          "value": "44",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002043 · OD14DM1043 · Demo Customer 043",
+          "value": "43",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002042 · OD13DM1042 · Demo Customer 042",
+          "value": "42",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002041 · OD12DM1041 · Demo Customer 041",
+          "value": "41",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002040 · OD11DM1040 · Demo Customer 040",
+          "value": "40",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002039 · OD10DM1039 · Demo Customer 039",
+          "value": "39",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002038 · OD09DM1038 · Demo Customer 038",
+          "value": "38",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002037 · OD08DM1037 · Demo Customer 037",
+          "value": "37",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002032 · OD03DM1032 · Demo Customer 032",
+          "value": "32",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002031 · OD02DM1031 · Demo Customer 031",
+          "value": "31",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002030 · OD01DM1030 · Demo Customer 030",
+          "value": "30",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002029 · OD30DM1029 · Demo Customer 029",
+          "value": "29",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002028 · OD29DM1028 · Demo Customer 028",
+          "value": "28",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002027 · OD28DM1027 · Demo Customer 027",
+          "value": "27",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002026 · OD27DM1026 · Demo Customer 026",
+          "value": "26",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002025 · OD26DM1025 · Demo Customer 025",
+          "value": "25",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002024 · OD25DM1024 · Demo Customer 024",
+          "value": "24",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002023 · OD24DM1023 · Demo Customer 023",
+          "value": "23",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002022 · OD23DM1022 · Demo Customer 022",
+          "value": "22",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002021 · OD22DM1021 · Demo Customer 021",
+          "value": "21",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002016 · OD17DM1016 · Demo Customer 016",
+          "value": "16",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002015 · OD16DM1015 · Demo Customer 015",
+          "value": "15",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002014 · OD15DM1014 · Demo Customer 014",
+          "value": "14",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002013 · OD14DM1013 · Demo Customer 013",
+          "value": "13",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002012 · OD13DM1012 · Demo Customer 012",
+          "value": "12",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002011 · OD12DM1011 · Demo Customer 011",
+          "value": "11",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002010 · OD11DM1010 · Demo Customer 010",
+          "value": "10",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002009 · OD10DM1009 · Demo Customer 009",
+          "value": "9",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002008 · OD09DM1008 · Demo Customer 008",
+          "value": "8",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002007 · OD08DM1007 · Demo Customer 007",
+          "value": "7",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002006 · OD07DM1006 · Demo Customer 006",
+          "value": "6",
+          "selected": false
+        },
+        {
+          "text": "JC-2026-002005 · OD06DM1005 · Demo Customer 005",
+          "value": "5",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "SELECT",
+      "text": "All items\nleather seat cover1\nCeramic coating\nGloss PPF roll\nClear coat",
+      "label": "Reconcile item",
+      "title": "",
+      "type": "select-one",
+      "value": "ALL",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "All items",
+          "value": "ALL",
+          "selected": true
+        },
+        {
+          "text": "leather seat cover1",
+          "value": "4",
+          "selected": false
+        },
+        {
+          "text": "Ceramic coating",
+          "value": "2",
+          "selected": false
+        },
+        {
+          "text": "Gloss PPF roll",
+          "value": "1",
+          "selected": false
+        },
+        {
+          "text": "Clear coat",
+          "value": "3",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Clear",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Download",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "10\n20\n50",
+      "label": "Reconcile records per page",
+      "title": "",
+      "type": "select-one",
+      "value": "10",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "10",
+          "value": "10",
+          "selected": true
+        },
+        {
+          "text": "20",
+          "value": "20",
+          "selected": false
+        },
+        {
+          "text": "50",
+          "value": "50",
+          "selected": false
+        }
+      ]
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2",
+      "label": "Page 2",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3",
+      "label": "Page 3",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4",
+      "label": "Page 4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5",
+      "label": "Page 5",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "11",
+      "label": "Page 11",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002144",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit Reconciliation",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002143",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit Reconciliation",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002142",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Edit Reconciliation",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002141",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002140",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002139",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002138",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002137",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002136",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "JC-2026-002135",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Reconcile",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "First page",
+      "title": "First page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Previous page",
+      "title": "Previous page",
+      "type": "button",
+      "value": "",
+      "disabled": true
+    },
+    {
+      "tag": "BUTTON",
+      "text": "1",
+      "label": "Page 1",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "2",
+      "label": "Page 2",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "3",
+      "label": "Page 3",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "4",
+      "label": "Page 4",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "5",
+      "label": "Page 5",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "11",
+      "label": "Page 11",
+      "title": "",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Next page",
+      "title": "Next page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "",
+      "label": "Last page",
+      "title": "Last page",
+      "type": "button",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

@@ -1,0 +1,40 @@
+name: workshopos-import-rehearsal
+services:
+  rehearsal-db:
+    image: postgres:17-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+    environment:
+      POSTGRES_DB: stage4c_rehearsal
+      POSTGRES_USER: stage4c_rehearsal_owner
+      POSTGRES_PASSWORD: ${REHEARSAL_PASSWORD:?local credential required}
+    volumes: [rehearsal-data:/var/lib/postgresql/data]
+    networks: [isolated]
+    healthcheck:
+      test: [CMD-SHELL, 'pg_isready -U "$$POSTGRES_USER" -d "$$POSTGRES_DB"']
+      interval: 2s
+      timeout: 3s
+      retries: 30
+  runner:
+    image: workshopos-stage4a-api:50c8aab
+    read_only: true
+    tmpfs: [/tmp]
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    environment:
+      PYTHONPATH: /workspace:/rehearsal:/tools/import-planner
+      WORKSHOPOS_ENVIRONMENT: stage4c-rehearsal
+      WORKSHOPOS_DATABASE_URL: postgresql+psycopg://stage4c_rehearsal_owner:${REHEARSAL_PASSWORD:?local credential required}@rehearsal-db:5432/stage4c_rehearsal
+    volumes:
+      - .:/rehearsal:ro
+      - ../schema-validation/versions:/schema/versions:ro
+      - ../import-planner:/tools/import-planner:ro
+      - ../../public/workshopos-demo.sqlite:/source/demo.sqlite:ro
+      - ../../docs/backend-migration:/evidence:ro
+      - ./artifacts:/artifacts
+    networks: [isolated]
+    depends_on:
+      rehearsal-db: {condition: service_healthy}
+    command: [python, /rehearsal/run.py]
+volumes:
+  rehearsal-data:
+networks:
+  isolated: {internal: true}

@@ -1,3 +1,5 @@
+import { operationsApi } from "./operations-api";
+import { customersApiEnabled } from "./customer-api";
 import { useState } from "react";
 import { canMutateJobLifecycle, isTerminalMainStatus, updateEstimatedDeliveryForActor, updateJobSheetForActor } from "./db";
 import { FUEL_LEVELS, parseDamageMarks, PICKUP_DROP_OPTIONS, SERVICE_TYPES } from "./job-sheet";
@@ -18,6 +20,7 @@ function EstimatedDeliveryRow({ view, actor, mutate }: { view: JobView; actor: U
       <form className="info-row" onSubmit={(event) => {
         event.preventDefault();
         setError("");
+        if (customersApiEnabled) { void operationsApi.job(view.job, "delivery", {estimated_delivery:date}).catch(error => setError(error.message)); return; }
         mutate((db) => updateEstimatedDeliveryForActor(db, view.job.id, actor.id, date), setError);
       }}>
         <label htmlFor={`job-delivery-date-${view.job.id}`}>Estimated Delivery Date</label>
@@ -85,7 +88,7 @@ export function JobSheetSection({ view, actor, mutate, editable = false }: { vie
   return (
     <section className="editor-block job-sheet" aria-label="Job sheet">
       <h4>Job sheet</h4>
-      <form onSubmit={(event) => { event.preventDefault(); setError(""); mutate((db) => updateJobSheetForActor(db, view.job.id, actor.id, draft), setError); }}>
+      <form onSubmit={(event) => { event.preventDefault(); setError(""); if (customersApiEnabled) { void operationsApi.job(view.job, "details", draft).catch(error => setError(error.message)); return; } mutate((db) => updateJobSheetForActor(db, view.job.id, actor.id, draft), setError); }}>
         <div className="form-grid">
           <label>Service Type<select value={draft.service_type} onChange={set("service_type")}><option value="">—</option>{SERVICE_TYPES.map((item) => <option key={item}>{item}</option>)}</select></label>
           <label>Pickup / Drop<select value={draft.pickup_drop} onChange={set("pickup_drop")}><option value="">—</option>{PICKUP_DROP_OPTIONS.map((item) => <option key={item}>{item}</option>)}</select></label>

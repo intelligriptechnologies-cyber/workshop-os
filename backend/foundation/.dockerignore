@@ -1,0 +1,9 @@
+*
+!.generated/
+!.generated/candidate/
+!.generated/candidate/**
+!foundation.py
+!tests/
+!tests/**
+!Dockerfile
+!requirements.lock

@@ -1,0 +1,85 @@
+{
+  "text": "WorkshopOS\nWorkshop Management. Simplified.\nSign in to your workshop desk\nEmail\nPassword\nLogin\nEmulate User:\nadmin@example.com\nservice@example.com\nadvisor.aa@example.com\nadvisor.bb1@example.com\nreception@example.com\naccounts@example.com\nstore@example.com\ntech@example.com\nDemo version now - use quick logins only.",
+  "controls": [
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Email",
+      "title": "",
+      "type": "text",
+      "value": "admin@example.com",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Password",
+      "title": "",
+      "type": "password",
+      "value": "[redacted]",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Login",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "SELECT",
+      "text": "admin@example.com\nservice@example.com\nadvisor.aa@example.com\nadvisor.bb1@example.com\nreception@example.com\naccounts@example.com\nstore@example.com\ntech@example.com",
+      "label": "Emulate User:\nadmin@example.com\nservice@example.com\nadvisor.aa@example.com\nadvisor.bb1@example.com\nreception@example.com\naccounts@example.com\nstore@example.com\ntech@example.com\nDemo version now - use quick logins only.",
+      "title": "",
+      "type": "select-one",
+      "value": "admin@example.com",
+      "disabled": false,
+      "required": false,
+      "options": [
+        {
+          "text": "admin@example.com",
+          "value": "admin@example.com",
+          "selected": true
+        },
+        {
+          "text": "service@example.com",
+          "value": "service@example.com",
+          "selected": false
+        },
+        {
+          "text": "advisor.aa@example.com",
+          "value": "advisor.aa@example.com",
+          "selected": false
+        },
+        {
+          "text": "advisor.bb1@example.com",
+          "value": "advisor.bb1@example.com",
+          "selected": false
+        },
+        {
+          "text": "reception@example.com",
+          "value": "reception@example.com",
+          "selected": false
+        },
+        {
+          "text": "accounts@example.com",
+          "value": "accounts@example.com",
+          "selected": false
+        },
+        {
+          "text": "store@example.com",
+          "value": "store@example.com",
+          "selected": false
+        },
+        {
+          "text": "tech@example.com",
+          "value": "tech@example.com",
+          "selected": false
+        }
+      ]
+    }
+  ]
+}

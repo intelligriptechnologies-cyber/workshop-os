@@ -1,0 +1,18 @@
+ M AGENTS.md
+?? .scratch/capture-reference.mjs
+?? .scratch/codex-decoy.sqlite
+?? .scratch/codex-leads-source.sqlite
+?? .scratch/codex-snappy/
+?? .scratch/codex-ticket89-pg/
+?? .scratch/pre-integration-20261019-080154/
+?? .scratch/reference-a315448/
+?? .scratch/reference-capture-a315448/
+?? .scratch/rejected-stale-reference-captures/
+?? .scratch/restoration-backend-results.txt
+?? .scratch/restoration-browser-results.txt
+?? .scratch/restoration-checkpoint-paths
+?? .scratch/restoration-checkpoint.index
+?? .scratch/restoration-inventory-a315448/
+?? .scratch/restoration-reference-build/
+?? .scratch/restoration-visual-results.txt
+?? docs/backend-migration/

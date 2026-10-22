@@ -1,0 +1,812 @@
+{
+  "basis": "Explicit column-to-table mapping inferred from schema/source entity names; review sentinel validity and domain-specific semantics separately. Not SQL constraints.",
+  "checks": [
+    {
+      "table": "advisor_attendance",
+      "column": "user_id",
+      "target": "users.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "approvals",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "booking_call_logs",
+      "column": "booking_id",
+      "target": "bookings.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "booking_capacity_overrides",
+      "column": "booking_id",
+      "target": "bookings.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "booking_events",
+      "column": "booking_id",
+      "target": "bookings.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "booking_events",
+      "column": "actor_id",
+      "target": "users.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "bookings",
+      "column": "customer_id",
+      "target": "customers.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 2,
+      "missing": []
+    },
+    {
+      "table": "bookings",
+      "column": "vehicle_id",
+      "target": "vehicles.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 2,
+      "missing": []
+    },
+    {
+      "table": "bookings",
+      "column": "visit_id",
+      "target": "visits.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 2,
+      "missing": []
+    },
+    {
+      "table": "bookings",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 2,
+      "missing": []
+    },
+    {
+      "table": "checklist_cycles",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "checklist_items",
+      "column": "checklist_cycle_id",
+      "target": "checklist_cycles.id",
+      "nonempty_checked": 711,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "checklist_items",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 711,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "estimate_items",
+      "column": "estimate_id",
+      "target": "estimates.id",
+      "nonempty_checked": 144,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "estimate_items",
+      "column": "task_list_item_id",
+      "target": "job_task_list_items.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 144,
+      "missing": []
+    },
+    {
+      "table": "estimates",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 144,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "followups",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 119,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "gate_passes",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 27,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "gate_passes",
+      "column": "invoice_id",
+      "target": "invoices.id",
+      "nonempty_checked": 27,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "invoice_events",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "invoice_events",
+      "column": "invoice_id",
+      "target": "invoices.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "invoice_items",
+      "column": "invoice_id",
+      "target": "invoices.id",
+      "nonempty_checked": 105,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "invoice_items",
+      "column": "material_row_id",
+      "target": "material_requests.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 104,
+      "missing": []
+    },
+    {
+      "table": "invoices",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 52,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_attachments",
+      "column": "purchase_id",
+      "target": "inward_purchases.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_events",
+      "column": "purchase_id",
+      "target": "inward_purchases.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_events",
+      "column": "actor_id",
+      "target": "users.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_lines",
+      "column": "purchase_id",
+      "target": "inward_purchases.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_lines",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_lines",
+      "column": "purchase_order_line_id",
+      "target": "purchase_order_lines.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_revision_lines",
+      "column": "revision_id",
+      "target": "inward_purchase_revisions.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_revision_lines",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchase_revisions",
+      "column": "purchase_id",
+      "target": "inward_purchases.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchases",
+      "column": "supplier_id",
+      "target": "suppliers.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "inward_purchases",
+      "column": "purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "job_cards",
+      "column": "visit_id",
+      "target": "visits.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "job_cards",
+      "column": "advisor_id",
+      "target": "users.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "job_cards",
+      "column": "technician_id",
+      "target": "users.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "job_task_list_items",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 4,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "job_task_list_items",
+      "column": "service_catalog_item_id",
+      "target": "service_catalog_items.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 1,
+      "missing": []
+    },
+    {
+      "table": "local_purchases",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_approval_events",
+      "column": "approval_id",
+      "target": "material_approvals.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_approval_events",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_approval_events",
+      "column": "actor_id",
+      "target": "users.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_approvals",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_events",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_events",
+      "column": "material_row_id",
+      "target": "material_requests.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_events",
+      "column": "old_item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 1,
+      "missing": []
+    },
+    {
+      "table": "material_events",
+      "column": "new_item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_movements",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "material_movements",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_purchase_requests",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_purchase_requests",
+      "column": "mapped_inventory_item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_purchase_requests",
+      "column": "material_request_id",
+      "target": "material_requests.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_purchase_requests",
+      "column": "local_purchase_id",
+      "target": "local_purchases.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_requests",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 117,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "material_requests",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 117,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "payments",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 27,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "payments",
+      "column": "invoice_id",
+      "target": "invoices.id",
+      "nonempty_checked": 27,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "photos",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 289,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_confirmations",
+      "column": "purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_confirmations",
+      "column": "purchase_order_line_id",
+      "target": "purchase_order_lines.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_lines",
+      "column": "purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_lines",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_lines",
+      "column": "source_purchase_order_line_id",
+      "target": "purchase_order_lines.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_quotations",
+      "column": "purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_quotations",
+      "column": "purchase_order_line_id",
+      "target": "purchase_order_lines.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_receipt_lines",
+      "column": "purchase_order_receipt_id",
+      "target": "purchase_order_receipts.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_receipt_lines",
+      "column": "purchase_order_line_id",
+      "target": "purchase_order_lines.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_order_receipts",
+      "column": "purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_orders",
+      "column": "supplier_id",
+      "target": "suppliers.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "purchase_orders",
+      "column": "source_purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 2,
+      "missing": []
+    },
+    {
+      "table": "qc_checks",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 435,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "receipts",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 27,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "receipts",
+      "column": "invoice_id",
+      "target": "invoices.id",
+      "nonempty_checked": 27,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "sales_quotation_lines",
+      "column": "quotation_id",
+      "target": "sales_quotations.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "sales_quotations",
+      "column": "lead_id",
+      "target": "sales_leads.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "service_advisor_teams",
+      "column": "department_id",
+      "target": "service_departments.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "service_advisor_teams",
+      "column": "manager_id",
+      "target": "users.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "service_advisor_teams",
+      "column": "advisor_id",
+      "target": "users.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "service_catalog_items",
+      "column": "service_department_id",
+      "target": "service_departments.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "service_catalog_items",
+      "column": "brand_id",
+      "target": "service_brands.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "service_catalog_items",
+      "column": "car_segment_id",
+      "target": "car_segments.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "service_department_managers",
+      "column": "department_id",
+      "target": "service_departments.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "service_department_managers",
+      "column": "manager_id",
+      "target": "users.id",
+      "nonempty_checked": 2,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "status_history",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 146,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "stock_inwards",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "stock_inwards",
+      "column": "purchase_order_id",
+      "target": "purchase_orders.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "stock_inwards",
+      "column": "purchase_order_line_id",
+      "target": "purchase_order_lines.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "stock_inwards",
+      "column": "ledger_id",
+      "target": "stock_ledger.id",
+      "nonempty_checked": 3,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "stock_ledger",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "stock_ledger",
+      "column": "material_row_id",
+      "target": "material_requests.id",
+      "nonempty_checked": 1,
+      "null_zero_empty_excluded": 3,
+      "missing": []
+    },
+    {
+      "table": "stock_ledger",
+      "column": "item_id",
+      "target": "inventory.id",
+      "nonempty_checked": 4,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "stock_ledger",
+      "column": "inward_purchase_line_id",
+      "target": "inward_purchase_lines.id",
+      "nonempty_checked": 0,
+      "null_zero_empty_excluded": 4,
+      "missing": []
+    },
+    {
+      "table": "tasks",
+      "column": "job_card_id",
+      "target": "job_cards.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "tasks",
+      "column": "technician_id",
+      "target": "users.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "vehicles",
+      "column": "customer_id",
+      "target": "customers.id",
+      "nonempty_checked": 132,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "visits",
+      "column": "customer_id",
+      "target": "customers.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "visits",
+      "column": "vehicle_id",
+      "target": "vehicles.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    },
+    {
+      "table": "visits",
+      "column": "advisor_id",
+      "target": "users.id",
+      "nonempty_checked": 145,
+      "null_zero_empty_excluded": 0,
+      "missing": []
+    }
+  ],
+  "unmapped": [
+    {
+      "table": "sales_quotations",
+      "column": "template_id"
+    }
+  ],
+  "missing_count": 0
+}

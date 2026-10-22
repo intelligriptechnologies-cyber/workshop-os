@@ -1,0 +1,75 @@
+{
+  "text": "DEVELOPER CONTROL PLANE · BROWSER DEMO ONLY\n\nDeveloper Console\n Reset demo\nTenants\nCommunications\nBilling\nQuick platform charge\nDescription\nAmount\nDue Date\nCreate charge\nCharges\n\nNo charges for this tenant.",
+  "controls": [
+    {
+      "tag": "BUTTON",
+      "text": " Reset demo",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Tenants",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Communications",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Billing",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Description",
+      "title": "",
+      "type": "text",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Amount",
+      "title": "",
+      "type": "number",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "INPUT",
+      "text": "",
+      "label": "Due Date",
+      "title": "",
+      "type": "date",
+      "value": "",
+      "disabled": false,
+      "required": false
+    },
+    {
+      "tag": "BUTTON",
+      "text": "Create charge",
+      "title": "",
+      "type": "submit",
+      "value": "",
+      "disabled": false
+    }
+  ]
+}

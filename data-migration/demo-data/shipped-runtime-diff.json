@@ -1,0 +1,302 @@
+{
+  "advisor_attendance": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "approvals": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "booking_call_logs": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "booking_capacity_limits": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "booking_capacity_overrides": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "booking_events": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "bookings": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "car_segments": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "checklist_cycles": {
+    "shipped": 145,
+    "runtime": 145,
+    "rows_equal": true
+  },
+  "checklist_items": {
+    "shipped": 711,
+    "runtime": 711,
+    "rows_equal": true
+  },
+  "customers": {
+    "shipped": 121,
+    "runtime": 121,
+    "rows_equal": true
+  },
+  "estimate_items": {
+    "shipped": 144,
+    "runtime": 144,
+    "rows_equal": true
+  },
+  "estimates": {
+    "shipped": 144,
+    "runtime": 144,
+    "rows_equal": true
+  },
+  "followups": {
+    "shipped": 119,
+    "runtime": 119,
+    "rows_equal": true
+  },
+  "gate_passes": {
+    "shipped": 27,
+    "runtime": 27,
+    "rows_equal": true
+  },
+  "inventory": {
+    "shipped": 4,
+    "runtime": 4,
+    "rows_equal": true
+  },
+  "invoice_events": {
+    "shipped": 1,
+    "runtime": 1,
+    "rows_equal": true
+  },
+  "invoice_items": {
+    "shipped": 105,
+    "runtime": 105,
+    "rows_equal": true
+  },
+  "invoices": {
+    "shipped": 52,
+    "runtime": 52,
+    "rows_equal": false
+  },
+  "inward_purchase_attachments": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "inward_purchase_events": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "inward_purchase_lines": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "inward_purchase_revision_lines": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "inward_purchase_revisions": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "inward_purchases": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "job_cards": {
+    "shipped": 145,
+    "runtime": 145,
+    "rows_equal": true
+  },
+  "job_task_list_items": {
+    "shipped": 4,
+    "runtime": 4,
+    "rows_equal": true
+  },
+  "local_purchases": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "material_approval_events": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "material_approvals": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "material_events": {
+    "shipped": 1,
+    "runtime": 1,
+    "rows_equal": true
+  },
+  "material_movements": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "material_purchase_requests": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "material_requests": {
+    "shipped": 117,
+    "runtime": 117,
+    "rows_equal": true
+  },
+  "payments": {
+    "shipped": 27,
+    "runtime": 27,
+    "rows_equal": true
+  },
+  "photos": {
+    "shipped": 289,
+    "runtime": 289,
+    "rows_equal": true
+  },
+  "purchase_order_confirmations": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "purchase_order_lines": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "purchase_order_quotations": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "purchase_order_receipt_lines": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "purchase_order_receipts": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "purchase_orders": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "qc_checks": {
+    "shipped": 435,
+    "runtime": 435,
+    "rows_equal": true
+  },
+  "receipts": {
+    "shipped": 27,
+    "runtime": 27,
+    "rows_equal": true
+  },
+  "sales_leads": {
+    "shipped": 1,
+    "runtime": 1,
+    "rows_equal": true
+  },
+  "sales_quotation_lines": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "sales_quotations": {
+    "shipped": 1,
+    "runtime": 1,
+    "rows_equal": true
+  },
+  "service_advisor_teams": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "service_brands": {
+    "shipped": 0,
+    "runtime": 0,
+    "rows_equal": true
+  },
+  "service_catalog_items": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "service_department_managers": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "service_departments": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "status_history": {
+    "shipped": 146,
+    "runtime": 146,
+    "rows_equal": true
+  },
+  "stock_inwards": {
+    "shipped": 3,
+    "runtime": 3,
+    "rows_equal": true
+  },
+  "stock_ledger": {
+    "shipped": 4,
+    "runtime": 4,
+    "rows_equal": true
+  },
+  "suppliers": {
+    "shipped": 2,
+    "runtime": 2,
+    "rows_equal": true
+  },
+  "tasks": {
+    "shipped": 145,
+    "runtime": 145,
+    "rows_equal": true
+  },
+  "users": {
+    "shipped": 10,
+    "runtime": 10,
+    "rows_equal": true
+  },
+  "vehicles": {
+    "shipped": 132,
+    "runtime": 132,
+    "rows_equal": true
+  },
+  "visits": {
+    "shipped": 145,
+    "runtime": 145,
+    "rows_equal": true
+  }
+}

@@ -1,0 +1,642 @@
+{
+  "at": "2026-10-20T21:47:58.063Z",
+  "newContext": true,
+  "allTablesEqual": false,
+  "tables": {
+    "advisor_attendance": true,
+    "approvals": true,
+    "booking_call_logs": true,
+    "booking_capacity_limits": true,
+    "booking_capacity_overrides": true,
+    "booking_events": true,
+    "bookings": true,
+    "car_segments": true,
+    "checklist_cycles": true,
+    "checklist_items": true,
+    "customers": true,
+    "estimate_items": true,
+    "estimates": true,
+    "followups": true,
+    "gate_passes": true,
+    "inventory": true,
+    "invoice_events": true,
+    "invoice_items": true,
+    "invoices": false,
+    "inward_purchase_attachments": true,
+    "inward_purchase_events": true,
+    "inward_purchase_lines": true,
+    "inward_purchase_revision_lines": true,
+    "inward_purchase_revisions": true,
+    "inward_purchases": true,
+    "job_cards": true,
+    "job_task_list_items": true,
+    "local_purchases": true,
+    "material_approval_events": true,
+    "material_approvals": true,
+    "material_events": true,
+    "material_movements": true,
+    "material_purchase_requests": true,
+    "material_requests": true,
+    "payments": true,
+    "photos": true,
+    "purchase_order_confirmations": true,
+    "purchase_order_lines": true,
+    "purchase_order_quotations": true,
+    "purchase_order_receipt_lines": true,
+    "purchase_order_receipts": true,
+    "purchase_orders": true,
+    "qc_checks": true,
+    "receipts": true,
+    "sales_leads": true,
+    "sales_quotation_lines": true,
+    "sales_quotations": true,
+    "service_advisor_teams": true,
+    "service_brands": true,
+    "service_catalog_items": true,
+    "service_department_managers": true,
+    "service_departments": true,
+    "status_history": true,
+    "stock_inwards": true,
+    "stock_ledger": true,
+    "suppliers": true,
+    "tasks": true,
+    "users": true,
+    "vehicles": true,
+    "visits": true
+  },
+  "onlyInvoiceUpdatedAtDiffers": true,
+  "differences": [
+    {
+      "table": "invoices",
+      "row": 0,
+      "id": 1,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 1,
+      "id": 2,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 2,
+      "id": 3,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 3,
+      "id": 4,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 4,
+      "id": 5,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 5,
+      "id": 6,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 6,
+      "id": 7,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 7,
+      "id": 8,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 8,
+      "id": 9,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 9,
+      "id": 10,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 10,
+      "id": 11,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 11,
+      "id": 12,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 12,
+      "id": 13,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 13,
+      "id": 14,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 14,
+      "id": 15,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 15,
+      "id": 16,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 16,
+      "id": 17,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 17,
+      "id": 18,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 18,
+      "id": 19,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 19,
+      "id": 20,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 20,
+      "id": 21,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 21,
+      "id": 22,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 22,
+      "id": 23,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 23,
+      "id": 24,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 24,
+      "id": 25,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 25,
+      "id": 26,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 26,
+      "id": 27,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 27,
+      "id": 28,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 28,
+      "id": 29,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 29,
+      "id": 30,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 30,
+      "id": 31,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 31,
+      "id": 32,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 32,
+      "id": 33,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 33,
+      "id": 34,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 34,
+      "id": 35,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 35,
+      "id": 36,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 36,
+      "id": 37,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 37,
+      "id": 38,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 38,
+      "id": 39,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 39,
+      "id": 40,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 40,
+      "id": 41,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 41,
+      "id": 42,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 42,
+      "id": 43,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 43,
+      "id": 44,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 44,
+      "id": 45,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 45,
+      "id": 46,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 46,
+      "id": 47,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 47,
+      "id": 48,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 48,
+      "id": 49,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 49,
+      "id": 50,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 50,
+      "id": 51,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    },
+    {
+      "table": "invoices",
+      "row": 51,
+      "id": 52,
+      "fields": {
+        "updated_at": {
+          "before": "2026-10-20 21:40:45",
+          "after": "2026-10-20 21:47:57"
+        }
+      }
+    }
+  ]
+}
