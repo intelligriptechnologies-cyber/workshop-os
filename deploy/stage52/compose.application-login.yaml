@@ -1,0 +1,5 @@
+# Gate removal only; retain the immutable frontend image and application security.
+services:
+  frontend:
+    volumes:
+      - /opt/workshop/stage49/stage52-candidate/nginx.application-login.conf:/etc/nginx/nginx.conf:ro
