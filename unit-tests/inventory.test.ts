@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
-import { createInventoryItem, createSchema, migrateSchema, readState, stockIn, updateInventoryItem } from "../src/db";
+import { createInventoryItem, createSchema, migrateSchema, readLegacyState as readState, stockIn, updateInventoryItem } from "../src/db";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });

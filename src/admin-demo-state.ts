@@ -1,4 +1,4 @@
-const customersApiEnabled = import.meta.env?.VITE_CUSTOMERS_API === "true";
+
 import type { Role } from "./types";
 import { DEFAULT_TEMPLATE_VERSION, findUnsupportedPlaceholders, seedReportTemplates, type CompanyAssets, type ReportCategory, type ReportTemplate } from "./report-templates";
 
@@ -492,7 +492,8 @@ export function normalizeAppTheme(theme?: Partial<AppTheme>): AppTheme {
 export const DEFAULT_ADMIN_DEMO_STATE: Readonly<AdminDemoState> = createDefaultAdminDemoState();
 
 function browserSessionStorage(): SessionStorageLike | undefined {
-  return typeof sessionStorage === "undefined" ? undefined : sessionStorage;
+  // Explicit injected stores are retained for recovery/unit tests only.
+  return undefined;
 }
 
 function mergeSettings(
@@ -570,8 +571,7 @@ export function hydrateAdminConfiguration(state: AdminDemoState) {
 }
 
 export function loadAdminDemoState(storage: SessionStorageLike | undefined = browserSessionStorage(), now: Date | string = new Date()): AdminDemoState {
-  if (customersApiEnabled) return clone(serverConfiguration ?? createDefaultAdminDemoState());
-  if (!storage) return createDefaultAdminDemoState(now);
+  if (!storage) return clone(serverConfiguration ?? createDefaultAdminDemoState());
   try {
     const raw = storage.getItem(ADMIN_DEMO_STORAGE_KEY) ?? storage.getItem(LEGACY_ADMIN_DEMO_STORAGE_KEY);
     if (!raw) return createDefaultAdminDemoState(now);
@@ -583,7 +583,7 @@ export function loadAdminDemoState(storage: SessionStorageLike | undefined = bro
 }
 
 export function saveAdminDemoState(state: AdminDemoState, storage: SessionStorageLike | undefined = browserSessionStorage(), now: Date | string = new Date()): AdminDemoState {
-  if (customersApiEnabled) throw new Error("Administration changes require the PostgreSQL API.");
+  if (!storage) throw new Error("Administration changes require the PostgreSQL API.");
   const retained = enforceLogRetention({ ...state, version: ADMIN_DEMO_STATE_VERSION }, now);
   storage?.setItem(ADMIN_DEMO_STORAGE_KEY, JSON.stringify(retained));
   return retained;

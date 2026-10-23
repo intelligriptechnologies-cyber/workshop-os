@@ -26,7 +26,8 @@ export const DOCUMENT_SNAPSHOT_KEY = "workshopos.documentSnapshots.v1";
 
 export interface SnapshotStorage { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem?(key: string): void }
 
-const browserStorage = (): SnapshotStorage | undefined => { try { return typeof sessionStorage === "undefined" ? undefined : sessionStorage; } catch { return undefined; } };
+// No implicit browser persistence. Explicit stores serve recovery tests only.
+const browserStorage = (): SnapshotStorage | undefined => undefined;
 
 let cache: DocumentSnapshot[] | undefined;
 let remoteSnapshots: DocumentSnapshot[] = [];
@@ -34,7 +35,7 @@ let remoteMode = false;
 export function hydrateDocumentSnapshots(value: DocumentSnapshot[]) { remoteMode = true; remoteSnapshots = value; }
 
 export function loadDocumentSnapshots(storage: SnapshotStorage | undefined = browserStorage()): DocumentSnapshot[] {
-  if (remoteMode && storage === browserStorage()) return remoteSnapshots;
+  if (!storage) return remoteSnapshots;
   if (cache && storage === browserStorage()) return cache;
   let parsed: DocumentSnapshot[] = [];
   try { const raw = storage?.getItem(DOCUMENT_SNAPSHOT_KEY); const value = raw ? JSON.parse(raw) : []; parsed = Array.isArray(value) ? value : []; } catch { parsed = []; }
@@ -43,7 +44,7 @@ export function loadDocumentSnapshots(storage: SnapshotStorage | undefined = bro
 }
 
 export function saveDocumentSnapshots(snapshots: DocumentSnapshot[], storage: SnapshotStorage | undefined = browserStorage()) {
-  if (remoteMode && storage === browserStorage()) return;
+  if (!storage) throw new Error("Document snapshots require the PostgreSQL API.");
   if (storage === browserStorage()) cache = snapshots;
   try { storage?.setItem(DOCUMENT_SNAPSHOT_KEY, JSON.stringify(snapshots)); } catch { /* quota or blocked storage: keep the in-memory copy */ }
 }
@@ -95,7 +96,7 @@ export function planSnapshots(existing: readonly DocumentSnapshot[], prev: reado
 
 /** Applies planSnapshots to the stored list; returns true when anything changed. */
 export function syncDocumentSnapshots(prev: readonly JobView[] | undefined, next: readonly JobView[], admin: Templates, storage?: SnapshotStorage): boolean {
-  if (remoteMode && (!storage || storage === browserStorage())) return false;
+  if (!storage) return false;
   const existing = loadDocumentSnapshots(storage);
   const updated = planSnapshots(existing, prev, next, admin);
   if (JSON.stringify(updated) === JSON.stringify(existing)) return false;

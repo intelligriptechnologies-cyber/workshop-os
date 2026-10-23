@@ -7,7 +7,7 @@ import {
   createResolvedFollowup,
   createSchema,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
 } from "../src/db";
 import { serviceFollowupStatus } from "../src/service-advisor";
 

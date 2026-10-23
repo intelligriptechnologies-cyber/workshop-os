@@ -1,4 +1,4 @@
-const CACHE_NAME = "workshopos-static-v3";
+const CACHE_NAME = "workshopos-static-v4-postgresql";
 const SHELL = ["/", "/manifest.webmanifest", "/icon.svg"];
 
 self.addEventListener("install", (event) => {

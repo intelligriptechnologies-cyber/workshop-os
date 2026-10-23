@@ -9,7 +9,7 @@ import {
   createServiceDepartment,
   ensureDemoTeamStructure,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   removeServiceAdvisorTeam,
   removeServiceDepartmentManager,
   updateUser,

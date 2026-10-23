@@ -1,0 +1,5 @@
+import ts from 'typescript';import fs from 'node:fs';import path from 'node:path';
+const names=['LegacyInwardPurchasesWorkspace','InwardPurchasesWorkspace','InventoryMaterialsManager','DuplicateInventoryEditor','DuplicateVisitEditor','DeveloperConsole'];
+const files=ts.sys.readDirectory('src',['.ts','.tsx'],undefined,['**/*']);const hits=Object.fromEntries(names.map(n=>[n,[]]));const persistence=[];
+for(const file of files){const text=fs.readFileSync(file,'utf8'),source=ts.createSourceFile(file,text,ts.ScriptTarget.Latest,true);function visit(n){if(ts.isIdentifier(n)&&names.includes(n.text))hits[n.text].push({file,line:source.getLineAndCharacterOfPosition(n.getStart()).line+1,kind:ts.SyntaxKind[n.parent.kind]});ts.forEachChild(n,visit)}visit(source);text.split('\n').forEach((line,i)=>{if(/indexedDB|localStorage|sessionStorage|browserStorage|sql\.js|caches\.|serviceWorker/.test(line))persistence.push({file,line:i+1,text:line.trim()})});}
+fs.writeFileSync('backend/customer-slice/artifacts/pgonly-static-inventory.json',JSON.stringify({hits,persistence},null,2));console.log(JSON.stringify(hits,null,2));

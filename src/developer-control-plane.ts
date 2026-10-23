@@ -1,3 +1,4 @@
+import {postgresOnly} from './postgres-only';
 import type { Role } from "./types";
 
 export const DEVELOPER_EMAIL = "developer@admin.com";
@@ -63,7 +64,7 @@ export interface DeveloperControlPlaneState {
 }
 
 export interface SessionStorageLike { getItem(key: string): string | null; setItem(key: string, value: string): void; removeItem(key: string): void; }
-const browserStorage = (): SessionStorageLike | undefined => typeof sessionStorage === "undefined" ? undefined : sessionStorage;
+const browserStorage = (): SessionStorageLike | undefined => undefined;
 const iso = (now: Date | string) => new Date(now).toISOString();
 
 export const EMULATION_ROLE_LABELS: Record<EmulationRole, string> = {

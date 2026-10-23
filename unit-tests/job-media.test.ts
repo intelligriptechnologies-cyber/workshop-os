@@ -8,7 +8,7 @@ import {
   createSchema,
   exportPersistableDatabase,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   saveJobPhotoForActor,
   updateJobPhotoForActor,
 } from "../src/db";

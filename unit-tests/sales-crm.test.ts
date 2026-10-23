@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs from "sql.js";
-import { createSalesLead, createSalesQuotation, createSchema, migrateSchema, readState, setSalesQuotationStatus, updateSalesLead, updateSalesQuotation } from "../src/db";
+import { createSalesLead, createSalesQuotation, createSchema, migrateSchema, readLegacyState as readState, setSalesQuotationStatus, updateSalesLead, updateSalesQuotation } from "../src/db";
 import { filterSalesLeads, leadDraft, leadFilterQuery } from "../src/sales-lead-register";
 import type { Lead } from "../src/sales-api";
 

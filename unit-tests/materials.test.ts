@@ -13,7 +13,7 @@ import {
   materialStockOnHand,
   releaseMaterialRowForActor,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   reconcileArtifactChecklist,
   reRequestMaterialRowForActor,
   requestMaterialRowForActor,

@@ -11,7 +11,7 @@ import {
   editIssuedMaterialRowForActor,
   materialStockOnHand,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   recordPaymentForActor,
   releaseMaterialRowForActor,
   setChecklistItemCheckedForActor,

@@ -10,7 +10,7 @@ import {
   MAIN_STATUS_TRANSITIONS,
   migrateLifecycleStorage,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   setChecklistItemChecked,
   updateJobCard,
 } from "../src/db";

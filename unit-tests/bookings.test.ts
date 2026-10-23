@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
-import { bookingCapacityForDate, cancelBooking, checkInBooking, confirmBooking, createBooking, createSchema, markBookingNoShow, migrateSchema, readState, recordBookingCall, rescheduleBooking, setBookingCapacityForDate, updateBooking } from "../src/db";
+import { bookingCapacityForDate, cancelBooking, checkInBooking, confirmBooking, createBooking, createSchema, markBookingNoShow, migrateSchema, readLegacyState as readState, recordBookingCall, rescheduleBooking, setBookingCapacityForDate, updateBooking } from "../src/db";
 
 async function database() {
   const SQL = await initSqlJs({ locateFile: () => fileURLToPath(new URL("../node_modules/sql.js/dist/sql-wasm.wasm", import.meta.url)) });

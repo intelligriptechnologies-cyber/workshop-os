@@ -1,7 +1,7 @@
 import type { Customer, User } from './types';
 import prefill from 'virtual:workshop-demo-credentials';
 
-export const customersApiEnabled = import.meta.env.VITE_CUSTOMERS_API === 'true';
+export const customersApiEnabled = true;
 export type ApiCustomer = Customer & { version: number };
 export type CustomerLinks = { customer: ApiCustomer; vehicles: Array<{id:number;number:string;make:string;model:string}>; jobs: Array<{id:number;job_no:string;main_status:string;vehicle_number:string}> };
 let loginCsrf = '';

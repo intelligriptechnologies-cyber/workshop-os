@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { fileURLToPath } from "node:url";
 import initSqlJs, { type Database } from "sql.js";
-import { archiveJobPhotoForActor, createSchema, migrateSchema, readState, receiveVehicle, saveJobDetailsForActor, saveJobPhotoForActor, setDamageMarksForActor, updateEstimatedDeliveryForActor, updateJobSheetForActor } from "../src/db";
+import { archiveJobPhotoForActor, createSchema, migrateSchema, readLegacyState as readState, receiveVehicle, saveJobDetailsForActor, saveJobPhotoForActor, setDamageMarksForActor, updateEstimatedDeliveryForActor, updateJobSheetForActor } from "../src/db";
 import { addDamageMark, parseDamageMarks, removeDamageMark } from "../src/job-sheet";
 
 async function database() {

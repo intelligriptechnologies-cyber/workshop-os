@@ -8,7 +8,7 @@ import {
   createServiceCatalogMaster,
   createServiceDepartment,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   updateServiceCatalogItemForActor,
   updateServiceCatalogMaster,
 } from "../src/db";

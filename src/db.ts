@@ -1,3 +1,5 @@
+import {denyLocal} from './postgres-only';
+import {readPostgresState} from './postgres-state';
 import { WORKBOOK_INVENTORY_SEED } from "./inventory-seed";
 import {
   canCompleteWithInvoice,
@@ -11,7 +13,7 @@ import {
   type GstType,
 } from "./invoice-math";
 import { serializeDamageMarks, type DamageMark } from "./job-sheet";
-import initSqlJs, { type Database, type SqlJsStatic } from "sql.js";
+import type { Database } from "sql.js";
 import {
   canEditIssuedMaterialRows,
   canReleaseMaterialRows,
@@ -99,14 +101,8 @@ import type {
 import { validateMediaDataUrl, type JobMediaCategory } from "./job-media";
 import demoDeliveryDates from "./demo-delivery-dates.json";
 
-const STORAGE_KEY = "workshopos.sqlite.v2";
-const DELIVERY_DATES_MIGRATION_KEY = "workshopos.delivery-dates.2026-10-09.v1";
 export const DEFAULT_SERVICE_WORK_BOOKING_CAPACITY = 8;
 export const DEFAULT_GENERAL_CHECKUP_FOLLOWUP_BOOKING_CAPACITY = 4;
-const wasmUrl = new URL(
-  "../node_modules/sql.js/dist/sql-wasm.wasm",
-  import.meta.url,
-).href;
 type DbValue = number | string | Uint8Array | null;
 
 export const LIFECYCLE_CHECKLIST: Record<ChecklistStage, readonly SubStatus[]> =
@@ -151,110 +147,30 @@ function checklistStageForSubStatus(subStatus: SubStatus): ChecklistStage {
   );
 }
 
-let SQL: SqlJsStatic | undefined;
-
-const externalCustomerDatabases = new WeakSet<Database>();
-const CUSTOMER_SLICE_STORAGE_KEY = 'workshopos.sqlite.customers-api.v1';
-const OPERATIONS_STORAGE_KEY = 'workshopos.sqlite.operations-api.v1';
-const REMAINING_STORAGE_KEY = 'workshopos.sqlite.remaining-api.v1';
-const ADMINISTRATION_STORAGE_KEY = 'workshopos.sqlite.administration-api.v1';
-const BOOKING_STORAGE_KEY = 'workshopos.sqlite.bookings-api.v1';
-const FINANCIAL_STORAGE_KEY = 'workshopos.sqlite.financial-api.v1';
-const STOCK_STORAGE_KEY = 'workshopos.sqlite.stock-api.v1';
-const ESTIMATES_STORAGE_KEY = 'workshopos.sqlite.estimates-api.v1';
-
-const projectionTables = new WeakMap<Database, string[]>();
+const directProjections = new WeakMap<Database, OperationalProjection>();
 type OperationalProjection = Record<string, Array<Record<string, unknown>>>;
-const allowedProjectionTables = new Set(["sales_leads", "sales_quotations", "sales_quotation_lines", "service_departments", "service_department_managers", "service_advisor_teams", "service_catalog_items", "service_brands", "car_segments", "users", "followups", "bookings", "booking_events", "booking_call_logs", "booking_capacity_limits", "booking_capacity_overrides", "vehicles", "advisor_attendance", "checklist_cycles", "checklist_items", "job_cards", "photos", "qc_checks", "status_history", "tasks", "visits", "estimate_items", "estimates", "gate_passes", "invoice_events", "invoice_items", "invoices", "job_task_list_items", "material_approval_events", "material_approvals", "material_requests", "payments", "receipts", "inventory", "inward_purchase_attachments", "inward_purchase_events", "inward_purchase_lines", "inward_purchase_revision_lines", "inward_purchase_revisions", "inward_purchases", "local_purchases", "material_events", "material_movements", "material_purchase_requests", "purchase_order_confirmations", "purchase_order_lines", "purchase_order_quotations", "purchase_order_receipt_lines", "purchase_order_receipts", "purchase_orders", "stock_inwards", "stock_ledger", "suppliers"]);
 
 export function replaceCustomerProjection(db: Database, customers: Customer[], projection?: OperationalProjection) {
-  const tables = ['customers', ...Object.keys(projection ?? {}).filter(t => allowedProjectionTables.has(t))];
-  for (const row of db.exec("select name from sqlite_temp_master where type='trigger' and name like 'guard_%'")[0]?.values ?? []) db.run(`drop trigger ${row[0]}`);
-  db.run('savepoint remote_projection');
-  try {
-    const data: OperationalProjection = { customers: customers as unknown as Array<Record<string,unknown>>, ...projection };
-    for (const table of tables) {
-      const columns = new Set(db.exec(`pragma table_info(${table})`)[0].values.map(row => String(row[1])));
-      db.run(`delete from ${table}`);
-      for (const row of data[table]) {
-        const fields=Object.keys(row).filter(key=>columns.has(key));
-        db.run(`insert into ${table}(${fields.map(f=>`"${f}"`).join(',')}) values(${fields.map(()=>'?').join(',')})`,fields.map(f=>row[f] == null ? null : typeof row[f]==='boolean' ? Number(row[f]) : row[f]) as (string|number|null)[]);
-      }
-    }
-    db.run('release savepoint remote_projection');
-  } catch(error) { db.run('rollback to savepoint remote_projection'); db.run('release savepoint remote_projection'); throw error; }
-  projectionTables.set(db,tables);
-  installProjectionGuards(db);
+ if(!projection)denyLocal("missing API projection");
+ directProjections.set(db,{...projection,customers:customers as unknown as Array<Record<string,unknown>>});
 }
 
-function installProjectionGuards(db: Database) {
-  const tables = projectionTables.get(db) ?? ['customers'];
-  const linkedTables = (db.exec("select name from sqlite_master where type='table' and name not like 'sqlite_%'")[0]?.values ?? []).map(r=>String(r[0])).filter(table => (db.exec(`pragma table_info(${table})`)[0]?.values ?? []).some(r => ['job_card_id','estimate_id','invoice_id','receipt_id','payment_id'].includes(String(r[1]))));
-  for(const table of new Set([...tables,...linkedTables])) for(const op of ['insert','update','delete']) db.run(`create temp trigger if not exists guard_${table}_${op} before ${op} on ${table} begin select raise(abort,'This operation requires the PostgreSQL API.'); end`);
-}
+
 
 export async function openWorkshopDb(remoteCustomers?: Customer[], projection?: OperationalProjection) {
-  SQL ??= await initSqlJs({ locateFile: () => wasmUrl });
-  const saved = remoteCustomers ? (projection ? localStorage.getItem(REMAINING_STORAGE_KEY) ?? localStorage.getItem(ADMINISTRATION_STORAGE_KEY) ?? localStorage.getItem(BOOKING_STORAGE_KEY) ?? localStorage.getItem(FINANCIAL_STORAGE_KEY) ?? localStorage.getItem(STOCK_STORAGE_KEY) ?? localStorage.getItem(ESTIMATES_STORAGE_KEY) ?? localStorage.getItem(OPERATIONS_STORAGE_KEY) : null) ?? localStorage.getItem(CUSTOMER_SLICE_STORAGE_KEY) ??
-    localStorage.getItem(STORAGE_KEY) ?? localStorage.getItem('workshopos.sqlite.v1') :
-    localStorage.getItem(STORAGE_KEY) ??
-    localStorage.getItem("workshopos.sqlite.v1");
-  let bytes: Uint8Array;
-  if (saved) {
-    bytes = Uint8Array.from(atob(saved), (char) => char.charCodeAt(0));
-  } else {
-    const response = await fetch(`${import.meta.env.BASE_URL}workshopos-demo.sqlite`);
-    if (!response.ok) throw new Error("Could not load the WorkshopOS demo database.");
-    bytes = new Uint8Array(await response.arrayBuffer());
-  }
-  const db = new SQL.Database(bytes);
-  createSchema(db);
-  migrateSchema(db);
-  if (scalar<number>(db, "select count(*) from users") === 0) seed(db);
-  ensureDemoAdvisors(db);
-  ensureDemoTeamStructure(db);
-  if (saved && !localStorage.getItem(DELIVERY_DATES_MIGRATION_KEY)) {
-    for (const [jobNo, date] of Object.entries(demoDeliveryDates)) {
-      db.run(
-        "update job_cards set estimated_delivery=? where job_no=? and main_status in ('NEW','IN_PROGRESS','HOLD')",
-        [date, jobNo],
-      );
-    }
-  }
-  if (remoteCustomers) {
-    externalCustomerDatabases.add(db);
-    replaceCustomerProjection(db, remoteCustomers, projection);
-  }
-  persist(db);
-  localStorage.setItem(DELIVERY_DATES_MIGRATION_KEY, "1");
-  return db;
+ if(!remoteCustomers||!projection)denyLocal("bootstrap without API projection");
+ const handle=new Proxy({close(){}},{get(target,key){if(key==="then")return undefined;if(key==="close")return target.close;return ()=>denyLocal("retired SQLite."+String(key));}}) as unknown as Database;
+ replaceCustomerProjection(handle,remoteCustomers,projection);return handle;
 }
 
-export function persist(db: Database) {
-  if (!SQL) throw new Error("SQL.js is not initialized.");
-  const binary = exportPersistableDatabase(
-    db,
-    (bytes) => new SQL!.Database(bytes),
-  );
-  let encoded = "";
-  binary.forEach((byte: number) => {
-    encoded += String.fromCharCode(byte);
-  });
-  localStorage.setItem(externalCustomerDatabases.has(db) ? (projectionTables.get(db)?.includes("sales_leads") ? REMAINING_STORAGE_KEY : projectionTables.get(db)?.includes("users") ? ADMINISTRATION_STORAGE_KEY : projectionTables.get(db)?.includes("bookings") ? BOOKING_STORAGE_KEY : projectionTables.get(db)?.includes("invoice_events") ? FINANCIAL_STORAGE_KEY : projectionTables.get(db)?.includes("inventory") ? STOCK_STORAGE_KEY : projectionTables.get(db)?.includes("estimates") ? ESTIMATES_STORAGE_KEY : projectionTables.get(db)?.includes("job_cards") ? OPERATIONS_STORAGE_KEY : CUSTOMER_SLICE_STORAGE_KEY) : STORAGE_KEY, btoa(encoded));
-}
+export function persist(_db: Database): never { return denyLocal("retired browser business persistence"); }
 
 export function exportPersistableDatabase(
   db: Database,
   cloneDatabase: (bytes: Uint8Array) => Database,
 ) {
-  // SQL.js export closes/reopens its connection, discarding TEMP triggers.
-  // Reinstall the write boundary on the live connection before returning it.
-  let binary: Uint8Array;
-  try { binary = db.export(); }
-  finally { if (externalCustomerDatabases.has(db)) installProjectionGuards(db); }
-  const clone = cloneDatabase(binary);
+  const clone = cloneDatabase(db.export());
   try {
-    if (externalCustomerDatabases.has(db)) for (const table of projectionTables.get(db) ?? ['customers']) clone.run(`delete from ${table}`);
     // Image payloads deliberately live only in the active SQL.js session database.
     clone.run(
       "delete from photos where trim(coalesce(mime_type,''))<>'' or src like 'data:image/%'",
@@ -267,7 +183,8 @@ export function exportPersistableDatabase(
   }
 }
 
-export function readState(db: Database): WorkshopState {
+/** SQL reference reader for explicitly supplied in-memory test fixtures only. Never used by startup. */
+export function readLegacyState(db: Database): WorkshopState {
   const users = all<User>(
     db,
     "select * from users where archived_at is null order by id",
@@ -651,6 +568,10 @@ export function readState(db: Database): WorkshopState {
     service_brands,
     car_segments,
   };
+}
+
+export function readState(db: Database): WorkshopState {
+ const projection=directProjections.get(db);if(!projection)denyLocal("readState without API projection");return readPostgresState(projection);
 }
 
 /** Placeholder shown while a job is waiting for Reception to map a Service Advisor (advisor_id 0). */
@@ -1289,7 +1210,7 @@ export function createCustomer(
   db: Database,
   payload: Pick<Customer, "name" | "mobile" | "type"> & { address?: string },
 ) {
-  if (externalCustomerDatabases.has(db)) throw new Error('Customer changes require the Customers API.');
+  if (directProjections.has(db)) throw new Error('Customer changes require the Customers API.');
   validateCustomer(db, payload);
   return insert(
     db,
@@ -1308,7 +1229,7 @@ export function updateCustomer(
   id: number,
   payload: Pick<Customer, "name" | "mobile" | "type"> & { address?: string },
 ) {
-  if (externalCustomerDatabases.has(db)) throw new Error('Customer changes require the Customers API.');
+  if (directProjections.has(db)) throw new Error('Customer changes require the Customers API.');
   validateCustomer(db, payload, id);
   db.run(
     "update customers set name=?, mobile=?, type=?, address=coalesce(?, address), updated_at=datetime('now') where id=?",
@@ -1323,7 +1244,7 @@ export function updateCustomer(
 }
 
 export function archiveCustomer(db: Database, id: number, reason: string) {
-  if (externalCustomerDatabases.has(db)) throw new Error('Customer changes require the Customers API.');
+  if (directProjections.has(db)) throw new Error('Customer changes require the Customers API.');
   archive(db, "customers", id, reason);
 }
 

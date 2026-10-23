@@ -9,7 +9,7 @@ import {
   createSupplierForActor,
   issuePurchaseOrderForActor,
   migrateSchema,
-  readState,
+  readLegacyState as readState,
   closePurchaseOrderForActor,
   confirmPurchaseOrderForActor,
   recordPurchaseOrderReceiptForActor,

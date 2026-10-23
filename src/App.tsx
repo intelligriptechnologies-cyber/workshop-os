@@ -1,3 +1,4 @@
+import {postgresOnly,postgresOnlyError,verificationEvidence} from './postgres-only';
 import { runCatalog } from "./catalog-api";
 import { administrationApi } from "./administration-api";
 import { executionApi, runExecution } from "./execution-api";
@@ -573,6 +574,7 @@ const apiErrors: Record<string, string> = {
 };
 
 function apiErrorMessage(error: unknown) {
+  if(postgresOnly && error instanceof Error && error.message.startsWith("PostgreSQL required:"))return error.message;
   if (error instanceof CustomerApiError) return error.message === "INVALID_CREDENTIALS" ? "Invalid email or password" : error.message;
   const code =
     error instanceof AdminApiError
@@ -657,17 +659,6 @@ function App() {
     if (!items.some((item) => item.label === activeMenuItem))
       setActiveMenuItem(items[0]?.label ?? "");
   }, [activeMenuItem, currentAdminState, user]);
-
-  useEffect(() => {
-    if (customersApiEnabled) return;
-    openWorkshopDb().then((database) => {
-      setDb(database);
-      const next = readState(database);
-      syncDocumentSnapshots(undefined, next.jobs, loadAdminDemoState());
-      setState(next);
-      setSelectedJobId(next.jobs[0]?.job.id);
-    });
-  }, []);
 
   useEffect(() => {
     const font =
@@ -928,61 +919,10 @@ function App() {
   const selected =
     state?.jobs.find((item) => item.job.id === selectedJobId) ?? state?.jobs[0];
 
-  const mutate: Mutate = (action, onError) => {
-    if (!db) return false;
-    try {
-      if (customersApiEnabled) db.run("savepoint local_boundary");
-      action(db);
-      if (customersApiEnabled) db.run("release savepoint local_boundary");
-    } catch (error) {
-      if (customersApiEnabled) { db.run("rollback to savepoint local_boundary"); db.run("release savepoint local_boundary"); }
-      const message = error instanceof Error ? error.message : "Action failed";
-      if (onError) onError(message);
-      else window.alert(message);
-      return false;
-    }
-    persist(db);
-    const next = readState(db);
-    if (customersApiEnabled) attachOperationalVersions(next);
-    if (action === loadLargeDemoDataset) clearDocumentSnapshots();
-    syncDocumentSnapshots(
-      action === loadLargeDemoDataset ? undefined : state?.jobs,
-      next.jobs,
-      loadAdminDemoState(),
-    );
-    setState(customersApiEnabled && state ? { ...next, customers: state.customers, archived_customers: state.archived_customers } : next);
-    if (!selectedJobId && next.jobs[0]) setSelectedJobId(next.jobs[0].job.id);
-    if (action !== loadLargeDemoDataset) {
-      const previousJobs = state?.jobs ?? [];
-      const previousById = new Map(
-        previousJobs.map((view) => [view.job.id, view]),
-      );
-      const created = next.jobs.filter(
-        (view) => !previousById.has(view.job.id),
-      );
-      const closed = next.jobs.filter(
-        (view) =>
-          view.job.main_status === "CLOSED" &&
-          previousById.get(view.job.id)?.job.main_status !== "CLOSED",
-      );
-      const event =
-        created.length === 1
-          ? { type: "created" as const, view: created[0] }
-          : closed.length === 1
-            ? { type: "closed" as const, view: closed[0] }
-            : undefined;
-      if (event) {
-        const payload = renderJobCardNotification(
-          event.type,
-          event.view,
-          loadAdminDemoState().businessSettings,
-        );
-        deliverJobCardNotificationStub(payload, (deliveryMessage) =>
-          setJobCardNotification({ payload, deliveryMessage }),
-        );
-      }
-    }
-    return true;
+  const mutate: Mutate = (_action, onError) => {
+    verificationEvidence.blocked.push("retired local mutation");
+    (onError ?? window.alert)(postgresOnlyError);
+    return false;
   };
 
   const handleLogin = async (email: string, password: string) => {
@@ -1005,29 +945,7 @@ function App() {
       finally { setAuthLoading(false); }
       return;
     }
-    if (!state) return;
-    if (
-      authConfig?.mode === "local" &&
-      email.trim().toLowerCase() === DEVELOPER_EMAIL &&
-      password === DEVELOPER_PASSWORD
-    ) {
-      setDeveloperMode(true);
-      setDeveloperEmulation(undefined);
-      setLoginError("");
-      return;
-    }
-    const found = login(state, email, password);
-    if (!found) {
-      setLoginError("Use one of the demo emails with password admin123.");
-      return;
-    }
-    setUser(found);
-    const items = menuItemsForRole(
-      found.role,
-      resolvePermittedPages(loadAdminDemoState(), found.role),
-    );
-    setActiveMenuItem(items[0]?.label ?? "");
-    setLoginError("");
+
   };
 
   const handleLogout = async () => {
@@ -11352,7 +11270,7 @@ export function UserManager({
                             : undefined
                         }
                         onClick={() =>
-                          customersApiEnabled ? administrationApi.archiveUser(item.id, "Archived by Admin").catch(error => window.alert(apiErrorMessage(error))) : mutate((db) =>
+                          customersApiEnabled ? administrationApi.archiveUser(item, "Archived by Admin").catch(error => window.alert(apiErrorMessage(error))) : mutate((db) =>
                             archiveUser(
                               db,
                               item.id,
