@@ -20,14 +20,9 @@ from app.database_auth import hash_password, verify_password
 
 TENANT='eb01f21c-09d1-5cb1-aadb-d15649568fd7'
 BRANCH='12809bd1-d793-52d2-878d-7f0f8f1d6e09'
-ORIGIN=os.environ['SLICE_ORIGIN']
-STAGE=os.environ['SLICE_STAGE']
-PREFILL=os.environ.get('SLICE_PREFILL')=='true'
-if PREFILL and STAGE not in ('development','test'): raise RuntimeError('Production fixture prohibited')
-url=make_url(os.environ['SLICE_DATABASE_URL'])
-if (url.host,url.database,url.username) not in [('slice-dev','slice_dev','slice_auth'),('slice-test','slice_test','slice_auth')] or url.query:
-    raise RuntimeError('Only isolated slice databases are permitted')
-engine=create_engine(url,hide_parameters=True,pool_pre_ping=True)
+from runtime_config import load_runtime
+STAGE,ORIGIN,PREFILL,url=load_runtime(os.environ)
+engine=create_engine(url,hide_parameters=True,pool_pre_ping=True,pool_size=2,max_overflow=3,pool_timeout=5,connect_args={'connect_timeout':3})
 TTL=int(os.environ.get('SLICE_SESSION_SECONDS','28800'))
 SESSION='workshopos_session'; CSRF='workshopos_csrf'; PREAUTH='workshopos_login_nonce'
 ROLES={'admin','service','service_manager','reception','accounts','store','tech'}
@@ -35,6 +30,16 @@ app=FastAPI()
 digest=lambda value: hashlib.sha256(value.encode()).hexdigest()
 
 def fail(code, status=401): raise HTTPException(status,detail={'code':code})
+
+@app.get('/api/v1/health/ready')
+def readiness():
+    try:
+        with engine.connect() as c:
+            if c.scalar(text('SELECT version_num FROM alembic_version')) != '20261022_0053':
+                fail('NOT_READY',503)
+    except Exception:
+        fail('NOT_READY',503)
+    return {'status':'ok'}
 
 @app.exception_handler(HTTPException)
 async def domain_error(_,exc): return JSONResponse(exc.detail,status_code=exc.status_code)

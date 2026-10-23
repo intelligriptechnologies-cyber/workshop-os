@@ -1,0 +1,8 @@
+{
+    admin off
+    auto_https disable_redirects
+}
+https://localhost:18551 {
+    tls /run/secrets/private_cert /run/secrets/private_key
+    reverse_proxy workshopos-stage49-frontend:8080
+}

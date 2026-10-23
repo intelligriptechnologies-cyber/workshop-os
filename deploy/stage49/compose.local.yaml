@@ -1,0 +1,17 @@
+# LOCAL REHEARSAL ONLY. Never include this gateway on the shared Hetzner host.
+services:
+  local-https:
+    image: caddy:2.11.4-alpine@sha256:6aeddd44c3078b0f9a35206472a11420648a79c184603ef95957d0a20044cb2b
+    ports: ['127.0.0.1:18549:18549']
+    volumes:
+      - ./Caddyfile.local:/etc/caddy/Caddyfile:ro
+      - local_caddy_data:/data
+      - local_caddy_config:/config
+    networks: [proxy]
+    mem_limit: 128m
+    cpus: 0.25
+    depends_on:
+      frontend: {condition: service_healthy}
+volumes:
+  local_caddy_data: {}
+  local_caddy_config: {}

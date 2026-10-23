@@ -1,0 +1,86 @@
+name: workshopos-stage49
+services:
+  frontend:
+    image: ${WORKSHOPOS_FRONTEND_IMAGE:?immutable frontend image required}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 128m
+    cpus: 0.25
+    pids_limit: 64
+    secrets: [access_htpasswd]
+    networks:
+      app: {}
+      proxy:
+        aliases: [workshopos-stage49-frontend]
+    depends_on:
+      api: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, wget, -q, -O, /dev/null, 'http://127.0.0.1:8080/health']
+      interval: 30s
+      timeout: 5s
+      retries: 3
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+  api:
+    image: ${WORKSHOPOS_API_IMAGE:?immutable API image required}
+    restart: unless-stopped
+    read_only: true
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 128
+    environment:
+      SLICE_STAGE: staging
+      SLICE_PREFILL: 'false'
+      SLICE_ORIGIN: ${WORKSHOPOS_STAGING_ORIGIN:?HTTPS origin required}
+      SLICE_DATABASE_URL_FILE: /run/secrets/runtime_url
+      SLICE_SESSION_SECONDS: '28800'
+    secrets: [runtime_url]
+    networks: [app, database]
+    depends_on:
+      db: {condition: service_healthy}
+    healthcheck:
+      test: [CMD, python, -c, 'import urllib.request; urllib.request.urlopen("http://127.0.0.1:8000/api/v1/health/ready",timeout=3).read()']
+      interval: 15s
+      timeout: 5s
+      retries: 5
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+  db:
+    image: postgres:17-alpine@sha256:6f30057d31f5861b66f3545d4821f987aacf1dd920765f0acadea0c58ff975b1
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: workshopos_staging
+      # Historical import guards require this owner name. Dedicated cluster only.
+      POSTGRES_USER: stage4c_rehearsal_owner
+      POSTGRES_PASSWORD_FILE: /run/secrets/owner_password
+    secrets: [owner_password]
+    command: [postgres, -c, max_connections=30, -c, shared_buffers=128MB]
+    mem_limit: 1g
+    cpus: 1
+    pids_limit: 128
+    volumes: [postgres_data:/var/lib/postgresql/data]
+    networks:
+      database:
+        aliases: [workshopos-db]
+    healthcheck:
+      test: [CMD, pg_isready, -U, stage4c_rehearsal_owner, -d, workshopos_staging]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: {driver: json-file, options: {max-size: 10m, max-file: '3'}}
+networks:
+  app: {internal: true}
+  database: {internal: true}
+  proxy:
+    external: true
+    name: ${WORKSHOPOS_PROXY_NETWORK:?existing proxy network required}
+volumes:
+  postgres_data: {}
+secrets:
+  owner_password: {file: '${WORKSHOPOS_SECRETS_DIR:?secret directory required}/owner_password'}
+  runtime_url: {file: '${WORKSHOPOS_SECRETS_DIR:?secret directory required}/runtime_url'}
+  access_htpasswd: {file: '${WORKSHOPOS_SECRETS_DIR:?secret directory required}/access_htpasswd'}

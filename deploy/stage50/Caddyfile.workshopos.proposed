@@ -1,0 +1,5 @@
+# PROPOSAL ONLY: append this exact site block after separate cutover approval.
+# Preserve every existing block, including the old workshopos-staging hostname.
+workshopos.nexiohyper.com {
+    reverse_proxy workshopos-stage49-frontend:8080
+}

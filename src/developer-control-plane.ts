@@ -2,7 +2,7 @@ import {postgresOnly} from './postgres-only';
 import type { Role } from "./types";
 
 export const DEVELOPER_EMAIL = "developer@admin.com";
-export const DEVELOPER_PASSWORD = "admin123";
+export const DEVELOPER_PASSWORD = import.meta.env?.PROD ? "" : "admin123";
 export const DEVELOPER_CONTROL_PLANE_VERSION = 1;
 export const DEVELOPER_CONTROL_PLANE_STORAGE_KEY = `workshopos.developer-control-plane.v${DEVELOPER_CONTROL_PLANE_VERSION}`;
 

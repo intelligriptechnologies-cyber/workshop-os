@@ -1,0 +1,16 @@
+{
+  "stage": 51,
+  "purpose": "private testing only; off-host backups deferred by user",
+  "git_head": "158f092d90b229e0148d0216b91d3f4f0d426079",
+  "working_tree": "pre-existing Stage49/50 changes preserved; see source checkpoint manifest",
+  "approved_frontend": "a315448ce8c3f8f86026b58c18a2231bb3e5e9a7",
+  "project": "workshopos-stage51",
+  "release_dir": "/opt/workshop/stage49/stage51-release",
+  "origin": "https://localhost:18551",
+  "api_image": "sha256:8de208f43c9ef04838749ef8140610707ba0cafdfe6a3379dcbef9edb90317e4",
+  "frontend_image": "sha256:0372e0d9bb883590e51d48e1159f401e417e1c6eb1ea2051976bf8bb0acdcae2",
+  "source_sha256": "04c64fc97e977c83d083e1f2c8b195ab5f8a7e8a167ba5b18dbf86a42db945ae",
+  "migration_head": "20261022_0053",
+  "public_activation": false,
+  "off_host_backup_verified": false
+}

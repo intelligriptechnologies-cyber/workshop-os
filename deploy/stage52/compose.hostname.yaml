@@ -1,0 +1,14 @@
+# Apply only as part of the approved hostname activation, after security gates.
+# Keep the private networks and all existing shared-proxy memberships intact.
+services:
+  api:
+    environment:
+      SLICE_ORIGIN: https://workshopos.nexiohyper.com
+  frontend:
+    networks:
+      public_proxy:
+        aliases: [workshopos-stage49-frontend]
+networks:
+  public_proxy:
+    external: true
+    name: workshopos-staging-proxy

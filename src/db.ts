@@ -652,8 +652,8 @@ export function ensureDemoAdvisors(db: Database) {
       ]) === 0
     )
       db.run(
-        "insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service', 'admin123', datetime('now'), datetime('now'))",
-        [email, name],
+        "insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service', ?, datetime('now'), datetime('now'))",
+        [email, name, import.meta.env?.PROD ? "" : "admin123"],
       );
   });
   // A fresh (or older persisted) demo used one advisor for every seeded job.
@@ -711,8 +711,8 @@ export function ensureDemoTeamStructure(db: Database) {
     if (!manager) {
       const id = insert(
         db,
-        "insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service_manager', 'admin123', datetime('now'), datetime('now'))",
-        [email, name],
+        "insert into users(email, name, role, password, created_at, updated_at) values (?, ?, 'service_manager', ?, datetime('now'), datetime('now'))",
+        [email, name, import.meta.env?.PROD ? "" : "admin123"],
       );
       manager = one<User>(db, "select * from users where id=?", [id]);
     }

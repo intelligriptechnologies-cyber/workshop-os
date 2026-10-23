@@ -1,0 +1,25 @@
+services:
+  initialize:
+    image: ${WORKSHOPOS_API_IMAGE:?API image required}
+    profiles: [initialize]
+    read_only: true
+    tmpfs: ['/tmp:size=32m,mode=1777']
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    mem_limit: 512m
+    cpus: 0.75
+    pids_limit: 128
+    environment:
+      WORKSHOPOS_INITIALIZE: EMPTY_DEDICATED_STAGE49
+    secrets:
+      - owner_password
+      - runtime_password
+      - source: accounts
+        target: accounts.json
+    volumes:
+      - ${WORKSHOPOS_SOURCE_SQLITE:?approved read-only source required}:/source/demo.sqlite:ro
+    networks: [database]
+    command: [python, /deployment/initialize.py]
+secrets:
+  runtime_password: {file: '${WORKSHOPOS_SECRETS_DIR:?secret directory required}/runtime_password'}
+  accounts: {file: '${WORKSHOPOS_SECRETS_DIR:?secret directory required}/accounts.json'}
