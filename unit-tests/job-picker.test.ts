@@ -6,7 +6,8 @@ import type { JobView } from "../src/types";
 const view = (received_at: string, id = 1) => ({ job: { id }, visit: { received_at } }) as JobView;
 
 test("job picker derives its current Month-Year from the local calendar", () => {
-  const now = new Date("2026-09-26T00:30:00+05:30");
+  // Exercise local midnight independently of the machine's timezone.
+  const now = new Date(2026, 8, 26, 0, 30);
   assert.equal(localCalendarDate(now), "2026-09-26");
   assert.deepEqual(todayJobPeriod(now), { monthYear: "2026-09" });
 });
