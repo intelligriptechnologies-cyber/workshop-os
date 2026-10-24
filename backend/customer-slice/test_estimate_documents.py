@@ -93,12 +93,9 @@ try:
  raise AssertionError('Wrong-job media association was accepted')
 except IntegrityError as error:
  check('database rejects cross-job media content',error.orig.diag.constraint_name=='slice_media_content_same_job')
-try:
- with business(request_context) as (connection,user):
-  connection.execute(text('UPDATE document_snapshots SET html=:h WHERE job_card_id=:j'),dict(h='tampered',j=j))
- raise AssertionError('Immutable document was editable')
-except DBAPIError as error:
- check('runtime cannot overwrite frozen documents',error.orig.sqlstate=='42501')
+from document_security_test_support import assert_frozen_documents
+with business(request_context) as (connection,user):
+ assert_frozen_documents(connection,check,{'estimate'})
 with business(request_context) as (connection,user):
  connection.execute(text("SELECT set_config('workshopos.branch_ids','{}',true)"))
  check('media bytes hidden outside branch scope',connection.scalar(text('SELECT count(*) FROM slice_media_content'))==0)

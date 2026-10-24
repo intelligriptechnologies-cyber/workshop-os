@@ -1,0 +1,85 @@
+name: Workshop OS PostgreSQL CI
+on:
+  push:
+    branches: [Prem-dev-fbb-Go21]
+  pull_request:
+    branches: [Prem-dev-fbb-Go21]
+permissions:
+  contents: read
+concurrency:
+  group: workshopos-pg-ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+jobs:
+  verify:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Prepare allowlisted contexts
+        run: python3 deploy/ci/prepare.py
+      - name: Lint PostgreSQL workflows
+        run: docker run --rm -v "$PWD:/repo:ro" -w /repo rhysd/actionlint@sha256:b1934ee5f1c509618f2508e6eb47ee0d3520686341fec936f3b79331f9315667 .github/workflows/postgres-ci.yml .github/workflows/postgres-deploy.yml
+      - name: Build pinned frontend and backend images
+        run: |
+          docker build --platform linux/amd64 --label "org.opencontainers.image.revision=$GITHUB_SHA" -t workshopos-ci-api .scratch/pipeline-context/api
+          docker build --platform linux/amd64 --label "org.opencontainers.image.revision=$GITHUB_SHA" -t workshopos-ci-frontend .scratch/pipeline-context/frontend
+          python3 deploy/ci/verify_frontend.py
+      - name: TypeScript, frontend unit and business calculation regressions
+        run: |
+          docker run --rm -v "$PWD:/repo" -w /repo node:24-alpine@sha256:06d7adf3e0ef61a13f1d28682726366f97a15aa1888c934d3ecec86c33918b53 sh -ec 'npm ci && npm run test:unit'
+      - name: Disposable PostgreSQL migrations, auth, RBAC and business regressions
+        run: python3 deploy/ci/test_backend.py
+      - name: Deployment guard tests
+        if: always()
+        run: python3 -m unittest discover -s deploy/ci -p 'test_guards.py' -v
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: always()
+        with:
+          name: postgres-ci-results
+          include-hidden-files: true
+          path: .scratch/backend-ci-results.json
+          if-no-files-found: warn
+          retention-days: 30
+      - name: Save tested images
+        if: github.event_name == 'push'
+        run: docker save workshopos-ci-api workshopos-ci-frontend -o .scratch/tested-images.tar
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        if: github.event_name == 'push'
+        with:
+          name: postgres-tested-images
+          include-hidden-files: true
+          path: .scratch/tested-images.tar
+          if-no-files-found: error
+          retention-days: 1
+  publish:
+    needs: verify
+    if: github.event_name == 'push' && github.ref == 'refs/heads/Prem-dev-fbb-Go21'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    permissions:
+      contents: read
+      packages: write
+      actions: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Publish immutable image references
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh run download "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY" -n postgres-tested-images -D .scratch
+          docker load -i .scratch/tested-images.tar
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          python3 deploy/ci/publish.py
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: postgres-release
+          include-hidden-files: true
+          path: .scratch/postgres-release.json
+          if-no-files-found: error
+          retention-days: 90

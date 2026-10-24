@@ -1,0 +1,67 @@
+name: Workshop OS PostgreSQL manual deployment
+on:
+  workflow_dispatch:
+    inputs:
+      ci_run_id:
+        description: Successful PostgreSQL CI push run containing postgres-release
+        required: true
+        type: string
+permissions:
+  contents: read
+  actions: read
+concurrency:
+  group: workshopos-postgres-hetzner
+  cancel-in-progress: false
+jobs:
+  deploy:
+    if: github.ref == 'refs/heads/Prem-dev-fbb-Go21'
+    environment:
+      name: workshopos-postgres
+      url: https://workshopos.nexiohyper.com
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          persist-credentials: false
+      - name: Verify release provenance and activation gate
+        env:
+          GH_TOKEN: ${{ github.token }}
+          RUN_ID: ${{ inputs.ci_run_id }}
+          ENABLED: ${{ vars.WORKSHOPOS_DEPLOY_ENABLED }}
+        run: |
+          test "$ENABLED" = true
+          [[ "$RUN_ID" =~ ^[0-9]+$ ]]
+          gh api "repos/$GITHUB_REPOSITORY/actions/runs/$RUN_ID" > run.json
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open('run.json'))
+          assert r['path']=='.github/workflows/postgres-ci.yml'
+          assert r['event']=='push' and r['conclusion']=='success'
+          assert r['head_branch']=='Prem-dev-fbb-Go21'
+          assert r['head_repository']['full_name']==os.environ['GITHUB_REPOSITORY']
+          assert r['head_sha']==os.environ['GITHUB_SHA'], 'Dispatch the exact tested branch HEAD'
+          PY
+          gh run download "$RUN_ID" --repo "$GITHUB_REPOSITORY" -n postgres-release -D release
+          python3 - <<'PY'
+          import json, os
+          r=json.load(open('release/postgres-release.json'))
+          assert r['commit']==os.environ['GITHUB_SHA'] and r['run_id']==os.environ['RUN_ID']
+          PY
+      - name: Deploy only approved Workshop services
+        env:
+          DEPLOY_KEY: ${{ secrets.WORKSHOPOS_PG_DEPLOY_KEY }}
+          KNOWN_HOSTS: ${{ secrets.WORKSHOPOS_PG_KNOWN_HOSTS }}
+          TARGET_HOST: ${{ secrets.WORKSHOPOS_PG_HOST }}
+          TARGET_USER: ${{ secrets.WORKSHOPOS_PG_USER }}
+        run: |
+          set -euo pipefail
+          install -d -m 700 ~/.ssh
+          printf '%s\n' "$DEPLOY_KEY" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          printf '%s\n' "$KNOWN_HOSTS" > ~/.ssh/known_hosts
+          trap 'rm -f ~/.ssh/id_ed25519' EXIT
+          [[ "$TARGET_HOST" =~ ^[a-zA-Z0-9.-]+$ ]]
+          [[ "$TARGET_USER" =~ ^[a-z_][a-z0-9_-]*$ ]]
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes -o IdentitiesOnly=yes "$TARGET_USER@$TARGET_HOST" \
+            python3 /opt/workshop/cicd/deploy.py < release/postgres-release.json

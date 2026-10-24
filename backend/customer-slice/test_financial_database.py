@@ -34,6 +34,11 @@ denied('database rejects duplicate settled posting',"""INSERT INTO payments(tena
  WHERE slice_finance AND status='Cleared' LIMIT 1""")
 with engine.begin() as c:
     scoped(c)
+    from document_security_test_support import assert_frozen_documents
+    def document_check(name, condition):
+        assert condition, name
+        checks.append(name)
+    assert_frozen_documents(c, document_check, {'estimate', 'invoice', 'payment-receipt', 'gate-pass'})
     c.execute(text("SELECT set_config('workshopos.branch_ids','{}',true)"))
     assert c.scalar(text('SELECT count(*) FROM invoices'))==0
     assert c.scalar(text('SELECT count(*) FROM payments'))==0
